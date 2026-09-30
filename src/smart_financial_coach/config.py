@@ -1,0 +1,43 @@
+"""Application settings, loaded from `SFC_*` environment variables and an optional `.env`."""
+
+from functools import lru_cache
+from pathlib import Path
+
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_prefix="SFC_",
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    # Storage
+    data_dir: Path = PROJECT_ROOT / "data"
+    artifacts_dir: Path = PROJECT_ROOT / "artifacts"
+    sqlite_filename: str = "sfc.sqlite3"
+
+    # Synthetic data: separate seeds for training and test users
+    train_seed: int = 42
+    test_seed: int = 1337
+
+    # LLM (provider TBD, see Technical Design open questions)
+    llm_provider: str | None = None
+    llm_model: str | None = None
+    llm_api_key: SecretStr | None = Field(default=None, repr=False)
+
+    log_level: str = "INFO"
+
+    @property
+    def sqlite_path(self) -> Path:
+        return self.data_dir / self.sqlite_filename
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
