@@ -233,7 +233,7 @@ class Model(Protocol):
 - **`y` is optional** because anomaly and spike models are unsupervised; categorization always passes it.
 - **Registry:** implementations register under a name (`@register("categorization/linear_text")`) and are built from config, so a new candidate is a class plus a YAML file. The runner, MLflow logging and promotion don't change.
 - **Composition:** wrappers implement the same protocol, so FR-4's ideas are configurations, not new plumbing:
-  - `Calibrated(base, by="familiarity", method=...)`: calibrates confidence per group (§3).
+  - `Calibrated(base, by="familiarity", method=...)`: calibrates confidence per group (§3). It maps only the predicted class's probability, so the predicted category never changes.
   - `Routed(seen=..., unseen=...)`: n-grams for familiar strings, embeddings for unfamiliar ones.
   - `Lookup(fallback=...)`: exact normalized-string lookup in front of a model.
 
@@ -250,9 +250,11 @@ A `Task` owns everything problem-specific, so the runner stays generic. The cate
   | `test_known` | `stratified_rows(0.2, by=category)` within train users | Known-merchant gate, finalists only |
   | `test_all` | `by_user_split(test)` | All test users, finalists only |
   | `test_unseen` | `test_all` ∩ `membership(holdout merchants)` | Unseen merchants, finalists only |
-  | Validation folds | `group_kfold(merchant_id, k=5, stratify=category)` over `train`, plus a seeded 10% seen-merchant row sample per fold (§5) | Choosing hyperparameters, fitting calibrators, **comparing experiments** |
+  | Validation folds | `group_kfold(merchant_id, k=5, stratify=category, eligible=holdout-eligible merchants)` over `train`, plus a seeded 10% seen-merchant row sample per fold (§5) | Choosing hyperparameters, fitting calibrators, **comparing experiments** |
 
-- **Leak checks** run on every split, before any fit: no ID in two sets; no fold's held-out merchant in that fold's training rows; `test_unseen` only holdout merchants; label noise only on rows a model trains on. A failure stops the run.
+- **Validation-unseen matches `test_unseen`'s population.** The catalog's holdout rule never picks some merchants: each category's most popular ones, the top merchant of each subtype, and merchants in excluded categories. On the default spec these protected merchants are 64 of train users' 233 spending merchants and carry 34% of their spending transactions (87% of Health & Fitness). None of them can ever be in `test_unseen`. They are mostly big chains, which pretrained embeddings know best, so letting them rotate through validation would favor some candidates. So they stay in every fold's training rows, and only the ~169 holdout-eligible merchants are held out, still about 3× the 58 in `test_unseen`. The eligible set comes from the generator's own holdout rule, factored into one function that both the generator and the task call, so the two can't drift apart.
+
+- **Leak checks** run on every split, before any fit: no ID in two sets; no fold's held-out merchant in that fold's training rows; no protected merchant in any fold's held-out group; `test_unseen` only holdout merchants; label noise only on rows a model trains on. A failure stops the run.
 - **Split hashes** (a hash of each set's sorted IDs) are logged with every run, so two runs can be compared only if they used the same splits. The runner refuses to put runs with different split hashes on one leaderboard.
 
 ### Experiment runner and tracking (MLflow)
@@ -284,7 +286,7 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 
 1. **Compare on validation only.** Merchant-grouped folds stand in for unseen merchants; the seen-merchant fold rows stand in for known ones. Every run gets `val_known_macro_f1`, `val_unseen_macro_f1` and `val_unseen_ece`.
 2. **Write the decision rule before the runs** ([Experiment plan](#experiment-plan)).
-3. **Score test sets once, for finalists.** `sfc-experiment finalize` scores at most three runs on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The test numbers are reported, not used to choose among the finalists again.
+3. **Score test sets once, for finalists.** `sfc-experiment finalize` scores at most three runs on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The task's round 0 baselines are always scored alongside them and don't count toward the three, so the "beats the baseline" gate has test numbers to compare against. The test numbers are reported, not used to choose among the finalists again. The one exemption is the POC reproduction check (§3).
 
 ### Promotion and serving
 
@@ -294,6 +296,7 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, latency within budget, and a written note on explainability and operations (`--note`, stored on the run).
 3. Registers the model in the MLflow model registry as `categorization` and moves the `champion` alias to it.
 4. Exports it to `artifacts/categorization/<version>/` and writes `artifacts/categorization/PROMOTED`, which holds the version.
+5. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results and the note. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
 
 `load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 
@@ -354,7 +357,8 @@ The feasibility "both" configuration, made into a reproducible scikit-learn pipe
 - **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. The vocabulary is built from all training rows *before* the per-class cap, so a known merchant's string isn't treated as unseen just because the cap sampled it out. In the POC split, that cuts known-merchant test rows wrongly treated as unseen from 1.3% to 0.9%, and test users' rows at known merchants from 2.6% to 1.8% (measured in review). Familiarity is model-visible, so it works the same way in production. Each familiarity group gets its own calibrator, fitted on the cross-fitted predictions in §5. The method (temperature or isotonic) is chosen by expected calibration error.
 - **Why split calibration by familiarity:** in feasibility the model is already calibrated on known merchants (ECE 0.009). A calibrator fitted on known merchants would change almost nothing there and leave unseen merchants over-confident (ECE up to 0.16). That is the case FR-5's low-confidence review exists for.
 - **Why start here:** it meets the FR-3 target by a wide margin in feasibility, trains in seconds on CPU, and stays explainable (top n-grams per class). It is the candidate to beat, not a foregone conclusion: the [experiment plan](#experiment-plan) decides what is promoted.
-- **First check of the framework:** with label noise off, C fixed at 3 and the POC's split, it must reproduce the POC's 0.988 / 0.929 / 0.638 within ±0.005. A larger gap means the port is wrong.
+- **First check of the framework:** with label noise off, calibration off, C fixed at 3 and the POC's split, it must reproduce the POC's 0.988 / 0.929 / 0.638 within ±0.005. A larger gap means the port is wrong.
+- **The one exemption from "test sets only in `finalize`":** this check has to score the test sets in round 1. It re-scores a configuration whose test numbers are already published, and nothing is chosen with it. The runner allows it only with `--reproduce-poc`, which accepts only the POC's configurations (by config hash), tags the run `reproduce_poc`, and excludes the run from the leaderboard and from `finalize`. There is no general way to score test sets outside `finalize`.
 
 ### 4. Income
 
@@ -373,12 +377,12 @@ This is what the [runner](#experiment-runner-and-tracking-mlflow) does for the c
 1. Load model-visible transactions and `truth_transactions.category` for train users.
 2. **Known-merchant test:** the Technical Design's stratified 20% by transaction within train users. The other 80% are the training rows.
 3. **Grouped cross-fitting** chooses C and fits the calibrators without holding any merchant out of the shipped model:
-   - Split the merchants that appear in the training rows into K = 5 seeded groups, stratified by category so each group has merchants from most categories.
+   - Split the holdout-eligible merchants that appear in the training rows into K = 5 seeded groups, stratified by category so each group has merchants from most categories. Protected merchants are never held out ([Tasks and splits](#tasks-and-splits)).
    - For each group k, train a fold model on the training rows outside group k, minus a seeded 10% row sample of those merchants. It predicts on group k's rows (merchants it has never seen) and on the 10% sample (merchants it has seen).
    - Pool the out-of-fold predictions. Each row's familiarity is computed against its own fold model's training vocabulary, exactly as production computes it against the full training set.
    - Choose C by the mean of pooled macro F1 on unseen-merchant rows and on seen-merchant rows. Then fit one calibrator per familiarity group on the pooled predictions for that C.
    - **The shipped model** is then trained on all training rows with the chosen C, and the calibrators are attached. No merchant is left out, so all train-user merchants are learned.
-   - Cost: K × 3 values of C = 15 fits of about 30 s each, around 8 minutes on a laptop CPU.
+   - Cost: K × 3 values of C = 15 fits, plus the shipped model's fit: 16 fits of about 30 s each, around 8 minutes on a laptop CPU per configuration.
    - The calibrators come from fold models, each trained on about 80% of the merchants, and are applied to the shipped model. That approximation is checked directly: §6 reports the shipped model's calibration error on the known-merchant test, all test users and unseen merchants.
 4. **Label noise:** applied *after* splitting, to the rows each model trains on (fold models and the shipped model). It flips a configurable share of labels uniformly to another category; the default is 2%, a Technical Design control against flattering results. It never touches held-out fold rows, calibration rows or test rows, so calibration can't learn the noise. The report states the rate.
 5. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k) for each model, sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes. The familiarity vocabulary is built before the cap (§3).
@@ -445,7 +449,7 @@ configs/
 New dependencies:
 
 - `fastembed` (ONNX runtime, about 130 MB model download, cached). Tests that need the embedding model are marked `slow`. Unit tests use a stub embedder so CI doesn't download it (see [option B](#b-text-representation)).
-- `mlflow`, imported only by `evaluation/tracking.py` and `promote.py`. Unit tests log to a temporary local store.
+- `mlflow`, imported only by `evaluation/tracking.py` and `promote.py`, in a `train` dependency group rather than `[project.dependencies]`. The full package brings a server stack (Flask, SQLAlchemy, Alembic and more) that the dashboard doesn't need; a serving install leaves the group out. The group is the full package rather than `mlflow-skinny` because `mlflow ui` and `mlflow server` need it. CI installs the group; unit tests log to a temporary local store. `fastembed` stays a runtime dependency, because serving embeds new merchant strings.
 
 ## Experiment plan
 
@@ -455,8 +459,12 @@ The framework exists so that choosing a model is an experiment, not an argument.
 
 1. **Eligible:** validation known-merchant macro F1 ≥ 0.90 and above the keyword baseline's validation score.
 2. **Ranked by validation unseen-merchant macro F1.** Every feasibility candidate already clears the known-merchant gate (0.97–0.99), so the unseen-merchant score is where candidates differ and where users notice: every new merchant is unseen.
-3. **Ties:** two runs are tied if the 95% interval of their paired difference (merchant-level bootstrap over the same validation folds) contains 0. Ties are broken by validation unseen-merchant ECE after calibration, then p95 latency, then explainability, then operational simplicity (fewer components and dependencies).
-4. **Finalists:** the top three by this rule go to `finalize`. The rule's winner is promoted if it passes the test gates. If it fails one, that's investigated before anything is promoted; the finalists are never re-ranked on test scores.
+3. **Ties, defined against the leader only** (pairwise ties aren't transitive, so they wouldn't give one order across ~40 runs):
+   - The leader is the eligible run with the best point estimate.
+   - Its tie set is every eligible run whose paired difference with the leader has a 95% interval containing 0 (merchant-level bootstrap over the same validation folds). The leader is in its own tie set.
+   - Within the tie set, runs are ordered by validation unseen-merchant ECE after calibration, then p95 latency, then explainability, then operational simplicity (fewer components and dependencies).
+   - If the tie set has fewer than three runs, the rest of the order is by point estimate.
+4. **Finalists:** the top three in that order go to `finalize`, and the baselines are scored with them (see [Selection discipline](#selection-discipline)). The rule's winner is promoted if it passes the test gates. If it fails one, that's investigated before anything is promoted; the finalists are never re-ranked on test scores.
 
 ### Experiment rounds
 
@@ -464,7 +472,7 @@ The framework exists so that choosing a model is an experiment, not an argument.
 | --- | --- | --- |
 | 0. Baselines | Majority class; keyword rules; exact normalized-string lookup | The floor every model must beat |
 | 1. Reproduce | POC's n-grams / embeddings / both | Does the framework match the POC (§3)? |
-| 2. Text features | N-gram ranges (2–4, 1–5, word unigrams + bigrams); raw vs normalized text for n-grams; embedding models available in `fastembed` (bge-small, bge-base, all-MiniLM-L6, multilingual-e5-small, and others listed there) | How much is the text representation worth on unseen merchants? |
+| 2. Text features | N-gram ranges (2–4, 1–5, word unigrams + bigrams); raw vs normalized text for n-grams; embedding models, all supported by `fastembed` 0.8.1: `BAAI/bge-small-en-v1.5` (POC), `BAAI/bge-base-en-v1.5` and `BAAI/bge-large-en-v1.5` (does size help?), `sentence-transformers/all-MiniLM-L6-v2` and `snowflake/snowflake-arctic-embed-m` (other training lineages), `minishlab/potion-base-8M` (static embeddings: much faster, how much worse?) | How much is the text representation worth on unseen merchants? |
 | 3. Side features | Remove amount, sign, channel, hour one at a time | Does hour stay in? Does amount help with ambiguous merchants? |
 | 4. Training regime | Per-class cap 5k / 20k / none; one row per unique normalized string; balanced vs no class weights; label noise 0 / 2 / 5% | Do frequent merchants drown out rare ones? How sensitive is the model to noise? |
 | 5. Classifiers | Logistic regression; linear SVM + calibration; kNN over embeddings; gradient-boosted trees (`HistGradientBoostingClassifier`) on dense features | Is the classifier or the features the bottleneck? |
@@ -473,7 +481,8 @@ The framework exists so that choosing a model is an experiment, not an argument.
 | 8. Optional | Fine-tuned small transformer | Only if rounds 2–6 plateau well below 0.80 on unseen merchants |
 
 - Later rounds start from the best of earlier ones, so the grid grows with the number of rounds, not their product.
-- **Budget:** about 30 s per fit × 5 folds × the C grid. Rounds 0–7 are about 40 configurations, roughly 2 hours on a laptop CPU, resumable.
+- **Budget:** 16 fits of about 30 s per configuration (§5), about 8 minutes. Rounds 0–7 are about 40 configurations, roughly **5–6 hours** on a laptop CPU, plus the slower candidates: embedding all 12.8k strings with each larger model (once, then cached), kNN and boosted trees. That's an overnight run, which is why the runner resumes.
+- **Additions** to any round after the runs start are recorded in this section with a reason.
 - **Output:** the MLflow experiment with every run, a comparison table in the evaluation report (validation metrics and intervals for all runs, test metrics for the finalists), and an updated FR-3 Categorization Model Selection recording what won, what lost and why, and what stays open for FR-4.
 
 ## Options considered
@@ -534,7 +543,7 @@ Sharing needs a tracking server everyone can reach. Until one is chosen, runs li
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Serve directly from the MLflow registry (`models:/categorization@champion`) | One source of truth | The dashboard depends on the tracking server and on `mlflow` at runtime |
-| **(b) MLflow alias + exported folder and `PROMOTED` pointer (recommended)** | Serving needs only files; registry still records what was promoted and when | Two records to keep consistent; `promote` writes both, and a test checks they match |
+| **(b) MLflow alias + exported folder and `PROMOTED` pointer (recommended)** | Serving needs only files; registry still records what was promoted and when | Registry history is machine-local until a shared server exists, so `promote` also appends to a committed `promotions.jsonl`; tests check `PROMOTED` against it |
 | (c) Pointer file only, no registry | Simplest | Loses promotion history in the tracker |
 
 ### H. How experiments are compared
@@ -548,7 +557,7 @@ Sharing needs a tracking server everyone can reach. Until one is chosen, runs li
 ## Testing
 
 - **Unit:** label noise never touches validation, calibration or test rows. Loading an artifact whose embedding file checksum doesn't match the manifest fails. In cross-fitting, every training merchant is held out in exactly one fold and never appears in that fold model's training rows. The shipped model trains on every training merchant. The familiarity vocabulary includes strings the per-class cap sampled out. The normalizer handles every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
-- **Framework (fake models, no real data):** the registry builds a model from config and rejects unknown names. Each splitter's leak check fails on a constructed leak (shared ID, held-out merchant in fold training rows, non-holdout merchant in the unseen set). The runner logs params, tags, split hashes and `val_*` metrics to a temporary MLflow store and writes no `test_*` metrics. `finalize` refuses more than three runs and runs with different split hashes. `promote` refuses a non-finalist and a run that fails a gate, and leaves the MLflow alias and `PROMOTED` pointing at the same version. `load_service` returns a contract-checked model, and a model that returns too few rows, an unknown category or confidence outside [0, 1] fails the check. A resumed sweep skips finished configs.
+- **Framework (fake models, no real data):** the registry builds a model from config and rejects unknown names. Each splitter's leak check fails on a constructed leak (shared ID, held-out merchant in fold training rows, protected merchant in a held-out group, non-holdout merchant in the unseen set). The generator and the task get the same holdout-eligible merchants from the shared function. The runner logs params, tags, split hashes and `val_*` metrics to a temporary MLflow store and writes no `test_*` metrics; `--reproduce-poc` refuses any config that isn't a POC config. `finalize` refuses more than three runs and runs with different split hashes, and always scores the baselines. The decision rule orders a constructed set of runs where pairwise ties aren't transitive (A ties B, B ties C, A beats C) the same way every time. `promote` refuses a non-finalist and a run that fails a gate, leaves the MLflow alias and `PROMOTED` pointing at the same version, and appends to `promotions.jsonl`. Nothing under `intelligence/` imports `mlflow`. `load_service` returns a contract-checked model, and a model that returns too few rows, an unknown category or confidence outside [0, 1] fails the check. A resumed sweep skips finished configs.
 - **Integration (`small.yaml`, stub embedder):** run → finalize → promote → `load_service` → predict end to end; the model beats the baseline on known merchants; a rerun gives identical metrics (NFR-8). Swapping the promoted run to a different model type needs no code change.
 - **Slow (`default.yaml`, real embedder):** reproduces the POC within ±0.005 (§3); known-merchant macro F1 ≥ 0.90; latency within budget.
 - **Isolation:** the existing test covers `intelligence/`; it is extended to forbid `mlflow` imports there and to cover `data/store.py` and `data/features/`.
@@ -576,7 +585,8 @@ One PR per milestone.
 - [x] 2% uniform training label noise (E-b). Condition: applied after splitting, never to validation, calibration or test rows.
 - [x] C and calibration chosen by grouped cross-fitting over merchants; the shipped model trains on all training rows; calibration split by familiarity, with the vocabulary built before the cap (from review).
 - [x] FR-3 builds the training and evaluation framework (generic model interface, registry, splitters, runner, promotion), extended feature by feature along [Path to a general framework](#path-to-a-general-framework).
-- [x] MLflow for experiment tracking and the model registry (F-b).
+- [x] MLflow for experiment tracking and the model registry (F-b), installed through a `train` dependency group so serving installs stay lean (from review).
+- [ ] Validation folds hold out only holdout-eligible merchants, so validation-unseen matches `test_unseen`'s population; ties defined against the leader; baselines always scored in `finalize`; a committed promotion log (from review on PR #6).
 - [ ] Serving from an exported folder and `PROMOTED` pointer, never from MLflow (G-b).
 - [ ] Experiments compared on validation; test sets scored once for at most three finalists (H-b), with the decision rule in [Experiment plan](#experiment-plan).
 
