@@ -221,15 +221,18 @@ The truth boundary doesn't move: `intelligence/` never reads truth and never imp
 
 ```python
 class Model(Protocol):
-    name: str  # registry key, e.g. "categorization/linear_text"
+    name: ClassVar[str]  # registry key, e.g. "categorization/linear_text"
     version: str
-    params: Mapping[str, Any]
+
+    @property
+    def params(self) -> Mapping[str, Any]: ...
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self: ...
+
     def predict(self, x: pd.DataFrame) -> pd.DataFrame: ...
-    def save(self, path: Path) -> None: ...
 ```
 
+- **Persistence is not the model's job:** `artifact.py` saves every model the same way (joblib + manifest + checksum). A model holding something that can't be pickled, such as an ONNX session, drops it in `__getstate__` and reopens it on first use.
 - **`y` is optional** because anomaly and spike models are unsupervised; categorization always passes it.
 - **Registry:** implementations register under a name (`@register("categorization/linear_text")`) and are built from config, so a new candidate is a class plus a YAML file. The runner, MLflow logging and promotion don't change.
 - **Composition:** wrappers implement the same protocol, so FR-4's ideas are configurations, not new plumbing:
@@ -252,7 +255,7 @@ A `Task` owns everything problem-specific, so the runner stays generic. The cate
   | `test_unseen` | `test_all` ∩ `membership(holdout merchants)` | Unseen merchants, finalists only |
   | Validation folds | `group_kfold(merchant_id, k=5, stratify=category, eligible=holdout-eligible merchants)` over `train`, plus a seeded 10% seen-merchant row sample per fold (§5) | Choosing hyperparameters, fitting calibrators, **comparing experiments** |
 
-- **Validation-unseen matches `test_unseen`'s population.** The catalog's holdout rule never picks some merchants: each category's most popular ones, the top merchant of each subtype, and merchants in excluded categories. On the default spec these protected merchants are 64 of train users' 233 spending merchants and carry 34% of their spending transactions (87% of Health & Fitness). None of them can ever be in `test_unseen`. They are mostly big chains, which pretrained embeddings know best, so letting them rotate through validation would favor some candidates. So they stay in every fold's training rows, and only the ~169 holdout-eligible merchants are held out, still about 3× the 58 in `test_unseen`. The eligible set comes from the generator's own holdout rule, factored into one function that both the generator and the task call, so the two can't drift apart.
+- **Validation-unseen matches `test_unseen`'s population.** The catalog's holdout rule never picks some merchants: each category's most popular ones, the top merchant of each subtype, and merchants in excluded categories. On the default spec these protected merchants are 64 of train users' 233 spending merchants and carry 34% of their spending transactions (87% of Health & Fitness). None of them can ever be in `test_unseen`. They are mostly big chains, which pretrained embeddings know best, so letting them rotate through validation would favor some candidates. So they stay in every fold's training rows, and only the ~169 holdout-eligible merchants are held out, still about 3× the 58 in `test_unseen`. The eligible set comes from the generator's own holdout rule, factored into one function that both the generator and the task call, so the two can't drift apart. The dataset doesn't currently record it (`truth_merchants` has no popularity, and `meta` doesn't hold the holdout settings), so the generator writes it as a new `truth_merchants.holdout_eligible` column (schema version 3; existing datasets must be regenerated).
 
 - **Leak checks** run on every split, before any fit: no ID in two sets; no fold's held-out merchant in that fold's training rows; no protected merchant in any fold's held-out group; `test_unseen` only holdout merchants; label noise only on rows a model trains on. A failure stops the run.
 - **Split hashes** (a hash of each set's sorted IDs) are logged with every run, so two runs can be compared only if they used the same splits. The runner refuses to put runs with different split hashes on one leaderboard.
@@ -277,6 +280,7 @@ One experiment is one YAML file: task, data, splits, model `{type, params}`, a h
 | Artifacts | Fitted model, manifest, validation report (per-class F1, confusion matrices, per-merchant accuracy, calibration curves) |
 
 - **Tracking store:** local by default (`sqlite:///mlruns/mlflow.db`, artifacts under `mlruns/`, both gitignored). `SFC_MLFLOW_TRACKING_URI` points it at a shared server instead; nothing else changes.
+- **Trust:** `finalize` and `promote` unpickle models downloaded from the tracking store. The manifest checksum shows a file arrived intact, not who wrote it, so anyone who can write to a shared server's artifact store could run code on the machine that runs those commands. The local default is safe; a shared server must allow only trusted writers.
 - **Caching:** embeddings are cached per normalized string and keyed by the embedding file's checksum, so a sweep embeds once.
 - **Resumable:** a config whose hash, data hash and split hashes match a finished run is skipped unless `--force`, so a long sweep can be stopped and restarted.
 
@@ -286,17 +290,19 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 
 1. **Compare on validation only.** Merchant-grouped folds stand in for unseen merchants; the seen-merchant fold rows stand in for known ones. Every run gets `val_known_macro_f1`, `val_unseen_macro_f1` and `val_unseen_ece`.
 2. **Write the decision rule before the runs** ([Experiment plan](#experiment-plan)).
-3. **Score test sets once, for finalists.** `sfc-experiment finalize` scores at most three runs on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The task's round 0 baselines are always scored alongside them and don't count toward the three, so the "beats the baseline" gate has test numbers to compare against. The test numbers are reported, not used to choose among the finalists again. The one exemption is the POC reproduction check (§3).
+3. **Score test sets once, for finalists, enforced in code.** `sfc-experiment finalize` takes the leaderboard's top three itself (tagging each with its rank) and refuses a split whose candidates were already test-scored. It scores them on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The task's round 0 baselines are always scored alongside them and don't count toward the three, so the "beats the baseline" gate has test numbers to compare against. The test numbers are reported, not used to choose among the finalists again. The one exemption is the POC reproduction check (§3).
 
 ### Promotion and serving
 
 `sfc-model promote --task categorization --run <id>`:
 
-1. Requires the run to be a finalist.
+1. Requires the run to be the rank-1 finalist: finalists are never re-ranked on test scores.
 2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, latency within budget, and a written note on explainability and operations (`--note`, stored on the run).
 3. Registers the model in the MLflow model registry as `categorization` and moves the `champion` alias to it.
 4. Exports it to `artifacts/categorization/<version>/` and writes `artifacts/categorization/PROMOTED`, which holds the version.
 5. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results and the note. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
+
+**Departing from the rule is possible but visible.** Naming finalists, a second round of test scoring on the same splits, or promoting a finalist other than #1 each need `--override "<reason>"`. The reason is recorded as a tag on every run it touches and in `promotions.jsonl`.
 
 `load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 
@@ -421,10 +427,11 @@ src/smart_financial_coach/
     features/merchant_text.py       normalize_merchant (new)
   intelligence/
     models/
-      base.py                       Model protocol
+      base.py                       Model protocol, BaseModel
       registry.py                   register, build from {type, params}
+      contract.py                   Contract, Checked (output checks on every prediction)
       wrappers.py                   Calibrated, Routed, Lookup
-      artifact.py                   save / load folder, manifest, checksum checks
+      artifact.py                   save / load folder, manifest, checksum, PROMOTED, promotion log
     service.py                      load_service: PROMOTED pointer -> contract-checked model
     categorization/
       contract.py                   Categorizer protocol, output check
@@ -433,14 +440,16 @@ src/smart_financial_coach/
       embeddings.py                 cached sentence embeddings (fastembed), stub for tests
       ...                           further candidates from the experiment plan
   evaluation/
-    tasks/base.py                   Task protocol
+    tasks/base.py                   Task protocol, Examples, task registry
     tasks/categorization.py         examples, labels, splits, metrics, gates
-    splits/                         Splits, splitters, leak checks
+    splits.py                       Splits, splitters, leak checks
     metrics/classification.py       macro F1, per class, bootstrap, ECE
+    experiment.py                   experiment config (YAML), config hash, grid
+    selection.py                    the decision rule (ties against the leader)
     tracking.py                     MLflow logging (the only module that imports mlflow)
     runner.py                       run one experiment config
-    promote.py                      finalize, promote, export
-    cli.py                          sfc-experiment run | finalize ; sfc-model promote | predict
+    promote.py                      leaderboard, finalize, promote, export
+    cli.py                          sfc-experiment run | leaderboard | finalize ; sfc-model promote | show | predict
 configs/
   experiments/categorization/*.yaml one file per experiment
   models/category_keywords.yaml     baseline rules

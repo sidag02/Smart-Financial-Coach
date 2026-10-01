@@ -15,10 +15,13 @@ dependencies = [
     "pyyaml",
     "holidays",
     "scipy",
+    "joblib",
 ]
 
 [project.scripts]
 sfc-data = "smart_financial_coach.data.generator.cli:main"
+sfc-experiment = "smart_financial_coach.evaluation.cli:experiment_main"
+sfc-model = "smart_financial_coach.evaluation.cli:model_main"
 
 [dependency-groups]
 dev = [
@@ -31,10 +34,17 @@ dev = [
     "types-pyyaml",
     "scipy-stubs",
 ]
+train = [
+    "mlflow",
+]
 
 [build-system]
 requires = ["uv_build>=0.12,<0.13"]
 build-backend = "uv_build"
+
+[tool.uv]
+# `train` (MLflow) is for experiments; a serving install uses --no-default-groups
+default-groups = ["dev", "train"]
 
 [tool.ruff]
 line-length = 100
@@ -53,7 +63,7 @@ plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*"]
+module = ["sklearn.*", "joblib.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

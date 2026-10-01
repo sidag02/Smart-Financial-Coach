@@ -56,3 +56,17 @@ uv run sfc-data labels data/synthetic/default.sqlite   # label counts, tiers and
 `small.yaml` (30 users, a few seconds) is for tests; `clean.yaml` has canonical merchant names and no planted events. Design: [FR-1 Synthetic Data Generator — Feature Design.md](<docs/design/features/FR-1 Synthetic Data Generator — Feature Design.md>).
 
 Ground truth lives in `truth_*` tables. Score flags against it with `smart_financial_coach.data.labels` (`load_truth`), which model code under `intelligence/` must never import. Design: [FR-2 Ground Truth Labels — Feature Design.md](<docs/design/features/FR-2 Ground Truth Labels — Feature Design.md>).
+
+## Models and experiments
+
+Models are trained, compared and promoted through the evaluation framework; callers only ever load the promoted model for a service (`intelligence.service.load_service`).
+
+```sh
+uv run sfc-experiment run configs/experiments/categorization/ --data data/synthetic/default.sqlite
+uv run sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
+uv run sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite   # top three, once
+uv run sfc-model promote --task categorization --run <rank-1 id> --note "<explainability and operations>"
+uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db   # compare runs
+```
+
+Runs are tracked in MLflow: a local store in `mlruns/` (git-ignored) by default, or a shared server via `SFC_MLFLOW_TRACKING_URI`. MLflow is in the `train` dependency group; a serving install can leave it out with `uv sync --no-default-groups`. Design: [FR-3 Transaction Categorization — Feature Design.md](<docs/design/features/FR-3 Transaction Categorization — Feature Design.md>).

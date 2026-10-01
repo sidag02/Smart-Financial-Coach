@@ -1,0 +1,67 @@
+"""Experiment configs: one YAML file is one experiment.
+
+name: linear_both
+task: categorization
+model: {type: categorization/linear_text, params: {ngrams: true, embeddings: true}}
+grid: {C: [1.0, 3.0, 10.0]}  # chosen on validation folds; merged into model params
+task_params: {label_noise: 0.02, max_rows_per_class: 20000}
+complexity: 2  # components and dependencies; lower is simpler (last tie-breaker)
+"""
+
+import hashlib
+import itertools
+import json
+from pathlib import Path
+from typing import Any
+
+import yaml
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class _Model(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+class ModelSpec(_Model):
+    type: str
+    params: dict[str, Any] = {}
+
+
+class ExperimentConfig(_Model):
+    name: str
+    task: str
+    model: ModelSpec
+    grid: dict[str, list[Any]] = {}
+    seed: int = 0
+    task_params: dict[str, Any] = {}
+    baseline: bool = False  # round 0: always scored with the finalists
+    complexity: int = Field(default=0, ge=0)
+    tags: dict[str, str] = {}
+
+    def config_hash(self) -> str:
+        """Everything that changes the result; `tags` are annotations and don't count."""
+        payload = self.model_dump(mode="json", exclude={"tags"})
+        return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+
+    def grid_points(self) -> list[dict[str, Any]]:
+        keys = sorted(self.grid)
+        return [
+            dict(zip(keys, values, strict=True))
+            for values in itertools.product(*(self.grid[k] for k in keys))
+        ]
+
+    def model_spec(self, point: dict[str, Any]) -> dict[str, Any]:
+        return {"type": self.model.type, "params": {**self.model.params, **point}}
+
+
+def load_experiment(path: str | Path) -> ExperimentConfig:
+    raw = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
+    return ExperimentConfig.model_validate(raw)
+
+
+def experiment_files(paths: list[Path]) -> list[Path]:
+    """Config files from files and folders, folders expanded in name order."""
+    out: list[Path] = []
+    for path in paths:
+        out += sorted(path.glob("*.yaml")) if path.is_dir() else [path]
+    return out
