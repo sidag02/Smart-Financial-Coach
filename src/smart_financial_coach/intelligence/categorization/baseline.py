@@ -63,13 +63,11 @@ class Keyword(CategorizerModel):
     the sign, so refunds (positive amounts at shops) keep their category.
     """
 
-    def __init__(
-        self, keywords_file: str = KEYWORDS_FILE, keywords_sha256: str | None = None
-    ) -> None:
-        """`keywords_sha256` puts the file's content in the config hash: if given, it must match."""
+    def __init__(self, keywords_sha256: str, keywords_file: str = KEYWORDS_FILE) -> None:
+        """`keywords_sha256` (required) puts the file content in the config hash and must match."""
         content = (PROJECT_ROOT / keywords_file).read_bytes()
         actual = hashlib.sha256(content).hexdigest()
-        if keywords_sha256 is not None and keywords_sha256 != actual:
+        if keywords_sha256 != actual:
             raise ValueError(
                 f"{keywords_file} has SHA-256 {actual}; the config expects {keywords_sha256}. "
                 "Update the config's keywords_sha256 so the change gets a new run"
@@ -142,3 +140,8 @@ class Lookup(CategorizerModel):
 
 def keywords_path(keywords_file: str = KEYWORDS_FILE) -> Path:
     return PROJECT_ROOT / keywords_file
+
+
+def keywords_sha256(keywords_file: str = KEYWORDS_FILE) -> str:
+    """The current keyword file's SHA-256, as configs must pin it."""
+    return hashlib.sha256(keywords_path(keywords_file).read_bytes()).hexdigest()

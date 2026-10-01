@@ -51,7 +51,7 @@ def test_run_logs_validation_only(toy_data: Path, tracker: Tracker, runs: dict[s
     assert run.metrics["val_unseen_accuracy"] > 0.7
     assert run.metrics["val_seen_accuracy"] == 1.0
     assert not [k for k in run.metrics if k.startswith("test_")]
-    for tag in ("sfc.config_hash", "sfc.data_hash", "sfc.split_hash", "sfc.git_commit"):
+    for tag in ("sfc.config_hash", "sfc.data_hash", "sfc.split_hash", "sfc.code_version"):
         assert run.tags[tag]
     assert run.params["chosen.confidence"] in {"0.7", "0.9"}
     assert len({tracker.get(r).tags["sfc.split_hash"] for r in runs.values()}) == 1
@@ -256,7 +256,7 @@ def test_resume_needs_the_same_code(
     toy_data: Path, tracker: Tracker, make_config: MakeConfig, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     first = run_experiment(make_config("same"), toy_data, tracker)
-    monkeypatch.setattr(runner, "git_commit", lambda: "another-commit")
+    monkeypatch.setattr(runner, "code_version", lambda: "another-version")
     second = run_experiment(make_config("same"), toy_data, tracker)
 
     assert not second.skipped
@@ -270,7 +270,7 @@ def test_finalize_refuses_mixed_code_versions(
     runs: dict[str, str],
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr(runner, "git_commit", lambda: "newer-commit")
+    monkeypatch.setattr(runner, "code_version", lambda: "newer-version")
     newer = run_experiment(make_config("newer", "toy/memory_alt"), toy_data, tracker)
 
     assert len({s.code for s in leaderboard("toy", toy_data, tracker)}) == 2
@@ -286,3 +286,29 @@ def test_leaderboard_names_a_missing_baseline(
 
     with pytest.raises(SelectionError, match="no majority baseline run"):
         leaderboard("toy", toy_data, tracker)
+
+
+def test_code_version_covers_code_not_docs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Untracked code changes the version; docs don't (PR #8 re-review)."""
+    import subprocess
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "src" / "a.py").write_text("x = 1\n")
+    git("init", "-q")
+    git("add", ".")
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init")
+    monkeypatch.setattr(runner, "PROJECT_ROOT", tmp_path)
+    base = runner.code_version()
+
+    (tmp_path / "docs" / "notes.md").write_text("docs only\n")
+    assert runner.code_version() == base
+    (tmp_path / "src" / "new_model.py").write_text("y = 2\n")  # untracked
+    untracked = runner.code_version()
+    (tmp_path / "src" / "new_model.py").write_text("y = 3\n")
+
+    assert untracked != base
+    assert runner.code_version() != untracked

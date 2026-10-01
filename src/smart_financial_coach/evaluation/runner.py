@@ -49,19 +49,36 @@ class RunResult:
     metrics: dict[str, float]
 
 
-def git_commit() -> str:
-    def git(*args: str) -> str:
-        return subprocess.run(
-            ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False
-        ).stdout.strip()
+# What can change a run's results. Docs, tests and CI don't, so commits touching only them keep
+# earlier runs valid (a full sweep takes hours).
+CODE_PATHS = ("src", "configs", "pyproject.toml", "uv.lock")
 
-    commit = git("rev-parse", "HEAD") or "unknown"
-    if not git("status", "--porcelain", "--untracked-files=no"):
-        return commit
-    # Uncommitted changes: name them by their diff, so a resumed sweep skips a run only if the
-    # code is byte-for-byte what produced it
-    diff = hashlib.sha256(git("diff", "HEAD").encode()).hexdigest()[:12]
-    return f"{commit}-dirty-{diff}"
+
+def _git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False
+    ).stdout.strip()
+
+
+def git_commit() -> str:
+    """The commit, for the record (`sfc.git_commit`); identity uses `code_version`."""
+    return _git("rev-parse", "HEAD") or "unknown"
+
+
+def code_version() -> str:
+    """A hash of everything under `CODE_PATHS` as it is now: committed, modified or untracked.
+
+    Committed content enters as git tree and blob hashes, uncommitted changes as their diff, and
+    untracked files (a new module not yet `git add`ed) by name and content.
+    """
+    digest = hashlib.sha256()
+    for path in CODE_PATHS:
+        digest.update(f"{path}={_git('rev-parse', f'HEAD:{path}')}\n".encode())
+    digest.update(_git("diff", "HEAD", "--", *CODE_PATHS).encode())
+    untracked = _git("ls-files", "--others", "--exclude-standard", "--", *CODE_PATHS)
+    for name in sorted(untracked.splitlines()):
+        digest.update(name.encode() + b"\0" + (PROJECT_ROOT / name).read_bytes())
+    return digest.hexdigest()[:16]
 
 
 def prepare(task: Task, data: Path, config: ExperimentConfig) -> tuple[Examples, Splits]:
@@ -84,7 +101,7 @@ def identity(config: ExperimentConfig, examples: Examples, splits: Splits) -> di
         "sfc.config_hash": config.config_hash(),
         "sfc.data_hash": examples.data_hash,
         "sfc.split_hash": splits.hash(),
-        "sfc.git_commit": git_commit(),
+        "sfc.code_version": code_version(),
     }
 
 
@@ -141,6 +158,7 @@ def run_experiment(
         "sfc.task": task.name,
         "sfc.model_type": config.model.type,
         "sfc.baseline": str(config.baseline).lower(),
+        "sfc.git_commit": git_commit(),
         **{f"user.{k}": v for k, v in config.tags.items()},
     }
     with tracker.run(task.name, config.name, tags) as run_id:

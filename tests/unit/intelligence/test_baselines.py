@@ -8,7 +8,10 @@ import pytest
 import yaml
 
 from smart_financial_coach.config import PROJECT_ROOT
-from smart_financial_coach.intelligence.categorization.baseline import keywords_path
+from smart_financial_coach.intelligence.categorization.baseline import (
+    keywords_path,
+    keywords_sha256,
+)
 from smart_financial_coach.intelligence.categorization.contract import CONTRACT
 from smart_financial_coach.intelligence.models import Checked, build
 
@@ -27,6 +30,8 @@ ALLOWED_GENERIC = {
     "montessori", "fiber", "arcade", "bowling", "lube", "foods", "hoa", "rent", "burger", "taco",
     "eats", "inn", "car", "a", "ride", "medical", "fees", "utility", "property",
 }  # fmt: skip
+
+KEYWORD = {"type": "categorization/keyword", "params": {"keywords_sha256": keywords_sha256()}}
 
 TX = pd.DataFrame(
     {
@@ -62,7 +67,7 @@ def test_keywords_are_not_merchant_names() -> None:
 
 
 def test_keyword_rules() -> None:
-    model = build({"type": "categorization/keyword"}).fit(TX, Y)
+    model = build(KEYWORD).fit(TX, Y)
     out = Checked(model, CONTRACT).predict(TX)
 
     assert out["category"].tolist() == [
@@ -77,7 +82,7 @@ def test_keyword_rules() -> None:
 def test_keyword_confidence_is_the_rules_training_precision() -> None:
     y = Y.copy()
     y.iloc[3] = "Travel"  # the fallback (Dining, first of a four-way tie) is now wrong on its row
-    out = build({"type": "categorization/keyword"}).fit(TX, y).predict(TX)
+    out = build(KEYWORD).fit(TX, y).predict(TX)
 
     assert out.loc[3, "confidence"] == 0.0
     assert out.loc[0, "confidence"] == 1.0
@@ -96,8 +101,9 @@ def test_lookup_memorizes_normalized_strings() -> None:
 
 @pytest.mark.parametrize("kind", ["majority", "keyword", "lookup"])
 def test_baselines_meet_the_contract_and_are_deterministic(kind: str) -> None:
-    a = Checked(build({"type": f"categorization/{kind}"}).fit(TX, Y), CONTRACT).predict(TX)
-    b = Checked(build({"type": f"categorization/{kind}"}).fit(TX, Y), CONTRACT).predict(TX)
+    spec = KEYWORD if kind == "keyword" else {"type": f"categorization/{kind}"}
+    a = Checked(build(spec).fit(TX, Y), CONTRACT).predict(TX)
+    b = Checked(build(spec).fit(TX, Y), CONTRACT).predict(TX)
 
     assert a.equals(b)
 
@@ -108,10 +114,8 @@ def test_supervised_models_need_labels() -> None:
 
 
 def test_keyword_file_content_is_part_of_the_config() -> None:
-    model = build({"type": "categorization/keyword"})
-    digest = model.params["keywords_sha256"]
-
-    assert build({"type": "categorization/keyword", "params": {"keywords_sha256": digest}})
+    with pytest.raises(TypeError, match="keywords_sha256"):  # required: no silent opt-out
+        build({"type": "categorization/keyword"})
     with pytest.raises(ValueError, match="Update the config's keywords_sha256"):
         build({"type": "categorization/keyword", "params": {"keywords_sha256": "0" * 64}})
 

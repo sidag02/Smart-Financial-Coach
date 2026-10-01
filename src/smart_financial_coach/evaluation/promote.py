@@ -60,7 +60,7 @@ class Standing:
     estimate: float
     eligible: bool
     tied_with_leader: bool
-    code: str  # the git commit (and diff) that produced the run
+    code: str  # the code version that produced the run (see `runner.code_version`)
 
 
 def _config(tracker: Tracker, run: RunRecord, tmp: Path) -> ExperimentConfig:
@@ -96,7 +96,7 @@ def _comparable(tracker: Tracker, task: Task, split_hash: str | None) -> list[Ru
 
 
 def code_versions(runs: list[RunRecord]) -> set[str]:
-    return {r.tags.get("sfc.git_commit", "unknown") for r in runs}
+    return {r.tags.get("sfc.code_version", "unknown") for r in runs}
 
 
 def _require_baselines(task: Task, runs: list[RunRecord]) -> None:
@@ -170,7 +170,7 @@ def leaderboard(
             estimate=r.metrics.get(metric, float("nan")),
             eligible=r.run_id in order,
             tied_with_leader=i == 0 or r.run_id in tied,
-            code=r.tags.get("sfc.git_commit", "unknown"),
+            code=r.tags.get("sfc.code_version", "unknown"),
         )
         for i, r in enumerate(ranked + unranked)
     ]
