@@ -57,6 +57,8 @@ def _leaderboard(args: argparse.Namespace) -> int:
     if not standings:
         print("no candidate runs")
         return 0
+    if len(versions := {s.code for s in standings}) > 1:
+        print(f"warning: runs come from {len(versions)} code versions; finalize will refuse a mix")
     for i, s in enumerate(standings, start=1):
         place = f"{i:>2}." if s.eligible else " - "
         tie = " (tied with leader)" if s.tied_with_leader and s.eligible else ""

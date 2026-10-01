@@ -1,0 +1,18 @@
+# Keyword baseline (FR-3 §2): generic words that suggest a category, never merchant names.
+# A word matches as a whole word of the normalized merchant text. The category with the most
+# matches wins; ties go to the category listed first. `tests/unit/intelligence/test_baselines.py`
+# fails if a keyword is a token of a catalog merchant name and isn't on its reviewed allowlist.
+
+Income: [payroll, salary, dir dep, direct dep, deposit, transfer, invoice]
+Housing: [apartments, apartment, rentals, residential, properties, property, mgmt, hoa, mortgage, mtg, lending, homes, living, lofts, rent]
+Utilities: [energy, electric, power, gas, water, internet, wireless, mobile, cable, fiber, utility, utilities]
+Insurance & Fees: [insurance, fee, fees, mutual, renters, tax, overdraft]
+Groceries: [grocery, groceries, market, mercado, produce, supermarket, wholesale, foods, farmers]
+Dining: [coffee, cafe, espresso, bakery, grill, pizza, burger, taco, kitchen, bistro, tavern, pub, taproom, cantina, noodle, dumpling, restaurant, eats, diner, deli, bar, lounge]
+Transportation: [parking, fuel, oil, auto, tire, lube, transit, toll, ride, taxi]
+Travel: [airlines, air lines, airways, hotel, inn, rent-a-car, resort, motel]
+Health & Fitness: [fitness, yoga, gym, dental, pharmacy, medical, pediatrics, optometry, clinic]
+Entertainment: [cinema, cinemas, theatres, theater, museum, arcade, bowling, golf, comedy, tickets]
+Shopping: [books, boutique, thrift, hardware, toy, shop, store, apparel, outlet]
+Subscriptions: [premium, membership, subscription]
+Childcare & Education: [school, daycare, preschool, montessori, camp, learning, academy, tutoring, elementary]

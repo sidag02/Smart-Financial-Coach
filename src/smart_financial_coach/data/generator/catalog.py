@@ -134,27 +134,45 @@ def load_catalog(path: Path, holdout: HoldoutSpec, categories: list[str]) -> Cat
         str(mid): _parse_mix(mix, what="category", allowed=set(categories))
         for mid, mix in m.loc[m["is_ambiguous"], "ambiguous_categories"].items()
     }
+    m["holdout_eligible"] = holdout_eligible(m, holdout)
     m["holdout"] = _holdout(m, holdout)
     return Catalog(merchants=m, channels=channels, categories=ambiguous)
 
 
-def _holdout(m: pd.DataFrame, spec: HoldoutSpec) -> pd.Series:
-    """Hold out a seeded share of each category's merchants.
+def _by_popularity(m: pd.DataFrame, category: str) -> pd.DataFrame:
+    return m[m["category"] == category].sort_values(
+        ["popularity", "merchant_id"], ascending=[False, True]
+    )
 
-    Never held out: the category's most popular merchants, and the most popular merchant of each
-    subtype, so training users can always find a merchant for every subtype.
+
+def holdout_eligible(m: pd.DataFrame, spec: HoldoutSpec) -> pd.Series:
+    """Merchants the holdout may pick: everything except the protected ones.
+
+    Protected: merchants in excluded categories, each category's most popular merchants, and the
+    most popular merchant of each subtype, so training users can always find one for every
+    subtype. Evaluation reads this (as `truth_merchants.holdout_eligible`) so validation folds
+    hold out the same population the holdout does.
     """
+    eligible = pd.Series(False, index=m.index)
+    for category in sorted(m["category"].unique()):
+        if category in spec.exclude_categories:
+            continue
+        rows = _by_popularity(m, category)
+        protected = set(rows.index[: spec.exclude_top_n_per_category])
+        protected |= set(rows.groupby("subtype", sort=False).head(1).index)
+        eligible[[mid for mid in rows.index if mid not in protected]] = True
+    return eligible
+
+
+def _holdout(m: pd.DataFrame, spec: HoldoutSpec) -> pd.Series:
+    """Hold out a seeded share of each category's merchants, chosen among eligible ones."""
     rng = np.random.default_rng(np.random.SeedSequence(spec.seed))
     held = pd.Series(False, index=m.index)
     for category in sorted(m["category"].unique()):
         if category in spec.exclude_categories:
             continue
-        rows = m[m["category"] == category].sort_values(
-            ["popularity", "merchant_id"], ascending=[False, True]
-        )
-        protected = set(rows.index[: spec.exclude_top_n_per_category])
-        protected |= set(rows.groupby("subtype", sort=False).head(1).index)
-        eligible = [mid for mid in rows.index if mid not in protected]
+        rows = _by_popularity(m, category)
+        eligible = [mid for mid in rows.index if m.at[mid, "holdout_eligible"]]
         n = min(round(spec.share * len(rows)), len(eligible))
         if n:
             held[rng.choice(np.asarray(eligible), size=n, replace=False)] = True

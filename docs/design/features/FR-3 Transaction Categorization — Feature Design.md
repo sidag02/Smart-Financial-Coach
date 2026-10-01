@@ -282,7 +282,7 @@ One experiment is one YAML file: task, data, splits, model `{type, params}`, a h
 - **Tracking store:** local by default (`sqlite:///mlruns/mlflow.db`, artifacts under `mlruns/`, both gitignored). `SFC_MLFLOW_TRACKING_URI` points it at a shared server instead; nothing else changes.
 - **Trust:** `finalize` and `promote` unpickle models downloaded from the tracking store. The manifest checksum shows a file arrived intact, not who wrote it, so anyone who can write to a shared server's artifact store could run code on the machine that runs those commands. The local default is safe; a shared server must allow only trusted writers.
 - **Caching:** embeddings are cached per normalized string and keyed by the embedding file's checksum, so a sweep embeds once.
-- **Resumable:** a config whose hash, data hash and split hashes match a finished run is skipped unless `--force`, so a long sweep can be stopped and restarted.
+- **Resumable:** a config is skipped only if a finished run has the same config hash, **data content hash** (a hash of every loaded row, not just the spec and version strings), split hash and **code version** (a hash of everything that can change results, `src/`, `configs/models/`, `configs/data/`, `pyproject.toml` and `uv.lock`, as it is now: committed, modified or untracked; docs, tests, CI and new experiment configs don't change it, since each run's own config is in its config hash), unless `--force`. A model that reads a file names its content in its params (e.g. the keyword baseline's required `keywords_sha256`), so editing the file changes the config hash. The leaderboard compares runs on the same data and splits, warns when they come from different code versions, and `finalize` refuses such a mix without an override reason. A missing required baseline (keyword) is named rather than leaving every candidate silently ineligible.
 
 ### Selection discipline
 
@@ -330,9 +330,10 @@ FR-3 builds only what categorization needs. This is how each later feature exten
 
 A pure function in the feature pipeline, `normalize_merchant(merchant_raw) -> str`, shared with the anomaly service:
 
-- Strip processor and channel prefixes (`SQ *`, `TST*`, `PAYPAL *`, `SP *`, `POS DEBIT`, `ACH DEBIT`, `ACH CREDIT`).
-- Drop reference codes after `*`, store and terminal numbers, `PPD ID:` and other digit runs.
-- Lower-case and collapse whitespace. Trailing location suffixes are kept, since truncation makes them unreliable to strip and n-grams tolerate them.
+- Collapse whitespace first (feeds double spaces, even inside `ACH  DEBIT`), then strip processor and channel prefixes (`SQ *`, `TST*`, `CLV*`, `PAYPAL *`, `SP *`, `POS DEBIT`, `ACH DEBIT`, `ACH CREDIT`) **repeatedly**, because they stack (`POS DEBIT SQ *`).
+- Drop reference codes after `*`, store numbers (and anything after them), the `PPD ID:` label and other digit runs.
+- Lower-case. Trailing locations are otherwise kept, since truncation makes them unreliable to strip and n-grams tolerate them. If nothing is left, the raw text is kept, so the result is never empty.
+- **Fixed from the POC:** the POC stripped one prefix, so stacked prefixes collapsed to the processor's name (`POS DEBIT SQ *PHO SAIGON` → `sq`), and it missed `CLV*`. That affected 3.1% of the default dataset's transactions (34k), losing their merchant identity for the embedding. `normalize_merchant_poc` keeps the POC's behavior only for the reproduction check (§3).
 
 The prefix list is generic bank-feed vocabulary, written by hand from the rendering rules' *types*. It is not read from the catalog, so no holdout names leak in. In feasibility it collapsed 194k raw strings to 12.8k.
 
@@ -343,8 +344,10 @@ The raw text keeps its own feature (character n-grams on `merchant_raw`), becaus
 The Technical Design's baseline is keyword rules. To be a fair baseline, not a leak:
 
 - A committed `configs/models/category_keywords.yaml` maps generic words to categories (`coffee`, `cafe`, `grill`, `pizza` → Dining; `airlines`, `hotel` → Travel; `insurance`, `fee` → Insurance & Fees; `electric`, `water`, `wireless` → Utilities …).
-- **No merchant names**, so the baseline gets no unfair advantage from the catalog. A unit test fails if any keyword equals a catalog canonical name token that isn't a common English word.
-- Positive amounts with no keyword match → Income. Anything else unmatched → the training set's most frequent spending category (Dining).
+- **No merchant names**, so the baseline gets no unfair advantage from the catalog. A unit test fails if any keyword is a token of a catalog name and isn't on the test's reviewed allowlist of generic words (`coffee`, `market`, `parking` …).
+- The category with the most keyword matches wins, so a refund at a shop keeps its category. Positive amounts with no keyword match → Income. Anything else unmatched → the training set's most frequent spending category (Dining).
+- Confidence is the training precision of the rule that fired, as for the other round 0 baselines (majority class; exact normalized-string lookup).
+- "Beats the baseline" means beating the **keyword** baseline. Lookup is near-perfect on known merchants (0.98 on validation) and near-useless on unseen ones (0.08), so it's a reference point, not the bar.
 
 ### 3. Starting candidate: linear text categorizer
 
@@ -390,7 +393,7 @@ This is what the [runner](#experiment-runner-and-tracking-mlflow) does for the c
    - **The shipped model** is then trained on all training rows with the chosen C, and the calibrators are attached. No merchant is left out, so all train-user merchants are learned.
    - Cost: K × 3 values of C = 15 fits, plus the shipped model's fit: 16 fits of about 30 s each, around 8 minutes on a laptop CPU per configuration.
    - The calibrators come from fold models, each trained on about 80% of the merchants, and are applied to the shipped model. That approximation is checked directly: §6 reports the shipped model's calibration error on the known-merchant test, all test users and unseen merchants.
-4. **Label noise:** applied *after* splitting, to the rows each model trains on (fold models and the shipped model). It flips a configurable share of labels uniformly to another category; the default is 2%, a Technical Design control against flattering results. It never touches held-out fold rows, calibration rows or test rows, so calibration can't learn the noise. The report states the rate.
+4. **Label noise:** applied *after* splitting, to the rows each model trains on (fold models and the shipped model). It flips a configurable share of spending labels uniformly to another spending category; Income labels are never flipped, and nothing is flipped to Income, since a payroll labeled Dining isn't a realistic correction error; the default is 2%, a Technical Design control against flattering results. It never touches held-out fold rows, calibration rows or test rows, so calibration can't learn the noise. The report states the rate.
 5. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k) for each model, sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes. The familiarity vocabulary is built before the cap (§3).
 6. Log the run to MLflow: model, manifest (including the chosen C, K, the fold seed and each calibrator) and validation metrics. The test sets wait for `finalize`.
 

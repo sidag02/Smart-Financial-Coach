@@ -11,6 +11,7 @@ Test sets are not scored here; `finalize` does that once, for finalists. The one
 the leaderboard.
 """
 
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -48,14 +49,40 @@ class RunResult:
     metrics: dict[str, float]
 
 
-def git_commit() -> str:
-    def git(*args: str) -> str:
-        return subprocess.run(
-            ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False
-        ).stdout.strip()
+# What can change a run's results. Docs, tests and CI don't, so commits touching only them keep
+# earlier runs valid (a full sweep takes hours). Not `configs/experiments/`: each run's own config
+# is in its config hash, and adding a round's configs mustn't invalidate earlier rounds.
+CODE_PATHS = ("src", "configs/models", "configs/data", "pyproject.toml", "uv.lock")
 
-    commit = git("rev-parse", "HEAD") or "unknown"
-    return f"{commit}-dirty" if git("status", "--porcelain", "--untracked-files=no") else commit
+
+def _git(*args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=PROJECT_ROOT, capture_output=True, text=True, check=False
+    ).stdout.strip()
+
+
+def git_commit() -> str:
+    """The commit, for the record (`sfc.git_commit`); identity uses `code_version`."""
+    return _git("rev-parse", "HEAD") or "unknown"
+
+
+def code_version() -> str:
+    """A hash of everything under `CODE_PATHS` as it is now: committed, modified or untracked.
+
+    Committed content enters as git tree and blob hashes, uncommitted changes as their diff, and
+    untracked files (a new module not yet `git add`ed) by name and content.
+    """
+    digest = hashlib.sha256()
+    for path in CODE_PATHS:
+        digest.update(f"{path}={_git('rev-parse', f'HEAD:{path}')}\n".encode())
+    digest.update(
+        _git("diff", "--binary", "HEAD", "--", *CODE_PATHS).encode()
+    )  # binary content too
+    # -z: NUL-separated and unquoted, so non-ASCII names resolve to files
+    untracked = _git("ls-files", "-z", "--others", "--exclude-standard", "--", *CODE_PATHS)
+    for name in sorted(n for n in untracked.split("\0") if n):
+        digest.update(name.encode() + b"\0" + (PROJECT_ROOT / name).read_bytes())
+    return digest.hexdigest()[:16]
 
 
 def prepare(task: Task, data: Path, config: ExperimentConfig) -> tuple[Examples, Splits]:
@@ -69,11 +96,16 @@ def prepare(task: Task, data: Path, config: ExperimentConfig) -> tuple[Examples,
 
 
 def identity(config: ExperimentConfig, examples: Examples, splits: Splits) -> dict[str, str]:
-    """Tags that decide whether two runs are the same run (resume) and comparable (leaderboard)."""
+    """Everything that changes a run's results: config, data content, splits and code.
+
+    Resume skips a run only if all four match. The leaderboard compares runs on the same data and
+    splits, and flags (and `finalize` refuses) a mix of code versions.
+    """
     return {
         "sfc.config_hash": config.config_hash(),
         "sfc.data_hash": examples.data_hash,
         "sfc.split_hash": splits.hash(),
+        "sfc.code_version": code_version(),
     }
 
 

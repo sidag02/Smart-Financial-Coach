@@ -37,7 +37,7 @@ from smart_financial_coach.data.generator.spending import (
 )
 from smart_financial_coach.data.generator.timeline import Timeline
 
-SCHEMA_VERSION = "2"
+SCHEMA_VERSION = "3"  # 3: truth_merchants.holdout_eligible
 LABEL_CONTRACT_VERSION = "1"
 
 
@@ -146,6 +146,7 @@ def _merchants_table(catalog: Catalog) -> pd.DataFrame:
             "price_sigma": m["price_sigma"].to_numpy(),
             "is_ambiguous": m["is_ambiguous"].astype(int).to_numpy(),
             "holdout": m["holdout"].astype(int).to_numpy(),
+            "holdout_eligible": m["holdout_eligible"].astype(int).to_numpy(),
         }
     )
 

@@ -51,6 +51,7 @@ class Task(Protocol):
     selection_metric: str  # validation metric the decision rule ranks by; higher is better
     # Logged metrics that break ties, in order; lower is better. `complexity` is always last.
     tiebreak_metrics: tuple[str, ...]
+    required_baselines: tuple[str, ...]  # baseline run names eligibility and gates compare to
 
     def load(self, data: Path) -> Examples: ...
 
@@ -93,7 +94,7 @@ class Task(Protocol):
 
 _TASKS: dict[str, Callable[[], Task]] = {}
 # Modules whose import registers the product's tasks; tests register their own
-TASK_MODULES: tuple[str, ...] = ()
+TASK_MODULES: tuple[str, ...] = ("smart_financial_coach.evaluation.tasks.categorization",)
 
 
 def register_task(name: str, factory: Callable[[], Task]) -> None:

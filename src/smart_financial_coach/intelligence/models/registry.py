@@ -16,7 +16,7 @@ from smart_financial_coach.intelligence.models.base import Model
 M = TypeVar("M", bound=type[Model])
 
 # Modules whose import registers the product's models; tests register their own
-MODEL_MODULES: tuple[str, ...] = ()
+MODEL_MODULES: tuple[str, ...] = ("smart_financial_coach.intelligence.categorization.baseline",)
 
 _REGISTRY: dict[str, type[Model]] = {}
 

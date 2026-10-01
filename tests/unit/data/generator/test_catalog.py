@@ -51,3 +51,16 @@ def test_unknown_category_in_catalog_is_rejected(tmp_path: Path, small_spec: Spe
 
     with pytest.raises(ValueError, match="unknown categories"):
         load_catalog(bad, small_spec.catalog.holdout, small_spec.categories)
+
+
+def test_holdout_eligible_is_everything_not_protected(small_spec: Spec) -> None:
+    holdout = small_spec.catalog.holdout
+    m = load_catalog(small_spec.catalog.merchants, holdout, small_spec.categories).merchants
+
+    assert (~m["holdout"] | m["holdout_eligible"]).all()  # the holdout picks only eligible ones
+    assert not m.loc[m["category"] == "Income", "holdout_eligible"].any()
+    for _, rows in m[m["category"] != "Income"].groupby("category"):
+        ordered = rows.sort_values(["popularity", "merchant_id"], ascending=[False, True])
+        protected = set(ordered.index[: holdout.exclude_top_n_per_category])
+        protected |= set(ordered.groupby("subtype", sort=False).head(1).index)
+        assert set(rows.index[~rows["holdout_eligible"]]) == protected
