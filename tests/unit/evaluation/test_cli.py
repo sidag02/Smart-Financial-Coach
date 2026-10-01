@@ -32,7 +32,7 @@ def test_cli_run_to_promote(
 
     assert experiment_main(["leaderboard", "--task", "toy", *data, *uri]) == 0
     assert "b_memory" in capsys.readouterr().out
-    assert experiment_main(["finalize", "--task", "toy", "--runs", run_id[1], *data, *uri]) == 0
+    assert experiment_main(["finalize", "--task", "toy", *data, *uri]) == 0
     assert "test_known_accuracy=1.000" in capsys.readouterr().out
 
     assert (
@@ -69,4 +69,4 @@ def test_cli_reports_errors(
         )
         == 1
     )
-    assert "error: finalize takes 1 to 3 runs" in capsys.readouterr().err
+    assert "error: naming finalists departs from the decision rule" in capsys.readouterr().err

@@ -2,8 +2,11 @@
 
 sfc-experiment run configs/experiments/categorization/ --data data/synthetic/default.sqlite
 sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
-sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite --runs ID ID
+sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite
 sfc-model promote --task categorization --run ID --note "linear weights explain each category"
+
+Departing from the decision rule (naming finalists, a second round on the same splits, promoting
+a finalist other than #1) needs --override "<reason>", recorded on the run and in the log.
 sfc-model show --task categorization
 """
 
@@ -62,14 +65,28 @@ def _leaderboard(args: argparse.Namespace) -> int:
 
 
 def _finalize(args: argparse.Namespace) -> int:
-    scored = finalize(args.task, args.runs, args.data, Tracker(args.tracking_uri))
+    scored = finalize(
+        args.task,
+        args.data,
+        Tracker(args.tracking_uri),
+        run_ids=args.runs,
+        override=args.override,
+        split_hash=args.split_hash,
+    )
     for run_id, metrics in scored.items():
         print(f"{run_id}: {_metrics(metrics, 'test_')}")
     return 0
 
 
 def _promote(args: argparse.Namespace) -> int:
-    entry = promote(args.task, args.run, args.note, Tracker(args.tracking_uri), args.artifacts_dir)
+    entry = promote(
+        args.task,
+        args.run,
+        args.note,
+        Tracker(args.tracking_uri),
+        args.artifacts_dir,
+        override=args.override,
+    )
     print(f"promoted {entry['version']} (run {entry['mlflow_run_id']})")
     for gate in entry["gates"]:
         print(f"  {'pass' if gate['passed'] else 'FAIL'} {gate['name']}: {gate['detail']}")
@@ -123,10 +140,12 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     board.add_argument("--split-hash", help="compare runs on these splits (default: latest run's)")
     board.set_defaults(handler=_leaderboard)
 
-    fin = commands.add_parser("finalize", help="score up to three finalists on the test sets")
+    fin = commands.add_parser("finalize", help="score the leaderboard's top three on the test sets")
     fin.add_argument("--task", required=True)
     fin.add_argument("--data", type=Path, required=True)
-    fin.add_argument("--runs", nargs="+", required=True)
+    fin.add_argument("--split-hash", help="finalize runs on these splits (default: latest run's)")
+    fin.add_argument("--runs", nargs="+", help="name the finalists instead (needs --override)")
+    fin.add_argument("--override", help="why this departs from the decision rule (recorded)")
     fin.set_defaults(handler=_finalize)
 
     for sub in (run, board, fin):
@@ -142,6 +161,7 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     pro.add_argument("--task", required=True)
     pro.add_argument("--run", required=True)
     pro.add_argument("--note", required=True, help="explainability and operations, in a sentence")
+    pro.add_argument("--override", help="why a finalist other than #1 is promoted (recorded)")
     pro.set_defaults(handler=_promote)
 
     show = commands.add_parser("show", help="the promoted version and promotion history")

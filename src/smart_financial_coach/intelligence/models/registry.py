@@ -1,7 +1,10 @@
 """Models by name, built from `{type, params}` specs, so a new candidate is a class and a config.
 
-Params that are themselves specs are built first, which is how wrappers take inner models:
-`{"type": "routed", "params": {"seen": {"type": ...}, "unseen": {"type": ...}}}`.
+A param that is a model is marked explicitly, `{"$model": {type, params}}`, and built first. That
+is how wrappers take inner models, and why a plain value like `method: {type: isotonic}` is never
+mistaken for one:
+
+    {"type": "routed", "params": {"seen": {"$model": {"type": ...}}, "unseen": {"$model": ...}}}
 """
 
 import importlib
@@ -46,13 +49,16 @@ def model_class(name: str) -> type[Model]:
     return _REGISTRY[name]
 
 
-def is_spec(value: Any) -> bool:
-    return isinstance(value, Mapping) and "type" in value and set(value) <= {"type", "params"}
+MODEL_MARKER = "$model"
+
+
+def is_nested_model(value: Any) -> bool:
+    return isinstance(value, Mapping) and set(value) == {MODEL_MARKER}
 
 
 def build(spec: Mapping[str, Any]) -> Model:
     params = {
-        key: build(value) if is_spec(value) else value
+        key: build(value[MODEL_MARKER]) if is_nested_model(value) else value
         for key, value in dict(spec.get("params") or {}).items()
     }
     return model_class(str(spec["type"]))(**params)

@@ -280,6 +280,7 @@ One experiment is one YAML file: task, data, splits, model `{type, params}`, a h
 | Artifacts | Fitted model, manifest, validation report (per-class F1, confusion matrices, per-merchant accuracy, calibration curves) |
 
 - **Tracking store:** local by default (`sqlite:///mlruns/mlflow.db`, artifacts under `mlruns/`, both gitignored). `SFC_MLFLOW_TRACKING_URI` points it at a shared server instead; nothing else changes.
+- **Trust:** `finalize` and `promote` unpickle models downloaded from the tracking store. The manifest checksum shows a file arrived intact, not who wrote it, so anyone who can write to a shared server's artifact store could run code on the machine that runs those commands. The local default is safe; a shared server must allow only trusted writers.
 - **Caching:** embeddings are cached per normalized string and keyed by the embedding file's checksum, so a sweep embeds once.
 - **Resumable:** a config whose hash, data hash and split hashes match a finished run is skipped unless `--force`, so a long sweep can be stopped and restarted.
 
@@ -289,17 +290,19 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 
 1. **Compare on validation only.** Merchant-grouped folds stand in for unseen merchants; the seen-merchant fold rows stand in for known ones. Every run gets `val_known_macro_f1`, `val_unseen_macro_f1` and `val_unseen_ece`.
 2. **Write the decision rule before the runs** ([Experiment plan](#experiment-plan)).
-3. **Score test sets once, for finalists.** `sfc-experiment finalize` scores at most three runs on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The task's round 0 baselines are always scored alongside them and don't count toward the three, so the "beats the baseline" gate has test numbers to compare against. The test numbers are reported, not used to choose among the finalists again. The one exemption is the POC reproduction check (§3).
+3. **Score test sets once, for finalists, enforced in code.** `sfc-experiment finalize` takes the leaderboard's top three itself (tagging each with its rank) and refuses a split whose candidates were already test-scored. It scores them on `test_known`, `test_all` and `test_unseen`, tags them as finalists, and records that the test sets were used. The task's round 0 baselines are always scored alongside them and don't count toward the three, so the "beats the baseline" gate has test numbers to compare against. The test numbers are reported, not used to choose among the finalists again. The one exemption is the POC reproduction check (§3).
 
 ### Promotion and serving
 
 `sfc-model promote --task categorization --run <id>`:
 
-1. Requires the run to be a finalist.
+1. Requires the run to be the rank-1 finalist: finalists are never re-ranked on test scores.
 2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, latency within budget, and a written note on explainability and operations (`--note`, stored on the run).
 3. Registers the model in the MLflow model registry as `categorization` and moves the `champion` alias to it.
 4. Exports it to `artifacts/categorization/<version>/` and writes `artifacts/categorization/PROMOTED`, which holds the version.
 5. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results and the note. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
+
+**Departing from the rule is possible but visible.** Naming finalists, a second round of test scoring on the same splits, or promoting a finalist other than #1 each need `--override "<reason>"`. The reason is recorded as a tag on every run it touches and in `promotions.jsonl`.
 
 `load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 

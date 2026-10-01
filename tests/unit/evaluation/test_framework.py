@@ -9,6 +9,8 @@ import pytest
 from smart_financial_coach.evaluation.experiment import ExperimentConfig
 from smart_financial_coach.evaluation.promote import (
     FINALIST_TAG,
+    OVERRIDE_TAG,
+    RANK_TAG,
     SelectionError,
     finalize,
     leaderboard,
@@ -92,33 +94,58 @@ def test_leaderboard_orders_by_rule(toy_data: Path, tracker: Tracker, runs: dict
     assert "majority" not in names
 
 
-def test_finalize_scores_finalists_and_baselines_once(
+def test_finalize_takes_the_rules_top_three(
     toy_data: Path, tracker: Tracker, runs: dict[str, str]
 ) -> None:
-    scored = finalize("toy", [runs["memory_hint"]], toy_data, tracker)
+    scored = finalize("toy", toy_data, tracker)
+    ranks = {name: tracker.get(runs[name]).tags.get(RANK_TAG) for name in runs}
 
-    assert set(scored) == {runs["memory_hint"], runs["majority"]}
+    assert set(scored) == set(runs.values())  # three candidates + the baseline
+    assert ranks == {
+        "majority": None,
+        "memory_hint": "1",
+        "memory_hint_complex": "2",
+        "memory_no_hint": "3",
+    }
     assert scored[runs["memory_hint"]]["test_known_accuracy"] == 1.0
-    assert tracker.get(runs["memory_hint"]).tags[FINALIST_TAG] == "true"
     assert FINALIST_TAG not in tracker.get(runs["majority"]).tags
+
+
+def test_test_sets_are_used_once_per_split(
+    toy_data: Path, tracker: Tracker, make_config: MakeConfig, runs: dict[str, str]
+) -> None:
+    """A second call can't test-score more runs, even new ones, without a recorded reason."""
+    finalize("toy", toy_data, tracker)
+    late = run_experiment(make_config("late", "toy/memory_alt"), toy_data, tracker).run_id
+
+    with pytest.raises(SelectionError, match="already used"):
+        finalize("toy", toy_data, tracker)
+    with pytest.raises(SelectionError, match="override reason"):
+        finalize("toy", toy_data, tracker, run_ids=[late])
     with pytest.raises(SelectionError, match="already scored"):
-        finalize("toy", [runs["memory_hint"]], toy_data, tracker)
+        finalize("toy", toy_data, tracker, run_ids=[runs["memory_hint"]], override="recheck")
+
+    finalize("toy", toy_data, tracker, run_ids=[late], override="new model type added late")
+
+    tags = tracker.get(late).tags
+    assert tags[OVERRIDE_TAG] == "new model type added late"
+    assert tags[RANK_TAG] == "1"  # its place in the rule's order: it ties the leader, simpler
 
 
 def test_finalize_refusals(toy_data: Path, tracker: Tracker, runs: dict[str, str]) -> None:
     with pytest.raises(SelectionError, match="1 to 3"):
-        finalize("toy", list(runs.values()), toy_data, tracker)
+        finalize("toy", toy_data, tracker, run_ids=list(runs.values()), override="all")
     with pytest.raises(SelectionError, match="baseline"):
-        finalize("toy", [runs["majority"]], toy_data, tracker)
+        finalize("toy", toy_data, tracker, run_ids=[runs["majority"]], override="x")
 
 
 def test_finalize_needs_baselines(
     toy_data: Path, tracker: Tracker, make_config: MakeConfig
 ) -> None:
-    run = run_experiment(make_config("alone"), toy_data, tracker)
+    run_experiment(make_config("alone"), toy_data, tracker)
 
     with pytest.raises(SelectionError, match="no baseline"):
-        finalize("toy", [run.run_id], toy_data, tracker)
+        finalize("toy", toy_data, tracker)
 
 
 def test_finalize_refuses_other_data(
@@ -128,14 +155,14 @@ def test_finalize_refuses_other_data(
     pd.read_csv(toy_data).iloc[::-1].to_csv(other, index=False)
 
     with pytest.raises(SelectionError, match="not the dataset"):
-        finalize("toy", [runs["memory_hint"]], other, tracker)
+        finalize("toy", other, tracker)
 
 
 def test_promote_then_load_service(
     toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
 ) -> None:
     artifacts = tmp_path / "artifacts"
-    finalize("toy", [runs["memory_hint"]], toy_data, tracker)
+    finalize("toy", toy_data, tracker)
     entry = promote("toy", runs["memory_hint"], NOTE, tracker, artifacts)
 
     served = load_service("toy", artifacts)
@@ -143,6 +170,7 @@ def test_promote_then_load_service(
 
     assert served.predict(x)["label"].tolist() == ["c"]  # g05 is a "c" group
     assert served.version == entry["version"]
+    assert "override" not in entry
     assert (artifacts / "toy" / POINTER_FILE).read_text().strip() == entry["version"]
     assert promotions(artifacts / "toy")[-1]["mlflow_run_id"] == runs["memory_hint"]
     assert promotion_errors(artifacts / "toy") == []
@@ -152,24 +180,28 @@ def test_promote_then_load_service(
 def test_switching_models_needs_no_code_change(
     toy_data: Path, tracker: Tracker, make_config: MakeConfig, runs: dict[str, str], tmp_path: Path
 ) -> None:
-    """Promote one model type, then another: the caller's code is the same two lines."""
+    """Promote one model type, then another: the caller's code is the same two lines.
+
+    Promoting a runner-up departs from the decision rule, so it carries a recorded override.
+    """
     artifacts = tmp_path / "artifacts"
-    alt = run_experiment(make_config("alt", "toy/memory_alt"), toy_data, tracker).run_id
-    finalize("toy", [runs["memory_hint"], alt], toy_data, tracker)
+    alt = run_experiment(make_config("alt", "toy/memory_alt", complexity=1), toy_data, tracker)
+    finalize("toy", toy_data, tracker)
     x = pd.DataFrame({"id": ["n1"], "group": ["g05"], "hint": ["c"]})
 
     promote("toy", runs["memory_hint"], NOTE, tracker, artifacts)
     first = load_service("toy", artifacts)
     first_out = first.predict(x)
-    promote("toy", alt, NOTE, tracker, artifacts)
+    promote("toy", alt.run_id, NOTE, tracker, artifacts, override="demonstrate a model switch")
     second = load_service("toy", artifacts)
     second_out = second.predict(x)
 
     assert (first.model.name, second.model.name) == ("toy/memory", "toy/memory_alt")
     assert first_out["confidence"].tolist() != second_out["confidence"].tolist()
-    assert len(promotions(artifacts / "toy")) == 2
+    log = promotions(artifacts / "toy")
+    assert [e.get("override") for e in log] == [None, "demonstrate a model switch"]
     assert promotion_errors(artifacts / "toy") == []
-    assert tracker.champion_run("toy") == alt
+    assert tracker.champion_run("toy") == alt.run_id
 
 
 def test_promote_refusals(
@@ -179,11 +211,13 @@ def test_promote_refusals(
     with pytest.raises(SelectionError, match="not a finalist"):
         promote("toy", runs["memory_hint"], NOTE, tracker, artifacts)
 
-    finalize("toy", [runs["memory_hint"], runs["memory_no_hint"]], toy_data, tracker)
+    finalize("toy", toy_data, tracker)
+    with pytest.raises(SelectionError, match="finalist #2, not the decision rule's winner"):
+        promote("toy", runs["memory_hint_complex"], NOTE, tracker, artifacts)
     with pytest.raises(SelectionError, match="note"):
         promote("toy", runs["memory_hint"], "  ", tracker, artifacts)
-    with pytest.raises(SelectionError, match="unseen_accuracy"):
-        promote("toy", runs["memory_no_hint"], NOTE, tracker, artifacts)  # unseen falls to majority
+    with pytest.raises(SelectionError, match="unseen_accuracy"):  # unseen falls to majority
+        promote("toy", runs["memory_no_hint"], NOTE, tracker, artifacts, override="try #3")
     assert not (artifacts / "toy").exists()
 
 
@@ -205,3 +239,13 @@ def test_reproduce_poc_only_for_poc_configs(
 
     assert result.metrics["test_known_accuracy"] == 1.0
     assert tracker.find("toy", {}) == []  # kept off the leaderboard and out of finalize
+
+
+def test_reproduction_runs_resume(
+    toy_data: Path, tracker: Tracker, make_config: MakeConfig
+) -> None:
+    first = run_experiment(make_config("poc"), toy_data, tracker, reproduce_poc=True)
+    again = run_experiment(make_config("poc"), toy_data, tracker, reproduce_poc=True)
+
+    assert again.skipped
+    assert again.run_id == first.run_id

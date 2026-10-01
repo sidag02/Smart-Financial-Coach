@@ -8,6 +8,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Any, ClassVar, Self
 
+import numpy as np
 import pandas as pd
 
 from smart_financial_coach.intelligence.models.base import Model
@@ -30,11 +31,8 @@ class Contract:
         if len(out) != len(x):
             return [f"{len(out)} rows for {len(x)} inputs"]
         errors = []
-        if (
-            not out[self.id_column]
-            .reset_index(drop=True)
-            .equals(x[self.id_column].reset_index(drop=True))
-        ):
+        returned = out[self.id_column].astype(str).to_numpy()
+        if not np.array_equal(returned, x[self.id_column].astype(str).to_numpy()):
             errors.append(f"{self.id_column} doesn't match the input rows in order")
         if nulls := [c for c in self.columns if out[c].isna().any()]:
             errors.append(f"missing values in {nulls}")

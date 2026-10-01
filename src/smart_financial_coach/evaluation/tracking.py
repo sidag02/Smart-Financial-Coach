@@ -122,10 +122,14 @@ class Tracker:
         )
 
     def find(self, task: str, tags: Mapping[str, str]) -> list[RunRecord]:
-        """Finished experiment runs (not grid-point children) whose tags all match."""
+        """Finished runs whose tags all match: experiment runs unless `tags` sets the kind.
+
+        Grid-point children carry no kind tag, so they never match.
+        """
         if self.client.get_experiment_by_name(task) is None:
             return []
-        clauses = [f"tags.`{KIND_TAG}` = 'experiment'", "attributes.status = 'FINISHED'"]
+        tags = {KIND_TAG: "experiment", **tags}
+        clauses = ["attributes.status = 'FINISHED'"]
         clauses += [f"tags.`{k}` = '{v}'" for k, v in tags.items()]
         runs = self.client.search_runs(
             [self.experiment_id(task)],

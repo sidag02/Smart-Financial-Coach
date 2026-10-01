@@ -53,9 +53,9 @@ class BaseModel:
 
 
 def describe(value: Any) -> Any:
-    """JSON-ready params: nested models become their `{type, params}` spec."""
+    """JSON-ready params: nested models become `{"$model": {type, params}}`, as `build` takes."""
     if isinstance(value, Model):
-        return {"type": value.name, "params": describe(dict(value.params))}
+        return {"$model": {"type": value.name, "params": describe(dict(value.params))}}
     if isinstance(value, Mapping):
         return {str(k): describe(v) for k, v in value.items()}
     if isinstance(value, list | tuple):

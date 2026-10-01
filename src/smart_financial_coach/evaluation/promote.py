@@ -2,10 +2,13 @@
 
 - `leaderboard` orders comparable runs (same data and splits) by the decision rule, on
   validation metrics only.
-- `finalize` scores at most three finalists on the test sets, plus the round 0 baselines, and
-  records it. A run is scored on test once.
-- `promote` checks a finalist against the task's gates, exports it to `artifacts/<task>/`,
-  points the MLflow `champion` alias and `PROMOTED` at it, and appends to `promotions.jsonl`.
+- `finalize` scores the leaderboard's top three on the test sets, plus the round 0 baselines,
+  once per split.
+- `promote` checks the rank-1 finalist against the task's gates, exports it to
+  `artifacts/<task>/`, points the MLflow `champion` alias and `PROMOTED` at it, and appends to
+  `promotions.jsonl`.
+- Departing from the rule (naming finalists, a second round, promoting another finalist) needs an
+  override reason, recorded on the run and in the promotion log.
 """
 
 import shutil
@@ -41,7 +44,9 @@ from smart_financial_coach.intelligence.models.contract import Checked
 from smart_financial_coach.intelligence.service import get_service
 
 FINALIST_TAG = "sfc.finalist"
+RANK_TAG = "sfc.finalist_rank"  # the run's place in the decision rule's order when finalized
 TEST_SCORED_TAG = "sfc.test_scored"
+OVERRIDE_TAG = "sfc.override"  # why a run departed from the rule, when it did
 
 
 class SelectionError(ValueError):
@@ -152,23 +157,54 @@ def leaderboard(
 
 
 def finalize(
-    task_name: str, run_ids: list[str], data: Path, tracker: Tracker
+    task_name: str,
+    data: Path,
+    tracker: Tracker,
+    *,
+    run_ids: list[str] | None = None,
+    override: str | None = None,
+    split_hash: str | None = None,
 ) -> dict[str, dict[str, float]]:
-    """Score finalists and baselines on the test sets; each run is scored once."""
-    if not 0 < len(run_ids) <= MAX_FINALISTS:
-        raise SelectionError(f"finalize takes 1 to {MAX_FINALISTS} runs, got {len(run_ids)}")
+    """Score the decision rule's top three, and the baselines, on the test sets: once per split.
+
+    The finalists are the leaderboard's first `MAX_FINALISTS`, tagged with their rank. A split whose
+    candidates were already test-scored is refused. Naming other runs, or a second round on the
+    same split, needs `override`: a reason, recorded on every run it scores.
+    """
     task = get_task(task_name)
-    finalists = [tracker.get(r) for r in run_ids]
+    reason = (override or "").strip()
+    if run_ids and not reason:
+        raise SelectionError(
+            "naming finalists departs from the decision rule; give an override reason"
+        )
+    if run_ids:
+        split_hash = tracker.get(run_ids[0]).tags.get("sfc.split_hash")
+    order = [s.run_id for s in leaderboard(task_name, data, tracker, split_hash) if s.eligible]
+    chosen = run_ids or order[:MAX_FINALISTS]
+    if not 0 < len(chosen) <= MAX_FINALISTS:
+        raise SelectionError(f"finalize takes 1 to {MAX_FINALISTS} runs, got {len(chosen)}")
+    finalists = [tracker.get(r) for r in chosen]
     for run in finalists:
         if run.status != "FINISHED" or run.tags.get("sfc.kind") != "experiment":
             raise SelectionError(f"{run.run_id} is not a finished experiment run")
         if run.tags.get("sfc.baseline") == "true":
             raise SelectionError(f"{run.run_id} is a baseline; baselines are scored automatically")
-        if run.tags.get(TEST_SCORED_TAG) == "true":
-            raise SelectionError(f"{run.run_id} was already scored on the test sets")
     if len({r.tags["sfc.split_hash"] for r in finalists}) > 1:
         raise SelectionError("finalists were trained on different splits")
-    baselines = _baselines(_comparable(tracker, task, finalists[0].tags["sfc.split_hash"]))
+    comparable = _comparable(tracker, task, finalists[0].tags["sfc.split_hash"])
+    used = [
+        r
+        for r in comparable
+        if r.tags.get(TEST_SCORED_TAG) == "true" and r.tags.get("sfc.baseline") != "true"
+    ]
+    if used and not reason:
+        raise SelectionError(
+            f"the test sets were already used on these splits ({len(used)} runs); "
+            "a second round needs an override reason"
+        )
+    if again := [r.run_id for r in finalists if r.tags.get(TEST_SCORED_TAG) == "true"]:
+        raise SelectionError(f"{', '.join(again)} already scored on the test sets")
+    baselines = _baselines(comparable)
     if not baselines:
         raise SelectionError("no baseline runs on these splits; run the round 0 baselines first")
 
@@ -186,7 +222,10 @@ def finalize(
             metrics = {f"test_{k}": v for k, v in test.items()}
             tags = {TEST_SCORED_TAG: "true"}
             if run in finalists:
-                tags[FINALIST_TAG] = "true"
+                rank = order.index(run.run_id) + 1 if run.run_id in order else "unranked"
+                tags |= {FINALIST_TAG: "true", RANK_TAG: str(rank)}
+            if reason:
+                tags[OVERRIDE_TAG] = reason
             tracker.log(run.run_id, metrics=metrics, tags=tags)
             scored[run.run_id] = metrics
     return scored
@@ -203,12 +242,24 @@ def promote(
     note: str,
     tracker: Tracker,
     artifacts_dir: Path | None = None,
+    *,
+    override: str | None = None,
 ) -> dict[str, Any]:
-    """Export a finalist that passes every gate and make it what `load_service` returns."""
+    """Export the rule's winner, if it passes every gate, and make it what `load_service` returns.
+
+    Only the rank-1 finalist is promoted: finalists are never re-ranked on test scores. Promoting
+    another needs `override`, a reason recorded in the promotion log.
+    """
     task = get_task(task_name)
     run = tracker.get(run_id)
+    reason = (override or "").strip()
     if run.tags.get(FINALIST_TAG) != "true":
-        raise SelectionError(f"{run_id} is not a finalist; run `finalize` on it first")
+        raise SelectionError(f"{run_id} is not a finalist; run `finalize` first")
+    if run.tags.get(RANK_TAG) != "1" and not reason:
+        raise SelectionError(
+            f"{run_id} is finalist #{run.tags.get(RANK_TAG)}, not the decision rule's winner; "
+            "promoting it needs an override reason"
+        )
     if not note.strip():
         raise SelectionError("a promotion needs a note on explainability and operations")
     gates = check_gates(task, run, tracker)
@@ -236,6 +287,7 @@ def promote(
         "promoted_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "gates": [{"name": g.name, "passed": g.passed, "detail": g.detail} for g in gates],
         "note": note.strip(),
+        **({"override": reason} if reason else {}),
     }
     record_promotion(service_dir, entry)
     return entry

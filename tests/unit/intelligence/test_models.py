@@ -70,14 +70,20 @@ def test_build_from_spec_with_nested_models() -> None:
         {
             "type": "test/pair",
             "params": {
-                "first": {"type": "test/constant", "params": {"label": "y"}},
-                "second": {"type": "test/constant"},
+                "first": {"$model": {"type": "test/constant", "params": {"label": "y"}}},
+                "second": {"$model": {"type": "test/constant"}},
             },
         }
     )
 
     assert isinstance(model, Pair)
     assert model.predict(X)["label"].tolist() == ["y", "y", "y"]
+
+
+def test_plain_dict_params_are_not_models() -> None:
+    model = build({"type": "test/constant", "params": {"label": {"type": "isotonic"}}})
+
+    assert model.params["label"] == {"type": "isotonic"}
 
 
 def test_unknown_type_and_duplicate_registration() -> None:
@@ -89,6 +95,14 @@ def test_unknown_type_and_duplicate_registration() -> None:
 
 def test_contract_passes_a_good_model() -> None:
     assert Checked(Constant(), CONTRACT).predict(X)["id"].tolist() == ["1", "2", "3"]
+
+
+def test_contract_ignores_id_dtype() -> None:
+    class StringIds(Constant):
+        def predict(self, x: pd.DataFrame) -> pd.DataFrame:
+            return super().predict(x).astype({"id": "string"})
+
+    assert len(Checked(StringIds(), CONTRACT).predict(X)) == 3
 
 
 @pytest.mark.parametrize(
