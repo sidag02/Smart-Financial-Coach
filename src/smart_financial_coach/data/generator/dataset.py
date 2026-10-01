@@ -82,6 +82,8 @@ TABLES: dict[str, Table] = {
             C("process", "TEXT"),
             C("is_recurring", "INTEGER"),
             C("anomaly_kind", "TEXT", nullable=True),
+            # Unusual charges only: weak when an amount outlier isn't above normal charges
+            C("tier", "TEXT", nullable=True),
             # Duplicate: the original charge. Refund: the purchase refunded.
             C("related_transaction_id", "TEXT", nullable=True),
         ),

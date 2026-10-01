@@ -243,3 +243,28 @@ def test_validation_gates_on_the_oracle(small_dataset: Dataset, small_spec: Spec
     assert report.stats["oracle_month_precision"] >= 0.7
     assert any(e.startswith("ceiling: monthly spike oracle") for e in report.errors)
     assert any(e.startswith("ceiling: unusual-charge oracle") for e in report.errors)
+
+
+def test_validation_catches_purchases_off_their_expected_counts(
+    small_dataset: Dataset, small_spec: Spec
+) -> None:
+    expected = small_dataset["truth_expected"].copy()
+    expected["expected_count"] *= 1.5
+    skewed = Dataset(
+        tables={**small_dataset.tables, "truth_expected": expected}, meta=small_dataset.meta
+    )
+
+    report = validate(skewed, small_spec)
+
+    assert any("don't fit their expected counts" in e for e in report.errors)
+
+
+def test_unusual_charges_carry_a_tier(small_dataset: Dataset) -> None:
+    truth = small_dataset["truth_transactions"]
+    unusual = truth["anomaly_kind"].notna()
+
+    assert truth.loc[unusual, "tier"].isin(["clear", "weak"]).all()
+    assert truth.loc[~unusual, "tier"].isna().all()
+    # Only amount outliers can be weak; duplicates and new-merchant charges are always visible
+    weak = truth[truth["tier"] == "weak"]
+    assert (weak["anomaly_kind"] == "amount_outlier").all()

@@ -91,6 +91,14 @@ def _month_start(ts: pd.Series) -> pd.Series:
     return ts.str[:7] + "-01"
 
 
+def _check_months(df: pd.DataFrame) -> None:
+    """Reject period starts that aren't the 1st of a month: a harness bug, not a false positive."""
+    bad = ~df["period_start"].astype(str).str.fullmatch(r"\d{4}-\d{2}-01")
+    if bad.any():
+        example = df.loc[bad, "period_start"].iloc[0]
+        raise ValueError(f"{int(bad.sum())} periods don't start on the 1st (e.g. {example!r})")
+
+
 def _in_keys(df: pd.DataFrame, keys: set[tuple[str, str, str]]) -> pd.Series:
     """Whether each row's (user_id, category, period_start) is in `keys`."""
     rows = zip(*(df[c] for c in PERIOD_KEY), strict=True)
@@ -173,9 +181,10 @@ class Truth:
         """Score transaction flags (FR-7).
 
         `flags` has `transaction_id` and optionally `reason_code`. Returns one row per flagged
-        transaction and one `fn` row per missed label, with `outcome` and `reason_match`.
+        transaction and one `fn` row per missed label, with `outcome`, the label's `tier` and
+        `reason_match`.
         """
-        tx = self.transactions[["transaction_id", "anomaly_kind"]]
+        tx = self.transactions[["transaction_id", "anomaly_kind", "tier"]]
         flags = flags.drop_duplicates("transaction_id")
         if unknown := set(flags["transaction_id"]) - set(tx["transaction_id"]):
             raise ValueError(f"{len(unknown)} flagged transactions are not in the dataset")
@@ -205,6 +214,7 @@ class Truth:
         """
         if granularity != "month":
             raise ValueError("v1 scores monthly spikes only (FR-2 option F)")
+        _check_months(flags)
         labels = self.spikes("month")[[*PERIOD_KEY, "tier"]]
         flags = flags[PERIOD_KEY].drop_duplicates()
         scored = flags.merge(labels, on=PERIOD_KEY, how="left")
@@ -226,9 +236,12 @@ class Truth:
         """Score driving transactions for flagged monthly spikes (FR-8).
 
         `drivers` has `user_id`, `category`, `period_start` and `transaction_id`. Returns one row
-        per period: `valid` (at most `max_drivers`, all inside the period and category) and
-        `coverage` (returned spend over the excess above expected spend, capped at 1).
+        per period: `valid` (at most `max_drivers` distinct transactions, all inside the period
+        and category) and `coverage` (returned spend over the excess above expected spend, capped
+        at 1). An invalid set covers nothing, so returning everything can't score well.
         """
+        _check_months(drivers)
+        drivers = drivers[[*PERIOD_KEY, "transaction_id"]].drop_duplicates()
         tx = self.transactions[["transaction_id", "user_id", "category", "month", "amount"]]
         d = drivers.merge(tx, on="transaction_id", how="left", suffixes=("", "_tx"))
         d["inside"] = (
@@ -249,7 +262,8 @@ class Truth:
         per = per.merge(self._period_spend(), on=PERIOD_KEY, how="left")
         excess = per["spend"] - per["expected_spend"]
         per["valid"] = per["inside"] & (per["n"] <= self.contract.max_drivers)
-        per["coverage"] = (per["returned"] / excess).clip(upper=1.0).where(excess > 0)
+        coverage = (per["returned"] / excess).clip(upper=1.0).where(excess > 0)
+        per["coverage"] = coverage.where(per["valid"] | coverage.isna(), 0.0)
         return per
 
     def baseline_drivers(self) -> pd.DataFrame:
@@ -362,6 +376,7 @@ class Truth:
         out: dict[str, float] = {}
         for kind, n in tx["anomaly_kind"].value_counts().sort_index().items():
             out[f"unusual_{kind}"] = float(n)
+        out["unusual_weak"] = float((tx["tier"] == "weak").sum())
         tiers = self.periods.groupby(["granularity", "tier"]).size()
         for granularity, tier, n in zip(
             tiers.index.get_level_values(0), tiers.index.get_level_values(1), tiers, strict=True

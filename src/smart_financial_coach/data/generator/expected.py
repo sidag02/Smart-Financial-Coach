@@ -138,12 +138,10 @@ def expected_spending(
     return Expected(count=dict(count), spend=dict(spend))
 
 
-def expected_rows(
-    user: User, tl: Timeline, expected: Expected, categories: list[str]
-) -> pd.DataFrame:
-    """Monthly `truth_expected` rows for the given categories."""
+def expected_rows(user: User, tl: Timeline, expected: Expected) -> pd.DataFrame:
+    """Monthly `truth_expected` rows for every category with Poisson-process purchases."""
     rows = []
-    for category in categories:
+    for category in sorted(c for c, n in expected.count.items() if n.sum() > 0):
         for m in range(tl.n_months):
             n, s = expected.total(category, int(tl.month_first[m]), int(tl.month_last[m]))
             rows.append(

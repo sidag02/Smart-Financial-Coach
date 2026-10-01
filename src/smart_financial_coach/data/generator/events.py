@@ -259,3 +259,17 @@ def spike_rows(
             }
         )
     return pd.DataFrame(rows, columns=SPIKE_COLUMNS)
+
+
+def unusual_tiers(txns: pd.DataFrame) -> pd.Series:
+    """`clear` / `weak` per unusual charge; None for other transactions (one user's ledger).
+
+    An amount outlier is weak when it doesn't exceed the user's largest normal charge at the same
+    merchant: high-variance marketplaces sometimes reach the planted multiple on their own.
+    """
+    normal = txns[txns["anomaly_kind"].isna() & (txns["amount"] < 0)]
+    largest = (-normal["amount"]).groupby(normal["merchant_id"]).max()
+    inside = -txns["amount"] <= txns["merchant_id"].map(largest).fillna(0.0)
+    weak = (txns["anomaly_kind"] == "amount_outlier") & inside
+    tier = pd.Series(np.where(weak, "weak", "clear"), index=txns.index, dtype=object)
+    return tier.where(txns["anomaly_kind"].notna(), None)

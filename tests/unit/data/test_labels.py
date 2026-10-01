@@ -32,6 +32,7 @@ def _tx(
     process: str = "discretionary",
     kind: str | None = None,
     related: str | None = None,
+    tier: str = "clear",
 ) -> dict[str, object]:
     return {
         "transaction_id": tid,
@@ -45,6 +46,7 @@ def _tx(
         "process": "unusual_charge" if kind else process,
         "is_recurring": 0,
         "anomaly_kind": kind,
+        "tier": tier if kind else None,
         "related_transaction_id": related,
         "month": ts[:7] + "-01",
     }
@@ -104,7 +106,7 @@ def test_transaction_rules() -> None:
             _tx("early", "2025-02-01 09:00", -5.0),
             _tx("orig", "2025-06-01 09:00", -5.0),
             _tx("dupe", "2025-06-01 09:30", -5.0, kind="duplicate", related="orig"),
-            _tx("big", "2025-07-01 09:00", -90.0, kind="amount_outlier"),
+            _tx("big", "2025-07-01 09:00", -90.0, kind="amount_outlier", tier="weak"),
             _tx("new", "2025-08-01 09:00", -400.0, kind="new_merchant_large"),
             _tx("plain", "2025-08-02 09:00", -6.0),
         ],
@@ -131,6 +133,7 @@ def test_transaction_rules() -> None:
     assert m["precision"] == pytest.approx(2 / 3)
     assert m["recall"] == pytest.approx(2 / 3)
     assert m["reason_accuracy"] == pytest.approx(0.5)  # "big" carries the wrong reason
+    assert m["recall_clear"] == pytest.approx(1 / 2)  # "dupe" found, "new" missed; "big" is weak
 
 
 def test_unknown_flagged_transaction_is_rejected() -> None:
@@ -173,6 +176,16 @@ def test_period_rules() -> None:
     assert m["recall_clear"] == pytest.approx(1.0)  # the missed spike was weak
 
 
+def test_periods_must_start_on_the_first() -> None:
+    truth = _truth([_tx("a", "2025-05-03 09:00", -5.0)], [_spike("s", "month", "2025-05-01")])
+    bad = pd.DataFrame({"user_id": ["u1"], "category": ["Dining"], "period_start": ["2025-05-03"]})
+
+    with pytest.raises(ValueError, match="don't start on the 1st"):
+        truth.score_periods(bad)
+    with pytest.raises(ValueError, match="don't start on the 1st"):
+        truth.score_drivers(bad.assign(transaction_id="a"))
+
+
 def test_weekly_periods_are_not_scored() -> None:
     truth = _truth([], [])
 
@@ -199,6 +212,7 @@ def test_driver_cap_period_and_coverage() -> None:
     assert scored["valid"]
     assert scored["coverage"] == pytest.approx(90 / 140)
 
+    # An invalid set covers nothing: returning everything can't score well
     too_many = truth.score_drivers(
         pd.DataFrame([{**key, "transaction_id": t} for t in ("a", "b", "c")])
     )
@@ -206,8 +220,15 @@ def test_driver_cap_period_and_coverage() -> None:
         pd.DataFrame([{**key, "transaction_id": t} for t in ("a", "other")])
     )
     assert not too_many.iloc[0]["valid"]
-    assert too_many.iloc[0]["coverage"] == 1.0  # capped
+    assert too_many.iloc[0]["coverage"] == 0.0
     assert not outside.iloc[0]["valid"]
+    assert outside.iloc[0]["coverage"] == 0.0
+
+    # Repeating a driver counts it once
+    repeated = truth.score_drivers(pd.DataFrame([{**key, "transaction_id": "b"}] * 5)).iloc[0]
+    assert repeated["valid"]
+    assert repeated["n"] == 1
+    assert repeated["coverage"] == pytest.approx(50 / 140)
 
     baseline = truth.baseline_drivers()
     assert list(baseline["transaction_id"]) == ["a", "b"]  # the 2 largest

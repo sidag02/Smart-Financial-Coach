@@ -18,8 +18,8 @@ from smart_financial_coach.data.generator.events import (
     generate_refunds,
     generate_unusual_charges,
     plan_spikes,
-    spike_categories,
     spike_rows,
+    unusual_tiers,
 )
 from smart_financial_coach.data.generator.expected import expected_rows, expected_spending
 from smart_financial_coach.data.generator.goals import generate_goals
@@ -123,11 +123,12 @@ def generate_user(
                 "process": txns["process"].replace(SPIKE_EXTRA, "discretionary"),
                 "is_recurring": txns["is_recurring"].astype(int),
                 "anomaly_kind": txns["anomaly_kind"],
+                "tier": unusual_tiers(txns),
                 "related_transaction_id": txns["copy_of"],
             }
         ),
         "truth_periods": spike_rows(user, tl, spikes, expected, txns, spec.labels.weak_lift),
-        "truth_expected": expected_rows(user, tl, expected, spike_categories(user, spec.events)),
+        "truth_expected": expected_rows(user, tl, expected),
         "truth_goals": truth_goals,
     }
     return tables, dropped

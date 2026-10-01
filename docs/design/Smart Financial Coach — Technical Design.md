@@ -66,7 +66,7 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 
 | Entity | Key fields |
 | --- | --- |
-| Transaction truth | transaction\_id, category, merchant\_id, process, is\_recurring, anomaly\_kind, related\_transaction\_id |
+| Transaction truth | transaction\_id, category, merchant\_id, process, is\_recurring, anomaly\_kind, tier, related\_transaction\_id |
 | Period truth (spikes) | spike\_id, user\_id, granularity, period\_start, period\_end, category, multiplier, expected\_count, expected\_spend, base\_spend, extra\_spend, tier |
 | Expected spend | user\_id, category, granularity, period\_start, expected\_count, expected\_spend |
 | Goal truth | goal\_id, outcome\_class, met |

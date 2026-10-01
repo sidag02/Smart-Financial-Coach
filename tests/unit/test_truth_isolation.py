@@ -6,7 +6,7 @@ from pathlib import Path
 from smart_financial_coach.config import PROJECT_ROOT
 
 MODEL_CODE = PROJECT_ROOT / "src" / "smart_financial_coach" / "intelligence"
-FORBIDDEN = re.compile(r"truth_|data\.labels|data import labels")
+FORBIDDEN = re.compile(r"truth_|data\.labels|data import labels", re.IGNORECASE)
 
 
 def truth_reads(root: Path) -> list[str]:
@@ -27,8 +27,9 @@ def test_check_catches_truth_reads(tmp_path: Path) -> None:
     (tmp_path / "leaky.py").write_text(
         'rows = conn.execute("SELECT * FROM truth_periods")\n'
         "from smart_financial_coach.data import labels\n"
-        "from smart_financial_coach.data.labels import load_truth\n",
+        "from smart_financial_coach.data.labels import load_truth\n"
+        "from smart_financial_coach.data.generator import TRUTH_TABLES\n",
         encoding="utf-8",
     )
 
-    assert len(truth_reads(tmp_path)) == 3
+    assert len(truth_reads(tmp_path)) == 4

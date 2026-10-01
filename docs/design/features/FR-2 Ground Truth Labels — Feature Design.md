@@ -113,10 +113,11 @@ truth.score_transactions(flags)  # same, at transaction level
 
 All additions are columns or tables in the same SQLite file. Model-visible tables don't change.
 
-**truth_transactions** (one new column)
+**truth_transactions** (new columns)
 
 | Column | Type | Notes |
 | --- | --- | --- |
+| tier | TEXT, nullable | Unusual charges only: `weak` for an amount outlier that doesn't exceed the user's largest normal charge at the merchant, otherwise `clear` (added after implementation review) |
 | related_transaction_id | TEXT, nullable | For `duplicate`: the original charge. For `refund`: the purchase refunded. The ledger already tracks this as `copy_of`; it is now written out |
 
 **truth_periods** (new columns)
@@ -135,11 +136,11 @@ All additions are columns or tables in the same SQLite file. Model-visible table
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| user_id, category, granularity, period_start | TEXT | Primary key; only categories eligible for spikes |
+| user_id, category, granularity, period_start | TEXT | Primary key; every category with Poisson-process purchases |
 | expected_count | REAL | Expected Poisson-process purchases for the user's normal behavior: seasonality, income coupling and day-of-week included, spikes and unusual charges excluded |
 | expected_spend | REAL | Expected spend on the same basis, all processes |
 
-Monthly only, since weekly spikes aren't scored in v1. Size on the default spec: about 360 users × 4 categories × 36 months ≈ 52k rows, well under a MB. It powers the oracle ceiling.
+Monthly only, since weekly spikes aren't scored in v1. It covers every category, not just spike-eligible ones, so `validate` can test discretionary seasonality against exact expected counts. Size on the default spec: about 360 users × 12 categories × 36 months ≈ 150k rows, a few MB. It also powers the oracle ceiling.
 
 Expectations are per **true** category. Ambiguous merchants draw their category per transaction, so a Groceries stream at a warehouse club contributes to Shopping's expectation in proportion to that merchant's category mix.
 
@@ -161,6 +162,8 @@ The contract is code (`data/labels.py`) and is versioned in `meta.label_contract
 | Anything else | False positive |
 | Unflagged with `anomaly_kind`, outside the warm-up | False negative |
 
+Recall is reported on all labels and on `clear` labels only, as for spikes.
+
 Reason accuracy: among true positives, the flag's reason code must match the kind (`duplicate`, `amount_unusual`, `new_merchant`). This measures NFR-7's "every flag has a reason" against truth, not just for presence.
 
 **Period level (FR-8)**
@@ -180,9 +183,9 @@ A period is (user, category, month). v1 scores monthly periods only; weekly spik
 | Starts in the user's first `baseline_months` (3) | Ignored |
 | Anything else | False positive |
 
-Recall is reported on all labels and on `clear` labels only. Precision is the same for both.
+Recall is reported on all labels and on `clear` labels only. Precision is the same for both. A flag whose `period_start` isn't the first of a month raises an error rather than counting as a false positive.
 
-**Driving transactions** (FR-8 "the transactions driving it"): the returned set is capped at `max_drivers` (default 5) transactions, each of which must be in the period and category. It is scored by **excess coverage**: the returned spend divided by the period's excess over `expected_spend`, capped at 1. With the cap, returning small or irrelevant purchases scores low, so the metric can fail.
+**Driving transactions** (FR-8 "the transactions driving it"): the returned set is capped at `max_drivers` (default 5) transactions, each of which must be in the period and category. It is scored by **excess coverage**: the returned spend divided by the period's excess over `expected_spend`, capped at 1. Repeated transaction IDs count once, and a set that breaks the cap or reaches outside the period and category scores 0, so returning everything can't score well.
 
 Returning the 5 largest transactions in the period scores close to 1 with no detection skill, especially since a single large one-off can cover the whole excess. So excess coverage is always reported next to a **top 5 by amount** baseline, and the number is read relative to it. It is an explanation metric, not a detection metric.
 
@@ -387,9 +390,9 @@ What the implementation settled or changed relative to the design above.
 - **Feasibility (milestone 1):** the monthly count oracle reaches **1.00** precision at recall 0.5 (the review measured 0.98 on discretionary spend only). The unusual-charge oracle reaches **0.98**, so both gates pass with the behavior unchanged.
 - **Unusual-charge oracle definition:** a perfect duplicate check (same text and amount within 90 minutes) scores first. Every other charge gets the z-score of its log amount against the user's normal charges at that merchant, leaving the charge itself out. With no such history, it falls back to the merchant's catalog price. `truth_merchants` gains `price_median` and `price_sigma` for this.
 - **Expected spend:** recurring bills contribute their realized amounts, since their schedule is fixed once drawn. Refunds contribute their expected share, spread over the lag. One-offs use the capped Pareto mean.
-- **Amount-outlier check:** about 3% of `amount_outlier` labels sit inside the user's normal range at high-variance marketplaces (Amazon, eBay, Temu), where ordinary purchases sometimes reach 6-15× the median. Changing the outlier multiplier would change modeled behavior, so the labels stay. `validate` requires at least 85% to exceed the user's largest normal charge at the merchant (97.3% on default) rather than every one.
+- **Amount-outlier tier:** about 3% of `amount_outlier` labels sit inside the user's normal range at high-variance marketplaces (Amazon, eBay, Temu), where ordinary purchases sometimes reach 6-15× the median. Changing the outlier multiplier would change modeled behavior, so the labels stay but are tagged `weak` (15 of 559 on default), and transaction recall is also reported on `clear` labels. `validate` checks each stored tier against its own computation and requires at least 85% of outliers to be `clear`.
 - **Oracle stats** live in `validate`'s report and `sfc-data labels`, not in `meta`, so a dataset's content doesn't depend on analysis code. `meta` stores the contract parameters (`label_contract`, from the spec's new `labels:` section) and its version, so `load_truth` can score flags from the SQLite file alone.
 - **Weekly tiers:** 23% of weekly labels are `weak` against the exact expected spend (the audit's 18% used a median baseline). They aren't scored in v1.
-- **FR-1 seasonality check:** moving spikes out of the normal draw changed the random draws of later streams. One small-spec profile (family Entertainment, about 45 purchases per month) then failed by chance at z = 3.1. The check now skips profiles with fewer than 100 purchases per month of year; the default spec still tests them.
+- **FR-1 seasonality check:** moving spikes out of the normal draw changed the random draws of later streams. One small-spec profile (family Entertainment, about 45 purchases per month) then failed FR-1's spend-correlation check by chance at z = 3.1. Discretionary seasonality is now checked two ways that hold at any volume. The generator's exact expected counts must follow the spec's profile (structural), and realized counts must fit them (Poisson χ² over the 12 months, p ≥ 1e-4, spike months left out). Recurring bills keep FR-1's correlation check. The small spec tests 35 profiles; injected bugs that drop seasonality from the rates, or from the draws alone, both fail it.
 - **Isolation test** scans `intelligence/` for `truth_` and imports of the label module.
 

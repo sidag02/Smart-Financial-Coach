@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pandas as pd
+from scipy.stats import chi2
 
 from smart_financial_coach.data.generator.catalog import load_catalog
 from smart_financial_coach.data.generator.dataset import TABLES, Dataset
@@ -21,8 +22,9 @@ SAVINGS_TOLERANCE = 0.1
 SAVINGS_MIN_SHARE_IN_RANGE = 0.85
 SEASONAL_MIN_VARIATION = 1.5  # only check profiles that vary at least this much
 SEASONAL_MIN_CORRELATION = 0.5
-# Below this many purchases per month of year, a profile is too noisy to test (small spec)
-SEASONAL_MIN_PURCHASES_PER_MONTH = 100
+# Poisson goodness of fit across the 12 months; calibrated at any volume
+SEASONAL_FIT_MIN_P = 1e-4
+POISSON_PROCESSES = ("discretionary", "one_off")
 MESS_MIN_SHARE = {"light": 0.3, "realistic": 0.6, "heavy": 0.8}
 EVENT_COUNT_TOLERANCE = 0.4
 MIN_EVENTS_FOR_RATE_CHECK = 30
@@ -137,28 +139,82 @@ def _correlated(expected: np.ndarray, realized: np.ndarray) -> bool:
     return float(np.corrcoef(expected, realized)[0, 1]) >= SEASONAL_MIN_CORRELATION
 
 
-def _seasonality(tx: pd.DataFrame, spec: Spec, report: Report) -> None:
-    """Realized month-of-year profiles must follow the spec's seasonal profiles."""
+def _realized_vs_expected(
+    tx: pd.DataFrame, ds: Dataset, report: Report
+) -> dict[tuple[str, str], tuple[np.ndarray, np.ndarray]]:
+    """Per (persona, category): expected and realized Poisson purchases by month of year.
+
+    Months with a planted spike in the user's category are left out of both, since expected
+    counts exclude spikes.
+    """
+    expected = ds["truth_expected"].merge(ds["users"][["user_id", "persona"]], on="user_id")
+    expected["month"] = expected["period_start"].str[:7]
+    spikes = ds["truth_periods"]
+    spiked = pd.DataFrame(
+        {
+            "user_id": spikes["user_id"],
+            "category": spikes["category"],
+            "month": spikes["period_start"].str[:7],
+            "spiked": True,
+        }
+    ).drop_duplicates()
+    expected = expected.merge(spiked, on=["user_id", "category", "month"], how="left")
+    expected = expected[expected["spiked"].isna()]
+    purchases = tx[tx["process"].isin(POISSON_PROCESSES)]
+    realized = purchases.groupby(["user_id", "category", "month"]).size().rename("realized")
+    cells = expected.merge(realized.reset_index(), on=["user_id", "category", "month"], how="left")
+    cells["moy"] = cells["month"].str[5:7].astype(int)
+    totals = cells.groupby(["persona", "category", "moy"])[["expected_count", "realized"]].sum()
+    out = {}
+    for (persona, category), rows in totals.groupby(level=[0, 1]):
+        by_moy = rows.droplevel([0, 1]).reindex(range(1, 13), fill_value=0.0)
+        out[(str(persona), str(category))] = (
+            by_moy["expected_count"].to_numpy(dtype=np.float64),
+            by_moy["realized"].fillna(0).to_numpy(dtype=np.float64),
+        )
+    return out
+
+
+def _seasonality(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
+    """Month-of-year profiles must follow the spec's seasonal profiles.
+
+    Discretionary purchases get two checks that hold at any volume: the generator's exact expected
+    counts must follow the spec's profile (structural), and realized counts must fit them
+    (Poisson goodness of fit). Recurring bills, which are low-noise, are checked by correlating
+    realized spend with the spec's profile.
+    """
     catalog = load_catalog(spec.catalog.merchants, spec.catalog.holdout, spec.categories)
     prices = catalog.merchants.groupby(["category", "subtype"])["price_median"].mean()
     months = np.arange(1, 13)
+    fits = _realized_vs_expected(tx, ds, report)
+    tested = 0
     for name, persona in spec.personas.items():
         ptx = tx[tx["persona"] == name]
         if ptx.empty:
             continue
         mean_net = float(np.mean(persona.income.monthly_net))
-        profiles: dict[tuple[str, str], np.ndarray] = {}
+        rates: dict[str, np.ndarray] = {}
         for s in persona.discretionary:
-            price = (
-                float(prices.loc[s.category].reindex(s.subtypes or None).mean())
-                if s.category in prices
-                else 1.0
+            rates[s.category] = (
+                rates.get(s.category, np.zeros(12))
+                + np.mean(s.weekly_rate) * season_vector(s.seasonality)[months]
             )
-            key = ("discretionary", s.category)
-            profiles[key] = (
-                profiles.get(key, np.zeros(12))
-                + np.mean(s.weekly_rate) * price * season_vector(s.seasonality)[months]
-            )
+        for category, profile in rates.items():
+            if (name, category) not in fits:
+                continue
+            expected, realized = fits[(name, category)]
+            tested += 1
+            if not _correlated(profile, expected):
+                report.errors.append(
+                    f"seasonality: {name} {category} expected purchases don't follow the spec"
+                )
+            fit = float(chi2.sf(((realized - expected) ** 2 / expected.clip(min=1e-9)).sum(), 12))
+            if fit < SEASONAL_FIT_MIN_P:
+                report.errors.append(
+                    f"seasonality: {name} {category} purchases don't fit their expected counts "
+                    f"(p = {fit:.1e})"
+                )
+        recurring: dict[str, np.ndarray] = {}
         for r in persona.recurring:
             if r.amount is not None:
                 level = float(np.mean(r.amount))
@@ -167,21 +223,22 @@ def _seasonality(tx: pd.DataFrame, spec: Spec, report: Report) -> None:
             else:
                 level = float(prices.loc[r.category].reindex(r.subtypes or None).mean())
             active = np.isin(months, r.months) if r.months is not None else np.ones(12, dtype=bool)
-            key = ("recurring", r.category)
-            profiles[key] = (
-                profiles.get(key, np.zeros(12))
+            recurring[r.category] = (
+                recurring.get(r.category, np.zeros(12))
                 + r.probability * level * active * season_vector(r.seasonality)[months]
             )
-        for (process, category), expected in profiles.items():
-            sub = ptx[(ptx["process"] == process) & (ptx["category"] == category)]
-            if len(sub) < 12 * SEASONAL_MIN_PURCHASES_PER_MONTH:
+        for category, profile in recurring.items():
+            sub = ptx[(ptx["process"] == "recurring") & (ptx["category"] == category)]
+            if sub.empty:
                 continue
+            tested += 1
             by_month = sub.groupby(["month", "moy"])["amount"].sum().groupby("moy").mean()
-            realized = -by_month.reindex(months, fill_value=0.0).to_numpy()
-            if not _correlated(expected, realized):
+            spend = -by_month.reindex(months, fill_value=0.0).to_numpy()
+            if not _correlated(profile, spend):
                 report.errors.append(
-                    f"seasonality: {name} {process} {category} does not follow its seasonal profile"
+                    f"seasonality: {name} recurring {category} does not follow its seasonal profile"
                 )
+    report.stats["seasonal_profiles_tested"] = tested
 
 
 def _mess(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
@@ -339,6 +396,14 @@ def _label_consistency(truth: Truth, report: Report) -> None:
     outliers = tx[tx["anomaly_kind"] == "amount_outlier"]
     keys = list(zip(outliers["user_id"], outliers["merchant_id"], strict=True))
     above = (-outliers["amount"].to_numpy()) > largest.reindex(keys).fillna(0).to_numpy()
+    report.check(
+        bool(((outliers["tier"] == "clear").to_numpy() == above).all()),
+        "labels: an amount outlier's tier disagrees with the user's normal charges",
+    )
+    report.check(
+        bool((tx["tier"].notna() == tx["anomaly_kind"].notna()).all()),
+        "labels: tier set on a transaction that isn't an unusual charge, or missing",
+    )
     if len(outliers):
         share = float(above.mean())
         report.stats["amount_outlier_above_normal_share"] = share
@@ -446,7 +511,7 @@ def validate(ds: Dataset, spec: Spec) -> Report:
     report.stats["transactions"] = len(tx)
     _coverage(tx, ds, spec, report)
     _plausibility(tx, ds, spec, report)
-    _seasonality(tx, spec, report)
+    _seasonality(tx, ds, spec, report)
     _mess(tx, ds, spec, report)
     _events(tx, ds, spec, report)
     _splits(tx, ds, spec, report)
