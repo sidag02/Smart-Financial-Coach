@@ -56,7 +56,7 @@ Both requirements use one service and one model, so the line is drawn by what ea
 
 Setup: the Technical Design's splits, no label noise, no calibration. The model is logistic regression with balanced class weights, trained on 194k train-user transactions (at most 20k per class). Macro F1 is over exactly the 12 spending categories.
 
-**How the regularization strength was chosen.** C was set by hand before the first run, at 10 for n-grams (many sparse features) and 3 for the embedding variants (384 dense ones). It was not tuned on test results or anything else. A sensitivity check afterwards, at C = 1, 3 and 10, was not used to choose C. It moves unseen-merchant F1 by at most 0.03 and known-merchant F1 by at most 0.002, and changes no conclusion. If anything, C = 10 slightly understates n-grams on unseen merchants (0.504 vs 0.531 at C = 1–3). The design chooses C on validation splits (§5). The unseen-merchant interval comes from 1,000 bootstrap resamples of merchants within each category (see [§6](#6-evaluation)).
+**How the regularization strength was chosen.** C was set by hand before the first run, at 10 for n-grams (many sparse features) and 3 for the embedding variants (384 dense ones). It was not tuned on test results or anything else. A sensitivity check afterwards, at C = 1, 3 and 10, was not used to choose C. It moves unseen-merchant F1 by at most 0.03 and known-merchant F1 by at most 0.002, and changes no conclusion. If anything, C = 10 slightly understates n-grams on unseen merchants (0.504 vs 0.531 at C = 1–3). The design chooses C on cross-fitted validation predictions (§5). The unseen-merchant interval comes from 1,000 bootstrap resamples of merchants within each category (see [§6](#6-evaluation)).
 
 | Features | Known merchants (145k txns) | All test users (375k) | Unseen merchants (78k) | Unseen, 95% interval |
 | --- | --- | --- | --- | --- |
@@ -211,8 +211,8 @@ The feasibility "both" configuration, made into a reproducible scikit-learn pipe
 | Channel | one-hot | `card_present`, `online`, `ach`, `other` |
 | Hour of day | 3-hour bins of local `ts` | Kept only if the ablation shows it helps (milestone 3) |
 
-- **Classifier:** multinomial logistic regression with balanced class weights. C is chosen from {1, 3, 10} on the validation splits in §5.
-- **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. This is model-visible, so it works the same way in production. Seen strings are calibrated on the known-merchant validation split, and unseen strings on the merchant-holdout validation split. The method (temperature or isotonic) is chosen by expected calibration error.
+- **Classifier:** multinomial logistic regression with balanced class weights. C is chosen from {1, 3, 10} on cross-fitted validation predictions (§5).
+- **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. The vocabulary is built from all training rows *before* the per-class cap, so a known merchant's string isn't treated as unseen just because the cap sampled it out. In the POC split, that cuts known-merchant test rows wrongly treated as unseen from 1.3% to 0.9%, and test users' rows at known merchants from 2.6% to 1.8% (measured in review). Familiarity is model-visible, so it works the same way in production. Each familiarity group gets its own calibrator, fitted on the cross-fitted predictions in §5. The method (temperature or isotonic) is chosen by expected calibration error.
 - **Why split calibration by familiarity:** in feasibility the model is already calibrated on known merchants (ECE 0.009). A calibrator fitted on known merchants would change almost nothing there and leave unseen merchants over-confident (ECE up to 0.16). That is the case FR-5's low-confidence review exists for.
 - **Why this default:** it meets the FR-3 target by a wide margin, trains in seconds on CPU, and stays explainable (top n-grams per class). The other families in the Technical Design (gradient-boosted trees, small fine-tuned transformer) compete with it in milestone 3 under the selection criteria, in order.
 
@@ -231,14 +231,18 @@ This closes the open question carried from FR-1 and FR-2, pending review.
 Owned by the evaluation side (`evaluation/categorization.py`), which is allowed to read truth:
 
 1. Load model-visible transactions and `truth_transactions.category` for train users.
-2. **Splits**, all within train users:
-   - **Known-merchant test:** the Technical Design's stratified 20% by transaction. Rows at merchant-holdout validation merchants are dropped from it, so it stays all-known.
-   - **Merchant-holdout validation:** a seeded 15% of the merchants train users use is kept out of training entirely. A category's top merchants are never chosen, mirroring the catalog's holdout rule. Train users' remaining transactions at these merchants are the validation set for unseen behavior.
-   - **Known validation:** 10% of the remaining training rows.
-   - C is chosen on the mean macro F1 of the two validation sets. Calibration is fitted per familiarity group (§3).
-3. **Label noise:** applied *after* splitting, to training rows only. It flips a configurable share of labels uniformly to another category; the default is 2%, a Technical Design control against flattering results. It never touches validation, calibration or test rows, so calibration can't learn the noise. The report states the rate.
-4. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k), sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes.
-5. Fit, calibrate, write the artifact and manifest.
+2. **Known-merchant test:** the Technical Design's stratified 20% by transaction within train users. The other 80% are the training rows.
+3. **Grouped cross-fitting** chooses C and fits the calibrators without holding any merchant out of the shipped model:
+   - Split the merchants that appear in the training rows into K = 5 seeded groups, stratified by category so each group has merchants from most categories.
+   - For each group k, train a fold model on the training rows outside group k, minus a seeded 10% row sample of those merchants. It predicts on group k's rows (merchants it has never seen) and on the 10% sample (merchants it has seen).
+   - Pool the out-of-fold predictions. Each row's familiarity is computed against its own fold model's training vocabulary, exactly as production computes it against the full training set.
+   - Choose C by the mean of pooled macro F1 on unseen-merchant rows and on seen-merchant rows. Then fit one calibrator per familiarity group on the pooled predictions for that C.
+   - **The shipped model** is then trained on all training rows with the chosen C, and the calibrators are attached. No merchant is left out, so all train-user merchants are learned.
+   - Cost: K × 3 values of C = 15 fits of about 30 s each, around 8 minutes on a laptop CPU.
+   - The calibrators come from fold models, each trained on about 80% of the merchants, and are applied to the shipped model. That approximation is checked directly: §6 reports the shipped model's calibration error on the known-merchant test, all test users and unseen merchants.
+4. **Label noise:** applied *after* splitting, to the rows each model trains on (fold models and the shipped model). It flips a configurable share of labels uniformly to another category; the default is 2%, a Technical Design control against flattering results. It never touches held-out fold rows, calibration rows or test rows, so calibration can't learn the noise. The report states the rate.
+5. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k) for each model, sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes. The familiarity vocabulary is built before the cap (§3).
+6. Write the artifact and manifest, including the chosen C, K, the fold seed and each calibrator.
 
 ### 6. Evaluation
 
@@ -331,7 +335,7 @@ New dependency: `fastembed` (ONNX runtime, about 130 MB model download, cached).
 
 ## Testing
 
-- **Unit:** label noise never touches validation, calibration or test rows. Loading an artifact whose embedding file checksum doesn't match the manifest fails. The merchant-holdout validation merchants never appear in training rows. The normalizer handles every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
+- **Unit:** label noise never touches validation, calibration or test rows. Loading an artifact whose embedding file checksum doesn't match the manifest fails. In cross-fitting, every training merchant is held out in exactly one fold and never appears in that fold model's training rows. The shipped model trains on every training merchant. The familiarity vocabulary includes strings the per-class cap sampled out. The normalizer handles every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
 - **Integration (`small.yaml`, stub embedder):** train → evaluate → predict runs end to end, beats the baseline on known merchants, and a rerun gives identical metrics (NFR-8).
 - **Slow (`default.yaml`, real embedder):** known-merchant macro F1 ≥ 0.90; latency within budget.
 - **Isolation:** the existing test covers `intelligence/categorization/`.
@@ -354,13 +358,13 @@ New dependency: `fastembed` (ONNX runtime, about 130 MB model download, cached).
 - [x] Predictions in a separate SQLite file (C-b).
 - [x] Income as a predicted class, excluded from the headline macro F1 (D-b).
 - [x] 2% uniform training label noise (E-b). Condition: applied after splitting, never to validation, calibration or test rows.
-- [x] C and calibration chosen on validation splits that include a merchant holdout; calibration split by familiarity (from review).
+- [x] C and calibration chosen by grouped cross-fitting over merchants; the shipped model trains on all training rows; calibration split by familiarity, with the vocabulary built before the cap (from review).
 
 **Technical Design updates (after approval)**
 
 - [ ] `categorize` contract: batch of transaction rows → category, confidence, model version.
 - [ ] Data store: model outputs live in a separate predictions file per model version.
-- [ ] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants; merchant-holdout validation split; ECE on every test set.
+- [ ] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants; grouped cross-fitting over merchants for C and calibration; ECE on every test set.
 
 **Open questions**
 

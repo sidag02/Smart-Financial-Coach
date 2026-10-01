@@ -59,9 +59,9 @@ The selection follows the Technical Design's criteria in order.
 
 **Why logistic regression rather than another classifier.** It gives probabilities that are already well calibrated on known merchants (ECE 0.009). It handles 200k sparse features natively, trains deterministically, and copes with class imbalance through class weights. Nothing measured so far suggests the classifier, rather than the features, is the bottleneck.
 
-**Why the regularization strength doesn't decide anything.** C was fixed by hand before the first run (10 for n-grams, 3 for embeddings) and not tuned. At C = 1, 3 and 10, unseen-merchant F1 moves by at most 0.03 and known-merchant F1 by at most 0.002. The ranking of options doesn't change. The production pipeline chooses C on validation splits.
+**Why the regularization strength doesn't decide anything.** C was fixed by hand before the first run (10 for n-grams, 3 for embeddings) and not tuned. At C = 1, 3 and 10, unseen-merchant F1 moves by at most 0.03 and known-merchant F1 by at most 0.002. The ranking of options doesn't change. The production pipeline chooses C on cross-fitted predictions, holding out each group of merchants in turn. The shipped model still learns every merchant.
 
-**Why calibration is split by familiarity.** The model is calibrated where it is already confident and right (known merchants) and over-confident where it is often wrong (unseen merchants). One calibrator fitted on known merchants would leave that untouched. Calibrating seen and unseen strings separately targets the case FR-5 needs, and "seen" is model-visible, so it works the same way in production.
+**Why calibration is split by familiarity.** The model is calibrated where it is already confident and right (known merchants) and over-confident where it is often wrong (unseen merchants). One calibrator fitted on known merchants would leave that untouched. Calibrating seen and unseen strings separately targets the case FR-5 needs, and "seen" is model-visible, so it works the same way in production. The unseen calibrator is fitted on cross-fitted predictions for merchants each fold model never saw, so no merchant has to be left out of the shipped model.
 
 ## What would change the selection
 
@@ -69,7 +69,7 @@ These are the conditions under which another model should be tried, and the evid
 
 | Trigger | What it means | Options to evaluate | Decided by |
 | --- | --- | --- | --- |
-| **FR-4 gate not met** (expected; best is 0.643 against 0.80) | The default can't categorize new merchants well enough | Routing by familiarity (n-grams for seen strings, embeddings for unseen); a larger embedding model; training on one row per unique string; nearest neighbours; cached LLM fallback | Unseen-merchant macro F1 and its merchant-bootstrap interval on the merchant-holdout validation split, then the test users |
+| **FR-4 gate not met** (expected; best is 0.643 against 0.80) | The default can't categorize new merchants well enough | Routing by familiarity (n-grams for seen strings, embeddings for unseen); a larger embedding model; training on one row per unique string; nearest neighbours; cached LLM fallback | Unseen-merchant macro F1 on cross-fitted held-out merchants, then on test users with its merchant-bootstrap interval |
 | **The 0.80 gate itself changes** | With 3–10 holdout merchants per class, the interval is 0.17 wide | Same as above, judged against the revised gate | FR-4 design, as FR-2 did for weekly spikes |
 | **Calibration error on unseen merchants stays high after calibration** | FR-5 can't trust thresholds on new merchants | Ensembles or models with better uncertainty; abstaining (routing to review) below a threshold | ECE on unseen strings; accuracy and coverage at the review threshold |
 | **A different model wins milestone 3** | Gradient-boosted trees or a fine-tuned transformer beat the default on held-out macro F1 | Switch only if it also passes latency, explainability and operations, in that order | The Technical Design's selection criteria |
