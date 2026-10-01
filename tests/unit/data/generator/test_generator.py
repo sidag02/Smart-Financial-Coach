@@ -1,4 +1,5 @@
 import json
+import os
 import time
 from pathlib import Path
 
@@ -156,13 +157,16 @@ def test_new_merchant_charges_are_at_merchants_the_user_never_used(small_dataset
 
 @pytest.mark.slow
 def test_default_spec_meets_runtime_budget(configs: Path) -> None:
+    # 60 s is the laptop target (FR-1); CI runners are slower and set their own budget
+    budget = float(os.environ.get("SFC_RUNTIME_BUDGET_SECONDS", "60"))
     spec = load_spec(configs / "default.yaml")
     started = time.perf_counter()
     dataset = generate(spec)
     elapsed = time.perf_counter() - started
 
-    assert elapsed < 60
-    assert validate(dataset, spec).ok
+    assert elapsed < budget, f"generation took {elapsed:.0f} s, budget {budget:.0f} s"
+    report = validate(dataset, spec)
+    assert report.ok, report.errors
 
 
 def _without_spikes(spec: Spec) -> Spec:
