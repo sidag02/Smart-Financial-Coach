@@ -3,9 +3,10 @@
 About half the goals (spec-set) have a target date inside the history, so `truth_goals.met` is
 realized; the rest end after the history, as a live product would see them.
 
-`current_balance` is reported as of `as_of_date`. For goals that end inside the history that date
-is 3-12 months (spec-set) before the target, like a rolling backtest origin, so the model-visible
-row never contains the savings that decide `met`.
+`current_balance` is reported as of `as_of_date`, the goal's backtest origin. For goals that end
+inside the history that date is 3-12 months (spec-set) before the target, so the goals row itself
+doesn't reveal `met`. The transactions table still covers the whole history: goal forecasting must
+only use transactions with `ts <= as_of_date`, which the split feature enforces.
 """
 
 from datetime import date

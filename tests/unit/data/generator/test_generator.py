@@ -129,10 +129,8 @@ def test_goals_split_between_known_and_future_outcomes(
     assert (future["as_of_date"] == end).all()
 
 
-def test_goal_outcomes_are_not_readable_from_visible_columns(
-    small_dataset: Dataset, small_spec: Spec
-) -> None:
-    """current_balance is reported months before the target, so it can't decide `met`."""
+def test_goal_balance_is_reported_before_target(small_dataset: Dataset, small_spec: Spec) -> None:
+    """The goals row alone can't decide `met`; the transactions after as_of_date still can."""
     goals = small_dataset["goals"].merge(small_dataset["truth_goals"], on="goal_id")
     known = goals[goals["met"].notna()]
     horizon = pd.to_datetime(known["target_date"]) - pd.to_datetime(known["as_of_date"])

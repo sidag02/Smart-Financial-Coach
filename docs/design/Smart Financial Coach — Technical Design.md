@@ -166,6 +166,7 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Ambiguous merchants and messy merchant text generated into the data.
 - Label noise applied by the training pipeline to loaded training data; the generator itself only generates.
 - Separate seeds for training and test users.
+- Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. This is an acceptance criterion for the feature that builds training and evaluation splits.
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 
 ## Build order and open questions
