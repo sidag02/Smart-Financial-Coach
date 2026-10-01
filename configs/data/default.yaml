@@ -1,0 +1,47 @@
+# Main synthetic dataset. Every generator parameter lives in this file, the persona files and
+# the merchant catalog; other specs `extends:` this one and override what they need.
+name: default
+
+calendar:
+  start: 2023-10-01
+  end: 2026-09-30
+
+# Train and test users come from separate seeds; holdout merchants appear only for test users.
+populations:
+  - {name: train, split: train, seed: 1001, id_prefix: tr, users: {young_professional: 80, family_budgeter: 80, freelancer: 80}}
+  - {name: test, split: test, seed: 2002, id_prefix: te, users: {young_professional: 20, family_budgeter: 20, freelancer: 20}}
+
+personas: personas/
+
+catalog:
+  merchants: merchants.csv
+  holdout:
+    share: 0.2
+    exclude_top_n_per_category: 3
+    exclude_categories: [Income]
+    test_user_bias: 1.25   # tuned so ~15-25% of test users' spending is at holdout merchants
+    seed: 7
+
+rendering:
+  distortion: realistic   # none | light | realistic | heavy
+  seed: 11
+
+events:
+  one_off: {rate_scale: 1.0}
+  unusual_charge:
+    rate_per_user_year: 1.5
+    kinds: [duplicate, amount_outlier, new_merchant_large]
+    outlier_multiplier: [6, 15]
+    new_merchant_categories: [Shopping, Travel, Entertainment]
+    new_merchant_min_amount: 250
+  spending_spike:
+    rate_per_user_year: 1.0
+    multiplier: [1.8, 3.0]
+    granularity: [week, month]
+  refunds: {share: 0.03, categories: [Shopping], lag_days: [3, 20]}
+
+goals:
+  per_user: [1, 2]
+  outcome_mix: {on_track: 0.34, borderline: 0.33, off_track: 0.33}
+  target_inside_history_share: 0.5
+  allocation_share: [0.5, 0.9]

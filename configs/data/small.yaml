@@ -1,0 +1,11 @@
+# Tiny dataset for tests and CI: 30 users, 24 months.
+extends: default.yaml
+name: small
+
+calendar:
+  start: 2024-10-01
+  end: 2026-09-30
+
+populations:
+  - {name: train, split: train, seed: 1001, id_prefix: tr, users: {young_professional: 8, family_budgeter: 8, freelancer: 8}}
+  - {name: test, split: test, seed: 2002, id_prefix: te, users: {young_professional: 2, family_budgeter: 2, freelancer: 2}}

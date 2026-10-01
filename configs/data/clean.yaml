@@ -1,0 +1,11 @@
+# Default population with canonical merchant names and no planted events.
+# For debugging and sanity baselines; one-off purchases stay, since they are normal behavior.
+extends: default.yaml
+name: clean
+
+rendering:
+  distortion: none
+
+events:
+  unusual_charge: {rate_per_user_year: 0}
+  spending_spike: {rate_per_user_year: 0}

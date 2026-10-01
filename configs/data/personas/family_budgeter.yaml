@@ -1,0 +1,68 @@
+# Two incomes, groceries and childcare, strong school-year seasonality.
+# Ranges are sampled once per user, so users of the same persona differ.
+name: family_budgeter
+code: fb
+
+income:
+  pattern: dual
+  monthly_net: [8000, 14000]
+  second_earner_share: [0.35, 0.5]
+  raise_pct: [0.0, 0.05]
+  bonus_prob: 0.3
+  bonus_share: [0.03, 0.08]
+
+savings_rate: [0.04, 0.18]
+payday_bump: 0.1
+starting_cushion_months: [0.5, 2.0]
+
+discretionary:
+  - {category: Groceries, subtypes: [supermarket], weekly_rate: [1.5, 3], favorites: [1, 3], amount_scale: [1.1, 1.6], weekend_boost: [0.3, 0.8], seasonality: {11: 1.15, 12: 1.25}}
+  - {category: Groceries, subtypes: [warehouse], weekly_rate: [0.3, 0.8], favorites: [1, 2], amount_scale: [1.0, 1.4], weekend_boost: [0.5, 1.0]}
+  - {category: Groceries, subtypes: [grocery_delivery], weekly_rate: [0, 0.6], favorites: [1, 1]}
+  - {category: Dining, subtypes: [coffee], weekly_rate: [0.5, 3], favorites: [1, 2]}
+  - {category: Dining, subtypes: [fast_casual], weekly_rate: [1, 3], favorites: [2, 5], weekend_boost: [0.3, 0.8]}
+  - {category: Dining, subtypes: [restaurant], weekly_rate: [0.3, 1.2], favorites: [2, 5], amount_scale: [1.3, 1.8], weekend_boost: [0.5, 1.2], seasonality: {5: 1.15, 12: 1.3}}
+  - {category: Dining, subtypes: [delivery], weekly_rate: [0.3, 1.5], favorites: [1, 2], amount_scale: [1.2, 1.6]}
+  - {category: Transportation, subtypes: [fuel], weekly_rate: [1, 2.5], favorites: [1, 3], seasonality: {6: 1.15, 7: 1.2, 8: 1.15}}
+  - {category: Transportation, subtypes: [parking, toll], weekly_rate: [0, 0.5], favorites: [1, 2]}
+  - {category: Shopping, subtypes: [kids], weekly_rate: [0.3, 1], favorites: [2, 3], seasonality: {8: 2.2, 9: 1.3, 11: 1.4, 12: 1.9}}
+  - {category: Shopping, subtypes: [general], weekly_rate: [0.8, 2], favorites: [1, 3], seasonality: {8: 1.5, 11: 1.3, 12: 1.7}}
+  - {category: Shopping, subtypes: [marketplace], weekly_rate: [1, 3], favorites: [1, 2], seasonality: {8: 1.4, 11: 1.4, 12: 1.8}}
+  - {category: Shopping, subtypes: [clothing], weekly_rate: [0.2, 0.6], favorites: [2, 4], seasonality: {8: 1.8, 12: 1.5}}
+  - {category: Shopping, subtypes: [home], weekly_rate: [0.2, 0.6], favorites: [1, 3], seasonality: {4: 1.3, 5: 1.3}}
+  - {category: Entertainment, subtypes: [movies, leisure], weekly_rate: [0.2, 0.8], favorites: [2, 4], weekend_boost: [1.0, 2.0], seasonality: {6: 1.5, 7: 1.6, 8: 1.4}}
+  - {category: Health & Fitness, subtypes: [pharmacy], weekly_rate: [0.4, 1], favorites: [1, 2], seasonality: {1: 1.3, 2: 1.3, 12: 1.2}}
+  - {category: Childcare & Education, subtypes: [school], weekly_rate: [0.1, 0.4], favorites: [1, 3], seasonality: {6: 0.3, 7: 0.3, 8: 2.5, 9: 2.0, 10: 1.2}}
+  - {category: Childcare & Education, subtypes: [babysitting], weekly_rate: [0, 0.4], favorites: [1, 1], weekend_boost: [0.5, 1.5]}
+
+recurring:
+  - {category: Housing, subtypes: [mortgage, rent], income_share: [0.22, 0.32], day_of_month: [1, 1], drift_per_year: [0.0, 0.03], hour: 0}
+  - {category: Housing, subtypes: [hoa], probability: 0.3, amount: [150, 450], day_of_month: [1, 5]}
+  - {category: Utilities, subtypes: [electric], amount: [80, 160], day_of_month: [8, 22], jitter_days: 1, amount_noise: 0.08,
+     seasonality: {1: 1.3, 2: 1.2, 3: 1.0, 4: 0.85, 5: 0.9, 6: 1.15, 7: 1.4, 8: 1.4, 9: 1.15, 10: 0.9, 11: 1.0, 12: 1.2}}
+  - {category: Utilities, subtypes: [gas_util], probability: 0.7, amount: [30, 70], day_of_month: [8, 22], jitter_days: 1, amount_noise: 0.1,
+     seasonality: {1: 2.4, 2: 2.1, 3: 1.6, 4: 1.0, 5: 0.6, 6: 0.45, 7: 0.4, 8: 0.4, 9: 0.5, 10: 0.9, 11: 1.6, 12: 2.2}}
+  - {category: Utilities, subtypes: [water], probability: 0.8, amount: [40, 110], amount_noise: 0.1, seasonality: {6: 1.3, 7: 1.4, 8: 1.4}}
+  - {category: Utilities, subtypes: [internet], amount: [60, 110], drift_per_year: [0.0, 0.06]}
+  - {category: Utilities, subtypes: [phone], amount: [90, 220]}
+  - {category: Subscriptions, subtypes: [streaming], count: [2, 5], churn_per_year: 0.2, late_start_prob: 0.25, price_change_per_year: 0.15}
+  - {category: Health & Fitness, subtypes: [gym], probability: 0.4, churn_per_year: 0.25, late_start_prob: 0.3}
+  - {category: Insurance & Fees, subtypes: [auto_insurance], amount: [140, 300], drift_per_year: [0.0, 0.08]}
+  # Daycare follows the school year; summer camps are one-offs below
+  - {category: Childcare & Education, subtypes: [daycare], probability: 0.85, amount: [1100, 2400], day_of_month: [1, 5], months: [1, 2, 3, 4, 5, 9, 10, 11, 12]}
+  - {category: Childcare & Education, subtypes: [tutoring], probability: 0.3, amount: [120, 320], months: [1, 2, 3, 4, 5, 10, 11, 12]}
+
+one_off:
+  - {category: Childcare & Education, subtypes: [camp], rate_per_month: 0.9, months: [6, 7, 8], amount_min: 200, pareto_alpha: 2.5, amount_max: 2500}
+  - {category: Travel, subtypes: [airline], rate_per_month: 0.07, amount_min: 300, pareto_alpha: 2.5, amount_max: 4000, seasonality: {6: 2.0, 7: 2.2, 12: 1.6}}
+  - {category: Travel, subtypes: [lodging, hotel], rate_per_month: 0.07, amount_min: 250, pareto_alpha: 2.2, amount_max: 5000, seasonality: {6: 2.0, 7: 2.2, 12: 1.4}}
+  - {category: Transportation, subtypes: [auto_repair], rate_per_month: 0.06, amount_min: 150, pareto_alpha: 1.6, amount_max: 4000}
+  - {category: Health & Fitness, subtypes: [medical], rate_per_month: 0.15, amount_min: 30, pareto_alpha: 1.5, amount_max: 3000}
+  - {category: Shopping, subtypes: [electronics], rate_per_month: 0.04, amount_min: 250, pareto_alpha: 1.8, amount_max: 3000, seasonality: {11: 2.0, 12: 1.5}}
+  - {category: Entertainment, subtypes: [events], rate_per_month: 0.04, amount_min: 80, pareto_alpha: 2.0, amount_max: 1200}
+  - {category: Insurance & Fees, subtypes: [bank_fee], rate_per_month: 0.2, amount_min: 2.5, pareto_alpha: 3.0, amount_max: 40}
+
+goals:
+  - {name: Emergency fund, weight: 2}
+  - {name: College fund, weight: 2}
+  - {name: Family vacation, weight: 1}

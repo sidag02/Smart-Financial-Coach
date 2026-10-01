@@ -1,0 +1,61 @@
+# Irregular income, lumpy spending, quarterly estimated taxes.
+# Ranges are sampled once per user, so users of the same persona differ.
+name: freelancer
+code: fl
+
+income:
+  pattern: freelance
+  monthly_net: [3500, 12000]
+  payments_per_month: 3
+  max_payments_per_month: 6
+  clients: [2, 6]
+  payment_sigma: 0.3
+  # Slow January, strong Q4, plus one or two random slow months a year
+  seasonality: {1: 0.6, 2: 0.8, 7: 0.85, 8: 0.8, 10: 1.15, 11: 1.3, 12: 1.35}
+  slow_months_per_year: [1, 2]
+  slow_month_factor: 0.3
+
+savings_rate: [0.03, 0.2]
+income_elasticity: 0.5
+starting_cushion_months: [1.0, 3.0]
+
+discretionary:
+  - {category: Dining, subtypes: [coffee], weekly_rate: [2, 8], favorites: [1, 4], weekend_boost: [-0.3, 0.3]}
+  - {category: Dining, subtypes: [fast_casual], weekly_rate: [1, 4], favorites: [2, 5]}
+  - {category: Dining, subtypes: [restaurant], weekly_rate: [0.3, 1.5], favorites: [2, 5], weekend_boost: [0.3, 1.0], seasonality: {12: 1.3}}
+  - {category: Dining, subtypes: [bar], weekly_rate: [0.2, 1.5], favorites: [1, 3], weekend_boost: [0.5, 1.5]}
+  - {category: Dining, subtypes: [delivery], weekly_rate: [0.5, 3], favorites: [1, 2], seasonality: {1: 1.2, 2: 1.15}}
+  - {category: Groceries, subtypes: [supermarket, warehouse], weekly_rate: [0.8, 2], favorites: [1, 3], amount_scale: [0.6, 1.1]}
+  - {category: Transportation, subtypes: [rideshare], weekly_rate: [0.3, 2], favorites: [1, 2]}
+  - {category: Transportation, subtypes: [transit, fuel], weekly_rate: [0, 3], favorites: [1, 2]}
+  - {category: Shopping, subtypes: [marketplace], weekly_rate: [1, 3], favorites: [1, 2], seasonality: {11: 1.3, 12: 1.5}}
+  - {category: Shopping, subtypes: [clothing, books], weekly_rate: [0.1, 0.6], favorites: [2, 4], seasonality: {12: 1.5}}
+  - {category: Entertainment, subtypes: [movies, leisure, games], weekly_rate: [0.2, 0.8], favorites: [2, 4]}
+  - {category: Health & Fitness, subtypes: [pharmacy], weekly_rate: [0.2, 0.6], favorites: [1, 2]}
+
+recurring:
+  - {category: Housing, subtypes: [rent], income_share: [0.22, 0.35], day_of_month: [1, 1], drift_per_year: [0.0, 0.05], hour: 0}
+  - {category: Utilities, subtypes: [electric], amount: [40, 110], day_of_month: [8, 22], jitter_days: 1, amount_noise: 0.08,
+     seasonality: {1: 1.35, 2: 1.25, 3: 1.05, 4: 0.9, 5: 0.9, 6: 1.1, 7: 1.35, 8: 1.35, 9: 1.1, 10: 0.9, 11: 1.0, 12: 1.25}}
+  - {category: Utilities, subtypes: [internet], amount: [60, 110], drift_per_year: [0.0, 0.06]}
+  - {category: Utilities, subtypes: [phone], amount: [40, 110]}
+  - {category: Subscriptions, subtypes: [software], count: [2, 5], churn_per_year: 0.2, late_start_prob: 0.3, price_change_per_year: 0.15}
+  - {category: Subscriptions, subtypes: [streaming], count: [1, 4], churn_per_year: 0.3, late_start_prob: 0.3}
+  - {category: Health & Fitness, subtypes: [gym], probability: 0.5, churn_per_year: 0.3, late_start_prob: 0.3}
+  - {category: Insurance & Fees, subtypes: [health_insurance], amount: [350, 650], drift_per_year: [0.03, 0.1]}
+  # Quarterly estimated taxes, sized as a share of one month's mean income
+  - {category: Insurance & Fees, subtypes: [tax], income_share: [0.45, 0.75], months: [1, 4, 6, 9], day_of_month: [15, 15], hour: 9}
+
+one_off:
+  - {category: Shopping, subtypes: [electronics], rate_per_month: 0.12, amount_min: 300, pareto_alpha: 1.6, amount_max: 6000, seasonality: {11: 1.5, 12: 1.3}}
+  - {category: Travel, subtypes: [airline], rate_per_month: 0.08, amount_min: 150, pareto_alpha: 2.5, amount_max: 2500}
+  - {category: Travel, subtypes: [lodging, hotel], rate_per_month: 0.06, amount_min: 180, pareto_alpha: 2.2, amount_max: 4000}
+  - {category: Health & Fitness, subtypes: [medical], rate_per_month: 0.1, amount_min: 30, pareto_alpha: 1.5, amount_max: 3000}
+  - {category: Transportation, subtypes: [auto_repair], rate_per_month: 0.03, amount_min: 120, pareto_alpha: 1.6, amount_max: 3500}
+  - {category: Entertainment, subtypes: [events], rate_per_month: 0.04, amount_min: 60, pareto_alpha: 2.0, amount_max: 1200}
+  - {category: Insurance & Fees, subtypes: [bank_fee], rate_per_month: 0.4, amount_min: 2.5, pareto_alpha: 3.0, amount_max: 40}
+
+goals:
+  - {name: Tax reserve, weight: 2}
+  - {name: Income buffer, weight: 2}
+  - {name: New equipment, weight: 1}

@@ -1,6 +1,6 @@
 # FR-1 Synthetic Data Generator — Feature Design
 
-Sep 30, 2026 · @Sidd · Status: **Draft for review** · Branch: `feature/fr-1-synthetic-data`
+Sep 30, 2026 · @Sidd · Status: **Implemented** (see [Implementation notes](#implementation-notes)) · Branch: `feature/fr-1-synthetic-data`
 
 ## Summary
 
@@ -72,7 +72,7 @@ uv run sfc-data hash data/synthetic/default.sqlite     # content hash for determ
 ```python
 from smart_financial_coach.data.generator import generate, load_spec
 
-dataset = generate(load_spec("configs/data/small.yaml"))   # in memory, pandas DataFrames
+dataset = generate(load_spec("configs/data/small.yaml"))  # in memory, pandas DataFrames
 dataset.to_sqlite("data/synthetic/small.sqlite")
 ```
 
@@ -97,18 +97,19 @@ calendar:
   start: 2023-10-01
   end: 2026-09-30
 populations:                       # one seed per population; train and test never share
-  - {name: train, seed: 1001, users: {young_professional: 80, family_budgeter: 80, freelancer: 80}}
-  - {name: test,  seed: 2002, users: {young_professional: 20, family_budgeter: 20, freelancer: 20}}
-personas: configs/data/personas/   # one YAML per persona: parameter distributions
+  - {name: train, split: train, seed: 1001, id_prefix: tr, users: {young_professional: 80, family_budgeter: 80, freelancer: 80}}
+  - {name: test,  split: test,  seed: 2002, id_prefix: te, users: {young_professional: 20, family_budgeter: 20, freelancer: 20}}
+personas: personas/                # one YAML per persona: parameter distributions
 catalog:
-  merchants: configs/data/merchants.csv
-  holdout: {share: 0.2, exclude_top_n_per_category: 3, seed: 7}
+  merchants: merchants.csv
+  holdout: {share: 0.2, exclude_top_n_per_category: 3, test_user_bias: 1.25, seed: 7}
 rendering:
   distortion: realistic            # none | light | realistic | heavy
 events:
-  one_off:        {rate_per_month: 0.15, amount: {dist: pareto, alpha: 2.2}}   # normal, unlabeled as anomaly
+  one_off:        {rate_scale: 1.0}   # one-offs are defined per persona; normal, never labeled anomalies
   unusual_charge: {rate_per_user_year: 1.5, kinds: [duplicate, amount_outlier, new_merchant_large]}
   spending_spike: {rate_per_user_year: 1.0, multiplier: [1.8, 3.0], granularity: [week, month]}
+  refunds:        {share: 0.03, categories: [Shopping], lag_days: [3, 20]}
 goals:
   per_user: [1, 2]
   outcome_mix: {on_track: 0.34, borderline: 0.33, off_track: 0.33}
@@ -123,7 +124,7 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| user_id | TEXT PK | e.g. `u_tr_0042` (train) / `u_te_0007` (test) |
+| user_id | TEXT PK | `u_<population>_<persona>_<index>`, e.g. `u_tr_yp_0042`. The persona code keeps IDs, and so seeds, stable when another persona's count changes |
 | split | TEXT | `train` or `test` |
 | persona | TEXT | e.g. `young_professional` |
 | timezone | TEXT | IANA name from the user's home city, e.g. `America/Chicago` |
@@ -183,22 +184,22 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 | outcome_class | TEXT | Planned `on_track`, `borderline`, `off_track` |
 | met | INTEGER, nullable | Realized 0 / 1 when `target_date` is inside the history |
 
-**merchants** (eval only) and **meta**
+**truth_merchants** (eval only) and **meta**
 
-- `merchants`: the catalog used for the run, with category, `is_ambiguous` and `holdout` flags.
+- `truth_merchants`: the catalog used for the run, with category, subtype, `is_ambiguous` and `holdout` flags.
 - `meta`: key/value rows for generator version, spec hash, seeds and the category list. No timestamps, so the content hash stays stable.
 
 ### Example rows
 
 | user_id | ts | amount | merchant_raw | channel | *category (truth)* |
 | --- | --- | --- | --- | --- | --- |
-| u_tr_0042 | 2025-08-01 09:12 | 2,310.44 | ACME CORP PAYROLL PPD ID: 9912 | ach | Income |
-| u_tr_0042 | 2025-08-01 00:05 | −1,850.00 | OAKWOOD PROPERTY MGMT WEB PMT | ach | Housing |
-| u_tr_0042 | 2025-08-02 08:14 | −6.45 | SQ *BLUE BOTTLE COF #0412 | card_present | Dining |
-| u_tr_0042 | 2025-08-02 23:41 | −18.72 | UBER   *TRIP HELP.UBER.COM | online | Transportation |
-| u_tr_0042 | 2025-08-03 11:03 | −87.19 | TRADER JOE S #552 SAN FRANC | card_present | Groceries |
-| u_tr_0042 | 2025-08-05 03:00 | −15.49 | NETFLIX.COM 866-579-7172 CA | online | Subscriptions |
-| u_tr_0042 | 2025-08-09 14:27 | −64.00 | AMZN Mktp US*2K4LM0T91 | online | Shopping |
+| u_tr_yp_0042 | 2025-08-01 05:12 | 2,310.44 | ACME CORP PAYROLL PPD ID: 9912 | ach | Income |
+| u_tr_yp_0042 | 2025-08-01 00:05 | −1,850.00 | OAKWOOD PROPERTY MGMT WEB PMT | ach | Housing |
+| u_tr_yp_0042 | 2025-08-02 08:14 | −6.45 | TST* COMMON GROUNDS DEN | card_present | Dining |
+| u_tr_yp_0042 | 2025-08-02 23:41 | −18.72 | UBER *TRIP*PUW5J0E | online | Transportation |
+| u_tr_yp_0042 | 2025-08-03 11:03 | −87.19 | TRADER JOE S #552 SAN FRANC | card_present | Groceries |
+| u_tr_yp_0042 | 2025-08-05 03:00 | −15.49 | NETFLIX.COM | online | Subscriptions |
+| u_tr_yp_0042 | 2025-08-09 14:27 | −64.00 | AMZN Mktp US*2K4LM0T91 | online | Shopping |
 
 ## Design
 
@@ -246,12 +247,12 @@ The category list is part of the spec (default below), recorded in `meta`, and v
 
 ### 2. Merchant catalog
 
-A committed CSV of canonical merchants (target ~300) is the source of all merchant names.
+A committed CSV of canonical merchants (324 rows) is the source of all merchant names.
 
-- **Columns:** `merchant_id`, `canonical_name`, `category`, `channel_mix`, `price_mu`, `price_sigma`, `processor` (e.g. Square, Toast, PayPal, none), `is_ambiguous`, `ambiguous_categories`.
+- **Columns:** `merchant_id`, `canonical_name`, `category`, `subtype` (e.g. coffee, rent, payroll), `scope` (national, local, online), `processor` (e.g. square, toast, paypal, stripe, zelle, none), `channel_mix`, `price_median`, `price_sigma`, `peak_hour`, `popularity`, `descriptor` (the bank's own text where it differs, e.g. `AMZN Mktp US*`), `ambiguous_categories`. Persona streams select merchants by category and subtype.
 - **Prices:** log-normal per merchant (coffee shop ≈ $4–9, supermarket ≈ $30–180).
 - **Ambiguous merchants:** warehouse clubs and marketplaces draw their true category per transaction, so the same text can legitimately be Groceries or Shopping.
-- **Holdout (FR-4):** a seeded share of merchants per category is marked holdout and used **only** by test users. The most common merchants per category are never held out, so training data always includes the big chains. The spec sets both numbers.
+- **Holdout (FR-4):** a seeded share of merchants per category is marked holdout and used **only** by test users. The most common merchants per category, and the most common merchant of each subtype, are never held out, so training data always includes the big chains and every subtype. Test users weight holdout merchants by `test_user_bias`, tuned to 1.25 so about 22% of their spending transactions are at holdout merchants.
 - **Names:** well-known chains plus fictional local businesses for the long tail. The long tail may be drafted once with an LLM, reviewed by hand and committed.
 
 ### 3. Personas and per-user variation
@@ -342,26 +343,30 @@ Goals are generated after balances, so their outcomes are known.
 
 ```
 src/smart_financial_coach/data/generator/
-  spec.py          pydantic spec, persona and catalog models; YAML loading
-  taxonomy.py      category list helpers
-  catalog.py       merchant catalog and holdout split
-  population.py    stages 1–3: users and preferences
+  spec.py          pydantic spec and persona models; YAML loading with `extends`
+  taxonomy.py      default categories, channels, processes, cities
+  timeline.py      calendar, business days, US federal holidays
+  catalog.py       merchant catalog, holdout split, per-merchant sampling
+  population.py    stages 1–3: users, seeds and preferences
+  ledger.py        per-user transaction accumulator and stable transaction IDs
   income.py        stage 4
   spending.py      stage 5
   events.py        stage 6
-  calibration.py   stage 7
+  calibration.py   stage 7, plus starting balance
   rendering.py     stage 8
   goals.py         stage 9
-  dataset.py       in-memory Dataset (DataFrames) and content hash
-  sqlite_writer.py schema DDL, indexes, writes
-  cli.py           `sfc-data generate | hash`
+  pipeline.py      `generate(spec) -> Dataset`
+  dataset.py       table schemas, in-memory Dataset and content hash
+  sqlite_io.py     SQLite write (atomic) and read
+  validate.py      data quality checks
+  cli.py           `sfc-data generate | validate | hash`
 configs/data/
   default.yaml  small.yaml  clean.yaml
   personas/*.yaml
   merchants.csv
 ```
 
-New dependencies: `pyyaml` (plus `types-PyYAML` for strict mypy) and `holidays` for US bank holidays. `sqlite3` is in the standard library. `sfc-data` is registered under `[project.scripts]`.
+New dependencies: `pyyaml` (plus `types-PyYAML` for strict mypy) and `holidays` for US federal (bank) holidays. `sqlite3` is in the standard library. `sfc-data` is registered under `[project.scripts]`.
 
 ## Options considered
 
@@ -430,7 +435,7 @@ Sign convention: negative = outflow, positive = inflow.
 | Spec | Rows (approx.) | Notes |
 | --- | --- | --- |
 | `small.yaml` (30 users × 24 months) | ~60k | Tests and CI |
-| **`default.yaml` (300 users × 36 months) (recommended)** | ~0.7–1M | Enough for per-persona statistics and the rolling backtest; tens of MB in SQLite |
+| **`default.yaml` (300 users × 36 months) (recommended)** | ~0.9M | Enough for per-persona statistics and the rolling backtest; about 27 s to generate and ~200 MB in SQLite |
 | Large (3,000 users) | ~8–10M | Only if an experiment needs it; same code |
 
 ## Data quality checks
@@ -442,7 +447,7 @@ A `validate` step runs after generation and in CI, failing loudly rather than le
 - **Plausibility:** per-persona category shares, savings rates and transaction counts within spec ranges; no negative running balance.
 - **Seasonality present:** e.g. family Childcare & Education spend in Sep–May well above June–Aug; Utilities follow the heating/cooling curve.
 - **Mess present:** at `realistic` distortion, most `merchant_raw` values differ from canonical names and each merchant appears with several distinct strings.
-- **Events present and consistent:** planted event counts match the spec rates within tolerance; every spike period shows the planted lift.
+- **Events present and consistent:** planted event counts match the spec rates within tolerance; the median observed lift across spike periods reflects the planted multipliers.
 - **Split isolation:** holdout merchants never appear for train users; train and test user IDs don't overlap.
 - **Determinism:** two runs of `small.yaml` give the same content hash.
 
@@ -464,22 +469,22 @@ Built in thin vertical slices so something end-to-end exists early.
 3. Discretionary spending with seasonality; all three personas and income patterns; calibration.
 4. Merchant catalog with holdout and ambiguous merchants; messy rendering.
 5. Events (one-offs, unusual charges, spikes), goals, `meta`, CLI and content hash.
-6. Quality checks, determinism test in CI, and a notebook to eyeball realism.
+6. Quality checks, determinism test in CI, and a notebook to eyeball realism (notebook not yet built).
 
 ## Decisions and open questions
 
-Recommendations are marked; please confirm or change before implementation starts.
+The recommendations below were adopted when FR-1 was implemented.
 
-**Decisions to confirm**
+**Decisions**
 
-- [ ] One generic spec-driven generator; use cases differ only by spec file.
-- [ ] Training-time perturbations (label noise, row corruption, augmentation) live in the training pipeline, not the generator.
-- [ ] Unusual charges and spending spikes are generator events (FR-2 is delivered as event specs on this branch, not as a separate injector).
-- [ ] Output is one SQLite file with `truth_*` tables (C-a, D-b); determinism checked by content hash.
-- [ ] REAL amounts, negative = outflow (E-a).
-- [ ] YAML specs validated by pydantic (F-a); adds `pyyaml`, `types-PyYAML`, `holidays`.
-- [ ] Default 300 users × 36 months; calendar 2023-10-01 → 2026-09-30.
-- [ ] The 12-category taxonomy above.
+- [x] One generic spec-driven generator; use cases differ only by spec file.
+- [x] Training-time perturbations (label noise, row corruption, augmentation) live in the training pipeline, not the generator.
+- [x] Unusual charges and spending spikes are generator events (FR-2 is delivered as event specs on this branch, not as a separate injector).
+- [x] Output is one SQLite file with `truth_*` tables (C-a, D-b); determinism checked by content hash.
+- [x] REAL amounts, negative = outflow (E-a).
+- [x] YAML specs validated by pydantic (F-a); adds `pyyaml`, `types-PyYAML`, `holidays`.
+- [x] Default 300 users × 36 months; calendar 2023-10-01 → 2026-09-30.
+- [x] The 12-category taxonomy above.
 
 **Technical Design updates (applied)**
 
@@ -491,4 +496,17 @@ Recommendations are marked; please confirm or change before implementation start
 **Open questions**
 
 - [ ] Is Income a class the categorizer predicts, or handled by a rule on sign and channel? (Affects FR-3's "~12 classes".)
-- [ ] Are real chain names acceptable in the merchant catalog, or should all merchants be fictional?
+- [ ] Are real chain names acceptable in the merchant catalog, or should all merchants be fictional? The catalog currently mixes real chains with fictional local businesses; employers and freelance clients are all fictional.
+
+## Implementation notes
+
+What the implementation settled or changed relative to the draft above.
+
+- **Default dataset:** 300 users, 896k transactions, 1,326 unusual charges, 990 spike periods, 204 goals with known outcomes; about 27 s to generate on a laptop; all quality checks pass.
+- **User IDs** include the persona code (`u_tr_yp_0042`), so seeds stay stable when another persona's count changes.
+- **The merchant table** is `truth_merchants`, following the `truth_*` naming that keeps eval-only data out of features.
+- **One-offs** are defined per persona; the spec's `events.one_off.rate_scale` scales them all.
+- **SQLite tables** are `WITHOUT ROWID`, which cut the default file from 228 MB to ~200 MB. Size is dominated by text IDs and merchant strings.
+- **Spike check** uses the median lift across spikes, since a single week of Poisson purchases can miss its planted lift by chance.
+- **Seasonality check** only tests profiles that vary by at least ×1.5; weaker profiles (e.g. ×1.3 winter pharmacy) are too noisy to test on the small spec.
+- **Not built yet:** parallel generation (users are independent, so it can be added without changing output) and the realism notebook.
