@@ -60,6 +60,7 @@ class Standing:
     estimate: float
     eligible: bool
     tied_with_leader: bool
+    code: str  # the git commit (and diff) that produced the run
 
 
 def _config(tracker: Tracker, run: RunRecord, tmp: Path) -> ExperimentConfig:
@@ -85,10 +86,26 @@ def _rebuild(
 
 
 def _comparable(tracker: Tracker, task: Task, split_hash: str | None) -> list[RunRecord]:
+    """Runs on the same data and splits as `split_hash` (default: the latest run's)."""
     runs = tracker.find(task.name, {})
     if split_hash is None and runs:
-        split_hash = runs[-1].tags["sfc.split_hash"]  # the latest run's splits
-    return [r for r in runs if r.tags.get("sfc.split_hash") == split_hash]
+        split_hash = runs[-1].tags["sfc.split_hash"]
+    same = [r for r in runs if r.tags.get("sfc.split_hash") == split_hash]
+    data = same[-1].tags.get("sfc.data_hash") if same else None
+    return [r for r in same if r.tags.get("sfc.data_hash") == data]
+
+
+def code_versions(runs: list[RunRecord]) -> set[str]:
+    return {r.tags.get("sfc.git_commit", "unknown") for r in runs}
+
+
+def _require_baselines(task: Task, runs: list[RunRecord]) -> None:
+    present = {r.name for r in _baselines(runs)}
+    if missing := [b for b in task.required_baselines if b not in present]:
+        raise SelectionError(
+            f"no {', '.join(missing)} baseline run on these splits; run round 0 first "
+            "(eligibility and the gates compare against it)"
+        )
 
 
 def _baselines(runs: list[RunRecord]) -> list[RunRecord]:
@@ -101,6 +118,8 @@ def leaderboard(
     """Candidate runs in decision-rule order (baselines are the floor, not candidates)."""
     task = get_task(task_name)
     runs = _comparable(tracker, task, split_hash)
+    if any(r.tags.get("sfc.baseline") != "true" for r in runs):
+        _require_baselines(task, runs)
     baselines = {r.name: r.metrics for r in _baselines(runs)}
     candidates = [r for r in runs if r.tags.get("sfc.baseline") != "true"]
     if not candidates:
@@ -151,6 +170,7 @@ def leaderboard(
             estimate=r.metrics.get(metric, float("nan")),
             eligible=r.run_id in order,
             tied_with_leader=i == 0 or r.run_id in tied,
+            code=r.tags.get("sfc.git_commit", "unknown"),
         )
         for i, r in enumerate(ranked + unranked)
     ]
@@ -179,6 +199,7 @@ def finalize(
         )
     if run_ids:
         split_hash = tracker.get(run_ids[0]).tags.get("sfc.split_hash")
+    _require_baselines(task, _comparable(tracker, task, split_hash))  # else nothing is eligible
     order = [s.run_id for s in leaderboard(task_name, data, tracker, split_hash) if s.eligible]
     chosen = run_ids or order[:MAX_FINALISTS]
     if not chosen:
@@ -209,6 +230,11 @@ def finalize(
     baselines = _baselines(comparable)
     if not baselines:
         raise SelectionError("no baseline runs on these splits; run the round 0 baselines first")
+    if len(versions := code_versions(finalists + baselines)) > 1 and not reason:
+        raise SelectionError(
+            f"finalists and baselines come from {len(versions)} code versions; rerun them on one "
+            "(`sfc-experiment run --force`) or give an override reason"
+        )
 
     contract = get_service(task.name).contract
     scored: dict[str, dict[str, float]] = {}

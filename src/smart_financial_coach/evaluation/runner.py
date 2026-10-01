@@ -11,6 +11,7 @@ Test sets are not scored here; `finalize` does that once, for finalists. The one
 the leaderboard.
 """
 
+import hashlib
 import json
 import subprocess
 import tempfile
@@ -55,7 +56,12 @@ def git_commit() -> str:
         ).stdout.strip()
 
     commit = git("rev-parse", "HEAD") or "unknown"
-    return f"{commit}-dirty" if git("status", "--porcelain", "--untracked-files=no") else commit
+    if not git("status", "--porcelain", "--untracked-files=no"):
+        return commit
+    # Uncommitted changes: name them by their diff, so a resumed sweep skips a run only if the
+    # code is byte-for-byte what produced it
+    diff = hashlib.sha256(git("diff", "HEAD").encode()).hexdigest()[:12]
+    return f"{commit}-dirty-{diff}"
 
 
 def prepare(task: Task, data: Path, config: ExperimentConfig) -> tuple[Examples, Splits]:
@@ -69,11 +75,16 @@ def prepare(task: Task, data: Path, config: ExperimentConfig) -> tuple[Examples,
 
 
 def identity(config: ExperimentConfig, examples: Examples, splits: Splits) -> dict[str, str]:
-    """Tags that decide whether two runs are the same run (resume) and comparable (leaderboard)."""
+    """Everything that changes a run's results: config, data content, splits and code.
+
+    Resume skips a run only if all four match. The leaderboard compares runs on the same data and
+    splits, and flags (and `finalize` refuses) a mix of code versions.
+    """
     return {
         "sfc.config_hash": config.config_hash(),
         "sfc.data_hash": examples.data_hash,
         "sfc.split_hash": splits.hash(),
+        "sfc.git_commit": git_commit(),
     }
 
 
@@ -130,7 +141,6 @@ def run_experiment(
         "sfc.task": task.name,
         "sfc.model_type": config.model.type,
         "sfc.baseline": str(config.baseline).lower(),
-        "sfc.git_commit": git_commit(),
         **{f"user.{k}": v for k, v in config.tags.items()},
     }
     with tracker.run(task.name, config.name, tags) as run_id:

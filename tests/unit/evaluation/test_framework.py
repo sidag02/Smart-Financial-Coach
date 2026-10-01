@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from smart_financial_coach.evaluation import runner
 from smart_financial_coach.evaluation.experiment import ExperimentConfig
 from smart_financial_coach.evaluation.promote import (
     FINALIST_TAG,
@@ -144,7 +145,7 @@ def test_finalize_needs_baselines(
 ) -> None:
     run_experiment(make_config("alone"), toy_data, tracker)
 
-    with pytest.raises(SelectionError, match="no baseline"):
+    with pytest.raises(SelectionError, match="no majority baseline run"):
         finalize("toy", toy_data, tracker)
 
 
@@ -249,3 +250,39 @@ def test_reproduction_runs_resume(
 
     assert again.skipped
     assert again.run_id == first.run_id
+
+
+def test_resume_needs_the_same_code(
+    toy_data: Path, tracker: Tracker, make_config: MakeConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = run_experiment(make_config("same"), toy_data, tracker)
+    monkeypatch.setattr(runner, "git_commit", lambda: "another-commit")
+    second = run_experiment(make_config("same"), toy_data, tracker)
+
+    assert not second.skipped
+    assert second.run_id != first.run_id
+
+
+def test_finalize_refuses_mixed_code_versions(
+    toy_data: Path,
+    tracker: Tracker,
+    make_config: MakeConfig,
+    runs: dict[str, str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(runner, "git_commit", lambda: "newer-commit")
+    newer = run_experiment(make_config("newer", "toy/memory_alt"), toy_data, tracker)
+
+    assert len({s.code for s in leaderboard("toy", toy_data, tracker)}) == 2
+    with pytest.raises(SelectionError, match="code versions"):
+        finalize("toy", toy_data, tracker, override="")
+    finalize("toy", toy_data, tracker, run_ids=[newer.run_id], override="baseline code unchanged")
+
+
+def test_leaderboard_names_a_missing_baseline(
+    toy_data: Path, tracker: Tracker, make_config: MakeConfig
+) -> None:
+    run_experiment(make_config("alone"), toy_data, tracker)
+
+    with pytest.raises(SelectionError, match="no majority baseline run"):
+        leaderboard("toy", toy_data, tracker)

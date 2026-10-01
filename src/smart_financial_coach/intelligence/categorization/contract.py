@@ -15,7 +15,9 @@ from smart_financial_coach.intelligence.service import register_service
 
 INPUT_COLUMNS = ("transaction_id", "user_id", "ts", "amount", "currency", "merchant_raw", "channel")
 OUTPUT_COLUMNS = ("transaction_id", "category", "confidence", "model_version")
-KNOWN = frozenset(DEFAULT_CATEGORIES)  # 12 spending categories + Income
+# v1 assumes the default taxonomy (12 spending categories + Income). A spec with other
+# categories needs this to come from the dataset's `meta.categories` instead.
+KNOWN = frozenset(DEFAULT_CATEGORIES)
 
 
 def _check(out: pd.DataFrame) -> list[str]:

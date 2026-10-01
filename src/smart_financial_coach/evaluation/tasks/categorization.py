@@ -73,10 +73,22 @@ def _truth(data: Path) -> pd.DataFrame:
         conn.close()
 
 
+def content_hash(frame: pd.DataFrame, meta: Mapping[str, str]) -> str:
+    """A hash of exactly what was loaded (about a second on the default dataset).
+
+    Not the spec hash and generator version alone: the version string doesn't change with every
+    generator change, so different data could otherwise look identical.
+    """
+    rows = pd.util.hash_pandas_object(frame, index=False).to_numpy().tobytes()
+    header = f"{meta['spec_hash']}|{meta['schema_version']}|".encode()
+    return hashlib.sha256(header + rows).hexdigest()
+
+
 class CategorizationTask:
     name = "categorization"
     selection_metric = "unseen_macro_f1"
     tiebreak_metrics: tuple[str, ...] = ("val_unseen_ece", "latency_p95_ms")
+    required_baselines: tuple[str, ...] = (KEYWORD_BASELINE,)  # eligibility and gates need it
 
     def __init__(self, reps: int = BOOTSTRAP_REPS) -> None:
         self.reps = reps
@@ -94,13 +106,12 @@ class CategorizationTask:
             load_users(data)[["user_id", "split"]], on="user_id", validate="many_to_one"
         )
         frame = frame.merge(_truth(data), on="transaction_id", validate="one_to_one")
-        identity = f"{meta['spec_hash']}|{meta['schema_version']}|{meta['generator_version']}"
         return Examples(
             frame=frame,
             labels=frame["category"],
             id_column="transaction_id",
             model_columns=INPUT_COLUMNS,
-            data_hash=hashlib.sha256(identity.encode()).hexdigest(),
+            data_hash=content_hash(frame, meta),
         )
 
     def split(self, examples: Examples, params: Mapping[str, Any], seed: int) -> Splits:

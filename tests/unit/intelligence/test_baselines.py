@@ -105,3 +105,19 @@ def test_baselines_meet_the_contract_and_are_deterministic(kind: str) -> None:
 def test_supervised_models_need_labels() -> None:
     with pytest.raises(ValueError, match="needs labels"):
         build({"type": "categorization/lookup"}).fit(TX)
+
+
+def test_keyword_file_content_is_part_of_the_config() -> None:
+    model = build({"type": "categorization/keyword"})
+    digest = model.params["keywords_sha256"]
+
+    assert build({"type": "categorization/keyword", "params": {"keywords_sha256": digest}})
+    with pytest.raises(ValueError, match="Update the config's keywords_sha256"):
+        build({"type": "categorization/keyword", "params": {"keywords_sha256": "0" * 64}})
+
+
+def test_committed_keyword_config_matches_the_file() -> None:
+    config = yaml.safe_load(
+        (PROJECT_ROOT / "configs/experiments/categorization/00_keyword.yaml").read_text()
+    )
+    build(config["model"])  # raises if the file changed without the config

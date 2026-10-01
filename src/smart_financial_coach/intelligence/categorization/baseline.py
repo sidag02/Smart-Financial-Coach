@@ -8,6 +8,7 @@ Each confidence is the training precision of the rule that fired, so it means wh
 data like the training data.
 """
 
+import hashlib
 import re
 from pathlib import Path
 from typing import Self
@@ -62,9 +63,19 @@ class Keyword(CategorizerModel):
     the sign, so refunds (positive amounts at shops) keep their category.
     """
 
-    def __init__(self, keywords_file: str = KEYWORDS_FILE) -> None:
-        super().__init__(keywords_file=keywords_file)
-        raw = yaml.safe_load((PROJECT_ROOT / keywords_file).read_text(encoding="utf-8"))
+    def __init__(
+        self, keywords_file: str = KEYWORDS_FILE, keywords_sha256: str | None = None
+    ) -> None:
+        """`keywords_sha256` puts the file's content in the config hash: if given, it must match."""
+        content = (PROJECT_ROOT / keywords_file).read_bytes()
+        actual = hashlib.sha256(content).hexdigest()
+        if keywords_sha256 is not None and keywords_sha256 != actual:
+            raise ValueError(
+                f"{keywords_file} has SHA-256 {actual}; the config expects {keywords_sha256}. "
+                "Update the config's keywords_sha256 so the change gets a new run"
+            )
+        super().__init__(keywords_file=keywords_file, keywords_sha256=actual)
+        raw = yaml.safe_load(content.decode("utf-8"))
         self.keywords: dict[str, list[str]] = {
             str(c): [str(w) for w in ws] for c, ws in raw.items()
         }

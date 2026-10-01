@@ -16,7 +16,7 @@ def test_cli_run_to_promote(
     configs = tmp_path / "configs"
     configs.mkdir()
     runs: list[tuple[str, str, dict[str, Any]]] = [
-        ("a_majority", "toy/majority", {"baseline": True}),
+        ("majority", "toy/majority", {"baseline": True}),
         ("b_memory", "toy/memory", {"grid": {"confidence": [0.7, 0.9]}}),
     ]
     for name, model, extra in runs:

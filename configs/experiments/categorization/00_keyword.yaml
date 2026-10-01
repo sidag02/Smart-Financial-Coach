@@ -1,6 +1,10 @@
-# Round 0 baseline: scored with the finalists on every split (FR-3 experiment plan)
+# Round 0 baseline: scored with the finalists on every split (FR-3 experiment plan).
+# keywords_sha256 makes the keyword file's content part of the config hash: edit the file, update
+# this, and the baseline gets a new run instead of resuming the old one.
 name: keyword
 task: categorization
-model: {type: categorization/keyword}
+model:
+  type: categorization/keyword
+  params: {keywords_sha256: 1528760cf9956cbb4f68c1d4909328daeb6f5d038a4586e81daf09dd3a7fce38}
 baseline: true
 tags: {round: "0"}

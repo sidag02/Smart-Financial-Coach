@@ -113,3 +113,21 @@ def test_round_zero_runs_end_to_end(small_sqlite: Path, tmp_path: Path) -> None:
     assert results["keyword"].metrics["val_known_macro_f1"] < 0.9
     assert np.isfinite(results["majority"].metrics["latency_p95_ms"])
     assert leaderboard("categorization", small_sqlite, tracker) == []  # baselines aren't candidates
+
+
+def test_data_hash_follows_content(
+    task: CategorizationTask, examples: Examples, small_sqlite: Path, tmp_path: Path
+) -> None:
+    """Same spec, same IDs, different content: a different data hash (PR #8 review)."""
+    import shutil
+    import sqlite3
+
+    copy = tmp_path / "edited.sqlite"
+    shutil.copy(small_sqlite, copy)
+    with sqlite3.connect(copy) as conn:
+        conn.execute("UPDATE transactions SET amount = amount * 2")
+    edited = task.load(copy)
+
+    assert edited.data_hash != examples.data_hash
+    assert task.split(edited, {}, 0).hash() == task.split(examples, {}, 0).hash()
+    assert task.load(small_sqlite).data_hash == examples.data_hash
