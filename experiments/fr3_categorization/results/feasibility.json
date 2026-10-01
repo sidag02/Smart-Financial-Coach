@@ -1,0 +1,2318 @@
+{
+  "dataset": {
+    "path": "data/synthetic/default.sqlite",
+    "spec_name": "default",
+    "spec_hash": "130e78f5538339152f82a85596a5d45b4f5b673c8ae160abf2a9dc2184a4bba8",
+    "generator_version": "0.1.0"
+  },
+  "environment": {
+    "git_commit": "8b80b3425c9f5e0a82dec2346ae53bfe3069a4c5",
+    "python": "3.11.15",
+    "platform": "macOS-26.6.2-arm64-arm-64bit",
+    "sklearn": "1.9.1",
+    "embedding_model": "BAAI/bge-small-en-v1.5"
+  },
+  "setup": {
+    "seed": 0,
+    "max_rows_per_class": 20000,
+    "fit_rows": 194318,
+    "spending_labels": [
+      "Childcare & Education",
+      "Dining",
+      "Entertainment",
+      "Groceries",
+      "Health & Fitness",
+      "Housing",
+      "Insurance & Fees",
+      "Shopping",
+      "Subscriptions",
+      "Transportation",
+      "Travel",
+      "Utilities"
+    ],
+    "bootstrap_reps": 1000
+  },
+  "facts": {
+    "transactions": 1098595,
+    "users": 360,
+    "transactions_by_split": {
+      "train": 723922,
+      "test": 374673
+    },
+    "transactions_by_category": {
+      "Dining": 418268,
+      "Shopping": 195191,
+      "Transportation": 165179,
+      "Groceries": 96971,
+      "Utilities": 44100,
+      "Income": 38745,
+      "Subscriptions": 36788,
+      "Health & Fitness": 30273,
+      "Entertainment": 23876,
+      "Insurance & Fees": 18177,
+      "Housing": 14112,
+      "Childcare & Education": 14064,
+      "Travel": 2851
+    },
+    "merchants": 324,
+    "distinct_merchant_raw": 193961,
+    "distinct_normalized": 12794,
+    "positive_spending_by_category": {
+      "Shopping": 5422
+    },
+    "ambiguous_spending_share": 0.03365948011511063,
+    "holdout_merchants_used_by_test_users": 58,
+    "holdout_transactions": 78073,
+    "holdout_merchants_by_category": {
+      "Childcare & Education": 4,
+      "Dining": 10,
+      "Entertainment": 3,
+      "Groceries": 6,
+      "Health & Fitness": 3,
+      "Housing": 3,
+      "Insurance & Fees": 3,
+      "Shopping": 8,
+      "Subscriptions": 5,
+      "Transportation": 5,
+      "Travel": 3,
+      "Utilities": 5
+    },
+    "holdout_transactions_by_category": {
+      "Dining": 35590,
+      "Shopping": 14028,
+      "Transportation": 11984,
+      "Groceries": 5118,
+      "Subscriptions": 2476,
+      "Utilities": 2124,
+      "Health & Fitness": 2001,
+      "Entertainment": 1597,
+      "Insurance & Fees": 1168,
+      "Childcare & Education": 1019,
+      "Housing": 792,
+      "Travel": 176
+    },
+    "holdout_merchants_seen_by_train_users": 0
+  },
+  "ambiguity_ceiling": {
+    "error_share_all_spending": 0.012983912817851584,
+    "error_share_at_ambiguous_merchants": 0.38574311823737173
+  },
+  "embedding": {
+    "strings": 12794,
+    "seconds": 10.460382500001288
+  },
+  "experiments": {
+    "ngrams": {
+      "description": "Character 2-4-grams of merchant_raw + amount bin, sign, channel, hour",
+      "fit_seconds": 8.101501999997708,
+      "known": {
+        "n": 144785,
+        "macro_f1_spending": 0.9864328358621816,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.9989457037427517,
+            "recall": 1.0,
+            "f1": 0.9994725738396625,
+            "n": 1895
+          },
+          "Dining": {
+            "precision": 0.9999452554744526,
+            "recall": 0.9998722720969272,
+            "f1": 0.999908762453925,
+            "n": 54804
+          },
+          "Entertainment": {
+            "precision": 0.9996754300551769,
+            "recall": 1.0,
+            "f1": 0.9998376886869015,
+            "n": 3080
+          },
+          "Groceries": {
+            "precision": 0.8503801652892562,
+            "recall": 0.9776527820006081,
+            "f1": 0.909585941091192,
+            "n": 13156
+          },
+          "Health & Fitness": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 4030
+          },
+          "Housing": {
+            "precision": 0.9989406779661016,
+            "recall": 1.0,
+            "f1": 0.9994700582935877,
+            "n": 1886
+          },
+          "Income": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 5155
+          },
+          "Insurance & Fees": {
+            "precision": 0.9995881383855024,
+            "recall": 1.0,
+            "f1": 0.9997940267765191,
+            "n": 2427
+          },
+          "Shopping": {
+            "precision": 0.9873692108883239,
+            "recall": 0.9122279992297323,
+            "f1": 0.9483124474516555,
+            "n": 25965
+          },
+          "Subscriptions": {
+            "precision": 0.998974569319114,
+            "recall": 1.0,
+            "f1": 0.9994870216476864,
+            "n": 4871
+          },
+          "Transportation": {
+            "precision": 0.9999528901870259,
+            "recall": 0.9991527019393711,
+            "f1": 0.9995526359162723,
+            "n": 21244
+          },
+          "Travel": {
+            "precision": 0.9653465346534653,
+            "recall": 1.0,
+            "f1": 0.982367758186398,
+            "n": 390
+          },
+          "Utilities": {
+            "precision": 0.9991503823279524,
+            "recall": 0.999659979598776,
+            "f1": 0.9994051160023796,
+            "n": 5882
+          }
+        }
+      },
+      "test_users": {
+        "n": 374673,
+        "macro_f1_spending": 0.8683900561694843,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.5933441558441559,
+            "recall": 0.7964698191327086,
+            "f1": 0.6800632616987626,
+            "n": 4589
+          },
+          "Dining": {
+            "precision": 0.9472065756778617,
+            "recall": 0.9011362297138975,
+            "f1": 0.9235972460050732,
+            "n": 144249
+          },
+          "Entertainment": {
+            "precision": 0.7929723502304148,
+            "recall": 0.812057574327513,
+            "f1": 0.8024014921893216,
+            "n": 8476
+          },
+          "Groceries": {
+            "precision": 0.815640291204201,
+            "recall": 0.8763825217196166,
+            "f1": 0.8449211083465978,
+            "n": 31193
+          },
+          "Health & Fitness": {
+            "precision": 0.8773178094006037,
+            "recall": 0.8037530864197531,
+            "f1": 0.8389258285655379,
+            "n": 10125
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 4680
+          },
+          "Income": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 12968
+          },
+          "Insurance & Fees": {
+            "precision": 0.9775646236384328,
+            "recall": 0.9950355783551216,
+            "f1": 0.9862227324913893,
+            "n": 6043
+          },
+          "Shopping": {
+            "precision": 0.7598551033454081,
+            "recall": 0.8182777769279016,
+            "f1": 0.787985032851124,
+            "n": 65369
+          },
+          "Subscriptions": {
+            "precision": 0.9692968501431753,
+            "recall": 0.9802123552123552,
+            "f1": 0.9747240441529356,
+            "n": 12432
+          },
+          "Transportation": {
+            "precision": 0.9416578296217745,
+            "recall": 0.9036158881991792,
+            "f1": 0.922244724861955,
+            "n": 58962
+          },
+          "Travel": {
+            "precision": 0.5173010380622838,
+            "recall": 0.9977753058954394,
+            "f1": 0.6813520698822636,
+            "n": 899
+          },
+          "Utilities": {
+            "precision": 0.9769147202607279,
+            "recall": 0.9795751633986928,
+            "f1": 0.9782431329888496,
+            "n": 14688
+          }
+        }
+      },
+      "unseen": {
+        "n": 78073,
+        "macro_f1_spending": 0.5036911166037986,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.0328692962103635,
+            "recall": 0.08341511285574092,
+            "f1": 0.047156726768377254,
+            "n": 1019
+          },
+          "Dining": {
+            "precision": 0.7468513853904282,
+            "recall": 0.5998314133183479,
+            "f1": 0.665316171658304,
+            "n": 35590
+          },
+          "Entertainment": {
+            "precision": 0.002224694104560623,
+            "recall": 0.002504696305572949,
+            "f1": 0.00235640648011782,
+            "n": 1597
+          },
+          "Groceries": {
+            "precision": 0.5264650283553876,
+            "recall": 0.3264947245017585,
+            "f1": 0.4030390738060782,
+            "n": 5118
+          },
+          "Health & Fitness": {
+            "precision": 0.013020833333333334,
+            "recall": 0.0074962518740629685,
+            "f1": 0.009514747859181731,
+            "n": 2001
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 792
+          },
+          "Insurance & Fees": {
+            "precision": 0.8932496075353218,
+            "recall": 0.9743150684931506,
+            "f1": 0.9320229320229321,
+            "n": 1168
+          },
+          "Shopping": {
+            "precision": 0.2936892164003256,
+            "recall": 0.4886655260906758,
+            "f1": 0.36688163986191763,
+            "n": 14028
+          },
+          "Subscriptions": {
+            "precision": 0.857033051498847,
+            "recall": 0.9006462035541195,
+            "f1": 0.8782985427333596,
+            "n": 2476
+          },
+          "Transportation": {
+            "precision": 0.657703488372093,
+            "recall": 0.5286214953271028,
+            "f1": 0.586139896373057,
+            "n": 11984
+          },
+          "Travel": {
+            "precision": 0.17791411042944785,
+            "recall": 0.9886363636363636,
+            "f1": 0.30155979202772965,
+            "n": 176
+          },
+          "Utilities": {
+            "precision": 0.8449074074074074,
+            "recall": 0.8592278719397364,
+            "f1": 0.8520074696545284,
+            "n": 2124
+          }
+        },
+        "merchant_bootstrap": {
+          "point": 0.5036911166037986,
+          "low": 0.4402687559281012,
+          "high": 0.5617131373391782
+        },
+        "top_errors": [
+          {
+            "merchant": "Caviar",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 3602
+          },
+          {
+            "merchant": "McDonald's",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 2621
+          },
+          {
+            "merchant": "Walmart.com",
+            "true": "Shopping",
+            "predicted": "Childcare & Education",
+            "transactions": 2334
+          },
+          {
+            "merchant": "Arco",
+            "true": "Transportation",
+            "predicted": "Shopping",
+            "transactions": 2263
+          },
+          {
+            "merchant": "Taco Bell",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 2177
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Dining",
+            "transactions": 1961
+          },
+          {
+            "merchant": "The Cheesecake Factory",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 1850
+          },
+          {
+            "merchant": "The Gift Nook",
+            "true": "Shopping",
+            "predicted": "Dining",
+            "transactions": 1562
+          },
+          {
+            "merchant": "McDonald's",
+            "true": "Dining",
+            "predicted": "Transportation",
+            "transactions": 1178
+          },
+          {
+            "merchant": "Taco Bell",
+            "true": "Dining",
+            "predicted": "Transportation",
+            "transactions": 1099
+          },
+          {
+            "merchant": "Alamo Drafthouse",
+            "true": "Entertainment",
+            "predicted": "Dining",
+            "transactions": 946
+          },
+          {
+            "merchant": "Giant Eagle",
+            "true": "Groceries",
+            "predicted": "Shopping",
+            "transactions": 822
+          }
+        ],
+        "by_merchant": [
+          {
+            "merchant": "Alamo Drafthouse",
+            "category": "Entertainment",
+            "scope": "national",
+            "transactions": 1169,
+            "accuracy": 0.003421727972626176
+          },
+          {
+            "merchant": "Alaska Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 63,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Amazon Fresh",
+            "category": "Groceries",
+            "scope": "online",
+            "transactions": 605,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "American Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 107,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Apple iCloud",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 1018,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Arco",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 2268,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Assurant Renters",
+            "category": "Insurance & Fees",
+            "scope": "online",
+            "transactions": 252,
+            "accuracy": 0.8849206349206349
+          },
+          {
+            "merchant": "Atmos Energy",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Blue Agave Cantina",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1345,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Camp Wildwood",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 83,
+            "accuracy": 0.9879518072289156
+          },
+          {
+            "merchant": "Canva",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 398,
+            "accuracy": 0.9798994974874372
+          },
+          {
+            "merchant": "Caviar",
+            "category": "Dining",
+            "scope": "online",
+            "transactions": 3705,
+            "accuracy": 0.009986504723346829
+          },
+          {
+            "merchant": "Chick-fil-A",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 5179,
+            "accuracy": 0.7636609384050975
+          },
+          {
+            "merchant": "Clipper Card",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 6130,
+            "accuracy": 0.5601957585644372
+          },
+          {
+            "merchant": "Code Ninjas",
+            "category": "Childcare & Education",
+            "scope": "national",
+            "transactions": 24,
+            "accuracy": 0.08333333333333333
+          },
+          {
+            "merchant": "Corner Fresh Grocery",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 141,
+            "accuracy": 0.0070921985815602835
+          },
+          {
+            "merchant": "Driftwood Coffee Co",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 2557,
+            "accuracy": 0.9968713335940556
+          },
+          {
+            "merchant": "Equinox",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 325,
+            "accuracy": 0.027692307692307693
+          },
+          {
+            "merchant": "FasTrak",
+            "category": "Transportation",
+            "scope": "online",
+            "transactions": 262,
+            "accuracy": 0.17938931297709923
+          },
+          {
+            "merchant": "Figma",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 345,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Funland Arcade",
+            "category": "Entertainment",
+            "scope": "local",
+            "transactions": 367,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Gap",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 959,
+            "accuracy": 0.7758081334723671
+          },
+          {
+            "merchant": "Georgia Power",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 576,
+            "accuracy": 0.6163194444444444
+          },
+          {
+            "merchant": "Giant Eagle",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 1166,
+            "accuracy": 0.018867924528301886
+          },
+          {
+            "merchant": "GitHub",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 488,
+            "accuracy": 0.5122950819672131
+          },
+          {
+            "merchant": "Golden Hour Bakery",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1909,
+            "accuracy": 0.9968569931901519
+          },
+          {
+            "merchant": "Google Fiber",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 396,
+            "accuracy": 0.803030303030303
+          },
+          {
+            "merchant": "Google Workspace",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 227,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Green Valley Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1056,
+            "accuracy": 0.6439393939393939
+          },
+          {
+            "merchant": "Hannaford",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 404,
+            "accuracy": 0.034653465346534656
+          },
+          {
+            "merchant": "Hertz",
+            "category": "Travel",
+            "scope": "national",
+            "transactions": 6,
+            "accuracy": 0.6666666666666666
+          },
+          {
+            "merchant": "Little Owl Espresso",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 3873,
+            "accuracy": 0.9961270333075135
+          },
+          {
+            "merchant": "McDonald's",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 4601,
+            "accuracy": 0.0919365355357531
+          },
+          {
+            "merchant": "Metro SmarTrip",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 3298,
+            "accuracy": 0.8608247422680413
+          },
+          {
+            "merchant": "Metro Water Utility",
+            "category": "Utilities",
+            "scope": "local",
+            "transactions": 576,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Midas",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 26,
+            "accuracy": 0.5769230769230769
+          },
+          {
+            "merchant": "Mr. Cooper",
+            "category": "Housing",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Nordstrom",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 529,
+            "accuracy": 0.6843100189035917
+          },
+          {
+            "merchant": "One Medical",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 121,
+            "accuracy": 0.049586776859504134
+          },
+          {
+            "merchant": "Out-of-Network ATM Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 570,
+            "accuracy": 0.9982456140350877
+          },
+          {
+            "merchant": "Overdraft Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 346,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Pacific Asian Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1746,
+            "accuracy": 0.5463917525773195
+          },
+          {
+            "merchant": "Parkline Apartments",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 360,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Peet's Coffee",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 6137,
+            "accuracy": 0.999674107870295
+          },
+          {
+            "merchant": "Pinecrest Elementary PTA",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 251,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Pixel Repair Shop",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 19,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Rite Aid",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 1555,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Second Chapter Thrift",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 386,
+            "accuracy": 0.5077720207253886
+          },
+          {
+            "merchant": "Sittercity",
+            "category": "Childcare & Education",
+            "scope": "online",
+            "transactions": 661,
+            "accuracy": 0.0015128593040847202
+          },
+          {
+            "merchant": "Sonic Internet",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 432,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "StubHub",
+            "category": "Entertainment",
+            "scope": "online",
+            "transactions": 61,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Taco Bell",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 3663,
+            "accuracy": 0.10537810537810538
+          },
+          {
+            "merchant": "The Cheesecake Factory",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 2621,
+            "accuracy": 0.28882106066386876
+          },
+          {
+            "merchant": "The Gift Nook",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 2100,
+            "accuracy": 0.07428571428571429
+          },
+          {
+            "merchant": "Uniqlo",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 616,
+            "accuracy": 0.8863636363636364
+          },
+          {
+            "merchant": "Urban Threads Boutique",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 235,
+            "accuracy": 0.05531914893617021
+          },
+          {
+            "merchant": "Walmart.com",
+            "category": "Shopping",
+            "scope": "online",
+            "transactions": 9184,
+            "accuracy": 0.5267857142857143
+          },
+          {
+            "merchant": "Willow Creek Homes",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 288,
+            "accuracy": 1.0
+          }
+        ]
+      }
+    },
+    "embeddings": {
+      "description": "Sentence embedding of normalized text (BAAI/bge-small-en-v1.5) + same side features",
+      "fit_seconds": 51.68989429099747,
+      "known": {
+        "n": 144785,
+        "macro_f1_spending": 0.9725249793772699,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.9978914074855034,
+            "recall": 0.9989445910290238,
+            "f1": 0.9984177215189873,
+            "n": 1895
+          },
+          "Dining": {
+            "precision": 0.9931414458060226,
+            "recall": 0.9538354864608423,
+            "f1": 0.9730917078528282,
+            "n": 54804
+          },
+          "Entertainment": {
+            "precision": 0.8330610021786492,
+            "recall": 0.9931818181818182,
+            "f1": 0.9061018957345972,
+            "n": 3080
+          },
+          "Groceries": {
+            "precision": 0.8399947323368671,
+            "recall": 0.9696716327151109,
+            "f1": 0.9001869950252267,
+            "n": 13156
+          },
+          "Health & Fitness": {
+            "precision": 0.9957962413452027,
+            "recall": 0.9992555831265508,
+            "f1": 0.9975229130542482,
+            "n": 4030
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 1886
+          },
+          "Income": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 5155
+          },
+          "Insurance & Fees": {
+            "precision": 0.99958796868562,
+            "recall": 0.99958796868562,
+            "f1": 0.99958796868562,
+            "n": 2427
+          },
+          "Shopping": {
+            "precision": 0.9851981206602636,
+            "recall": 0.9125746196803389,
+            "f1": 0.9474968010236724,
+            "n": 25965
+          },
+          "Subscriptions": {
+            "precision": 0.998769735493131,
+            "recall": 1.0,
+            "f1": 0.9993844891259746,
+            "n": 4871
+          },
+          "Transportation": {
+            "precision": 0.9225171988004939,
+            "recall": 0.9847015627942007,
+            "f1": 0.9525956284153005,
+            "n": 21244
+          },
+          "Travel": {
+            "precision": 0.9923664122137404,
+            "recall": 1.0,
+            "f1": 0.9961685823754789,
+            "n": 390
+          },
+          "Utilities": {
+            "precision": 0.9994902293967715,
+            "recall": 1.0,
+            "f1": 0.9997450497153055,
+            "n": 5882
+          }
+        }
+      },
+      "test_users": {
+        "n": 374673,
+        "macro_f1_spending": 0.8423792436379167,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.9880668257756563,
+            "recall": 0.8119415994770103,
+            "f1": 0.8913875598086124,
+            "n": 4589
+          },
+          "Dining": {
+            "precision": 0.9848951524149291,
+            "recall": 0.9243876907292251,
+            "f1": 0.9536826445808122,
+            "n": 144249
+          },
+          "Entertainment": {
+            "precision": 0.693631150015092,
+            "recall": 0.8133553563001416,
+            "f1": 0.7487374423024709,
+            "n": 8476
+          },
+          "Groceries": {
+            "precision": 0.7118306044564816,
+            "recall": 0.9268425608309556,
+            "f1": 0.805230614973262,
+            "n": 31193
+          },
+          "Health & Fitness": {
+            "precision": 0.9048390581119032,
+            "recall": 0.827358024691358,
+            "f1": 0.8643656812670897,
+            "n": 10125
+          },
+          "Housing": {
+            "precision": 0.9997854997854998,
+            "recall": 0.995940170940171,
+            "f1": 0.9978591308071076,
+            "n": 4680
+          },
+          "Income": {
+            "precision": 0.999922893052664,
+            "recall": 1.0,
+            "f1": 0.9999614450399044,
+            "n": 12968
+          },
+          "Insurance & Fees": {
+            "precision": 0.9575142675967026,
+            "recall": 0.9995035578355121,
+            "f1": 0.978058456805117,
+            "n": 6043
+          },
+          "Shopping": {
+            "precision": 0.8962433998517331,
+            "recall": 0.9062246630665912,
+            "f1": 0.9012063955699573,
+            "n": 65369
+          },
+          "Subscriptions": {
+            "precision": 0.9728353140916808,
+            "recall": 0.9679054054054054,
+            "f1": 0.9703640982218459,
+            "n": 12432
+          },
+          "Transportation": {
+            "precision": 0.9338213507625273,
+            "recall": 0.9086869509175401,
+            "f1": 0.9210827165905946,
+            "n": 58962
+          },
+          "Travel": {
+            "precision": 0.8655705996131529,
+            "recall": 0.9955506117908788,
+            "f1": 0.926021727884118,
+            "n": 899
+          },
+          "Utilities": {
+            "precision": 0.9862314460339848,
+            "recall": 0.9997276688453159,
+            "f1": 0.9929336984819285,
+            "n": 14688
+          }
+        }
+      },
+      "unseen": {
+        "n": 78073,
+        "macro_f1_spending": 0.5934563477479732,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.8421052631578947,
+            "recall": 0.15701668302257116,
+            "f1": 0.26468155500413565,
+            "n": 1019
+          },
+          "Dining": {
+            "precision": 0.9597670549084859,
+            "recall": 0.8103680809216072,
+            "f1": 0.8787629494210847,
+            "n": 35590
+          },
+          "Entertainment": {
+            "precision": 0.025604551920341393,
+            "recall": 0.033813400125234816,
+            "f1": 0.02914193200215866,
+            "n": 1597
+          },
+          "Groceries": {
+            "precision": 0.35144531638025234,
+            "recall": 0.6912856584603361,
+            "f1": 0.46598617056305563,
+            "n": 5118
+          },
+          "Health & Fitness": {
+            "precision": 0.22808586762075134,
+            "recall": 0.12743628185907047,
+            "f1": 0.1635139467778134,
+            "n": 2001
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 0.976010101010101,
+            "f1": 0.9878594249201278,
+            "n": 792
+          },
+          "Insurance & Fees": {
+            "precision": 0.8159552134359692,
+            "recall": 0.9982876712328768,
+            "f1": 0.8979591836734694,
+            "n": 1168
+          },
+          "Shopping": {
+            "precision": 0.6687168164853072,
+            "recall": 0.9068291987453664,
+            "f1": 0.7697800369126502,
+            "n": 14028
+          },
+          "Subscriptions": {
+            "precision": 0.862240663900415,
+            "recall": 0.8392568659127625,
+            "f1": 0.8505935325419566,
+            "n": 2476
+          },
+          "Transportation": {
+            "precision": 0.8861141271564724,
+            "recall": 0.6129005340453939,
+            "f1": 0.7246090859764218,
+            "n": 11984
+          },
+          "Travel": {
+            "precision": 0.5771812080536913,
+            "recall": 0.9772727272727273,
+            "f1": 0.7257383966244726,
+            "n": 176
+          },
+          "Utilities": {
+            "precision": 0.9166666666666666,
+            "recall": 0.9995291902071564,
+            "f1": 0.9563063063063063,
+            "n": 2124
+          }
+        },
+        "merchant_bootstrap": {
+          "point": 0.6429110433936377,
+          "low": 0.55408088239724,
+          "high": 0.7280035399133101
+        },
+        "top_errors": [
+          {
+            "merchant": "Chick-fil-A",
+            "true": "Dining",
+            "predicted": "Groceries",
+            "transactions": 3776
+          },
+          {
+            "merchant": "Arco",
+            "true": "Transportation",
+            "predicted": "Shopping",
+            "transactions": 2233
+          },
+          {
+            "merchant": "McDonald's",
+            "true": "Dining",
+            "predicted": "Groceries",
+            "transactions": 2193
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Shopping",
+            "transactions": 1352
+          },
+          {
+            "merchant": "Rite Aid",
+            "true": "Health & Fitness",
+            "predicted": "Shopping",
+            "transactions": 1023
+          },
+          {
+            "merchant": "The Gift Nook",
+            "true": "Shopping",
+            "predicted": "Entertainment",
+            "transactions": 901
+          },
+          {
+            "merchant": "Alamo Drafthouse",
+            "true": "Entertainment",
+            "predicted": "Dining",
+            "transactions": 804
+          },
+          {
+            "merchant": "Giant Eagle",
+            "true": "Groceries",
+            "predicted": "Transportation",
+            "transactions": 615
+          },
+          {
+            "merchant": "Sittercity",
+            "true": "Childcare & Education",
+            "predicted": "Entertainment",
+            "transactions": 526
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Health & Fitness",
+            "transactions": 455
+          },
+          {
+            "merchant": "Blue Agave Cantina",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 432
+          },
+          {
+            "merchant": "Canva",
+            "true": "Subscriptions",
+            "predicted": "Health & Fitness",
+            "transactions": 398
+          }
+        ],
+        "by_merchant": [
+          {
+            "merchant": "Alamo Drafthouse",
+            "category": "Entertainment",
+            "scope": "national",
+            "transactions": 1169,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Alaska Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 63,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Amazon Fresh",
+            "category": "Groceries",
+            "scope": "online",
+            "transactions": 605,
+            "accuracy": 0.9933884297520661
+          },
+          {
+            "merchant": "American Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 107,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Apple iCloud",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 1018,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Arco",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 2268,
+            "accuracy": 0.0013227513227513227
+          },
+          {
+            "merchant": "Assurant Renters",
+            "category": "Insurance & Fees",
+            "scope": "online",
+            "transactions": 252,
+            "accuracy": 0.9920634920634921
+          },
+          {
+            "merchant": "Atmos Energy",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Blue Agave Cantina",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1345,
+            "accuracy": 0.6617100371747212
+          },
+          {
+            "merchant": "Camp Wildwood",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 83,
+            "accuracy": 0.8192771084337349
+          },
+          {
+            "merchant": "Canva",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 398,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Caviar",
+            "category": "Dining",
+            "scope": "online",
+            "transactions": 3705,
+            "accuracy": 0.9964912280701754
+          },
+          {
+            "merchant": "Chick-fil-A",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 5179,
+            "accuracy": 0.26819849391774475
+          },
+          {
+            "merchant": "Clipper Card",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 6130,
+            "accuracy": 0.6600326264274062
+          },
+          {
+            "merchant": "Code Ninjas",
+            "category": "Childcare & Education",
+            "scope": "national",
+            "transactions": 24,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Corner Fresh Grocery",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 141,
+            "accuracy": 0.8581560283687943
+          },
+          {
+            "merchant": "Driftwood Coffee Co",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 2557,
+            "accuracy": 0.9972624168947986
+          },
+          {
+            "merchant": "Equinox",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 325,
+            "accuracy": 0.19384615384615383
+          },
+          {
+            "merchant": "FasTrak",
+            "category": "Transportation",
+            "scope": "online",
+            "transactions": 262,
+            "accuracy": 0.41603053435114506
+          },
+          {
+            "merchant": "Figma",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 345,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Funland Arcade",
+            "category": "Entertainment",
+            "scope": "local",
+            "transactions": 367,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Gap",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 959,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Georgia Power",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 576,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Giant Eagle",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 1166,
+            "accuracy": 0.0008576329331046312
+          },
+          {
+            "merchant": "GitHub",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 488,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Golden Hour Bakery",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1909,
+            "accuracy": 0.9968569931901519
+          },
+          {
+            "merchant": "Google Fiber",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 396,
+            "accuracy": 0.9974747474747475
+          },
+          {
+            "merchant": "Google Workspace",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 227,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Green Valley Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1056,
+            "accuracy": 0.8958333333333334
+          },
+          {
+            "merchant": "Hannaford",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 404,
+            "accuracy": 0.5445544554455446
+          },
+          {
+            "merchant": "Hertz",
+            "category": "Travel",
+            "scope": "national",
+            "transactions": 6,
+            "accuracy": 0.3333333333333333
+          },
+          {
+            "merchant": "Little Owl Espresso",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 3873,
+            "accuracy": 0.9961270333075135
+          },
+          {
+            "merchant": "McDonald's",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 4601,
+            "accuracy": 0.4677244077374484
+          },
+          {
+            "merchant": "Metro SmarTrip",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 3298,
+            "accuracy": 0.9663432383262583
+          },
+          {
+            "merchant": "Metro Water Utility",
+            "category": "Utilities",
+            "scope": "local",
+            "transactions": 576,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Midas",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 26,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Mr. Cooper",
+            "category": "Housing",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 0.8680555555555556
+          },
+          {
+            "merchant": "Nordstrom",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 529,
+            "accuracy": 0.9848771266540642
+          },
+          {
+            "merchant": "One Medical",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 121,
+            "accuracy": 0.9917355371900827
+          },
+          {
+            "merchant": "Out-of-Network ATM Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 570,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Overdraft Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 346,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Pacific Asian Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1746,
+            "accuracy": 0.9444444444444444
+          },
+          {
+            "merchant": "Parkline Apartments",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 360,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Peet's Coffee",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 6137,
+            "accuracy": 0.999674107870295
+          },
+          {
+            "merchant": "Pinecrest Elementary PTA",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 251,
+            "accuracy": 0.27091633466135456
+          },
+          {
+            "merchant": "Pixel Repair Shop",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 19,
+            "accuracy": 0.7894736842105263
+          },
+          {
+            "merchant": "Rite Aid",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 1555,
+            "accuracy": 0.04630225080385852
+          },
+          {
+            "merchant": "Second Chapter Thrift",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 386,
+            "accuracy": 0.7901554404145078
+          },
+          {
+            "merchant": "Sittercity",
+            "category": "Childcare & Education",
+            "scope": "online",
+            "transactions": 661,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Sonic Internet",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 432,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "StubHub",
+            "category": "Entertainment",
+            "scope": "online",
+            "transactions": 61,
+            "accuracy": 0.8852459016393442
+          },
+          {
+            "merchant": "Taco Bell",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 3663,
+            "accuracy": 0.9986349986349986
+          },
+          {
+            "merchant": "The Cheesecake Factory",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 2621,
+            "accuracy": 0.9973292636398321
+          },
+          {
+            "merchant": "The Gift Nook",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 2100,
+            "accuracy": 0.4990476190476191
+          },
+          {
+            "merchant": "Uniqlo",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 616,
+            "accuracy": 0.9967532467532467
+          },
+          {
+            "merchant": "Urban Threads Boutique",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 235,
+            "accuracy": 0.3617021276595745
+          },
+          {
+            "merchant": "Walmart.com",
+            "category": "Shopping",
+            "scope": "online",
+            "transactions": 9184,
+            "accuracy": 0.998911149825784
+          },
+          {
+            "merchant": "Willow Creek Homes",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 288,
+            "accuracy": 1.0
+          }
+        ]
+      }
+    },
+    "both": {
+      "description": "Both",
+      "fit_seconds": 31.374557291997917,
+      "known": {
+        "n": 144785,
+        "macro_f1_spending": 0.9881774156037381,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.9989457037427517,
+            "recall": 1.0,
+            "f1": 0.9994725738396625,
+            "n": 1895
+          },
+          "Dining": {
+            "precision": 0.9999452584712516,
+            "recall": 0.9999270126268156,
+            "f1": 0.9999361354658005,
+            "n": 54804
+          },
+          "Entertainment": {
+            "precision": 0.9996754300551769,
+            "recall": 1.0,
+            "f1": 0.9998376886869015,
+            "n": 3080
+          },
+          "Groceries": {
+            "precision": 0.8515159539255924,
+            "recall": 0.9777287929461842,
+            "f1": 0.9102682046564291,
+            "n": 13156
+          },
+          "Health & Fitness": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 4030
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 1886
+          },
+          "Income": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 5155
+          },
+          "Insurance & Fees": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 2427
+          },
+          "Shopping": {
+            "precision": 0.9878394136265201,
+            "recall": 0.9135374542653573,
+            "f1": 0.9492366488584749,
+            "n": 25965
+          },
+          "Subscriptions": {
+            "precision": 0.9991794871794871,
+            "recall": 1.0,
+            "f1": 0.9995895752103428,
+            "n": 4871
+          },
+          "Transportation": {
+            "precision": 0.9998587637116897,
+            "recall": 0.9997175673131237,
+            "f1": 0.999788160527245,
+            "n": 21244
+          },
+          "Travel": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 390
+          },
+          "Utilities": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 5882
+          }
+        }
+      },
+      "test_users": {
+        "n": 374673,
+        "macro_f1_spending": 0.9286593470540841,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.9795704557359874,
+            "recall": 0.8149923730660275,
+            "f1": 0.8897347448554775,
+            "n": 4589
+          },
+          "Dining": {
+            "precision": 0.9720740136282161,
+            "recall": 0.9662112042371178,
+            "f1": 0.9691337421947793,
+            "n": 144249
+          },
+          "Entertainment": {
+            "precision": 0.9165893117623657,
+            "recall": 0.8154789995280792,
+            "f1": 0.863082974339764,
+            "n": 8476
+          },
+          "Groceries": {
+            "precision": 0.7581756046267087,
+            "recall": 0.9245984676049114,
+            "f1": 0.8331575982551673,
+            "n": 31193
+          },
+          "Health & Fitness": {
+            "precision": 0.9569095331866095,
+            "recall": 0.8159012345679012,
+            "f1": 0.8807975263887408,
+            "n": 10125
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 4680
+          },
+          "Income": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 12968
+          },
+          "Insurance & Fees": {
+            "precision": 0.983081177810314,
+            "recall": 1.0,
+            "f1": 0.9914684167350287,
+            "n": 6043
+          },
+          "Shopping": {
+            "precision": 0.8993409590182562,
+            "recall": 0.9080909911425905,
+            "f1": 0.9036947950127118,
+            "n": 65369
+          },
+          "Subscriptions": {
+            "precision": 0.9652999299774372,
+            "recall": 0.9979890604890604,
+            "f1": 0.9813723551512754,
+            "n": 12432
+          },
+          "Transportation": {
+            "precision": 0.9798663876959219,
+            "recall": 0.9054814965571045,
+            "f1": 0.9412065439672802,
+            "n": 58962
+          },
+          "Travel": {
+            "precision": 0.8210045662100457,
+            "recall": 1.0,
+            "f1": 0.9017051153460381,
+            "n": 899
+          },
+          "Utilities": {
+            "precision": 0.9773755656108597,
+            "recall": 1.0,
+            "f1": 0.988558352402746,
+            "n": 14688
+          }
+        }
+      },
+      "unseen": {
+        "n": 78073,
+        "macro_f1_spending": 0.6380118269435803,
+        "per_class": {
+          "Childcare & Education": {
+            "precision": 0.6938775510204082,
+            "recall": 0.16683022571148184,
+            "f1": 0.2689873417721519,
+            "n": 1019
+          },
+          "Dining": {
+            "precision": 0.8849012039864047,
+            "recall": 0.863220005619556,
+            "f1": 0.873926153496046,
+            "n": 35590
+          },
+          "Entertainment": {
+            "precision": 0.05,
+            "recall": 0.020663744520976832,
+            "f1": 0.02924235711120957,
+            "n": 1597
+          },
+          "Groceries": {
+            "precision": 0.41151631477927064,
+            "recall": 0.6283704572098476,
+            "f1": 0.4973324054743679,
+            "n": 5118
+          },
+          "Health & Fitness": {
+            "precision": 0.2702169625246548,
+            "recall": 0.06846576711644178,
+            "f1": 0.10925039872408293,
+            "n": 2001
+          },
+          "Housing": {
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0,
+            "n": 792
+          },
+          "Insurance & Fees": {
+            "precision": 0.9189614476789929,
+            "recall": 1.0,
+            "f1": 0.957769577695777,
+            "n": 1168
+          },
+          "Shopping": {
+            "precision": 0.6711819389110226,
+            "recall": 0.9006986027944112,
+            "f1": 0.7691839405838128,
+            "n": 14028
+          },
+          "Subscriptions": {
+            "precision": 0.847217421361908,
+            "recall": 0.9899030694668821,
+            "f1": 0.9130191842056249,
+            "n": 2476
+          },
+          "Transportation": {
+            "precision": 0.8545599574581229,
+            "recall": 0.5363818424566088,
+            "f1": 0.6590792576643084,
+            "n": 11984
+          },
+          "Travel": {
+            "precision": 0.4835164835164835,
+            "recall": 1.0,
+            "f1": 0.6518518518518519,
+            "n": 176
+          },
+          "Utilities": {
+            "precision": 0.8630637952052012,
+            "recall": 1.0,
+            "f1": 0.9264994547437295,
+            "n": 2124
+          }
+        },
+        "merchant_bootstrap": {
+          "point": 0.6380118269435803,
+          "low": 0.5592874262379718,
+          "high": 0.7256220681978283
+        },
+        "top_errors": [
+          {
+            "merchant": "Arco",
+            "true": "Transportation",
+            "predicted": "Shopping",
+            "transactions": 2255
+          },
+          {
+            "merchant": "Chick-fil-A",
+            "true": "Dining",
+            "predicted": "Groceries",
+            "transactions": 1876
+          },
+          {
+            "merchant": "McDonald's",
+            "true": "Dining",
+            "predicted": "Groceries",
+            "transactions": 1592
+          },
+          {
+            "merchant": "Caviar",
+            "true": "Dining",
+            "predicted": "Shopping",
+            "transactions": 1328
+          },
+          {
+            "merchant": "Rite Aid",
+            "true": "Health & Fitness",
+            "predicted": "Shopping",
+            "transactions": 1107
+          },
+          {
+            "merchant": "The Gift Nook",
+            "true": "Shopping",
+            "predicted": "Dining",
+            "transactions": 1047
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Dining",
+            "transactions": 1007
+          },
+          {
+            "merchant": "Alamo Drafthouse",
+            "true": "Entertainment",
+            "predicted": "Dining",
+            "transactions": 986
+          },
+          {
+            "merchant": "Giant Eagle",
+            "true": "Groceries",
+            "predicted": "Transportation",
+            "transactions": 841
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Shopping",
+            "transactions": 822
+          },
+          {
+            "merchant": "Sittercity",
+            "true": "Childcare & Education",
+            "predicted": "Entertainment",
+            "transactions": 567
+          },
+          {
+            "merchant": "Clipper Card",
+            "true": "Transportation",
+            "predicted": "Groceries",
+            "transactions": 519
+          }
+        ],
+        "by_merchant": [
+          {
+            "merchant": "Alamo Drafthouse",
+            "category": "Entertainment",
+            "scope": "national",
+            "transactions": 1169,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Alaska Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 63,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Amazon Fresh",
+            "category": "Groceries",
+            "scope": "online",
+            "transactions": 605,
+            "accuracy": 0.9801652892561984
+          },
+          {
+            "merchant": "American Airlines",
+            "category": "Travel",
+            "scope": "online",
+            "transactions": 107,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Apple iCloud",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 1018,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Arco",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 2268,
+            "accuracy": 0.005731922398589065
+          },
+          {
+            "merchant": "Assurant Renters",
+            "category": "Insurance & Fees",
+            "scope": "online",
+            "transactions": 252,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Atmos Energy",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Blue Agave Cantina",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1345,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Camp Wildwood",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 83,
+            "accuracy": 0.9156626506024096
+          },
+          {
+            "merchant": "Canva",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 398,
+            "accuracy": 0.9371859296482412
+          },
+          {
+            "merchant": "Caviar",
+            "category": "Dining",
+            "scope": "online",
+            "transactions": 3705,
+            "accuracy": 0.6361673414304994
+          },
+          {
+            "merchant": "Chick-fil-A",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 5179,
+            "accuracy": 0.6350646843019888
+          },
+          {
+            "merchant": "Clipper Card",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 6130,
+            "accuracy": 0.5187601957585645
+          },
+          {
+            "merchant": "Code Ninjas",
+            "category": "Childcare & Education",
+            "scope": "national",
+            "transactions": 24,
+            "accuracy": 0.9583333333333334
+          },
+          {
+            "merchant": "Corner Fresh Grocery",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 141,
+            "accuracy": 0.03546099290780142
+          },
+          {
+            "merchant": "Driftwood Coffee Co",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 2557,
+            "accuracy": 0.9996089166992569
+          },
+          {
+            "merchant": "Equinox",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 325,
+            "accuracy": 0.027692307692307693
+          },
+          {
+            "merchant": "FasTrak",
+            "category": "Transportation",
+            "scope": "online",
+            "transactions": 262,
+            "accuracy": 0.21374045801526717
+          },
+          {
+            "merchant": "Figma",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 345,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Funland Arcade",
+            "category": "Entertainment",
+            "scope": "local",
+            "transactions": 367,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "Gap",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 959,
+            "accuracy": 0.9989572471324296
+          },
+          {
+            "merchant": "Georgia Power",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 576,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Giant Eagle",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 1166,
+            "accuracy": 0.0
+          },
+          {
+            "merchant": "GitHub",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 488,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Golden Hour Bakery",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 1909,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Google Fiber",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 396,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Google Workspace",
+            "category": "Subscriptions",
+            "scope": "online",
+            "transactions": 227,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Green Valley Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1056,
+            "accuracy": 0.9100378787878788
+          },
+          {
+            "merchant": "Hannaford",
+            "category": "Groceries",
+            "scope": "national",
+            "transactions": 404,
+            "accuracy": 0.08663366336633663
+          },
+          {
+            "merchant": "Hertz",
+            "category": "Travel",
+            "scope": "national",
+            "transactions": 6,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Little Owl Espresso",
+            "category": "Dining",
+            "scope": "local",
+            "transactions": 3873,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "McDonald's",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 4601,
+            "accuracy": 0.6531188871984351
+          },
+          {
+            "merchant": "Metro SmarTrip",
+            "category": "Transportation",
+            "scope": "local",
+            "transactions": 3298,
+            "accuracy": 0.9633110976349303
+          },
+          {
+            "merchant": "Metro Water Utility",
+            "category": "Utilities",
+            "scope": "local",
+            "transactions": 576,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Midas",
+            "category": "Transportation",
+            "scope": "national",
+            "transactions": 26,
+            "accuracy": 0.07692307692307693
+          },
+          {
+            "merchant": "Mr. Cooper",
+            "category": "Housing",
+            "scope": "national",
+            "transactions": 144,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Nordstrom",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 529,
+            "accuracy": 0.9924385633270322
+          },
+          {
+            "merchant": "One Medical",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 121,
+            "accuracy": 0.9008264462809917
+          },
+          {
+            "merchant": "Out-of-Network ATM Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 570,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Overdraft Fee",
+            "category": "Insurance & Fees",
+            "scope": "national",
+            "transactions": 346,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Pacific Asian Market",
+            "category": "Groceries",
+            "scope": "local",
+            "transactions": 1746,
+            "accuracy": 0.9289805269186713
+          },
+          {
+            "merchant": "Parkline Apartments",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 360,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Peet's Coffee",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 6137,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "Pinecrest Elementary PTA",
+            "category": "Childcare & Education",
+            "scope": "local",
+            "transactions": 251,
+            "accuracy": 0.2151394422310757
+          },
+          {
+            "merchant": "Pixel Repair Shop",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 19,
+            "accuracy": 0.3157894736842105
+          },
+          {
+            "merchant": "Rite Aid",
+            "category": "Health & Fitness",
+            "scope": "national",
+            "transactions": 1555,
+            "accuracy": 0.012218649517684888
+          },
+          {
+            "merchant": "Second Chapter Thrift",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 386,
+            "accuracy": 0.6139896373056994
+          },
+          {
+            "merchant": "Sittercity",
+            "category": "Childcare & Education",
+            "scope": "online",
+            "transactions": 661,
+            "accuracy": 0.025718608169440244
+          },
+          {
+            "merchant": "Sonic Internet",
+            "category": "Utilities",
+            "scope": "national",
+            "transactions": 432,
+            "accuracy": 1.0
+          },
+          {
+            "merchant": "StubHub",
+            "category": "Entertainment",
+            "scope": "online",
+            "transactions": 61,
+            "accuracy": 0.5409836065573771
+          },
+          {
+            "merchant": "Taco Bell",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 3663,
+            "accuracy": 0.9983619983619983
+          },
+          {
+            "merchant": "The Cheesecake Factory",
+            "category": "Dining",
+            "scope": "national",
+            "transactions": 2621,
+            "accuracy": 0.9896985883250667
+          },
+          {
+            "merchant": "The Gift Nook",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 2100,
+            "accuracy": 0.49714285714285716
+          },
+          {
+            "merchant": "Uniqlo",
+            "category": "Shopping",
+            "scope": "national",
+            "transactions": 616,
+            "accuracy": 0.9967532467532467
+          },
+          {
+            "merchant": "Urban Threads Boutique",
+            "category": "Shopping",
+            "scope": "local",
+            "transactions": 235,
+            "accuracy": 0.3659574468085106
+          },
+          {
+            "merchant": "Walmart.com",
+            "category": "Shopping",
+            "scope": "online",
+            "transactions": 9184,
+            "accuracy": 0.9979311846689896
+          },
+          {
+            "merchant": "Willow Creek Homes",
+            "category": "Housing",
+            "scope": "local",
+            "transactions": 288,
+            "accuracy": 1.0
+          }
+        ]
+      }
+    }
+  },
+  "total_seconds": 147.26160233299743
+}
