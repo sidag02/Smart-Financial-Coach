@@ -1,0 +1,6 @@
+# Round 0 baseline: scored with the finalists on every split (FR-3 experiment plan)
+name: majority
+task: categorization
+model: {type: categorization/majority}
+baseline: true
+tags: {round: "0"}

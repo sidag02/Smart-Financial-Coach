@@ -131,6 +131,8 @@ TABLES: dict[str, Table] = {
             C("price_sigma", "REAL"),
             C("is_ambiguous", "INTEGER"),
             C("holdout", "INTEGER"),
+            # The holdout may pick it: not protected (FR-3 validation folds use the same set)
+            C("holdout_eligible", "INTEGER"),
         ),
     )
 }

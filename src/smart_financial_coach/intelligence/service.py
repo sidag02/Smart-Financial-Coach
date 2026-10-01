@@ -16,20 +16,21 @@ from smart_financial_coach.intelligence.models.artifact import load_artifact, pr
 from smart_financial_coach.intelligence.models.contract import Checked, Contract
 
 # Modules whose import registers the product's services; tests register their own
-SERVICE_MODULES: tuple[str, ...] = ()
+SERVICE_MODULES: tuple[str, ...] = ("smart_financial_coach.intelligence.categorization.contract",)
 
 
 @dataclass(frozen=True)
 class Service:
     name: str
     contract: Contract
+    wrapper: type[Checked] = Checked  # what callers get: adds the service's own verbs
 
 
 _SERVICES: dict[str, Service] = {}
 
 
-def register_service(contract: Contract) -> Service:
-    service = Service(contract.service, contract)
+def register_service(contract: Contract, wrapper: type[Checked] = Checked) -> Service:
+    service = Service(contract.service, contract, wrapper)
     if _SERVICES.get(service.name, service) != service:
         raise ValueError(f"service {service.name!r} is already registered")
     _SERVICES[service.name] = service
@@ -48,4 +49,4 @@ def load_service(name: str, artifacts_dir: Path | None = None) -> Checked:
     service = get_service(name)
     root = (artifacts_dir or get_settings().artifacts_dir) / name
     model = load_artifact(root / promoted_version(root), trusted_root=root)
-    return Checked(model, service.contract)
+    return service.wrapper(model, service.contract)

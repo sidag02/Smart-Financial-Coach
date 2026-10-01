@@ -190,7 +190,7 @@ FR-2 adds `spike_id` (now the primary key), `period_end`, expected and realized 
 
 **truth_merchants** (eval only) and **meta**
 
-- `truth_merchants`: the catalog used for the run, with category, subtype, price median and spread (added by FR-2), `is_ambiguous` and `holdout` flags.
+- `truth_merchants`: the catalog used for the run, with category, subtype, price median and spread (added by FR-2), `is_ambiguous` and `holdout` flags, and `holdout_eligible` (added by FR-3): whether the holdout rule may pick the merchant at all.
 - `meta`: key/value rows for generator version, spec hash, seeds, the category list and (since FR-2) the label contract. No timestamps, so the content hash stays stable.
 
 ### Example rows

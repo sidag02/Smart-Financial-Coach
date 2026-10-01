@@ -181,6 +181,8 @@ def finalize(
         split_hash = tracker.get(run_ids[0]).tags.get("sfc.split_hash")
     order = [s.run_id for s in leaderboard(task_name, data, tracker, split_hash) if s.eligible]
     chosen = run_ids or order[:MAX_FINALISTS]
+    if not chosen:
+        raise SelectionError("no eligible candidate runs on these splits; see `leaderboard`")
     if not 0 < len(chosen) <= MAX_FINALISTS:
         raise SelectionError(f"finalize takes 1 to {MAX_FINALISTS} runs, got {len(chosen)}")
     finalists = [tracker.get(r) for r in chosen]
