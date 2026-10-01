@@ -21,11 +21,14 @@ Writes `results/feasibility.json` and `results/feasibility.md` next to this file
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
+import os
 import platform
 import re
 import sqlite3
 import subprocess
+import tempfile
 import time
 from pathlib import Path
 from typing import Any
@@ -43,6 +46,12 @@ SEED = 0
 MAX_ROWS_PER_CLASS = 20_000
 EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 BOOTSTRAP_REPS = 1_000
+# Regularization strengths, fixed by hand before the first run (n-grams: many sparse
+# features; embeddings: 384 dense ones). Not tuned; SENSITIVITY_C reports how much they matter.
+C_BY_KIND = {"ngrams": 10.0, "embeddings": 3.0, "both": 3.0}
+SENSITIVITY_C = (1.0, 3.0, 10.0)
+CONFIDENCE_THRESHOLD = 0.9
+ECE_BINS = 15
 CHANNELS = ["card_present", "online", "ach", "other"]
 INCOME = "Income"
 CATALOG = Path(__file__).resolve().parents[2] / "configs" / "data" / "merchants.csv"
@@ -168,9 +177,51 @@ class Featurizer:
         return sp.hstack(blocks).tocsr()
 
 
-def macro_f1_spending(truth: pd.Series, pred: np.ndarray) -> float:
+def macro_f1_spending(truth: pd.Series, pred: np.ndarray, spending: list[str]) -> float:
+    """Macro F1 over exactly the spending categories.
+
+    `labels=` matters: without it sklearn averages over every label in the truth *or* the
+    predictions, so one spending row predicted as Income adds Income (F1 0) to the average.
+    """
     mask = (truth != INCOME).to_numpy()
-    return float(f1_score(truth[mask], pred[mask], average="macro"))
+    return float(f1_score(truth[mask], pred[mask], labels=spending, average="macro"))
+
+
+def calibration(truth: pd.Series, proba: np.ndarray, classes: np.ndarray) -> dict[str, float]:
+    """Expected calibration error of the top-class probability, over all rows."""
+    confidence = proba.max(axis=1)
+    correct = classes[proba.argmax(axis=1)] == truth.to_numpy()
+    bins = np.minimum((confidence * ECE_BINS).astype(int), ECE_BINS - 1)
+    ece = sum(
+        abs(correct[bins == b].mean() - confidence[bins == b].mean()) * (bins == b).mean()
+        for b in range(ECE_BINS)
+        if (bins == b).any()
+    )
+    confident = confidence >= CONFIDENCE_THRESHOLD
+    return {
+        "accuracy": float(correct.mean()),
+        "mean_confidence": float(confidence.mean()),
+        "ece": float(ece),
+        "accuracy_at_threshold": float(correct[confident].mean()) if confident.any() else 0.0,
+        "coverage_at_threshold": float(confident.mean()),
+    }
+
+
+def embedding_provenance() -> dict[str, str]:
+    """Which model file fastembed actually downloaded: source repo, revision, checksum."""
+    cache = Path(
+        os.environ.get("FASTEMBED_CACHE_PATH", Path(tempfile.gettempdir()) / "fastembed_cache")
+    )
+    files = sorted(cache.glob("models--*bge-small-en-v1.5*/snapshots/*/*.onnx"))
+    if not files:
+        return {"source": "unknown"}
+    onnx = files[0]
+    return {
+        "source": onnx.parents[2].name.removeprefix("models--").replace("--", "/"),
+        "revision": onnx.parent.name,
+        "file": onnx.name,
+        "sha256": hashlib.sha256(onnx.read_bytes()).hexdigest(),
+    }
 
 
 def per_class(truth: pd.Series, pred: np.ndarray, labels: list[str]) -> dict[str, dict[str, Any]]:
@@ -277,20 +328,39 @@ def run(path: Path) -> dict[str, Any]:
 
     rng = np.random.default_rng(SEED)
     experiments: dict[str, Any] = {}
+    sensitivity: dict[str, dict[str, dict[str, float]]] = {}
     for kind, description in FEATURE_SETS.items():
         featurizer = Featurizer(kind, embeddings).fit(fit_rows)
+        train_x = featurizer.transform(fit_rows)
+        test_x = {name: featurizer.transform(rows) for name, rows in test_sets.items()}
+        sensitivity[kind] = {}
+        for c in SENSITIVITY_C:
+            if c == C_BY_KIND[kind]:
+                continue
+            probe = LogisticRegression(C=c, max_iter=500, class_weight="balanced")
+            probe.fit(train_x, fit_rows["category"])
+            sensitivity[kind][str(c)] = {
+                name: macro_f1_spending(
+                    rows["category"], probe.predict(test_x[name]), spending_labels
+                )
+                for name, rows in test_sets.items()
+            }
         t0 = time.perf_counter()
-        model = LogisticRegression(
-            C=10 if kind == "ngrams" else 3, max_iter=500, class_weight="balanced"
-        )
-        model.fit(featurizer.transform(fit_rows), fit_rows["category"])
+        model = LogisticRegression(C=C_BY_KIND[kind], max_iter=500, class_weight="balanced")
+        model.fit(train_x, fit_rows["category"])
         fit_seconds = time.perf_counter() - t0
-        result: dict[str, Any] = {"description": description, "fit_seconds": fit_seconds}
+        result: dict[str, Any] = {
+            "description": description,
+            "C": C_BY_KIND[kind],
+            "fit_seconds": fit_seconds,
+        }
         for name, rows in test_sets.items():
-            pred = model.predict(featurizer.transform(rows))
+            proba = model.predict_proba(test_x[name])
+            pred = model.classes_[proba.argmax(axis=1)]
             result[name] = {
                 "n": len(rows),
-                "macro_f1_spending": macro_f1_spending(rows["category"], pred),
+                "macro_f1_spending": macro_f1_spending(rows["category"], pred, spending_labels),
+                "calibration": calibration(rows["category"], proba, model.classes_),
                 "per_class": per_class(rows["category"], pred, labels),
                 "confusion": confusion_matrix(rows["category"], pred, labels=labels).tolist(),
             }
@@ -299,6 +369,9 @@ def run(path: Path) -> dict[str, Any]:
                 result[name]["top_errors"] = top_errors(rows, pred)
                 result[name]["by_merchant"] = merchant_accuracy(rows, pred)
         experiments[kind] = result
+        sensitivity[kind][str(C_BY_KIND[kind])] = {
+            name: result[name]["macro_f1_spending"] for name in test_sets
+        }
         print(
             f"{kind:10s} known={result['known']['macro_f1_spending']:.3f} "
             f"test_users={result['test_users']['macro_f1_spending']:.3f} "
@@ -319,6 +392,7 @@ def run(path: Path) -> dict[str, Any]:
             "platform": platform.platform(),
             "sklearn": sklearn.__version__,
             "embedding_model": EMBEDDING_MODEL,
+            "embedding_file": embedding_provenance(),
         },
         "setup": {
             "seed": SEED,
@@ -327,11 +401,15 @@ def run(path: Path) -> dict[str, Any]:
             "labels": labels,
             "spending_labels": spending_labels,
             "bootstrap_reps": BOOTSTRAP_REPS,
+            "C_by_kind": C_BY_KIND,
+            "confidence_threshold": CONFIDENCE_THRESHOLD,
+            "ece_bins": ECE_BINS,
         },
         "facts": dataset_facts(frame),
         "ambiguity_ceiling": ambiguity_ceiling(frame),
         "embedding": {"strings": len(strings), "seconds": embed_seconds},
         "experiments": experiments,
+        "c_sensitivity": sensitivity,
         "total_seconds": time.perf_counter() - started,
     }
 
@@ -371,6 +449,56 @@ def report(results: dict[str, Any]) -> str:
         )
     sizes = " / ".join(f"{exps['ngrams'][k]['n']:,}" for k in ("known", "test_users", "unseen"))
     lines += ["", f"Test-set sizes (known / all test users / unseen): {sizes} transactions.", ""]
+
+    threshold = results["setup"]["confidence_threshold"]
+    lines += [
+        "## Confidence calibration (uncalibrated logistic regression)",
+        "",
+        f"All rows of each test set. ECE: expected calibration error, "
+        f"{results['setup']['ece_bins']} equal-width bins.",
+        "",
+        f"| Features | Test set | Accuracy | Mean confidence | ECE | "
+        f"Accuracy at confidence >= {threshold} | Share of rows at >= {threshold} |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for result in exps.values():
+        for key, label in (
+            ("known", "Known"),
+            ("test_users", "All test users"),
+            ("unseen", "Unseen"),
+        ):
+            cal = result[key]["calibration"]
+            lines.append(
+                f"| {result['description'].split(' + ')[0]} | {label} | {cal['accuracy']:.3f} | "
+                f"{cal['mean_confidence']:.3f} | {cal['ece']:.3f} | "
+                f"{cal['accuracy_at_threshold']:.3f} | {cal['coverage_at_threshold']:.1%} |"
+            )
+
+    lines += [
+        "",
+        "## Sensitivity to the regularization strength C",
+        "",
+        "C was fixed by hand before the first run (n-grams 10, embeddings and both 3) and not "
+        "tuned. This table shows macro F1 at other values; it was not used to choose C.",
+        "",
+        "| Features | C | Known | All test users | Unseen |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for kind, by_c in results["c_sensitivity"].items():
+        for c in sorted(by_c, key=float):
+            chosen = " (used)" if float(c) == results["setup"]["C_by_kind"][kind] else ""
+            v = by_c[c]
+            lines.append(
+                f"| {kind} | {float(c):g}{chosen} | {v['known']:.3f} | {v['test_users']:.3f} | "
+                f"{v['unseen']:.3f} |"
+            )
+    emb = results["environment"]["embedding_file"]
+    lines += [
+        "",
+        f"Embedding file: `{emb.get('source')}` revision `{emb.get('revision', '?')[:12]}`, "
+        f"`{emb.get('file', '?')}`, sha256 `{emb.get('sha256', '?')[:16]}…`.",
+        "",
+    ]
 
     lines += ["## Unseen merchants: per-class F1", "", "| Category | Merchants | Transactions |"]
     lines[-1] += " " + " | ".join(exps) + " |"
