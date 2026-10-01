@@ -1,3 +1,4 @@
+import json
 import time
 from pathlib import Path
 
@@ -162,3 +163,108 @@ def test_default_spec_meets_runtime_budget(configs: Path) -> None:
 
     assert elapsed < 60
     assert validate(dataset, spec).ok
+
+
+def _without_spikes(spec: Spec) -> Spec:
+    spike = spec.events.spending_spike.model_copy(update={"rate_per_user_year": 0.0})
+    events = spec.events.model_copy(update={"spending_spike": spike})
+    return spec.model_copy(update={"events": events})
+
+
+def test_spikes_leave_normal_purchases_unchanged(small_spec: Spec, small_dataset: Dataset) -> None:
+    """Spike extras are a separate process: turning spikes off changes no normal purchase."""
+    columns = ["transaction_id", "user_id", "ts", "amount", "merchant_id", "category"]
+    with_spikes = _ledger(small_dataset)
+    without = _ledger(generate(_without_spikes(small_spec)))
+    normal = without[without["process"] == "discretionary"][columns]
+    spiked = with_spikes[with_spikes["process"] == "discretionary"][columns]
+
+    assert len(small_dataset["truth_periods"]) > 0
+    assert len(spiked) > len(normal)
+    kept = normal.merge(spiked, on=columns, how="left", indicator=True)
+    assert (kept["_merge"] == "both").all()
+
+
+def test_spike_rows_record_realized_effect(small_dataset: Dataset) -> None:
+    spikes = small_dataset["truth_periods"]
+    base = spikes["base_spend"] / spikes["expected_spend"]
+    total = (spikes["base_spend"] + spikes["extra_spend"]) / spikes["expected_spend"]
+
+    assert spikes["spike_id"].is_unique
+    assert (spikes["extra_spend"] >= 0).all()
+    # Normal spending in a spike period is ordinary; the extras lift it (superposition)
+    assert 0.8 <= base.median() <= 1.2
+    assert total.median() > 1.3
+    weak_lift = json.loads(small_dataset.meta["label_contract"])["weak_lift"]
+    clear_cut = (total - weak_lift).abs() > 1e-3  # stored spends are rounded to cents
+    assert ((spikes["tier"] == "weak") == (total < weak_lift))[clear_cut].all()
+
+
+def test_related_transactions_are_recorded(small_dataset: Dataset) -> None:
+    truth = small_dataset["truth_transactions"]
+    linked = truth["process"].eq("refund") | truth["anomaly_kind"].eq("duplicate")
+
+    assert truth.loc[linked, "related_transaction_id"].notna().all()
+    assert truth.loc[~linked, "related_transaction_id"].isna().all()
+    assert set(truth.loc[linked, "related_transaction_id"]) <= set(truth["transaction_id"])
+
+
+def test_expected_spend_covers_spike_categories(small_dataset: Dataset) -> None:
+    expected = small_dataset["truth_expected"]
+    spikes = small_dataset["truth_periods"]
+
+    assert (expected["granularity"] == "month").all()
+    assert (expected["expected_count"] >= 0).all()
+    spiked = set(zip(spikes["user_id"], spikes["category"], strict=True))
+    assert spiked <= set(zip(expected["user_id"], expected["category"], strict=True))
+
+
+def test_validation_catches_label_corruption(small_dataset: Dataset, small_spec: Spec) -> None:
+    periods = small_dataset["truth_periods"].copy()
+    periods["extra_spend"] = periods["extra_spend"].where(periods.index != 0, 999_999.0)
+    corrupted = Dataset(
+        tables={**small_dataset.tables, "truth_periods": periods}, meta=small_dataset.meta
+    )
+
+    report = validate(corrupted, small_spec)
+
+    assert any("doesn't match ledger" in e for e in report.errors)
+
+
+def test_validation_gates_on_the_oracle(small_dataset: Dataset, small_spec: Spec) -> None:
+    contract = json.loads(small_dataset.meta["label_contract"])
+    meta = {
+        **small_dataset.meta,
+        "label_contract": json.dumps({**contract, "oracle_min_precision": 1.01}),
+    }
+
+    report = validate(Dataset(tables=small_dataset.tables, meta=meta), small_spec)
+
+    assert report.stats["oracle_month_precision"] >= 0.7
+    assert any(e.startswith("ceiling: monthly spike oracle") for e in report.errors)
+    assert any(e.startswith("ceiling: unusual-charge oracle") for e in report.errors)
+
+
+def test_validation_catches_purchases_off_their_expected_counts(
+    small_dataset: Dataset, small_spec: Spec
+) -> None:
+    expected = small_dataset["truth_expected"].copy()
+    expected["expected_count"] *= 1.5
+    skewed = Dataset(
+        tables={**small_dataset.tables, "truth_expected": expected}, meta=small_dataset.meta
+    )
+
+    report = validate(skewed, small_spec)
+
+    assert any("don't fit their expected counts" in e for e in report.errors)
+
+
+def test_unusual_charges_carry_a_tier(small_dataset: Dataset) -> None:
+    truth = small_dataset["truth_transactions"]
+    unusual = truth["anomaly_kind"].notna()
+
+    assert truth.loc[unusual, "tier"].isin(["clear", "weak"]).all()
+    assert truth.loc[~unusual, "tier"].isna().all()
+    # Only amount outliers can be weak; duplicates and new-merchant charges are always visible
+    weak = truth[truth["tier"] == "weak"]
+    assert (weak["anomaly_kind"] == "amount_outlier").all()

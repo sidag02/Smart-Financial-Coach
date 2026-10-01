@@ -3,6 +3,7 @@
 sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite
 sfc-data validate --spec configs/data/default.yaml data/synthetic/default.sqlite
 sfc-data hash data/synthetic/default.sqlite
+sfc-data labels data/synthetic/default.sqlite
 """
 
 import argparse
@@ -15,6 +16,7 @@ from smart_financial_coach.data.generator.pipeline import generate
 from smart_financial_coach.data.generator.spec import load_spec
 from smart_financial_coach.data.generator.sqlite_io import read_sqlite
 from smart_financial_coach.data.generator.validate import Report, validate
+from smart_financial_coach.data.labels import load_truth
 
 
 def _print_report(report: Report) -> None:
@@ -61,9 +63,17 @@ def _hash(args: argparse.Namespace) -> int:
     return 0
 
 
+def _labels(args: argparse.Namespace) -> int:
+    """Label report (FR-2): counts, tiers and ceilings."""
+    for key, value in load_truth(args.db).report().items():
+        count = key.startswith(("unusual_", "spikes_"))
+        print(f"  {key}: {int(value)}" if count else f"  {key}: {value:.3f}")
+    return 0
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="sfc-data", description="Synthetic data generator (FR-1)."
+        prog="sfc-data", description="Synthetic data generator (FR-1) and labels (FR-2)."
     )
     commands = parser.add_subparsers(dest="command", required=True)
 
@@ -84,6 +94,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     hsh = commands.add_parser("hash", help="print a dataset's content hash")
     hsh.add_argument("db", type=Path)
     hsh.set_defaults(handler=_hash)
+
+    lbl = commands.add_parser("labels", help="report label counts, tiers and oracle ceilings")
+    lbl.add_argument("db", type=Path)
+    lbl.set_defaults(handler=_labels)
 
     args = parser.parse_args(argv)
     result: int = args.handler(args)

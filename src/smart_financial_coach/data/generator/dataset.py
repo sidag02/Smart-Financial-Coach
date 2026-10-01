@@ -82,15 +82,36 @@ TABLES: dict[str, Table] = {
             C("process", "TEXT"),
             C("is_recurring", "INTEGER"),
             C("anomaly_kind", "TEXT", nullable=True),
+            # Unusual charges only: weak when an amount outlier isn't above normal charges
+            C("tier", "TEXT", nullable=True),
+            # Duplicate: the original charge. Refund: the purchase refunded.
+            C("related_transaction_id", "TEXT", nullable=True),
         ),
         _t(
             "truth_periods",
-            ("user_id", "granularity", "period_start", "category"),
+            ("spike_id",),
+            C("spike_id", "TEXT"),
             C("user_id", "TEXT"),
             C("granularity", "TEXT"),
             C("period_start", "TEXT"),
+            C("period_end", "TEXT"),  # inclusive
             C("category", "TEXT"),
             C("multiplier", "REAL"),
+            C("expected_count", "REAL"),  # Poisson-process purchases, without the spike
+            C("expected_spend", "REAL"),  # all processes, without the spike
+            C("base_spend", "REAL"),  # realized, everything except the spike's extra purchases
+            C("extra_spend", "REAL"),  # realized, the spike's extra purchases
+            C("tier", "TEXT"),  # clear or weak
+        ),
+        _t(
+            "truth_expected",
+            ("user_id", "category", "granularity", "period_start"),
+            C("user_id", "TEXT"),
+            C("category", "TEXT"),
+            C("granularity", "TEXT"),
+            C("period_start", "TEXT"),
+            C("expected_count", "REAL"),
+            C("expected_spend", "REAL"),
         ),
         _t(
             "truth_goals",
@@ -106,13 +127,21 @@ TABLES: dict[str, Table] = {
             C("canonical_name", "TEXT"),
             C("category", "TEXT"),
             C("subtype", "TEXT"),
+            C("price_median", "REAL"),
+            C("price_sigma", "REAL"),
             C("is_ambiguous", "INTEGER"),
             C("holdout", "INTEGER"),
         ),
     )
 }
 MODEL_TABLES = ("users", "transactions", "goals")
-TRUTH_TABLES = ("truth_transactions", "truth_periods", "truth_goals", "truth_merchants")
+TRUTH_TABLES = (
+    "truth_transactions",
+    "truth_periods",
+    "truth_expected",
+    "truth_goals",
+    "truth_merchants",
+)
 
 
 def _canonical(values: pd.Series, sqltype: SqlType) -> list[str]:

@@ -85,7 +85,7 @@ Each use case is a spec. All of them share one schema, validated by pydantic on 
 
 | Spec | Purpose |
 | --- | --- |
-| `default.yaml` | Main dataset: 300 users, 36 months, realistic mess, anomaly and spike events on |
+| `default.yaml` | Main dataset: 360 users (240 train, 120 test since FR-2), 36 months, realistic mess, anomaly and spike events on |
 | `small.yaml` | 30 users, 24 months; tests and CI determinism |
 | `clean.yaml` | Default with rendering distortion off and no events; debugging and sanity baselines |
 | Experiment specs | Created as needed, e.g. a higher anomaly rate or more holdout merchants |
@@ -98,7 +98,7 @@ calendar:
   end: 2026-09-30
 populations:                       # one seed per population; train and test never share
   - {name: train, split: train, seed: 1001, id_prefix: tr, users: {young_professional: 80, family_budgeter: 80, freelancer: 80}}
-  - {name: test,  split: test,  seed: 2002, id_prefix: te, users: {young_professional: 20, family_budgeter: 20, freelancer: 20}}
+  - {name: test,  split: test,  seed: 2002, id_prefix: te, users: {young_professional: 40, family_budgeter: 40, freelancer: 40}}
 personas: personas/                # one YAML per persona: parameter distributions
 catalog:
   merchants: merchants.csv
@@ -166,6 +166,7 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 | process | TEXT | `income`, `recurring`, `discretionary`, `one_off`, `refund`, `unusual_charge` |
 | is_recurring | INTEGER | 0 / 1 |
 | anomaly_kind | TEXT, nullable | Set only for `unusual_charge` |
+| related_transaction_id | TEXT, nullable | Added by FR-2. Duplicate: the original charge; refund: the purchase refunded |
 
 **truth_periods** (eval only, spending spikes at period level)
 
@@ -177,6 +178,8 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 | category | TEXT | |
 | multiplier | REAL | Planted spend multiplier for that period |
 
+FR-2 adds `spike_id` (now the primary key), `period_end`, expected and realized spend, and a `clear` / `weak` tier, plus a `truth_expected` table of expected monthly spend. See FR-2 Ground Truth Labels — Feature Design.
+
 **truth_goals** (eval only)
 
 | Column | Type | Notes |
@@ -187,8 +190,8 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 
 **truth_merchants** (eval only) and **meta**
 
-- `truth_merchants`: the catalog used for the run, with category, subtype, `is_ambiguous` and `holdout` flags.
-- `meta`: key/value rows for generator version, spec hash, seeds and the category list. No timestamps, so the content hash stays stable.
+- `truth_merchants`: the catalog used for the run, with category, subtype, price median and spread (added by FR-2), `is_ambiguous` and `holdout` flags.
+- `meta`: key/value rows for generator version, spec hash, seeds, the category list and (since FR-2) the label contract. No timestamps, so the content hash stays stable.
 
 ### Example rows
 
@@ -299,7 +302,7 @@ Events are generic, parameterized processes that write both transactions and tru
 | Event | Effect | Truth |
 | --- | --- | --- |
 | `unusual_charge` | Adds one transaction unlike the user's normal: duplicate charge, amount far outside the merchant's usual range, or a large charge at a never-seen merchant | `truth_transactions.anomaly_kind` |
-| `spending_spike` | Multiplies one category's discretionary rate for one week or month | `truth_periods` row |
+| `spending_spike` | Multiplies one category's discretionary rate for one week or month. Since FR-2 the extra purchases are drawn as a separate process at rate × (m − 1) | `truth_periods` row |
 
 Events never overlap a seasonal peak in the same category and period, so a planted spike is distinguishable from seasonality by construction.
 
@@ -439,7 +442,7 @@ Sign convention: negative = outflow, positive = inflow.
 | Spec | Rows (approx.) | Notes |
 | --- | --- | --- |
 | `small.yaml` (30 users × 24 months) | ~60k | Tests and CI |
-| **`default.yaml` (300 users × 36 months) (recommended)** | ~0.9M | Enough for per-persona statistics and the rolling backtest; about 27 s to generate and ~200 MB in SQLite |
+| **`default.yaml` (300 users × 36 months) (recommended)** | ~0.9M | Enough for per-persona statistics and the rolling backtest; about 27 s to generate and ~200 MB in SQLite. FR-2 raised it to 360 users: ~1.1M rows, ~39 s, ~260 MB |
 | Large (3,000 users) | ~8–10M | Only if an experiment needs it; same code |
 
 ## Data quality checks
@@ -516,4 +519,5 @@ What the implementation settled or changed relative to the draft above.
 - **Spike check** uses the median lift across spikes, since a single week of Poisson purchases can miss its planted lift by chance.
 - **Seasonality check** only tests profiles that vary by at least ×1.5; weaker profiles (e.g. ×1.3 winter pharmacy) are too noisy to test on the small spec.
 - **Unusual charges** fall back to another kind when the drawn kind is impossible for a user (e.g. no merchants left that are new to them). Any that still can't be produced are counted in `meta.unusual_charges_dropped` (0 on the default spec).
+- **Changed by FR-2:** spike extras are a separate `spike_extra` process (written as `discretionary`), calibration uses normal purchases only, the test population doubled to 40 per persona, and `validate` gained label and oracle checks. Discretionary seasonality is now checked against the exact expected counts in `truth_expected` (structural and Poisson goodness of fit), which holds at any volume; recurring bills keep the correlation check. FR-2 Ground Truth Labels — Feature Design has the details.
 - **Not built yet:** parallel generation (users are independent, so it can be added without changing output) and the realism notebook.

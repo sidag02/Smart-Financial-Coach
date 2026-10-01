@@ -50,6 +50,9 @@ CI (`.github/workflows/ci.yml`) runs lint, format check, type check and tests on
 uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite
 uv run sfc-data validate --spec configs/data/default.yaml data/synthetic/default.sqlite
 uv run sfc-data hash data/synthetic/default.sqlite
+uv run sfc-data labels data/synthetic/default.sqlite   # label counts, tiers and oracle ceilings
 ```
 
 `small.yaml` (30 users, a few seconds) is for tests; `clean.yaml` has canonical merchant names and no planted events. Design: [FR-1 Synthetic Data Generator — Feature Design.md](<docs/design/features/FR-1 Synthetic Data Generator — Feature Design.md>).
+
+Ground truth lives in `truth_*` tables. Score flags against it with `smart_financial_coach.data.labels` (`load_truth`), which model code under `intelligence/` must never import. Design: [FR-2 Ground Truth Labels — Feature Design.md](<docs/design/features/FR-2 Ground Truth Labels — Feature Design.md>).

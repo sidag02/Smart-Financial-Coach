@@ -24,12 +24,12 @@ def calibrate_discretionary(
     ledger: Ledger,
     *,
     daily_mult: npt.NDArray[np.float64],
-    spikes: dict[str, npt.NDArray[np.float64]],
 ) -> float:
-    """Generate discretionary spending at the rate scale that meets the user's savings target."""
-    generate_discretionary(
-        user, tl, catalog, ledger, rate_scale=1.0, daily_mult=daily_mult, spikes=spikes
-    )
+    """Generate normal discretionary spending at the rate scale that meets the savings target.
+
+    Spikes are excluded, so turning them off leaves every normal purchase unchanged.
+    """
+    generate_discretionary(user, tl, catalog, ledger, rate_scale=1.0, daily_mult=daily_mult)
     income = float(ledger.frame(("income",))["amount"].sum())
     fixed = -float(ledger.frame(("recurring", "one_off"))["amount"].sum())
     discretionary = -float(ledger.frame(("discretionary",))["amount"].sum())
@@ -37,9 +37,7 @@ def calibrate_discretionary(
         return 1.0
     scale = (income * (1 - user.savings_target) - fixed) / discretionary
     scale = float(np.clip(scale, *SCALE_BOUNDS))
-    generate_discretionary(
-        user, tl, catalog, ledger, rate_scale=scale, daily_mult=daily_mult, spikes=spikes
-    )
+    generate_discretionary(user, tl, catalog, ledger, rate_scale=scale, daily_mult=daily_mult)
     return scale
 
 

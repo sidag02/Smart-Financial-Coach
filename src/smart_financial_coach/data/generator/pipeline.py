@@ -19,7 +19,9 @@ from smart_financial_coach.data.generator.events import (
     generate_unusual_charges,
     plan_spikes,
     spike_rows,
+    unusual_tiers,
 )
+from smart_financial_coach.data.generator.expected import expected_rows, expected_spending
 from smart_financial_coach.data.generator.goals import generate_goals
 from smart_financial_coach.data.generator.income import generate_income
 from smart_financial_coach.data.generator.ledger import Ledger
@@ -27,13 +29,16 @@ from smart_financial_coach.data.generator.population import User, iter_users
 from smart_financial_coach.data.generator.rendering import Renderer
 from smart_financial_coach.data.generator.spec import Spec, spec_hash
 from smart_financial_coach.data.generator.spending import (
+    SPIKE_EXTRA,
     daily_multiplier,
     generate_one_offs,
     generate_recurring,
+    generate_spike_extras,
 )
 from smart_financial_coach.data.generator.timeline import Timeline
 
-SCHEMA_VERSION = "1"
+SCHEMA_VERSION = "2"
+LABEL_CONTRACT_VERSION = "1"
 
 
 def _timestamps(tl: Timeline, day: pd.Series, minute: pd.Series) -> list[str]:
@@ -63,7 +68,13 @@ def generate_user(
         income["day"].to_numpy(dtype=np.int64),
         income["amount"].to_numpy(dtype=np.float64),
     )
-    calibrate_discretionary(user, tl, catalog, ledger, daily_mult=daily, spikes=spike_mult)
+    scale = calibrate_discretionary(user, tl, catalog, ledger, daily_mult=daily)
+    expected = expected_spending(
+        user, tl, catalog, ledger, spec.events, rate_scale=scale, daily_mult=daily, bias=bias
+    )
+    generate_spike_extras(
+        user, tl, catalog, ledger, rate_scale=scale, daily_mult=daily, spikes=spike_mult
+    )
     dropped = generate_unusual_charges(user, tl, catalog, ledger, spec.events, bias)
     generate_refunds(user, tl, ledger, spec.events)
 
@@ -109,12 +120,15 @@ def generate_user(
                 "transaction_id": txns["transaction_id"],
                 "category": txns["category"],
                 "merchant_id": txns["merchant_id"],
-                "process": txns["process"],
+                "process": txns["process"].replace(SPIKE_EXTRA, "discretionary"),
                 "is_recurring": txns["is_recurring"].astype(int),
                 "anomaly_kind": txns["anomaly_kind"],
+                "tier": unusual_tiers(txns),
+                "related_transaction_id": txns["copy_of"],
             }
         ),
-        "truth_periods": spike_rows(user, tl, spikes),
+        "truth_periods": spike_rows(user, tl, spikes, expected, txns, spec.labels.weak_lift),
+        "truth_expected": expected_rows(user, tl, expected),
         "truth_goals": truth_goals,
     }
     return tables, dropped
@@ -128,10 +142,21 @@ def _merchants_table(catalog: Catalog) -> pd.DataFrame:
             "canonical_name": m["canonical_name"].to_numpy(),
             "category": m["category"].to_numpy(),
             "subtype": m["subtype"].to_numpy(),
+            "price_median": m["price_median"].to_numpy(),
+            "price_sigma": m["price_sigma"].to_numpy(),
             "is_ambiguous": m["is_ambiguous"].astype(int).to_numpy(),
             "holdout": m["holdout"].astype(int).to_numpy(),
         }
     )
+
+
+def label_contract(spec: Spec) -> dict[str, float | int]:
+    """Contract parameters stored in `meta`, so labels can be scored from the SQLite file alone."""
+    return {
+        **spec.labels.model_dump(),
+        "baseline_days": spec.events.unusual_charge.baseline_days,
+        "baseline_months": spec.events.spending_spike.baseline_months,
+    }
 
 
 def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) -> Dataset:
@@ -178,5 +203,7 @@ def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) 
         "seeds": json.dumps(seeds, sort_keys=True),
         "categories": json.dumps(spec.categories),
         "unusual_charges_dropped": str(dropped),
+        "label_contract_version": LABEL_CONTRACT_VERSION,
+        "label_contract": json.dumps(label_contract(spec), sort_keys=True),
     }
     return Dataset(tables=tables, meta=meta)

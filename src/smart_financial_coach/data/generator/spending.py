@@ -5,11 +5,14 @@ import numpy.typing as npt
 
 from smart_financial_coach.data.generator.catalog import Catalog
 from smart_financial_coach.data.generator.ledger import Ledger
-from smart_financial_coach.data.generator.population import User, merchant_weights
+from smart_financial_coach.data.generator.population import Stream, User, merchant_weights
 from smart_financial_coach.data.generator.spec import OneOffSpec, RecurringSpec, season_vector
 from smart_financial_coach.data.generator.timeline import IntArray, Timeline
 
 FloatArray = npt.NDArray[np.float64]
+
+# Internal ledger process for spike extras; written to truth tables as "discretionary"
+SPIKE_EXTRA = "spike_extra"
 
 
 def _pick_merchants(
@@ -208,7 +211,71 @@ def daily_multiplier(
     return mult
 
 
+def stream_rate(
+    stream: Stream, tl: Timeline, rate_scale: float, daily_mult: FloatArray
+) -> FloatArray:
+    """Expected purchases per day: rate x day-of-week x season x income coupling."""
+    season = season_vector(stream.spec.seasonality)
+    rate: FloatArray = (
+        stream.weekly_rate
+        / 7
+        * rate_scale
+        * stream.dow_weights[tl.dow]
+        * season[tl.moy]
+        * daily_mult
+    )
+    return rate
+
+
+def _purchases(
+    process: str,
+    stream: Stream,
+    lam: FloatArray,
+    tl: Timeline,
+    catalog: Catalog,
+    ledger: Ledger,
+    rng: np.random.Generator,
+) -> None:
+    counts = rng.poisson(lam)
+    days = np.repeat(np.arange(tl.n_days), counts)
+    if len(days) == 0:
+        return
+    ids = rng.choice(stream.merchants, size=len(days), p=stream.weights)
+    m = catalog.merchants.reindex(ids)
+    median = m["price_median"].to_numpy(dtype=np.float64)
+    sigma = m["price_sigma"].to_numpy(dtype=np.float64)
+    amounts = median * stream.amount_scale * rng.lognormal(0.0, sigma)
+    ledger.add(
+        process,
+        day=days,
+        minute=catalog.sample_minutes(ids, rng),
+        amount=-np.maximum(amounts, 0.5),
+        merchant_id=ids,
+        category=catalog.sample_categories(ids, rng),
+        channel=catalog.sample_channels(ids, rng),
+    )
+
+
 def generate_discretionary(
+    user: User,
+    tl: Timeline,
+    catalog: Catalog,
+    ledger: Ledger,
+    *,
+    rate_scale: float,
+    daily_mult: FloatArray,
+) -> None:
+    """Normal Poisson purchases per day. Spikes are drawn separately (`generate_spike_extras`)."""
+    rng = user.rng("discretionary")  # same seed on every calibration pass
+    ledger.clear("discretionary")
+    for stream in user.streams:
+        if stream.weekly_rate <= 0 or len(stream.merchants) == 0:
+            continue
+        lam = stream_rate(stream, tl, rate_scale, daily_mult)
+        _purchases("discretionary", stream, lam, tl, catalog, ledger, rng)
+
+
+def generate_spike_extras(
     user: User,
     tl: Timeline,
     catalog: Catalog,
@@ -218,37 +285,15 @@ def generate_discretionary(
     daily_mult: FloatArray,
     spikes: dict[str, FloatArray],
 ) -> None:
-    """Poisson purchases per day: rate x day-of-week x season x income coupling x spikes."""
-    rng = user.rng("discretionary")  # same seed on every calibration pass
-    ledger.clear("discretionary")
+    """Extra purchases on spike days at rate λ·(m - 1), on top of the normal draw.
+
+    Normal + extra has the same distribution as one draw at λ·m (Poisson superposition). A separate
+    seed and ledger process keep normal purchases, and their IDs, independent of spikes.
+    """
+    rng = user.rng("spike_extra")
     for stream in user.streams:
-        if stream.weekly_rate <= 0 or len(stream.merchants) == 0:
+        mult = spikes.get(stream.spec.category)
+        if mult is None or stream.weekly_rate <= 0 or len(stream.merchants) == 0:
             continue
-        season = season_vector(stream.spec.seasonality)
-        lam = (
-            stream.weekly_rate
-            / 7
-            * rate_scale
-            * stream.dow_weights[tl.dow]
-            * season[tl.moy]
-            * daily_mult
-            * spikes.get(stream.spec.category, 1.0)
-        )
-        counts = rng.poisson(lam)
-        days = np.repeat(np.arange(tl.n_days), counts)
-        if len(days) == 0:
-            continue
-        ids = rng.choice(stream.merchants, size=len(days), p=stream.weights)
-        m = catalog.merchants.reindex(ids)
-        median = m["price_median"].to_numpy(dtype=np.float64)
-        sigma = m["price_sigma"].to_numpy(dtype=np.float64)
-        amounts = median * stream.amount_scale * rng.lognormal(0.0, sigma)
-        ledger.add(
-            "discretionary",
-            day=days,
-            minute=catalog.sample_minutes(ids, rng),
-            amount=-np.maximum(amounts, 0.5),
-            merchant_id=ids,
-            category=catalog.sample_categories(ids, rng),
-            channel=catalog.sample_channels(ids, rng),
-        )
+        lam = stream_rate(stream, tl, rate_scale, daily_mult) * (mult - 1.0)
+        _purchases(SPIKE_EXTRA, stream, lam, tl, catalog, ledger, rng)
