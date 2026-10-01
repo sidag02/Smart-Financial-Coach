@@ -102,11 +102,11 @@ uv run sfc-data labels data/synthetic/default.sqlite      # label report: counts
 ```python
 from smart_financial_coach.data.labels import load_truth
 
-truth = load_truth("data/synthetic/default.sqlite")   # evaluation harness only
+truth = load_truth("data/synthetic/default.sqlite")  # evaluation harness only
 
-truth.spikes(granularity="month", tier="clear")        # labeled periods
-truth.score_periods(flags, granularity="month")        # -> TP / FP / FN / ignored per flag
-truth.score_transactions(flags)                        # same, at transaction level
+truth.spikes(granularity="month", tier="clear")  # labeled periods
+truth.score_periods(flags, granularity="month")  # -> TP / FP / FN / ignored per flag
+truth.score_transactions(flags)  # same, at transaction level
 ```
 
 ### Schema changes
