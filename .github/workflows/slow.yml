@@ -1,0 +1,33 @@
+name: Slow tests
+
+# Long-running checks that the main CI job skips: full default-spec generation and validation.
+# Runs on PRs that touch data generation or labels, daily on main, and on demand.
+on:
+  pull_request:
+    paths:
+      - "src/smart_financial_coach/data/**"
+      - "configs/data/**"
+      - "tests/unit/data/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/slow.yml"
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+jobs:
+  slow:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Slow tests
+        env:
+          # The 60 s budget is for a laptop; runners took 100-155 s with coverage (FR-1 review)
+          SFC_RUNTIME_BUDGET_SECONDS: "240"
+        run: uv run pytest -m slow
