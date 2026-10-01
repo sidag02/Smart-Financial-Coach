@@ -242,6 +242,18 @@ class EventsSpec(_Model):
     refunds: RefundSpec = RefundSpec()
 
 
+class LabelsSpec(_Model):
+    """FR-2 label contract: how flags are scored against ground truth, and the label checks."""
+
+    weak_lift: Annotated[float, Field(gt=0)] = 1.3  # spike is weak below expected spend x this
+    max_weak_share: Probability = 0.15  # of monthly spike labels; checked by validate
+    max_drivers: int = Field(default=5, ge=1)  # driving transactions returned per spike
+    duplicate_window_minutes: int = Field(default=90, ge=1)
+    oracle_recall: Probability = 0.5  # oracle precision is measured at this recall
+    oracle_min_precision: Probability = 0.7  # validate fails below this (PRD target)
+    min_labels_for_oracle_check: int = Field(default=20, ge=1)
+
+
 OutcomeClass = Literal["on_track", "borderline", "off_track"]
 
 
@@ -268,6 +280,7 @@ class Spec(_Model):
     rendering: RenderingSpec = RenderingSpec()
     events: EventsSpec = EventsSpec()
     goals: GoalsSpec = GoalsSpec()
+    labels: LabelsSpec = LabelsSpec()
 
     @model_validator(mode="after")
     def _consistent(self) -> "Spec":

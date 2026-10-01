@@ -1,7 +1,9 @@
 """Stage 6: labeled events. Spending spikes (period-level), unusual charges, and refunds.
 
-Spikes are planned before discretionary spending and applied as rate multipliers, so calibration
-and balances include them. Unusual charges and refunds are added after discretionary is final.
+Spikes are planned before discretionary spending. Their extra purchases are drawn after calibration
+as a separate process (`spending.generate_spike_extras`), so normal purchases don't depend on them
+and each spike's realized effect is known exactly. Unusual charges and refunds are added after
+discretionary spending is final, and draw only from normal purchases.
 """
 
 from dataclasses import dataclass
@@ -11,12 +13,30 @@ import numpy.typing as npt
 import pandas as pd
 
 from smart_financial_coach.data.generator.catalog import Catalog
+from smart_financial_coach.data.generator.expected import Expected
 from smart_financial_coach.data.generator.ledger import Ledger
 from smart_financial_coach.data.generator.population import User, merchant_weights
 from smart_financial_coach.data.generator.spec import EventsSpec, season_vector
+from smart_financial_coach.data.generator.spending import SPIKE_EXTRA
 from smart_financial_coach.data.generator.timeline import Timeline
 
 FloatArray = npt.NDArray[np.float64]
+
+
+SPIKE_COLUMNS = [
+    "spike_id",
+    "user_id",
+    "granularity",
+    "period_start",
+    "period_end",
+    "category",
+    "multiplier",
+    "expected_count",
+    "expected_spend",
+    "base_spend",
+    "extra_spend",
+    "tier",
+]
 
 
 @dataclass(frozen=True)
@@ -28,6 +48,14 @@ class Spike:
     multiplier: float
 
 
+def spike_categories(user: User, events: EventsSpec) -> list[str]:
+    """Categories the user buys in often enough to be spiked (rate before calibration)."""
+    rates: dict[str, float] = {}
+    for stream in user.streams:
+        rates[stream.spec.category] = rates.get(stream.spec.category, 0.0) + stream.weekly_rate
+    return sorted(c for c, r in rates.items() if r >= events.spending_spike.min_weekly_rate)
+
+
 def plan_spikes(
     user: User, tl: Timeline, events: EventsSpec
 ) -> tuple[dict[str, FloatArray], list[Spike]]:
@@ -35,15 +63,13 @@ def plan_spikes(
     spec = events.spending_spike
     rng = user.rng("spikes")
     n = int(rng.poisson(spec.rate_per_user_year * tl.years))
-    rates: dict[str, float] = {}
     peaks: dict[str, FloatArray] = {}
     for stream in user.streams:
         cat = stream.spec.category
-        rates[cat] = rates.get(cat, 0.0) + stream.weekly_rate
         peaks[cat] = np.maximum(
             peaks.get(cat, np.zeros(13)), season_vector(stream.spec.seasonality)
         )
-    eligible = sorted(c for c, r in rates.items() if r >= spec.min_weekly_rate)
+    eligible = spike_categories(user, events)
     multipliers: dict[str, FloatArray] = {}
     spikes: list[Spike] = []
     if not eligible or not spec.granularity:
@@ -192,13 +218,44 @@ def generate_refunds(user: User, tl: Timeline, ledger: Ledger, events: EventsSpe
     )
 
 
-def spike_rows(user: User, tl: Timeline, spikes: list[Spike]) -> pd.DataFrame:
-    return pd.DataFrame(
-        {
-            "user_id": [user.user_id] * len(spikes),
-            "granularity": [s.granularity for s in spikes],
-            "period_start": [str(tl.date_of(s.first_day)) for s in spikes],
-            "category": [s.category for s in spikes],
-            "multiplier": [s.multiplier for s in spikes],
-        }
-    )
+def spike_rows(
+    user: User,
+    tl: Timeline,
+    spikes: list[Spike],
+    expected: Expected,
+    txns: pd.DataFrame,
+    weak_lift: float,
+) -> pd.DataFrame:
+    """`truth_periods` rows: each planted spike with its expected and realized spend.
+
+    `txns` is the user's ledger with internal process names, so spike extras can be told apart.
+    A period's spend is the net outflow of every transaction in the category.
+    """
+    rows = []
+    for k, s in enumerate(spikes, start=1):
+        in_period = (
+            (txns["category"] == s.category)
+            & (txns["day"] >= s.first_day)
+            & (txns["day"] <= s.last_day)
+        )
+        outflow = -txns.loc[in_period, "amount"]
+        extra = float(outflow[txns.loc[in_period, "process"] == SPIKE_EXTRA].sum())
+        base = float(outflow.sum()) - extra
+        expected_count, expected_spend = expected.total(s.category, s.first_day, s.last_day)
+        rows.append(
+            {
+                "spike_id": f"s_{user.user_id[2:]}_{k}",
+                "user_id": user.user_id,
+                "granularity": s.granularity,
+                "period_start": str(tl.date_of(s.first_day)),
+                "period_end": str(tl.date_of(s.last_day)),
+                "category": s.category,
+                "multiplier": s.multiplier,
+                "expected_count": round(expected_count, 4),
+                "expected_spend": round(expected_spend, 2),
+                "base_spend": round(base, 2),
+                "extra_spend": round(extra, 2),
+                "tier": "weak" if base + extra < expected_spend * weak_lift else "clear",
+            }
+        )
+    return pd.DataFrame(rows, columns=SPIKE_COLUMNS)

@@ -13,6 +13,7 @@ from smart_financial_coach.data.generator.catalog import load_catalog
 from smart_financial_coach.data.generator.dataset import TABLES, Dataset
 from smart_financial_coach.data.generator.spec import Spec, season_vector, spec_hash
 from smart_financial_coach.data.generator.taxonomy import INCOME
+from smart_financial_coach.data.labels import Truth
 
 MIN_HISTORY_MONTHS = 24
 MIN_INCOME_MONTH_SHARE = 0.6  # freelancers have slow months with no payments
@@ -20,12 +21,18 @@ SAVINGS_TOLERANCE = 0.1
 SAVINGS_MIN_SHARE_IN_RANGE = 0.85
 SEASONAL_MIN_VARIATION = 1.5  # only check profiles that vary at least this much
 SEASONAL_MIN_CORRELATION = 0.5
+# Below this many purchases per month of year, a profile is too noisy to test (small spec)
+SEASONAL_MIN_PURCHASES_PER_MONTH = 100
 MESS_MIN_SHARE = {"light": 0.3, "realistic": 0.6, "heavy": 0.8}
 EVENT_COUNT_TOLERANCE = 0.4
 MIN_EVENTS_FOR_RATE_CHECK = 30
 MIN_SPIKES_FOR_LIFT_CHECK = 10
 # The holdout share varies a lot between users; below this many test users it is only reported
 MIN_TEST_USERS_FOR_HOLDOUT_CHECK = 30
+# About 3% of amount outliers land inside the user's normal range at high-variance marketplaces;
+# the small spec has few enough outliers that a stricter floor fails by chance
+MIN_OUTLIER_ABOVE_NORMAL_SHARE = 0.85
+MIN_SPIKE_GAP_DAYS = 8  # plan_spikes keeps a 7-day buffer around each spike in a category
 
 
 @dataclass
@@ -167,6 +174,8 @@ def _seasonality(tx: pd.DataFrame, spec: Spec, report: Report) -> None:
             )
         for (process, category), expected in profiles.items():
             sub = ptx[(ptx["process"] == process) & (ptx["category"] == category)]
+            if len(sub) < 12 * SEASONAL_MIN_PURCHASES_PER_MONTH:
+                continue
             by_month = sub.groupby(["month", "moy"])["amount"].sum().groupby("moy").mean()
             realized = -by_month.reindex(months, fill_value=0.0).to_numpy()
             if not _correlated(expected, realized):
@@ -286,6 +295,143 @@ def _goals(ds: Dataset, spec: Spec, report: Report) -> None:
     )
 
 
+def _label_consistency(truth: Truth, report: Report) -> None:
+    tx = truth.transactions
+    by_id = tx.set_index("transaction_id")
+    unusual = tx["process"] == "unusual_charge"
+    report.check(
+        bool((tx["anomaly_kind"].notna() == unusual).all()),
+        "labels: anomaly_kind set on a transaction that isn't an unusual charge, or missing",
+    )
+
+    def related(kind: pd.DataFrame) -> pd.DataFrame:
+        orig = by_id.reindex(kind["related_transaction_id"])
+        return orig.set_index(kind.index)
+
+    dupes = tx[tx["anomaly_kind"] == "duplicate"]
+    orig = related(dupes)
+    minutes = (pd.to_datetime(dupes["ts"]) - pd.to_datetime(orig["ts"])).dt.total_seconds() / 60
+    ok = (
+        (orig["user_id"] == dupes["user_id"])
+        & (orig["merchant_raw"] == dupes["merchant_raw"])
+        & (orig["amount"] == dupes["amount"])
+        & minutes.between(0, truth.contract.duplicate_window_minutes)
+    )
+    report.check(
+        bool(ok.all()), f"labels: {int((~ok).sum())} duplicates don't match their original"
+    )
+
+    refunds = tx[tx["process"] == "refund"]
+    orig = related(refunds)
+    ok = (orig["user_id"] == refunds["user_id"]) & (orig["amount"] == -refunds["amount"])
+    report.check(bool(ok.all()), f"labels: {int((~ok).sum())} refunds don't match their purchase")
+
+    novel = tx[tx["anomaly_kind"] == "new_merchant_large"]
+    visits = tx.groupby(["user_id", "merchant_id"]).size()
+    repeat = visits.reindex(list(zip(novel["user_id"], novel["merchant_id"], strict=True))) > 1
+    report.check(
+        not bool(repeat.any()),
+        f"labels: {int(repeat.sum())} new-merchant charges at merchants the user visits again",
+    )
+
+    normal = tx[tx["anomaly_kind"].isna() & (tx["amount"] < 0)]
+    largest = (-normal["amount"]).groupby([normal["user_id"], normal["merchant_id"]]).max()
+    outliers = tx[tx["anomaly_kind"] == "amount_outlier"]
+    keys = list(zip(outliers["user_id"], outliers["merchant_id"], strict=True))
+    above = (-outliers["amount"].to_numpy()) > largest.reindex(keys).fillna(0).to_numpy()
+    if len(outliers):
+        share = float(above.mean())
+        report.stats["amount_outlier_above_normal_share"] = share
+        report.check(
+            share >= MIN_OUTLIER_ABOVE_NORMAL_SHARE,
+            f"labels: only {share:.0%} of amount outliers exceed the user's normal charges",
+        )
+
+
+def _spike_integrity(truth: Truth, spec: Spec, report: Report) -> None:
+    spikes = truth.periods
+    if spikes.empty:
+        return
+    start = pd.to_datetime(spikes["period_start"])
+    end = pd.to_datetime(spikes["period_end"])
+    week = spikes["granularity"] == "week"
+    month_end = start + pd.offsets.MonthEnd(0)
+    shape = np.where(
+        week,
+        (start.dt.dayofweek == 0) & (end - start == pd.Timedelta(days=6)),
+        (start.dt.day == 1) & (end == month_end),
+    )
+    report.check(bool(shape.all()), "spikes: a period doesn't start on a Monday or the 1st")
+    inside = (spikes["period_start"] >= truth.warmup_end_month) & (
+        spikes["period_end"] <= str(spec.calendar.end)
+    )
+    report.check(bool(inside.all()), "spikes: a period is in the warm-up or after the calendar")
+
+    ordered = spikes.assign(start=start, end=end).sort_values(["user_id", "category", "start"])
+    same = (ordered[["user_id", "category"]] == ordered[["user_id", "category"]].shift()).all(
+        axis=1
+    )
+    gap = (ordered["start"] - ordered["end"].shift()).dt.days
+    report.check(
+        not bool((same & (gap < MIN_SPIKE_GAP_DAYS)).any()),
+        "spikes: two spikes in one category overlap or are within 7 days",
+    )
+
+    users = truth.users.set_index("user_id")["persona"]
+    peaks: dict[tuple[str, str], np.ndarray] = {}
+    for name, persona in spec.personas.items():
+        for stream in persona.discretionary:
+            key = (name, stream.category)
+            peaks[key] = np.maximum(peaks.get(key, np.zeros(13)), season_vector(stream.seasonality))
+    peak = [
+        peaks.get((users[u], c), np.ones(13))[m]
+        for u, c, m in zip(spikes["user_id"], spikes["category"], start.dt.month, strict=True)
+    ]
+    report.check(
+        max(peak) <= spec.events.spending_spike.peak_threshold,
+        "spikes: a spike falls in a seasonal peak of its category",
+    )
+
+    tx = truth.transactions[["user_id", "category", "ts", "amount"]]
+    joined = spikes[["spike_id", "user_id", "category", "period_start", "period_end"]].merge(
+        tx, on=["user_id", "category"]
+    )
+    day = joined["ts"].str[:10]
+    joined = joined[(day >= joined["period_start"]) & (day <= joined["period_end"])]
+    realized = (-joined.groupby("spike_id")["amount"].sum()).reindex(spikes["spike_id"]).fillna(0)
+    recorded = (spikes["base_spend"] + spikes["extra_spend"]).to_numpy()
+    off = np.abs(realized.to_numpy() - recorded) > 0.015
+    report.check(
+        not bool(off.any()), f"spikes: {int(off.sum())} spikes' spend doesn't match ledger"
+    )
+
+
+def _label_ceiling(truth: Truth, report: Report) -> None:
+    c = truth.contract
+    stats = truth.report()
+    report.stats.update(stats)
+    months = truth.spikes("month")
+    if len(months) >= c.min_labels_for_oracle_check:
+        weak = stats["monthly_weak_share"]
+        report.check(
+            weak <= c.max_weak_share,
+            f"labels: {weak:.0%} of monthly spikes are weak, above {c.max_weak_share:.0%}",
+        )
+        precision = stats["oracle_month_precision"]
+        report.check(
+            precision >= c.oracle_min_precision,
+            f"ceiling: monthly spike oracle precision {precision:.2f} "
+            f"below {c.oracle_min_precision:.2f}",
+        )
+    if truth.transactions["anomaly_kind"].notna().sum() >= c.min_labels_for_oracle_check:
+        precision = stats["oracle_transaction_precision"]
+        report.check(
+            precision >= c.oracle_min_precision,
+            f"ceiling: unusual-charge oracle precision {precision:.2f} "
+            f"below {c.oracle_min_precision:.2f}",
+        )
+
+
 def validate(ds: Dataset, spec: Spec) -> Report:
     report = Report()
     if (built_from := ds.meta.get("spec_hash")) != spec_hash(spec):
@@ -305,5 +451,9 @@ def validate(ds: Dataset, spec: Spec) -> Report:
     _events(tx, ds, spec, report)
     _splits(tx, ds, spec, report)
     _goals(ds, spec, report)
+    truth = Truth.from_dataset(ds)
+    _label_consistency(truth, report)
+    _spike_integrity(truth, spec, report)
+    _label_ceiling(truth, report)
     report.stats["unusual_charges_dropped"] = int(ds.meta.get("unusual_charges_dropped", 0))
     return report

@@ -12,7 +12,7 @@ def test_default_spec_loads_personas_and_catalog(configs: Path) -> None:
     assert set(spec.personas) == {"young_professional", "family_budgeter", "freelancer"}
     assert spec.catalog.merchants.is_absolute()
     assert spec.catalog.merchants.exists()
-    assert sum(sum(p.users.values()) for p in spec.populations) == 300
+    assert sum(sum(p.users.values()) for p in spec.populations) == 360
 
 
 def test_extends_overrides_only_what_it_sets(configs: Path) -> None:

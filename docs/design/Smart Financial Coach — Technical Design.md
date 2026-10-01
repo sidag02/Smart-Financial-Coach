@@ -18,7 +18,7 @@ The PRD's capabilities reduce to five learning problems, each with ground truth 
 | --- | --- | --- | --- |
 | Transaction categorization | Supervised multi-class text classification | Raw merchant string + amount → category (\~12 classes) + confidence | Macro F1 |
 | Unusual transactions | Unsupervised, per-user point anomaly detection | Transaction features relative to the user's history → anomaly score + flag + reason | Precision, recall, PR-AUC |
-| Spending spikes | Per-user anomaly detection on aggregated time series | Weekly / monthly spend per category → flagged period + deviation size + driving transactions | Precision, recall at period level |
+| Spending spikes | Per-user anomaly detection on aggregated time series | Monthly spend per category → flagged period + deviation size + driving transactions (weekly deferred; see FR-2) | Precision, recall at period level |
 | Goal forecasting | Univariate time-series forecasting with seasonality, turned into a probability | Monthly net savings history → forecast with interval → P(goal met by date) | RMSE, MAPE; Brier score for P(goal met) |
 | Coaching | Grounded conditional text generation with tool use | User question + tool results → plain-English answer | Grounding accuracy; rubric score |
 
@@ -66,17 +66,18 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 
 | Entity | Key fields |
 | --- | --- |
-| Transaction truth | transaction\_id, category, merchant\_id, process, is\_recurring, anomaly\_kind |
-| Period truth (spikes) | user\_id, granularity, period\_start, category, multiplier |
+| Transaction truth | transaction\_id, category, merchant\_id, process, is\_recurring, anomaly\_kind, related\_transaction\_id |
+| Period truth (spikes) | spike\_id, user\_id, granularity, period\_start, period\_end, category, multiplier, expected\_count, expected\_spend, base\_spend, extra\_spend, tier |
+| Expected spend | user\_id, category, granularity, period\_start, expected\_count, expected\_spend |
 | Goal truth | goal\_id, outcome\_class, met |
 
-Full table definitions are in FR-1 Synthetic Data Generator — Feature Design.
+Full table definitions are in FR-1 Synthetic Data Generator — Feature Design and FR-2 Ground Truth Labels — Feature Design. How flags are scored against these tables (the label contract) is in FR-2 and in `data/labels.py`.
 
 **Service contracts** (each model service implements one of these)
 
 - `categorize(merchant_raw, amount) → {category, confidence}`
-- `score_transactions(user_id, transactions) → [{transaction_id, score, is_flagged, reason}]`
-- `detect_spikes(user_id, period, granularity) → [{category, period, actual, expected, deviation, top_transactions}]`
+- `score_transactions(user_id, transactions) → [{transaction_id, score, is_flagged, reason_code, reason}]` (`reason_code` is `duplicate`, `amount_unusual` or `new_merchant`, so reason accuracy can be scored)
+- `detect_spikes(user_id, period, granularity) → [{category, period, actual, expected, deviation, top_transactions}]` (v1: `granularity="month"` only; at most 5 `top_transactions`)
 - `forecast_goal(user_id, goal_id) → {projected_balance, interval, p_goal_met, gap, monthly_forecast[]}`
 
 **Tools exposed to assistants** (no user\_id parameter; identity comes from the session)
@@ -156,8 +157,8 @@ Every model is scored against planted ground truth and a simple baseline, with o
 | Problem | Data split | Baseline | Metrics |
 | --- | --- | --- | --- |
 | Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training | Keyword rules | Macro F1, per-class F1, confusion matrix |
-| Unusual transactions | All transactions scored; labels hidden from training | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate |
-| Spending spikes | Weekly and monthly aggregates; labels hidden | Per-user mean ± k·std per category | Period-level precision and recall |
+| Unusual transactions | All transactions scored; labels hidden from training; thresholds tuned on train users, reported on test users | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate, reason accuracy |
+| Spending spikes | Monthly aggregates of all spend on true categories; labels hidden; thresholds tuned on train users, reported on test users | Per-user mean ± k·std per category | Period-level precision and recall (all and `clear` labels); excess coverage of driving transactions vs. a top-5-by-amount baseline |
 | Goal forecasting | Rolling-origin backtest: train on months 1..k, predict k+1..k+3 | Seasonal-naive | RMSE, MAPE; Brier score for P(goal met) |
 | Coach | \~30 scripted questions with expected facts, plus adversarial cases | None | Grounding accuracy, refusal accuracy, rubric score (LLM judge, 1–5) |
 
@@ -166,6 +167,9 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Ambiguous merchants and messy merchant text generated into the data.
 - Label noise applied by the training pipeline to loaded training data; the generator itself only generates.
 - Separate seeds for training and test users.
+- Anomaly thresholds tuned on train users and reported on test users, never both on the same users.
+- Spike metrics scored on true categories, so categorizer errors don't leak into FR-8.
+- An oracle with the generator's true expected spend must reach the precision target before a model is judged against it (`validate` gate; FR-2).
 - Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. The evaluation harness enforces this when it builds splits (build order step 4).
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 

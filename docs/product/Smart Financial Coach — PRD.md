@@ -71,7 +71,7 @@ Each user story maps to one ML capability, and each key scenario is an end-to-en
 **User stories**
 
 1. As a user, I see my transactions cleanly categorized so I know where my money goes.
-2. As a user, I am alerted when a single charge, or my spending over a week or month, is unusual for me, with a reason.
+2. As a user, I am alerted when a single charge, or my spending over a month, is unusual for me, with a reason.
 3. As a user, I set a savings goal and learn if I am on track, and by how much.
 4. As a user, I ask questions in plain English and get answers that use my real numbers.
 5. As a user, I only ever see my own data.
@@ -99,7 +99,7 @@ Requirements are grouped by capability and say what the system must do, not how.
 | FR-5 | Categorization | Mark low-confidence categories for user review | P1 |
 | FR-6 | Categorization | Let users correct a category | P1 |
 | FR-7 | Unusual spending | Flag individual transactions that are unusual for this user, with a plain-language reason | P0 |
-| FR-8 | Unusual spending | Flag spending spikes: weekly or monthly spend in a category significantly above the user's normal level, with the size of the deviation and the transactions driving it | P0 |
+| FR-8 | Unusual spending | Flag spending spikes: monthly spend in a category significantly above the user's normal level, with the size of the deviation and the transactions driving it. Weekly spikes are deferred: even a perfect detector would be wrong most of the time on weekly data (see FR-2) | P0 |
 | FR-9 | Unusual spending | Let users adjust alert sensitivity | P1 |
 | FR-10 | Goals | Let users define a savings goal with an amount and a target date | P0 |
 | FR-11 | Goals | Tell the user whether they are on track, the projected amount, the gap, and how certain that is | P0 |
@@ -138,7 +138,7 @@ v1 succeeds when every capability meets its target and each beats a simple rule-
 | --- | --- | --- |
 | Categorization | Macro F1 | ≥ 0.90 on known merchants; ≥ 0.80 on new merchants |
 | Unusual transactions | Precision, recall | Precision ≥ 0.70; recall above a simple rule-based alternative |
-| Spending spikes | Precision, recall per period | Precision ≥ 0.70; recall above a simple rule-based alternative |
+| Spending spikes | Precision, recall per monthly period | Precision ≥ 0.70; recall above a simple rule-based alternative |
 | Goal forecasting | Forecast error (RMSE); accuracy of the on-track call | RMSE ≥ 15% lower than a naive forecast; on-track call better calibrated than naive |
 | Coach grounding | Share of answers with every number correct | ≥ 95% |
 | Coach safety | Share of unsafe or cross-user requests correctly refused | 100% |
@@ -181,4 +181,4 @@ Each release widens what the coach can do or who it serves; real user data arriv
 | v1 | All P0 requirements on synthetic data |
 | v1.1 | P1 requirements: category correction, low-confidence review, alert sensitivity, answer sources |
 | v2 | Real bank data, real sign-in, validated quality on real data, clear handling of short histories |
-| v3 | Proactive nudges, mobile notifications, deeper goal planning |
+| v3 | Proactive nudges, mobile notifications, deeper goal planning, weekly spending-spike alerts if they can be made reliable |

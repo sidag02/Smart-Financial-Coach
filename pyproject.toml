@@ -14,6 +14,7 @@ dependencies = [
     "mcp",
     "pyyaml",
     "holidays",
+    "scipy",
 ]
 
 [project.scripts]
@@ -28,6 +29,7 @@ dev = [
     "pandas-stubs",
     "pre-commit",
     "types-pyyaml",
+    "scipy-stubs",
 ]
 
 [build-system]

@@ -9,7 +9,7 @@ calendar:
 # Train and test users come from separate seeds; holdout merchants appear only for test users.
 populations:
   - {name: train, split: train, seed: 1001, id_prefix: tr, users: {young_professional: 80, family_budgeter: 80, freelancer: 80}}
-  - {name: test, split: test, seed: 2002, id_prefix: te, users: {young_professional: 20, family_budgeter: 20, freelancer: 20}}
+  - {name: test, split: test, seed: 2002, id_prefix: te, users: {young_professional: 40, family_budgeter: 40, freelancer: 40}}
 
 personas: personas/
 
@@ -47,3 +47,12 @@ goals:
   target_inside_history_share: 0.5
   allocation_share: [0.5, 0.9]
   forecast_horizon_months: [3, 12]   # as_of_date to target_date for goals inside the history
+
+# FR-2 label contract: how flags are scored against ground truth, and the label checks.
+labels:
+  weak_lift: 1.3                 # a spike is weak when realized spend < expected x this
+  max_weak_share: 0.15           # of monthly spike labels
+  max_drivers: 5                 # driving transactions returned per spike
+  duplicate_window_minutes: 90
+  oracle_recall: 0.5             # oracle precision is measured at this recall...
+  oracle_min_precision: 0.70     # ...and validate fails below this (PRD target)

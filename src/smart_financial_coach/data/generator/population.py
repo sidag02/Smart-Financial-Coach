@@ -25,6 +25,7 @@ STAGES = (
     "balance",
     "rendering",
     "goals",
+    "spike_extra",
 )
 
 
