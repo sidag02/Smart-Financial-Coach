@@ -52,7 +52,7 @@ Both requirements use one service and one model, so the line is drawn by what ea
 
 ## Feasibility
 
-**Evidence:** branch `poc/fr-3-categorization`, script `experiments/fr3_categorization/feasibility.py`. The full report is `experiments/fr3_categorization/results/feasibility.md`, with every number below plus per-class precision and recall in `feasibility.json`. The run used the default dataset (spec hash `130e78f55383`) and seed 0. A second run gives identical metrics.
+**Evidence:** branch `poc/fr-3-categorization` ([POC folder](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization)). `feasibility.py` trains and scores the models, and `plots.py` draws the charts. Every number below is in the [results report](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/feasibility.md), along with per-class precision and recall, confusion matrices and per-merchant accuracy in `feasibility.json`. There is also a [full-page screenshot](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/screenshots/report.png) of the HTML report and each [chart](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures). The run used the default dataset (spec hash `130e78f55383`) and seed 0. A second run gives identical metrics.
 
 Setup: the Technical Design's splits, no label noise, no tuning. The model is logistic regression with balanced class weights, trained on 194k train-user transactions (at most 20k per class). Macro F1 is over the 12 spending categories. The unseen-merchant interval comes from 1,000 bootstrap resamples of merchants within each category (see [§6](#6-evaluation)).
 
@@ -62,13 +62,21 @@ Setup: the Technical Design's splits, no label noise, no tuning. The model is lo
 | Sentence embedding of normalized text (`bge-small-en-v1.5`, 384-d) + same side features | 0.973 | 0.842 | 0.593 | 0.55–0.73 |
 | Both | **0.988** | **0.929** | **0.638** | 0.56–0.73 |
 
+![Macro F1 by test set](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/headline.png?raw=true)
+
+No bootstrap resample of any model reaches 0.80; the best of 1,000 is 0.793.
+
+![Unseen-merchant bootstrap distribution](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/unseen_bootstrap.png?raw=true)
+
 Unseen-merchant accuracy by catalog scope (transaction-weighted):
 
 | Scope | Merchants | Transactions | N-grams | Embeddings | Both |
 | --- | --- | --- | --- | --- | --- |
-| National (real chains) | 25 | 34.0k | 0.46 | 0.62 | 0.70 |
+| National (real chains) | 25 | 34.0k | 0.46 | 0.62 | 0.69 |
 | Local (fictional) | 19 | 26.7k | 0.72 | 0.82 | 0.80 |
 | Online services | 14 | 17.4k | 0.43 | 0.93 | 0.87 |
+
+![Accuracy by merchant type](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/unseen_by_scope.png?raw=true)
 
 What the errors show:
 
