@@ -45,6 +45,7 @@ EMBEDDING_MODEL = "BAAI/bge-small-en-v1.5"
 BOOTSTRAP_REPS = 1_000
 CHANNELS = ["card_present", "online", "ach", "other"]
 INCOME = "Income"
+CATALOG = Path(__file__).resolve().parents[2] / "configs" / "data" / "merchants.csv"
 
 # Generic bank-feed vocabulary (FR-3 design §1), not read from the merchant catalog.
 PREFIX = re.compile(r"^(POS DEBIT|ACH DEBIT|ACH CREDIT|SQ \*|TST\* ?|PAYPAL \*|SP \* ?)\s*", re.I)
@@ -82,6 +83,8 @@ def load(path: Path) -> tuple[pd.DataFrame, dict[str, str]]:
         )
         meta = dict(con.execute("SELECT key, value FROM meta").fetchall())
     frame["norm"] = frame["merchant_raw"].map(normalize_merchant)
+    scope = pd.read_csv(CATALOG, usecols=["merchant_id", "scope"])
+    frame = frame.merge(scope, on="merchant_id", how="left", validate="many_to_one")
     return frame, meta
 
 
@@ -229,6 +232,15 @@ def top_errors(frame: pd.DataFrame, pred: np.ndarray, n: int = 12) -> list[dict[
     ]
 
 
+def merchant_accuracy(frame: pd.DataFrame, pred: np.ndarray) -> list[dict[str, Any]]:
+    rows = frame.assign(correct=pred == frame["category"].to_numpy())
+    grouped = rows.groupby(["canonical_name", "category", "scope"])["correct"].agg(["size", "mean"])
+    return [
+        {"merchant": m, "category": c, "scope": s, "transactions": int(n), "accuracy": float(a)}
+        for (m, c, s), (n, a) in grouped.iterrows()
+    ]
+
+
 def git_commit() -> str:
     out = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False)
     return out.stdout.strip() or "unknown"
@@ -279,6 +291,7 @@ def run(path: Path) -> dict[str, Any]:
             if name == "unseen":
                 result[name]["merchant_bootstrap"] = merchant_bootstrap(rows, pred, labels, rng)
                 result[name]["top_errors"] = top_errors(rows, pred)
+                result[name]["by_merchant"] = merchant_accuracy(rows, pred)
         experiments[kind] = result
         print(
             f"{kind:10s} known={result['known']['macro_f1_spending']:.3f} "
@@ -375,6 +388,51 @@ def report(results: dict[str, Any]) -> str:
         f"| {e['merchant']} | {e['true']} | {e['predicted']} | {e['transactions']:,} |"
         for e in exps["ngrams"]["unseen"]["top_errors"]
     ]
+
+    lines += [
+        "",
+        "## Unseen merchants by catalog scope",
+        "",
+        "Transaction-weighted accuracy. `national` merchants are real chains; `local` are "
+        "fictional local businesses; `online` are online services.",
+        "",
+        "| Scope | Merchants | Transactions | " + " | ".join(exps) + " |",
+        "| --- | --- | --- |" + " --- |" * len(exps),
+    ]
+    by_scope = {
+        kind: pd.DataFrame(e["unseen"]["by_merchant"]).assign(
+            hits=lambda d: d["accuracy"] * d["transactions"]
+        )
+        for kind, e in exps.items()
+    }
+    first = by_scope["ngrams"]
+    for scope, group in first.groupby("scope"):
+        cells = " | ".join(
+            f"{d[d['scope'] == scope]['hits'].sum() / group['transactions'].sum():.3f}"
+            for d in by_scope.values()
+        )
+        lines.append(f"| {scope} | {len(group)} | {group['transactions'].sum():,} | {cells} |")
+
+    lines += [
+        "",
+        "## Unseen merchants: per-merchant accuracy",
+        "",
+        "| Merchant | Category | Scope | Transactions | " + " | ".join(exps) + " |",
+        "| --- | --- | --- | --- |" + " --- |" * len(exps),
+    ]
+    table = first[["merchant", "category", "scope", "transactions"]].copy()
+    for kind, d in by_scope.items():
+        table[kind] = d["accuracy"].to_numpy()
+    for row in table.sort_values(["category", "merchant"]).itertuples(index=False):
+        cells = " | ".join(f"{getattr(row, kind):.2f}" for kind in exps)
+        lines.append(
+            f"| {row.merchant} | {row.category} | {row.scope} | {row.transactions:,} | {cells} |"
+        )
+
+    income = " / ".join(
+        f"{kind} {e['known']['per_class'][INCOME]['f1']:.3f}" for kind, e in exps.items()
+    )
+    lines += ["", f"Income F1 on known merchants (not in the headline): {income}.", ""]
 
     ceiling = results["ambiguity_ceiling"]
     lines += [
