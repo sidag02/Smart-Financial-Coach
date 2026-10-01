@@ -47,7 +47,7 @@ The system is nine modules in four layers, plus a cross-cutting evaluation harne
 | Access | Tool server | Expose intelligence services as typed tools; inject user identity | Tool calls + session identity | Structured tool results |
 | Experience | Coach agent | Turn questions into tool calls and answers | User message, tool results | Grounded answer + tool trace |
 | Experience | Web app | Dashboard, chat, user selection | User actions | Rendered views |
-| Cross-cutting | Evaluation harness | Score every model and the coach against ground truth and baselines | Held-out data, test sets | Metrics report |
+| Cross-cutting | Evaluation harness | Build training and evaluation splits (each example sees only data up to its origin); score every model and the coach against ground truth and baselines | Generator SQLite file, test sets | Splits, metrics report |
 
 ## Interfaces
 
@@ -166,7 +166,7 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Ambiguous merchants and messy merchant text generated into the data.
 - Label noise applied by the training pipeline to loaded training data; the generator itself only generates.
 - Separate seeds for training and test users.
-- Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. This is an acceptance criterion for the feature that builds training and evaluation splits.
+- Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. The evaluation harness enforces this when it builds splits (build order step 4).
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 
 ## Build order and open questions
@@ -176,7 +176,7 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 1. Foundations: repo layout, pinned dependencies, configuration, CI.
 2. Data generator, data store and data quality checks.
 3. Feature pipeline and service interfaces with baseline implementations.
-4. Evaluation harness running on the baselines.
+4. Evaluation harness: training and evaluation splits (incl. the `as_of_date` cutoff for goal examples), running on the baselines.
 5. Model experiments per problem; record decisions.
 6. Tool server with session-scoped identity.
 7. Coach agent and coach test suite.
