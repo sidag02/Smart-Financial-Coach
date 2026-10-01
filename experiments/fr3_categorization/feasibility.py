@@ -36,7 +36,7 @@ import scipy.sparse as sp
 import sklearn
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import f1_score, precision_recall_fscore_support
+from sklearn.metrics import confusion_matrix, f1_score, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 
 SEED = 0
@@ -217,7 +217,12 @@ def merchant_bootstrap(
         sample = np.concatenate([rng.choice(g, size=len(g), replace=True) for g in groups])
         scores.append(macro(confusion[sample].sum(axis=0)))
     low, high = np.percentile(scores, [2.5, 97.5])
-    return {"point": macro(confusion.sum(axis=0)), "low": float(low), "high": float(high)}
+    return {
+        "point": macro(confusion.sum(axis=0)),
+        "low": float(low),
+        "high": float(high),
+        "samples": [round(x, 5) for x in scores],
+    }
 
 
 def top_errors(frame: pd.DataFrame, pred: np.ndarray, n: int = 12) -> list[dict[str, Any]]:
@@ -287,6 +292,7 @@ def run(path: Path) -> dict[str, Any]:
                 "n": len(rows),
                 "macro_f1_spending": macro_f1_spending(rows["category"], pred),
                 "per_class": per_class(rows["category"], pred, labels),
+                "confusion": confusion_matrix(rows["category"], pred, labels=labels).tolist(),
             }
             if name == "unseen":
                 result[name]["merchant_bootstrap"] = merchant_bootstrap(rows, pred, labels, rng)
@@ -318,6 +324,7 @@ def run(path: Path) -> dict[str, Any]:
             "seed": SEED,
             "max_rows_per_class": MAX_ROWS_PER_CLASS,
             "fit_rows": len(fit_rows),
+            "labels": labels,
             "spending_labels": spending_labels,
             "bootstrap_reps": BOOTSTRAP_REPS,
         },
