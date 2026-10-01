@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FR-3 Feasibility Results</title><style>
+:root { --surface:#fcfcfb; --page:#f9f9f7; --ink:#0b0b0b; --ink2:#52514e; --muted:#898781;
+  --line:#e1e0d9; --good:#006300; --bad:#d03b3b; }
+* { box-sizing: border-box; }
+body { margin:0; background:var(--page); color:var(--ink);
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+main { max-width: 1120px; margin: 0 auto; padding: 32px 16px 48px; }
+h1 { font-size: 24px; margin: 0 0 4px; } h2 { font-size: 17px; margin: 32px 0 8px; }
+.sub { color: var(--ink2); margin: 0 0 20px; }
+.tiles { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+.tile { background:var(--surface); border:1px solid var(--line); border-radius:8px;
+  padding:14px 16px; }
+.tile .label { color:var(--ink2); font-size:13px; }
+.tile .value { font-size:32px; font-weight:600; margin:2px 0; }
+.tile .note { font-size:13px; }
+.note { color:var(--ink2); } .pass { color:var(--good); } .fail { color:var(--bad); }
+figure { margin: 12px 0 0; background:var(--surface); border:1px solid var(--line);
+  border-radius:8px; padding:8px; }
+figure img { width:100%; height:auto; display:block; }
+table { border-collapse: collapse; width:100%; background:var(--surface); font-size:13px;
+  font-variant-numeric: tabular-nums; }
+th, td { text-align:left; padding:6px 10px; border-bottom:1px solid var(--line); }
+th { color:var(--ink2); font-weight:600; }
+td.num, th.num { text-align:right; }
+.meta { color:var(--muted); font-size:12px; margin-top:24px; }
+</style></head>
+<body><main>
+<h1>FR-3 categorization feasibility</h1>
+<p class="sub">Logistic regression on the default synthetic dataset. Macro F1 over the 12
+spending categories; Income excluded.</p>
+<div class="tiles"><div class="tile"><div class="label">Known merchants (FR-3)</div><div class="value">0.988</div><div class="note pass">✓ target ≥ 0.90</div></div><div class="tile"><div class="label">Unseen merchants (FR-4)</div><div class="value">0.638</div><div class="note fail">✗ target ≥ 0.80 · 95% interval 0.56&ndash;0.73</div></div><div class="tile"><div class="label">All test users</div><div class="value">0.929</div><div class="note ">realistic mix of known and new merchants; no target</div></div></div>
+<h2>Headline</h2>
+<table><tr><th>Features</th><th class="num">Known merchants</th><th class="num">All test users</th><th class="num">Unseen merchants</th><th class="num">Unseen 95% interval</th></tr><tr><td>Character n-grams</td><td class="num">0.986</td><td class="num">0.868</td><td class="num">0.504</td><td class="num">0.440&ndash;0.562</td></tr><tr><td>Sentence embeddings</td><td class="num">0.973</td><td class="num">0.842</td><td class="num">0.593</td><td class="num">0.554&ndash;0.728</td></tr><tr><td>Both</td><td class="num">0.988</td><td class="num">0.929</td><td class="num">0.638</td><td class="num">0.559&ndash;0.726</td></tr></table>
+<figure><img src="figures/headline.png" alt="Macro F1 by test set and feature set"></figure>
+<h2>Is the unseen-merchant gap real?</h2>
+<figure><img src="figures/unseen_bootstrap.png" alt="Bootstrap distribution of unseen-merchant macro F1"></figure>
+<h2>Where unseen merchants fail</h2>
+<figure><img src="figures/unseen_by_scope.png" alt="Accuracy by merchant type"></figure>
+<figure><img src="figures/per_class_f1.png" alt="Per-class F1 heatmaps"></figure>
+<figure><img src="figures/unseen_confusion_both.png" alt="Unseen-merchant confusion matrix"></figure>
+<h2>Largest unseen-merchant errors (both)</h2>
+<table><tr><th>Merchant</th><th>True</th><th>Predicted</th><th class="num">Transactions</th></tr>
+<tr><td>Arco</td><td>Transportation</td><td>Shopping</td><td class="num">2,255</td></tr><tr><td>Chick-fil-A</td><td>Dining</td><td>Groceries</td><td class="num">1,876</td></tr><tr><td>McDonald&#x27;s</td><td>Dining</td><td>Groceries</td><td class="num">1,592</td></tr><tr><td>Caviar</td><td>Dining</td><td>Shopping</td><td class="num">1,328</td></tr><tr><td>Rite Aid</td><td>Health & Fitness</td><td>Shopping</td><td class="num">1,107</td></tr><tr><td>The Gift Nook</td><td>Shopping</td><td>Dining</td><td class="num">1,047</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Dining</td><td class="num">1,007</td></tr><tr><td>Alamo Drafthouse</td><td>Entertainment</td><td>Dining</td><td class="num">986</td></tr><tr><td>Giant Eagle</td><td>Groceries</td><td>Transportation</td><td class="num">841</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Shopping</td><td class="num">822</td></tr><tr><td>Sittercity</td><td>Childcare & Education</td><td>Entertainment</td><td class="num">567</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Groceries</td><td class="num">519</td></tr></table>
+<figure><img src="figures/unseen_per_merchant.png" alt="Per-merchant accuracy"></figure>
+<h2>Dataset</h2>
+<figure><img src="figures/dataset_categories.png" alt="Transactions per category"></figure>
+<p class="meta">Dataset default · spec hash 130e78f55383 · generator
+0.1.0 · code 7afc716 · Python 3.11.15 ·
+scikit-learn 1.9.1 · embeddings BAAI/bge-small-en-v1.5 ·
+seed 0</p>
+</main></body></html>

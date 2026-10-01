@@ -7,9 +7,10 @@ Evidence for the numbers in *FR-3 Transaction Categorization — Feature Design*
 ```sh
 uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite
 uv run experiments/fr3_categorization/feasibility.py data/synthetic/default.sqlite
+uv run experiments/fr3_categorization/plots.py      # charts, HTML report, screenshot; no retraining
 ```
 
-The script declares its own dependencies (PEP 723), including `fastembed`, so the project's lock file is unchanged. The first run downloads the embedding model (about 130 MB). A full run takes about 2.5 minutes on a laptop CPU.
+Both scripts declare their own dependencies (PEP 723), including `fastembed`, so the project's lock file is unchanged. The first run downloads the embedding model (about 130 MB). A full run takes about 2.5 minutes on a laptop CPU.
 
 ## What it does
 
@@ -20,10 +21,43 @@ The script declares its own dependencies (PEP 723), including `fastembed`, so th
 
 ## Results
 
-- [results/feasibility.md](results/feasibility.md): readable report.
-- [results/feasibility.json](results/feasibility.json): everything, including per-class precision and recall for every test set.
+| File | What it is |
+| --- | --- |
+| [results/screenshots/report.png](results/screenshots/report.png) | Full-page screenshot of the HTML report: stat tiles, tables and every chart |
+| [results/report.html](results/report.html) | The same report; open locally (it loads charts from `figures/`) |
+| [results/figures/](results/figures/) | Each chart as a PNG |
+| [results/feasibility.md](results/feasibility.md) | Text report with every table |
+| [results/feasibility.json](results/feasibility.json) | Everything: per-class precision and recall, confusion matrices, per-merchant accuracy, bootstrap samples |
 
 A second run gives identical metrics.
+
+### Headline: FR-3's target is met; FR-4's is not
+
+![Macro F1 by test set](results/figures/headline.png)
+
+### The unseen-merchant gap is not sampling noise
+
+No bootstrap resample of any model reaches 0.80; the best is 0.793.
+
+![Bootstrap distribution](results/figures/unseen_bootstrap.png)
+
+### Real chains are hardest; embeddings carry outside knowledge
+
+![Accuracy by merchant type](results/figures/unseen_by_scope.png)
+
+![Per-class F1](results/figures/per_class_f1.png)
+
+![Unseen-merchant confusion](results/figures/unseen_confusion_both.png)
+
+### Per merchant
+
+![Per-merchant accuracy](results/figures/unseen_per_merchant.png)
+
+### Dataset
+
+![Transactions per category](results/figures/dataset_categories.png)
+
+Charts use the dataviz reference palette; the three series colours were checked with its colour-vision validator (all pairs pass).
 
 ## Not done here
 
