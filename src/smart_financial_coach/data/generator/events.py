@@ -87,12 +87,13 @@ def plan_spikes(
 
 def generate_unusual_charges(
     user: User, tl: Timeline, catalog: Catalog, ledger: Ledger, events: EventsSpec, bias: float
-) -> None:
+) -> int:
+    """Add the user's unusual charges; returns how many could not be produced by any kind."""
     spec = events.unusual_charge
     rng = user.rng("unusual")
     n = int(rng.poisson(spec.rate_per_user_year * tl.years))
     if n == 0 or not spec.kinds or tl.n_days <= spec.baseline_days:
-        return
+        return 0
     disc = ledger.frame(("discretionary",))
     disc = disc[disc["day"] >= spec.baseline_days]
     seen = set(ledger.frame()["merchant_id"])
@@ -103,40 +104,29 @@ def generate_unusual_charges(
         for m in catalog.select(c, [], include_holdout=user.include_holdout).index
         if m not in seen
     ]
-    for _ in range(n):
-        kind = str(rng.choice(spec.kinds))
-        day = int(rng.integers(spec.baseline_days, tl.n_days))
-        if kind == "duplicate" and len(disc):
-            orig = disc.iloc[int(rng.integers(len(disc)))]
-            ledger.add(
-                "unusual_charge",
-                day=[orig["day"]],
-                minute=[min(int(orig["minute"]) + int(rng.integers(1, 90)), 1439)],
-                amount=[orig["amount"]],
-                merchant_id=[orig["merchant_id"]],
-                category=[orig["category"]],
-                channel=[orig["channel"]],
-                anomaly_kind=kind,
-                copy_of=[orig["transaction_id"]],
-            )
-            continue
-        if kind == "amount_outlier" and favorites:
-            stream, merchant = favorites[int(rng.integers(len(favorites)))]
-            base = catalog.price(merchant) * stream.amount_scale
-            amount = base * float(rng.uniform(*spec.outlier_multiplier))
-        elif kind == "new_merchant_large" and novel:
-            p = merchant_weights(catalog, novel, user.include_holdout, bias)
-            merchant = str(rng.choice(np.array(novel), p=p))
-            base = catalog.price(merchant)
-            amount = max(
-                spec.new_merchant_min_amount, base * float(rng.uniform(*spec.outlier_multiplier))
-            )
-        else:
-            continue
+
+    def duplicate() -> bool:
+        if disc.empty:
+            return False
+        orig = disc.iloc[int(rng.integers(len(disc)))]
+        ledger.add(
+            "unusual_charge",
+            day=[orig["day"]],
+            minute=[min(int(orig["minute"]) + int(rng.integers(1, 90)), 1439)],
+            amount=[orig["amount"]],
+            merchant_id=[orig["merchant_id"]],
+            category=[orig["category"]],
+            channel=[orig["channel"]],
+            anomaly_kind="duplicate",
+            copy_of=[orig["transaction_id"]],
+        )
+        return True
+
+    def charge(kind: str, merchant: str, amount: float) -> None:
         ids = np.array([merchant])
         ledger.add(
             "unusual_charge",
-            day=[day],
+            day=[int(rng.integers(spec.baseline_days, tl.n_days))],
             minute=catalog.sample_minutes(ids, rng),
             amount=[-amount],
             merchant_id=ids,
@@ -144,6 +134,38 @@ def generate_unusual_charges(
             channel=catalog.sample_channels(ids, rng),
             anomaly_kind=kind,
         )
+
+    def amount_outlier() -> bool:
+        if not favorites:
+            return False
+        stream, merchant = favorites[int(rng.integers(len(favorites)))]
+        base = catalog.price(merchant) * stream.amount_scale
+        charge("amount_outlier", merchant, base * float(rng.uniform(*spec.outlier_multiplier)))
+        return True
+
+    def new_merchant_large() -> bool:
+        if not novel:
+            return False
+        p = merchant_weights(catalog, novel, user.include_holdout, bias)
+        merchant = str(rng.choice(np.array(novel), p=p))
+        novel.remove(merchant)  # a second charge there would no longer be at a new merchant
+        base = catalog.price(merchant) * float(rng.uniform(*spec.outlier_multiplier))
+        charge("new_merchant_large", merchant, max(spec.new_merchant_min_amount, base))
+        return True
+
+    makers = {
+        "duplicate": duplicate,
+        "amount_outlier": amount_outlier,
+        "new_merchant_large": new_merchant_large,
+    }
+    dropped = 0
+    for _ in range(n):
+        first = str(rng.choice(spec.kinds))
+        # Fall back to the other kinds when the drawn one is impossible for this user
+        others = [str(k) for k in rng.permutation(spec.kinds) if k != first]
+        if not any(makers[kind]() for kind in [first, *others]):
+            dropped += 1
+    return dropped
 
 
 def generate_refunds(user: User, tl: Timeline, ledger: Ledger, events: EventsSpec) -> None:

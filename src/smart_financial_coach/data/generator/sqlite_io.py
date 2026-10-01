@@ -47,6 +47,7 @@ def write_sqlite(dataset: Dataset, path: Path, *, overwrite: bool = False) -> Pa
     tmp = path.with_name(path.name + ".tmp")
     tmp.unlink(missing_ok=True)
     conn = sqlite3.connect(tmp)
+    written = False
     try:
         conn.execute("PRAGMA journal_mode = OFF")
         conn.execute("PRAGMA synchronous = OFF")
@@ -62,8 +63,11 @@ def write_sqlite(dataset: Dataset, path: Path, *, overwrite: bool = False) -> Pa
         for statement in INDEXES:
             conn.execute(statement)
         conn.commit()
+        written = True
     finally:
         conn.close()
+        if not written:
+            tmp.unlink(missing_ok=True)
     tmp.replace(path)
     return path
 

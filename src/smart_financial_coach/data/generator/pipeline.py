@@ -45,8 +45,11 @@ def _timestamps(tl: Timeline, day: pd.Series, minute: pd.Series) -> list[str]:
 
 def generate_user(
     user: User, spec: Spec, tl: Timeline, catalog: Catalog, renderer: Renderer
-) -> dict[str, pd.DataFrame]:
-    """All stages for one user. Depends only on the spec, the catalog and the user's own seeds."""
+) -> tuple[dict[str, pd.DataFrame], int]:
+    """All stages for one user. Depends only on the spec, the catalog and the user's own seeds.
+
+    Returns the user's rows per table, and how many planned unusual charges were dropped.
+    """
     bias = spec.catalog.holdout.test_user_bias
     ledger = Ledger(user.user_id)
     generate_income(user, tl, catalog, ledger)
@@ -61,7 +64,7 @@ def generate_user(
         income["amount"].to_numpy(dtype=np.float64),
     )
     calibrate_discretionary(user, tl, catalog, ledger, daily_mult=daily, spikes=spike_mult)
-    generate_unusual_charges(user, tl, catalog, ledger, spec.events, bias)
+    dropped = generate_unusual_charges(user, tl, catalog, ledger, spec.events, bias)
     generate_refunds(user, tl, ledger, spec.events)
 
     txns = ledger.frame().sort_values(
@@ -76,7 +79,7 @@ def generate_user(
 
     goals, truth_goals = generate_goals(user, tl, txns, spec.goals)
     income_total = float(txns.loc[txns["process"] == "income", "amount"].sum())
-    return {
+    tables = {
         "users": pd.DataFrame(
             [
                 {
@@ -114,6 +117,7 @@ def generate_user(
         "truth_periods": spike_rows(user, tl, spikes),
         "truth_goals": truth_goals,
     }
+    return tables, dropped
 
 
 def _merchants_table(catalog: Catalog) -> pd.DataFrame:
@@ -136,8 +140,11 @@ def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) 
     renderer = Renderer(catalog, spec.rendering.distortion, spec.rendering.seed)
     total = sum(sum(p.users.values()) for p in spec.populations)
     parts: dict[str, list[pd.DataFrame]] = defaultdict(list)
+    dropped = 0
     for done, user in enumerate(iter_users(spec, catalog), start=1):
-        for name, frame in generate_user(user, spec, tl, catalog, renderer).items():
+        user_tables, user_dropped = generate_user(user, spec, tl, catalog, renderer)
+        dropped += user_dropped
+        for name, frame in user_tables.items():
             parts[name].append(frame)
         if progress is not None:
             progress(done, total)
@@ -170,5 +177,6 @@ def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) 
         "distortion": spec.rendering.distortion,
         "seeds": json.dumps(seeds, sort_keys=True),
         "categories": json.dumps(spec.categories),
+        "unusual_charges_dropped": str(dropped),
     }
     return Dataset(tables=tables, meta=meta)

@@ -11,7 +11,7 @@ import pandas as pd
 
 from smart_financial_coach.data.generator.catalog import load_catalog
 from smart_financial_coach.data.generator.dataset import TABLES, Dataset
-from smart_financial_coach.data.generator.spec import Spec, season_vector
+from smart_financial_coach.data.generator.spec import Spec, season_vector, spec_hash
 from smart_financial_coach.data.generator.taxonomy import INCOME
 
 MIN_HISTORY_MONTHS = 24
@@ -24,6 +24,8 @@ MESS_MIN_SHARE = {"light": 0.3, "realistic": 0.6, "heavy": 0.8}
 EVENT_COUNT_TOLERANCE = 0.4
 MIN_EVENTS_FOR_RATE_CHECK = 30
 MIN_SPIKES_FOR_LIFT_CHECK = 10
+# The holdout share varies a lot between users; below this many test users it is only reported
+MIN_TEST_USERS_FOR_HOLDOUT_CHECK = 30
 
 
 @dataclass
@@ -89,7 +91,8 @@ def _coverage(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None
 
 def _plausibility(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
     users = ds["users"].set_index("user_id")
-    income = tx[tx["amount"] > 0].groupby("user_id")["amount"].sum()
+    # Income as calibration measures it: refunds are positive but are not income
+    income = tx[tx["process"] == "income"].groupby("user_id")["amount"].sum()
     net = tx.groupby("user_id")["amount"].sum()
     rate = (net / income).reindex(users.index)
     in_range = [
@@ -233,13 +236,21 @@ def _events(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
         report.check(lift >= floor, f"events: median spike lift {lift:.2f} below {floor:.2f}")
 
 
-def _splits(tx: pd.DataFrame, ds: Dataset, report: Report) -> None:
+def _splits(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
     holdout = set(ds["truth_merchants"].loc[ds["truth_merchants"]["holdout"] == 1, "merchant_id"])
     leaked = tx[(tx["split"] == "train") & tx["merchant_id"].isin(holdout)]
     report.check(leaked.empty, f"splits: {len(leaked)} train transactions at holdout merchants")
     test_spend = tx[(tx["split"] == "test") & (tx["category"] != INCOME)]
     if len(test_spend):
-        report.stats["test_holdout_share"] = float(test_spend["merchant_id"].isin(holdout).mean())
+        share = float(test_spend["merchant_id"].isin(holdout).mean())
+        report.stats["test_holdout_share"] = share
+        low, high = spec.catalog.holdout.test_share_range
+        if test_spend["user_id"].nunique() >= MIN_TEST_USERS_FOR_HOLDOUT_CHECK:
+            report.check(
+                low <= share <= high,
+                f"splits: {share:.1%} of test spending is at holdout merchants, "
+                f"outside {low:.0%}-{high:.0%}",
+            )
     by_split = ds["users"].groupby("split")["user_id"].agg(set)
     if {"train", "test"} <= set(by_split.index):
         report.check(
@@ -247,7 +258,18 @@ def _splits(tx: pd.DataFrame, ds: Dataset, report: Report) -> None:
         )
 
 
-def _goals(ds: Dataset, report: Report) -> None:
+def _goals(ds: Dataset, spec: Spec, report: Report) -> None:
+    goals = ds["goals"]
+    end = str(spec.calendar.end)
+    report.check(bool((goals["as_of_date"] <= end).all()), "goals: as_of_date after the history")
+    report.check(
+        bool((goals["created_date"] <= goals["as_of_date"]).all()),
+        "goals: as_of_date before created_date",
+    )
+    report.check(
+        bool((goals["as_of_date"] < goals["target_date"]).all()),
+        "goals: as_of_date not before target_date, so current_balance can reveal the outcome",
+    )
     truth = ds["truth_goals"]
     known = truth[truth["met"].notna()]
     report.stats["goals_with_known_outcome"] = len(known)
@@ -266,6 +288,10 @@ def _goals(ds: Dataset, report: Report) -> None:
 
 def validate(ds: Dataset, spec: Spec) -> Report:
     report = Report()
+    if (built_from := ds.meta.get("spec_hash")) != spec_hash(spec):
+        # Checking against another spec's tolerances would be meaningless
+        report.errors.append(f"spec: dataset was built from spec {built_from}, not this spec")
+        return report
     _schema(ds, report)
     if not report.ok:
         return report
@@ -277,6 +303,7 @@ def validate(ds: Dataset, spec: Spec) -> Report:
     _seasonality(tx, spec, report)
     _mess(tx, ds, spec, report)
     _events(tx, ds, spec, report)
-    _splits(tx, ds, report)
-    _goals(ds, report)
+    _splits(tx, ds, spec, report)
+    _goals(ds, spec, report)
+    report.stats["unusual_charges_dropped"] = int(ds.meta.get("unusual_charges_dropped", 0))
     return report

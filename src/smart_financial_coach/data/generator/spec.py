@@ -34,6 +34,12 @@ def _months(value: dict[int, float]) -> dict[int, float]:
     return value
 
 
+def _positive(value: tuple[int, int]) -> tuple[int, int]:
+    if value[0] < 1:
+        raise ValueError("must be at least 1")
+    return value
+
+
 FloatRange = Annotated[tuple[float, float], AfterValidator(_ordered)]
 IntRange = Annotated[tuple[int, int], AfterValidator(_ordered)]
 Probability = Annotated[float, Field(ge=0.0, le=1.0)]
@@ -186,6 +192,8 @@ class HoldoutSpec(_Model):
     exclude_top_n_per_category: int = Field(default=3, ge=0)
     exclude_categories: list[str] = ["Income"]
     test_user_bias: Annotated[float, Field(gt=0)] = 1.0  # preference boost for holdout merchants
+    # Share of test users' spending transactions at holdout merchants that validation accepts
+    test_share_range: FloatRange = (0.15, 0.25)
     seed: int = 7
 
 
@@ -246,6 +254,8 @@ class GoalsSpec(_Model):
     }
     target_inside_history_share: Probability = 0.5
     allocation_share: FloatRange = (0.5, 0.9)  # share of monthly net savings put toward goals
+    # Months from as_of_date to target_date, for goals that end inside the history
+    forecast_horizon_months: Annotated[IntRange, AfterValidator(_positive)] = (3, 12)
 
 
 class Spec(_Model):
@@ -334,8 +344,12 @@ def load_spec(path: str | Path) -> Spec:
         files = sorted(Path(personas).glob("*.yaml"))
         if not files:
             raise ValueError(f"no persona files in {personas}")
-        loaded = [_read_yaml(f) for f in files]
-        raw["personas"] = {p["name"]: p for p in loaded}
+        raw["personas"] = {}
+        for file in files:
+            persona = _read_yaml(file)
+            if persona.get("name") in raw["personas"]:
+                raise ValueError(f"{file}: duplicate persona name {persona['name']!r}")
+            raw["personas"][persona.get("name")] = persona
     return Spec.model_validate(raw)
 
 

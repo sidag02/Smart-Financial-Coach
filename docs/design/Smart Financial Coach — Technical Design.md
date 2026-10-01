@@ -59,7 +59,7 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 | --- | --- |
 | Transaction | transaction\_id, user\_id, timestamp, amount, currency, merchant\_raw, channel |
 | User | user\_id, persona, monthly\_income\_estimate |
-| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date, current\_balance |
+| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date, as\_of\_date, current\_balance (as of as\_of\_date) |
 | Anomaly flag | flag\_id, user\_id, level (transaction or period), ref (transaction\_id or period + category), score, reason |
 
 **Ground truth** (eval only, in separate `truth_*` tables that models never read)

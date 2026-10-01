@@ -70,6 +70,7 @@ TABLES: dict[str, Table] = {
             C("target_amount", "REAL"),
             C("created_date", "TEXT"),
             C("target_date", "TEXT"),
+            C("as_of_date", "TEXT"),
             C("current_balance", "REAL"),
         ),
         _t(

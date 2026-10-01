@@ -52,6 +52,19 @@ def test_unknown_category_is_rejected(tmp_path: Path, configs: Path) -> None:
         load_spec(path)
 
 
+def test_duplicate_persona_names_are_rejected(tmp_path: Path, configs: Path) -> None:
+    personas = tmp_path / "personas"
+    personas.mkdir()
+    for copy in ("a.yaml", "b.yaml"):
+        (personas / copy).write_text(
+            (configs / "personas" / "freelancer.yaml").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+    path = _write_override(tmp_path, configs, f"personas: {personas}\n")
+
+    with pytest.raises(ValueError, match="duplicate persona name 'freelancer'"):
+        load_spec(path)
+
+
 def test_reversed_range_is_rejected() -> None:
     with pytest.raises(ValidationError, match="range low"):
         StreamSpec(category="Dining", weekly_rate=(3.0, 1.0))

@@ -153,7 +153,8 @@ All tables live in one SQLite file. Model-visible tables have plain names; groun
 | target_amount | REAL | |
 | created_date | TEXT | Date the goal was set |
 | target_date | TEXT | Inside the history for about half of goals, so their outcome is known |
-| current_balance | REAL | Saved toward the goal at the end of the history, or at `target_date` if earlier |
+| as_of_date | TEXT | Date `current_balance` is measured at: 3–12 months before `target_date` for goals that end inside the history, otherwise the end of the history |
+| current_balance | REAL | Saved toward the goal as of `as_of_date` |
 
 **truth_transactions** (eval only, one row per transaction)
 
@@ -330,7 +331,9 @@ Goals are generated after balances, so their outcomes are known.
 
 - Each user gets goals from their persona's goal types, with a created date inside the history.
 - About half (spec-set) have a target date **inside** the history, so `truth_goals.met` is realized and the Brier score for P(goal met) can be computed by backtest. The rest have target dates after the history, as a live product would.
+- `current_balance` is reported as of `as_of_date`. For goals that end inside the history, that date is a backtest origin 3–12 months (spec-set) before the target, so the visible row never contains the savings that decide `met`. Reporting it at the target date would let a model read the outcome as `current_balance >= target_amount`.
 - Targets are set relative to the user's own savings so outcomes split roughly evenly across on track, borderline and off track.
+- **Known limitation:** goal savings are notional. They are a share of each month's net savings, floored at zero, and no transfer transactions record them. So `current_balance` can't be reconciled with the ledger, and the floor can put it above the user's actual cumulative savings. This is acceptable for v1 forecasting evaluation; modelling transfers to a savings account would fix it.
 
 ### 10. Reproducibility
 
@@ -448,7 +451,9 @@ A `validate` step runs after generation and in CI, failing loudly rather than le
 - **Seasonality present:** e.g. family Childcare & Education spend in Sep–May well above June–Aug; Utilities follow the heating/cooling curve.
 - **Mess present:** at `realistic` distortion, most `merchant_raw` values differ from canonical names and each merchant appears with several distinct strings.
 - **Events present and consistent:** planted event counts match the spec rates within tolerance; the median observed lift across spike periods reflects the planted multipliers.
-- **Split isolation:** holdout merchants never appear for train users; train and test user IDs don't overlap.
+- **Split isolation:** holdout merchants never appear for train users; train and test user IDs don't overlap; with at least 30 test users, the share of test spending at holdout merchants is inside the spec's `test_share_range` (default 15–25%).
+- **Goals:** `created_date <= as_of_date < target_date`, and known outcomes agree with their planned class.
+- **Right spec:** validation refuses a dataset whose `meta.spec_hash` doesn't match the spec it's checked against.
 - **Determinism:** two runs of `small.yaml` give the same content hash.
 
 ## Testing
@@ -502,11 +507,12 @@ The recommendations below were adopted when FR-1 was implemented.
 
 What the implementation settled or changed relative to the draft above.
 
-- **Default dataset:** 300 users, 896k transactions, 1,326 unusual charges, 990 spike periods, 204 goals with known outcomes; about 27 s to generate on a laptop; all quality checks pass.
+- **Default dataset:** 300 users, 896k transactions, 1,326 unusual charges, 990 spike periods, 199 goals with known outcomes; about 27 s to generate on a laptop; all quality checks pass.
 - **User IDs** include the persona code (`u_tr_yp_0042`), so seeds stay stable when another persona's count changes.
 - **The merchant table** is `truth_merchants`, following the `truth_*` naming that keeps eval-only data out of features.
 - **One-offs** are defined per persona; the spec's `events.one_off.rate_scale` scales them all.
 - **SQLite tables** are `WITHOUT ROWID`, which cut the default file from 228 MB to ~200 MB. Size is dominated by text IDs and merchant strings.
 - **Spike check** uses the median lift across spikes, since a single week of Poisson purchases can miss its planted lift by chance.
 - **Seasonality check** only tests profiles that vary by at least ×1.5; weaker profiles (e.g. ×1.3 winter pharmacy) are too noisy to test on the small spec.
+- **Unusual charges** fall back to another kind when the drawn kind is impossible for a user (e.g. no merchants left that are new to them). Any that still can't be produced are counted in `meta.unusual_charges_dropped` (0 on the default spec).
 - **Not built yet:** parallel generation (users are independent, so it can be added without changing output) and the realism notebook.

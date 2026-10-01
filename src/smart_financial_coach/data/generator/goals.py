@@ -2,6 +2,10 @@
 
 About half the goals (spec-set) have a target date inside the history, so `truth_goals.met` is
 realized; the rest end after the history, as a live product would see them.
+
+`current_balance` is reported as of `as_of_date`. For goals that end inside the history that date
+is 3-12 months (spec-set) before the target, like a rolling backtest origin, so the model-visible
+row never contains the savings that decide `met`.
 """
 
 from datetime import date
@@ -22,6 +26,14 @@ def _month_end_after(end: date, months_after: int) -> str:
     return str((month + 1).astype("datetime64[D]") - 1)
 
 
+def _saved(net: np.ndarray, share: float, first: int, last: int) -> float:
+    """Running share of monthly net savings; savings toward a goal can't go negative."""
+    saved = 0.0
+    for m in range(first, last + 1):
+        saved = max(0.0, saved + share * float(net[m]))
+    return saved
+
+
 def generate_goals(
     user: User, tl: Timeline, txns: pd.DataFrame, spec: GoalsSpec
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -40,28 +52,30 @@ def generate_goals(
     classes = list(spec.outcome_mix)
     class_p = np.array([spec.outcome_mix[c] for c in classes])
     last = tl.n_months - 1
+    h_low, h_high = spec.forecast_horizon_months
 
     goals: list[dict[str, object]] = []
     truth: list[dict[str, object]] = []
     for j, (type_idx, share) in enumerate(zip(picked, shares, strict=True)):
-        inside = tl.n_months >= 12 and rng.random() < spec.target_inside_history_share
+        # Room for: 2 warm-up months, created < as_of, and the shortest horizon
+        inside = last - h_low > 3 and rng.random() < spec.target_inside_history_share
         if inside:
-            created_m = int(rng.integers(2, tl.n_months - 7))
-            target_m = created_m + int(rng.integers(6, min(18, last - created_m) + 1))
+            # created < as_of < target, all inside the history; target is h_low..h_high months out
+            created_m = int(rng.integers(2, last - h_low))
+            as_of_m = min(created_m + int(rng.integers(1, 7)), last - h_low)
+            target_m = as_of_m + int(rng.integers(h_low, min(h_high, last - as_of_m) + 1))
             target_date = str(tl.date_of(int(tl.month_last[target_m])))
+            current = _saved(net, share, created_m, as_of_m)
+            reference = _saved(net, share, created_m, target_m)
+            final: float | None = reference
         else:
             created_m = int(rng.integers(max(0, tl.n_months - 12), last))
-            ahead = int(rng.integers(3, 13))
-            target_m = last + ahead
+            as_of_m = last
+            ahead = int(rng.integers(h_low, h_high + 1))
             target_date = _month_end_after(tl.end, ahead)
-        saved = 0.0
-        for m in range(created_m, min(target_m, last) + 1):
-            saved = max(0.0, saved + share * net[m])  # savings toward a goal can't go negative
-        if inside:
-            reference = saved
-        else:
-            recent = max(0.0, float(net[-12:].mean()))
-            reference = saved + share * recent * (target_m - last)
+            current = _saved(net, share, created_m, last)
+            final = None
+            reference = current + share * max(0.0, float(net[-12:].mean())) * ahead
         outcome = str(rng.choice(classes, p=class_p / class_p.sum()))
         if reference <= 100:
             outcome = "off_track"
@@ -81,14 +95,15 @@ def generate_goals(
                 "target_amount": target,
                 "created_date": str(tl.date_of(created_day)),
                 "target_date": target_date,
-                "current_balance": round(saved, 2),
+                "as_of_date": str(tl.date_of(int(tl.month_last[as_of_m]))),
+                "current_balance": round(current, 2),
             }
         )
         truth.append(
             {
                 "goal_id": goal_id,
                 "outcome_class": outcome,
-                "met": int(saved >= target) if inside else None,
+                "met": None if final is None else int(final >= target),
             }
         )
     return pd.DataFrame(goals), pd.DataFrame(truth)

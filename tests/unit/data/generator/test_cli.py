@@ -22,3 +22,6 @@ def test_generate_validate_and_hash(
     assert main(["hash", str(out)]) == 0
     digest = capsys.readouterr().out.strip()
     assert f"content hash {digest}" in generated
+
+    # A database checked against a spec it wasn't built from is rejected
+    assert main(["validate", "--spec", str(configs / "clean.yaml"), str(out)]) == 1
