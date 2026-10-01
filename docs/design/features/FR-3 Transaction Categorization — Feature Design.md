@@ -8,12 +8,12 @@ This feature builds the categorization service: every transaction gets exactly o
 
 - **Requirement:** FR-3 (P0): *"Assign every transaction one category from a fixed set of about 12."* Success metric (PRD): macro F1 ≥ 0.90 on known merchants.
 - **Neighbour:** FR-4 (P0, *"categorize merchants the system has never seen before"*, macro F1 ≥ 0.80) runs on the same service. This design builds the service and measures FR-4 from day one, but leaves closing the FR-4 gap to its own design (see [Scope](#scope-fr-3-versus-fr-4)).
-- **Feasibility, measured on the default dataset** ([evidence](#feasibility)): a plain linear model on character n-grams already reaches **0.99** macro F1 on known merchants. On unseen merchants it reaches **0.50**. Adding pretrained sentence embeddings lifts unseen merchants to **0.64** (95% interval 0.56–0.73) and keeps known merchants at 0.99. FR-3's target is easy; FR-4's is not, and even the interval's upper end is below 0.80.
+- **Feasibility, measured on the default dataset** ([evidence](#feasibility)): a plain linear model on character n-grams already reaches **0.99** macro F1 on known merchants. On unseen merchants it reaches **0.50**. Pretrained sentence embeddings lift unseen merchants to **0.64** (95% interval 0.56–0.73), alone or combined with n-grams. The combination keeps known merchants at 0.99. FR-3's target is easy; FR-4's is not, and even the interval's upper end is below 0.80.
 - **Approach:**
   1. A batch-first **service contract** that takes model-visible transaction rows and returns category, confidence and model version.
   2. A shared **merchant-text normalizer** in the feature pipeline, reused later by the anomaly service.
   3. A **keyword baseline** built from generic words only, never merchant names.
-  4. A **linear text categorizer** (character n-grams + embeddings + amount, sign and channel). It is the default candidate, and the Technical Design's other model families compete with it by experiment.
+  4. A **linear text categorizer** (character n-grams + embeddings + amount, sign and channel). It is the default candidate, and the Technical Design's other model families compete with it by experiment. FR-3 Categorization Model Selection explains this choice, the alternatives, and what would change it.
   5. A **training and evaluation slice** for categorization: splits, label noise, metrics and report. It becomes the first part of the evaluation harness (build order step 4).
 - **Principle (carried from FR-2):** the data is not tuned to make targets pass. The ambiguous-merchant ceiling is reported, not trained around.
 
@@ -52,21 +52,25 @@ Both requirements use one service and one model, so the line is drawn by what ea
 
 ## Feasibility
 
-**Evidence:** branch `poc/fr-3-categorization` ([POC folder](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization)). `feasibility.py` trains and scores the models, and `plots.py` draws the charts. Every number below is in the [results report](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/feasibility.md), along with per-class precision and recall, confusion matrices and per-merchant accuracy in `feasibility.json`. There is also a [full-page screenshot](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/screenshots/report.png) of the HTML report and each [chart](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures). The run used the default dataset (spec hash `130e78f55383`) and seed 0. A second run gives identical metrics.
+**Evidence:** POC branch `poc/fr-3-categorization`. All links here are pinned to commit [`55d4197`](https://github.com/sidag02/Smart-Financial-Coach/tree/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization), so they can't change. `feasibility.py` trains and scores the models, and `plots.py` draws the charts. Every number below is in the [results report](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/feasibility.md). `feasibility.json` adds per-class precision and recall, confusion matrices, per-merchant accuracy and calibration. There is also a [full-page screenshot](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/screenshots/report.png) of the HTML report and each [chart](https://github.com/sidag02/Smart-Financial-Coach/tree/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/figures). The run used the default dataset (spec hash `130e78f55383`) and seed 0. A second run gives identical metrics.
 
-Setup: the Technical Design's splits, no label noise, no tuning. The model is logistic regression with balanced class weights, trained on 194k train-user transactions (at most 20k per class). Macro F1 is over the 12 spending categories. The unseen-merchant interval comes from 1,000 bootstrap resamples of merchants within each category (see [§6](#6-evaluation)).
+Setup: the Technical Design's splits, no label noise, no calibration. The model is logistic regression with balanced class weights, trained on 194k train-user transactions (at most 20k per class). Macro F1 is over exactly the 12 spending categories.
+
+**How the regularization strength was chosen.** C was set by hand before the first run, at 10 for n-grams (many sparse features) and 3 for the embedding variants (384 dense ones). It was not tuned on test results or anything else. A sensitivity check afterwards, at C = 1, 3 and 10, was not used to choose C. It moves unseen-merchant F1 by at most 0.03 and known-merchant F1 by at most 0.002, and changes no conclusion. If anything, C = 10 slightly understates n-grams on unseen merchants (0.504 vs 0.531 at C = 1–3). The design chooses C on validation splits (§5). The unseen-merchant interval comes from 1,000 bootstrap resamples of merchants within each category (see [§6](#6-evaluation)).
 
 | Features | Known merchants (145k txns) | All test users (375k) | Unseen merchants (78k) | Unseen, 95% interval |
 | --- | --- | --- | --- | --- |
 | Character 2–4-grams of `merchant_raw` + amount bin, sign, channel, hour | 0.986 | 0.868 | 0.504 | 0.44–0.56 |
-| Sentence embedding of normalized text (`bge-small-en-v1.5`, 384-d) + same side features | 0.973 | 0.842 | 0.593 | 0.55–0.73 |
-| Both | **0.988** | **0.929** | **0.638** | 0.56–0.73 |
+| Sentence embedding of normalized text (`bge-small-en-v1.5`, 384-d) + same side features | 0.973 | 0.913 | **0.643** | 0.55–0.73 |
+| Both | **0.988** | **0.929** | 0.638 | 0.56–0.73 |
 
-![Macro F1 by test set](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/headline.png?raw=true)
+*Corrected in review:* an earlier version showed 0.842 and 0.593 for the embeddings row. Macro F1 had averaged over a 13th label (Income, F1 0) after one spending transaction was predicted as Income. The POC now passes the 12 spending labels explicitly, and no other row changed.
+
+![Macro F1 by test set](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/figures/headline.png?raw=true)
 
 No bootstrap resample of any model reaches 0.80; the best of 1,000 is 0.793.
 
-![Unseen-merchant bootstrap distribution](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/unseen_bootstrap.png?raw=true)
+![Unseen-merchant bootstrap distribution](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/figures/unseen_bootstrap.png?raw=true)
 
 Unseen-merchant accuracy by catalog scope (transaction-weighted):
 
@@ -76,17 +80,27 @@ Unseen-merchant accuracy by catalog scope (transaction-weighted):
 | Local (fictional) | 19 | 26.7k | 0.72 | 0.82 | 0.80 |
 | Online services | 14 | 17.4k | 0.43 | 0.93 | 0.87 |
 
-![Accuracy by merchant type](https://github.com/sidag02/Smart-Financial-Coach/blob/poc/fr-3-categorization/experiments/fr3_categorization/results/figures/unseen_by_scope.png?raw=true)
+![Accuracy by merchant type](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/figures/unseen_by_scope.png?raw=true)
 
 What the errors show:
 
 - **N-grams can't name what an unseen brand sells.** N-gram accuracy is 0.11 on Taco Bell, 0.09 on McDonald's, 0.01 on Caviar and 0.53 on Walmart.com. Embeddings get all four right: 1.00, 0.47, 1.00 and 1.00. That knowledge comes from outside the training data.
 - **Some merchants defeat both.** Arco (0.01), Rite Aid (0.01), Giant Eagle (0.00), Alamo Drafthouse (0.00) and Sittercity (0.03) are wrong under every feature set. A small embedding model doesn't know these brands well enough. These five account for 6.8k unseen transactions.
-- **Combining features sometimes hurts.** Embeddings alone beat both on online services (0.93 vs 0.87) and local names (0.82 vs 0.80). On Caviar the combination drops from 1.00 to 0.64, and on Corner Fresh Grocery from 0.86 to 0.04. N-grams memorized from training merchants outvote the embedding when a string is unfamiliar. FR-4 should therefore try routing by familiarity rather than a single combined model.
+- **On unseen merchants, combining features doesn't help overall.** Embeddings alone tie the combination (0.643 vs 0.638). By scope, embeddings alone are ahead on online services (0.93 vs 0.87) and local names (0.82 vs 0.80), and behind on real chains (0.62 vs 0.69). On Caviar the combination drops from 1.00 to 0.64, and on Corner Fresh Grocery from 0.86 to 0.04: n-grams memorized from training merchants outvote the embedding when a string is unfamiliar. The combination still wins on known merchants and all test users, so it stays the FR-3 default. FR-4 should try routing by familiarity.
 - **Descriptive local names are easy.** Driftwood Coffee Co, Golden Hour Bakery and Little Owl Espresso are 1.00 under every feature set.
 - **Housing, Insurance & Fees, Utilities and Subscriptions transfer well.** Per-class F1 on unseen merchants is 0.91–1.00 with both feature sets, because their text ("APARTMENTS", "AUTOPAY", "FEE") and the `ach` channel are shared across merchants.
 - **Income is trivial.** Its F1 is 1.000 on known merchants under every feature set, which is why it's left out of the headline ([§4](#4-income)).
-- **Embedding cost is negligible.** 12.8k unique normalized strings embed in about 10 s on a laptop CPU through `fastembed` (ONNX, no PyTorch).
+- **Confidence is calibrated on known merchants but over-confident on unseen ones.** The model is uncalibrated in the POC. The ranking is still useful: confidence ≥ 0.9 is at least 96.5% accurate on unseen merchants. This drives the calibration design in §3 and §5.
+
+  | Features | Calibration error (ECE), known | ECE, unseen | Unseen: accuracy at confidence ≥ 0.9 | Unseen: share of rows at ≥ 0.9 |
+  | --- | --- | --- | --- | --- |
+  | N-grams | 0.008 | 0.160 | 0.965 | 32% |
+  | Embeddings | 0.012 | 0.100 | 0.967 | 61% |
+  | Both | 0.009 | 0.056 | 0.992 | 39% |
+
+  ![Calibration](https://github.com/sidag02/Smart-Financial-Coach/blob/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization/results/figures/calibration.png?raw=true)
+
+- **Embedding cost is negligible.** 12.8k unique normalized strings embed in about 10 s on a laptop CPU through `fastembed` (ONNX, no PyTorch). The file `fastembed` actually downloads is Qdrant's quantized ONNX export, `Qdrant/bge-small-en-v1.5-onnx-Q` at revision `aa8f8b060edb`, not the original model, so results depend on that exact file (see [Model artifact](#model-artifact)).
 
 ## Goals and non-goals
 
@@ -95,7 +109,7 @@ What the errors show:
 1. Every transaction gets one of the 12 spending categories or Income, plus a confidence in [0, 1].
 2. Known-merchant macro F1 ≥ 0.90, above the keyword baseline, reproducible on rerun (NFR-8).
 3. Unseen-merchant macro F1 is measured and reported with a confidence interval from the first commit, so FR-4 starts from a number.
-4. Confidence is calibrated well enough for FR-5 to threshold it later (reported as expected calibration error).
+4. Confidence is calibrated on **unseen as well as known** merchants, well enough for FR-5 to threshold it later. Expected calibration error is reported on every test set and for seen and unseen strings separately. The POC's uncalibrated model is at 0.009 on known merchants and 0.056 on unseen ones.
 5. Model code never reads ground truth. Labels reach the model only as a training argument.
 6. Single-transaction latency is well inside the chat budget (NFR-5): target < 5 ms per transaction on CPU for the default model.
 
@@ -160,7 +174,7 @@ Predictions are written to a separate SQLite file, not the generator's file (opt
 
 ### Model artifact
 
-`artifacts/categorizer/<version>/` holds the fitted pipeline (`model.joblib`), the embedding model name and revision, and `manifest.json`: config hash, training data `spec_hash`, git commit, seeds, metrics. The version is derived from the config hash and the data `spec_hash`. Loading checks the manifest. Only artifacts from this folder are loaded, since joblib files are pickles.
+`artifacts/categorizer/<version>/` holds the fitted pipeline (`model.joblib`) and `manifest.json`: config hash, training data `spec_hash`, git commit, seeds, metrics, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is derived from the config hash and the data `spec_hash`. Loading checks the manifest. Only artifacts from this folder are loaded, since joblib files are pickles.
 
 ## Design
 
@@ -197,8 +211,9 @@ The feasibility "both" configuration, made into a reproducible scikit-learn pipe
 | Channel | one-hot | `card_present`, `online`, `ach`, `other` |
 | Hour of day | 3-hour bins of local `ts` | Kept only if the ablation shows it helps (milestone 3) |
 
-- **Classifier:** multinomial logistic regression, balanced class weights, regularization chosen on a validation split.
-- **Confidence:** the predicted class's probability after calibration on the validation split (temperature or isotonic, chosen by expected calibration error).
+- **Classifier:** multinomial logistic regression with balanced class weights. C is chosen from {1, 3, 10} on the validation splits in §5.
+- **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. This is model-visible, so it works the same way in production. Seen strings are calibrated on the known-merchant validation split, and unseen strings on the merchant-holdout validation split. The method (temperature or isotonic) is chosen by expected calibration error.
+- **Why split calibration by familiarity:** in feasibility the model is already calibrated on known merchants (ECE 0.009). A calibrator fitted on known merchants would change almost nothing there and leave unseen merchants over-confident (ECE up to 0.16). That is the case FR-5's low-confidence review exists for.
 - **Why this default:** it meets the FR-3 target by a wide margin, trains in seconds on CPU, and stays explainable (top n-grams per class). The other families in the Technical Design (gradient-boosted trees, small fine-tuned transformer) compete with it in milestone 3 under the selection criteria, in order.
 
 ### 4. Income
@@ -216,8 +231,12 @@ This closes the open question carried from FR-1 and FR-2, pending review.
 Owned by the evaluation side (`evaluation/categorization.py`), which is allowed to read truth:
 
 1. Load model-visible transactions and `truth_transactions.category` for train users.
-2. **Split:** the Technical Design's stratified 80/20 by transaction within train users is the known-merchant test. A further 10% of the 80% is the validation split, for regularization and calibration.
-3. **Label noise:** flip a configurable share of training labels uniformly to another category. The default is 2%, a Technical Design control against flattering results. It applies to training rows only, and the report states the rate.
+2. **Splits**, all within train users:
+   - **Known-merchant test:** the Technical Design's stratified 20% by transaction. Rows at merchant-holdout validation merchants are dropped from it, so it stays all-known.
+   - **Merchant-holdout validation:** a seeded 15% of the merchants train users use is kept out of training entirely. A category's top merchants are never chosen, mirroring the catalog's holdout rule. Train users' remaining transactions at these merchants are the validation set for unseen behavior.
+   - **Known validation:** 10% of the remaining training rows.
+   - C is chosen on the mean macro F1 of the two validation sets. Calibration is fitted per familiarity group (§3).
+3. **Label noise:** applied *after* splitting, to training rows only. It flips a configurable share of labels uniformly to another category; the default is 2%, a Technical Design control against flattering results. It never touches validation, calibration or test rows, so calibration can't learn the noise. The report states the rate.
 4. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k), sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes.
 5. Fit, calibrate, write the artifact and manifest.
 
@@ -231,7 +250,9 @@ Owned by the evaluation side (`evaluation/categorization.py`), which is allowed 
 | Ambiguity ceiling | Majority-category oracle on known merchants | Per-class F1 for Groceries and Shopping, shown next to the model's |
 | Refunds | Positive-amount spending transactions | Accuracy, so refunds aren't silently called Income |
 
-Also reported: expected calibration error, accuracy at confidence ≥ 0.9 and the share of transactions above that threshold (FR-5 groundwork), and p50 / p95 latency for a one-row batch and for 10k rows.
+Also reported: expected calibration error on every test set and for seen and unseen strings, accuracy at confidence ≥ 0.9 and the share of transactions above that threshold (FR-5 groundwork), and p50 / p95 latency for a one-row batch and for 10k rows.
+
+**Robustness of the known-merchant gate (checked in review).** 84.5% of known-merchant test strings appear verbatim in training, so memorization was a concern. But the n-gram model scores 0.986 on strings it has never seen as well. With a split by user instead of by transaction, it scores 0.985 overall and 0.970 on new strings. The gate doesn't rest on memorized strings. The report adds a never-seen-string slice of the known test so this stays visible.
 
 **Why a merchant-level bootstrap:** the unseen set has 78k transactions but only 58 merchants, as few as 3 for Travel and Entertainment. One merchant decides a class's F1, so a transaction-level interval would be falsely narrow.
 
@@ -280,7 +301,8 @@ New dependency: `fastembed` (ONNX runtime, about 130 MB model download, cached).
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Character n-grams only | No new dependency; 0.99 on known merchants | 0.50 on unseen merchants: no knowledge from outside the training data |
-| **(b) N-grams + frozen sentence embeddings (recommended)** | Best on every test set (0.99 / 0.93 / 0.64); CPU, seconds | New dependency and a model download; pins an external model revision |
+| **(b) N-grams + frozen sentence embeddings (recommended)** | Best on known merchants and all test users (0.99 / 0.93); ties embeddings alone on unseen merchants (0.64); CPU, seconds | New dependency and a model download; pins an external model file (checksum in the manifest) |
+| (d) Frozen sentence embeddings only | Ties the best on unseen merchants (0.64); 0.91 on all test users | 0.97 on known merchants: loses exact-merchant memory |
 | (c) Fine-tuned small transformer | Possibly best on unseen merchants | Training cost, GPU likely, heavier ops; a milestone 3 candidate, not the default |
 
 ### C. Where predictions live
@@ -309,7 +331,7 @@ New dependency: `fastembed` (ONNX runtime, about 130 MB model download, cached).
 
 ## Testing
 
-- **Unit:** normalizer on every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
+- **Unit:** label noise never touches validation, calibration or test rows. Loading an artifact whose embedding file checksum doesn't match the manifest fails. The merchant-holdout validation merchants never appear in training rows. The normalizer handles every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
 - **Integration (`small.yaml`, stub embedder):** train → evaluate → predict runs end to end, beats the baseline on known merchants, and a rerun gives identical metrics (NFR-8).
 - **Slow (`default.yaml`, real embedder):** known-merchant macro F1 ≥ 0.90; latency within budget.
 - **Isolation:** the existing test covers `intelligence/categorization/`.
@@ -324,22 +346,23 @@ New dependency: `fastembed` (ONNX runtime, about 130 MB model download, cached).
 
 ## Decisions and open questions
 
-**Decisions needed from review**
+**Decisions** (review on PR #4)
 
-- [ ] FR-3 / FR-4 split as above: FR-3 gates on known merchants, FR-4 owns the unseen-merchant gap.
-- [ ] Batch contract over model-visible rows (A-b).
-- [ ] N-grams + frozen sentence embeddings as the default, adding `fastembed` (B-b).
-- [ ] Predictions in a separate SQLite file (C-b).
-- [ ] Income as a predicted class, excluded from the headline macro F1 (D-b).
-- [ ] 2% uniform training label noise (E-b).
+- [x] FR-3 / FR-4 split as above: FR-3 gates on known merchants, FR-4 owns the unseen-merchant gap.
+- [x] Batch contract over model-visible rows (A-b).
+- [x] N-grams + frozen sentence embeddings as the default, adding `fastembed` (B-b). Condition: the manifest records the embedding file's source, revision and checksum, and loading verifies it.
+- [x] Predictions in a separate SQLite file (C-b).
+- [x] Income as a predicted class, excluded from the headline macro F1 (D-b).
+- [x] 2% uniform training label noise (E-b). Condition: applied after splitting, never to validation, calibration or test rows.
+- [x] C and calibration chosen on validation splits that include a merchant holdout; calibration split by familiarity (from review).
 
 **Technical Design updates (after approval)**
 
 - [ ] `categorize` contract: batch of transaction rows → category, confidence, model version.
 - [ ] Data store: model outputs live in a separate predictions file per model version.
-- [ ] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants.
+- [ ] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants; merchant-holdout validation split; ECE on every test set.
 
 **Open questions**
 
 - [ ] **FR-4 approach.** Embeddings get 0.64 (interval 0.56–0.73) against the 0.80 target. Options for the FR-4 design: a larger embedding model; training on one row per unique merchant string, so frequent merchants don't dominate; or an LLM fallback for low-confidence, never-seen strings, cached per normalized merchant so cost scales with merchants, not transactions. The LLM option would make categorization depend on the LLM provider, which NFR-6 avoids for the dashboard. A cached fallback would keep the dashboard working during an outage, but new merchants would wait.
-- [ ] Is the unseen-merchant target realistic with 3–10 merchants per class? The feasibility interval is 0.17 wide, so near the target a pass or fail would be mostly luck. FR-4 may need a larger holdout or a merchant-level metric, decided the way FR-2 decided weekly spikes.
+- [ ] Is the unseen-merchant target realistic with 3–10 merchants per class? The feasibility interval is 0.17 wide, so near the target a pass or fail would be mostly luck. FR-4 may need a larger holdout or a merchant-level metric. The review agrees this should be settled in the FR-4 design, the way FR-2 decided weekly spikes.
