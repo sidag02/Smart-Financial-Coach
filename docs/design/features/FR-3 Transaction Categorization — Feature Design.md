@@ -135,7 +135,9 @@ from smart_financial_coach.data.store import load_transactions
 from smart_financial_coach.intelligence.categorization import load_categorizer
 
 categorizer = load_categorizer("artifacts/categorizer/<version>")
-txns = load_transactions("data/synthetic/default.sqlite", user_id="u_te_yp_0007")  # model-visible only
+txns = load_transactions(
+    "data/synthetic/default.sqlite", user_id="u_te_yp_0007"
+)  # model-visible only
 categorizer.categorize(txns)  # -> DataFrame[transaction_id, category, confidence, model_version]
 ```
 
@@ -146,10 +148,11 @@ The Technical Design fixes `categorize(merchant_raw, amount) → {category, conf
 ```python
 class Categorizer(Protocol):
     version: str
-    categories: tuple[str, ...]          # 12 spending categories + Income, from meta
+    categories: tuple[str, ...]  # 12 spending categories + Income, from meta
 
     def fit(self, transactions: pd.DataFrame, labels: pd.Series) -> Self: ...
     def categorize(self, transactions: pd.DataFrame) -> pd.DataFrame: ...
+
     #   in:  transaction_id, user_id, ts, amount, currency, merchant_raw, channel
     #   out: transaction_id, category, confidence, model_version
 ```
