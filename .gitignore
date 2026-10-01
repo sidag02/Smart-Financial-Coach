@@ -26,3 +26,6 @@ data/*
 # OS / editors
 .DS_Store
 .idea/
+
+# Experiment tracking (local MLflow store)
+mlruns/

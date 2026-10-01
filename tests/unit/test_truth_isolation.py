@@ -1,4 +1,7 @@
-"""Model code must never read ground truth (FR-2 §5): no `truth_*` tables, no label contract."""
+"""Model code must never read ground truth (FR-2 §5): no `truth_*` tables, no label contract.
+
+Serving code must not depend on the experiment tracker either: no `mlflow` under `intelligence/`.
+"""
 
 import re
 from pathlib import Path
@@ -6,7 +9,7 @@ from pathlib import Path
 from smart_financial_coach.config import PROJECT_ROOT
 
 MODEL_CODE = PROJECT_ROOT / "src" / "smart_financial_coach" / "intelligence"
-FORBIDDEN = re.compile(r"truth_|data\.labels|data import labels", re.IGNORECASE)
+FORBIDDEN = re.compile(r"truth_|data\.labels|data import labels|\bmlflow\b", re.IGNORECASE)
 
 
 def truth_reads(root: Path) -> list[str]:
@@ -28,8 +31,9 @@ def test_check_catches_truth_reads(tmp_path: Path) -> None:
         'rows = conn.execute("SELECT * FROM truth_periods")\n'
         "from smart_financial_coach.data import labels\n"
         "from smart_financial_coach.data.labels import load_truth\n"
-        "from smart_financial_coach.data.generator import TRUTH_TABLES\n",
+        "from smart_financial_coach.data.generator import TRUTH_TABLES\n"
+        "import mlflow\n",
         encoding="utf-8",
     )
 
-    assert len(truth_reads(tmp_path)) == 4
+    assert len(truth_reads(tmp_path)) == 5

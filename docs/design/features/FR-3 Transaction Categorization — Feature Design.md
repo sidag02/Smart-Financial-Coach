@@ -221,15 +221,18 @@ The truth boundary doesn't move: `intelligence/` never reads truth and never imp
 
 ```python
 class Model(Protocol):
-    name: str  # registry key, e.g. "categorization/linear_text"
+    name: ClassVar[str]  # registry key, e.g. "categorization/linear_text"
     version: str
-    params: Mapping[str, Any]
+
+    @property
+    def params(self) -> Mapping[str, Any]: ...
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self: ...
+
     def predict(self, x: pd.DataFrame) -> pd.DataFrame: ...
-    def save(self, path: Path) -> None: ...
 ```
 
+- **Persistence is not the model's job:** `artifact.py` saves every model the same way (joblib + manifest + checksum). A model holding something that can't be pickled, such as an ONNX session, drops it in `__getstate__` and reopens it on first use.
 - **`y` is optional** because anomaly and spike models are unsupervised; categorization always passes it.
 - **Registry:** implementations register under a name (`@register("categorization/linear_text")`) and are built from config, so a new candidate is a class plus a YAML file. The runner, MLflow logging and promotion don't change.
 - **Composition:** wrappers implement the same protocol, so FR-4's ideas are configurations, not new plumbing:
@@ -252,7 +255,7 @@ A `Task` owns everything problem-specific, so the runner stays generic. The cate
   | `test_unseen` | `test_all` ∩ `membership(holdout merchants)` | Unseen merchants, finalists only |
   | Validation folds | `group_kfold(merchant_id, k=5, stratify=category, eligible=holdout-eligible merchants)` over `train`, plus a seeded 10% seen-merchant row sample per fold (§5) | Choosing hyperparameters, fitting calibrators, **comparing experiments** |
 
-- **Validation-unseen matches `test_unseen`'s population.** The catalog's holdout rule never picks some merchants: each category's most popular ones, the top merchant of each subtype, and merchants in excluded categories. On the default spec these protected merchants are 64 of train users' 233 spending merchants and carry 34% of their spending transactions (87% of Health & Fitness). None of them can ever be in `test_unseen`. They are mostly big chains, which pretrained embeddings know best, so letting them rotate through validation would favor some candidates. So they stay in every fold's training rows, and only the ~169 holdout-eligible merchants are held out, still about 3× the 58 in `test_unseen`. The eligible set comes from the generator's own holdout rule, factored into one function that both the generator and the task call, so the two can't drift apart.
+- **Validation-unseen matches `test_unseen`'s population.** The catalog's holdout rule never picks some merchants: each category's most popular ones, the top merchant of each subtype, and merchants in excluded categories. On the default spec these protected merchants are 64 of train users' 233 spending merchants and carry 34% of their spending transactions (87% of Health & Fitness). None of them can ever be in `test_unseen`. They are mostly big chains, which pretrained embeddings know best, so letting them rotate through validation would favor some candidates. So they stay in every fold's training rows, and only the ~169 holdout-eligible merchants are held out, still about 3× the 58 in `test_unseen`. The eligible set comes from the generator's own holdout rule, factored into one function that both the generator and the task call, so the two can't drift apart. The dataset doesn't currently record it (`truth_merchants` has no popularity, and `meta` doesn't hold the holdout settings), so the generator writes it as a new `truth_merchants.holdout_eligible` column (schema version 3; existing datasets must be regenerated).
 
 - **Leak checks** run on every split, before any fit: no ID in two sets; no fold's held-out merchant in that fold's training rows; no protected merchant in any fold's held-out group; `test_unseen` only holdout merchants; label noise only on rows a model trains on. A failure stops the run.
 - **Split hashes** (a hash of each set's sorted IDs) are logged with every run, so two runs can be compared only if they used the same splits. The runner refuses to put runs with different split hashes on one leaderboard.
@@ -421,10 +424,11 @@ src/smart_financial_coach/
     features/merchant_text.py       normalize_merchant (new)
   intelligence/
     models/
-      base.py                       Model protocol
+      base.py                       Model protocol, BaseModel
       registry.py                   register, build from {type, params}
+      contract.py                   Contract, Checked (output checks on every prediction)
       wrappers.py                   Calibrated, Routed, Lookup
-      artifact.py                   save / load folder, manifest, checksum checks
+      artifact.py                   save / load folder, manifest, checksum, PROMOTED, promotion log
     service.py                      load_service: PROMOTED pointer -> contract-checked model
     categorization/
       contract.py                   Categorizer protocol, output check
@@ -433,14 +437,16 @@ src/smart_financial_coach/
       embeddings.py                 cached sentence embeddings (fastembed), stub for tests
       ...                           further candidates from the experiment plan
   evaluation/
-    tasks/base.py                   Task protocol
+    tasks/base.py                   Task protocol, Examples, task registry
     tasks/categorization.py         examples, labels, splits, metrics, gates
-    splits/                         Splits, splitters, leak checks
+    splits.py                       Splits, splitters, leak checks
     metrics/classification.py       macro F1, per class, bootstrap, ECE
+    experiment.py                   experiment config (YAML), config hash, grid
+    selection.py                    the decision rule (ties against the leader)
     tracking.py                     MLflow logging (the only module that imports mlflow)
     runner.py                       run one experiment config
-    promote.py                      finalize, promote, export
-    cli.py                          sfc-experiment run | finalize ; sfc-model promote | predict
+    promote.py                      leaderboard, finalize, promote, export
+    cli.py                          sfc-experiment run | leaderboard | finalize ; sfc-model promote | show | predict
 configs/
   experiments/categorization/*.yaml one file per experiment
   models/category_keywords.yaml     baseline rules

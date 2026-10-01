@@ -22,6 +22,9 @@ class Settings(BaseSettings):
     artifacts_dir: Path = PROJECT_ROOT / "artifacts"
     sqlite_filename: str = "sfc.sqlite3"
 
+    # Experiment tracking (evaluation only; serving never reads it). None: local store in mlruns/
+    mlflow_tracking_uri: str | None = None
+
     # LLM (provider TBD, see Technical Design open questions)
     llm_provider: str | None = None
     llm_model: str | None = None
