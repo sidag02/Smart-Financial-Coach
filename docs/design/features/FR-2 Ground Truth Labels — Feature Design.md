@@ -1,6 +1,6 @@
 # FR-2 Ground Truth Labels — Feature Design
 
-Sep 30, 2026 · @Sidd · Status: **Decisions made, ready to implement** · Branch: `feature/fr-2-ground-truth`
+Oct 1, 2026 · @Sidd · Status: **Revised after review; ready to implement** · Branch: `feature/fr-2-ground-truth`
 
 ## Summary
 
@@ -12,9 +12,10 @@ This feature makes the ground truth that FR-1 already writes precise, trustworth
 - **Approach:** four additions, all generic and spec-driven:
   1. A written **label contract**: what is positive, negative or ignored at each level.
   2. **Realized-effect annotations** on every planted spike, so weak labels are visible.
-  3. An **oracle ceiling** that shows the PRD targets are reachable on this data.
+  3. An **oracle ceiling**: the best precision any detector could reach on this data. Monthly spikes are gated on it; weekly targets are set relative to it.
   4. **Label checks** in `validate`, and a `labels` report command.
-- **Decisions** were made on Oct 1, 2026 and are recorded in [Decisions and open questions](#decisions-and-open-questions).
+- **Decisions** were made on Oct 1, 2026 and revised after the PR review the same day; see [Decisions and open questions](#decisions-and-open-questions).
+- **Principle:** the modeled user behavior is not tuned to make targets pass. Where the behavior makes a target unreachable, the target moves.
 
 ## Context
 
@@ -79,7 +80,7 @@ The current tables don't answer these, so two evaluators could score the same mo
 
 1. A label contract that turns every flag into exactly one of: true positive, false positive or ignored, with no evaluator judgment.
 2. Every planted spike carries its realized effect, so weak labels can be reported separately instead of silently lowering recall.
-3. Prove, per dataset, that the PRD precision targets are reachable by an ideal detector. If they aren't, the spec is wrong, not the model.
+3. Measure, per dataset, the best precision an ideal detector can reach, and set targets that are achievable on that data rather than tuning the data to fit the targets.
 4. Generator bugs that corrupt labels fail `validate` before any model sees the data.
 
 **Non-goals**
@@ -98,7 +99,7 @@ uv run sfc-data labels data/synthetic/default.sqlite      # label report: counts
 ```
 
 ```python
-from smart_financial_coach.evaluation.labels import load_truth
+from smart_financial_coach.data.labels import load_truth
 
 truth = load_truth("data/synthetic/default.sqlite")   # evaluation harness only
 
@@ -123,19 +124,23 @@ All additions are columns or tables in the same SQLite file. Model-visible table
 | --- | --- | --- |
 | spike_id | TEXT | Stable ID; becomes the primary key |
 | period_end | TEXT | Inclusive; saves every consumer recomputing week and month ends |
-| expected_spend | REAL | Expected discretionary spend in the period without the spike, from the generator's own rates and prices |
-| base_spend | REAL | Realized spend from normal purchases in the period |
+| expected_count | REAL | Expected number of Poisson-process purchases (discretionary and one-off) in the category and period without the spike |
+| expected_spend | REAL | Expected spend in the category and period without the spike, all processes (see [What a period contains](#what-a-period-contains)) |
+| base_spend | REAL | Realized spend from everything in the period except the spike's extra purchases |
 | extra_spend | REAL | Realized spend from the spike's extra purchases |
 | tier | TEXT | `clear` or `weak` (see [Spike tiers](#3-spike-tiers)) |
 
-**truth_expected_spend** (new, eval only)
+**truth_expected** (new, eval only)
 
 | Column | Type | Notes |
 | --- | --- | --- |
 | user_id, category, granularity, period_start | TEXT | Primary key; only categories eligible for spikes |
-| expected_spend | REAL | Expected discretionary spend for the user's normal behavior: seasonality, income coupling and day-of-week included, spikes excluded |
+| expected_count | REAL | Expected Poisson-process purchases for the user's normal behavior: seasonality, income coupling and day-of-week included, spikes and unusual charges excluded |
+| expected_spend | REAL | Expected spend on the same basis, all processes |
 
-Size on the default spec: about 300 users × 4 categories × (156 weeks + 36 months) ≈ 230k rows, a few MB. It powers the oracle ceiling.
+Size on the default spec: about 360 users × 4 categories × (156 weeks + 36 months) ≈ 280k rows, a few MB. It powers the oracle ceiling.
+
+Expectations are per **true** category. Ambiguous merchants draw their category per transaction, so a Groceries stream at a warehouse club contributes to Shopping's expectation in proportion to that merchant's category mix.
 
 **meta** (new keys): `label_contract_version`, `oracle_*` ceiling stats, `ambiguous_error_share`.
 
@@ -143,7 +148,7 @@ Size on the default spec: about 300 users × 4 categories × (156 weeks + 36 mon
 
 ### 1. Label contract
 
-The contract is code (`evaluation/labels.py`) and is versioned in `meta.label_contract_version`. Every rule below is a spec parameter with the default shown.
+The contract is code (`data/labels.py`) and is versioned in `meta.label_contract_version`. It lives in the data layer because `validate` needs the oracle; the evaluation harness imports it. Every rule below is a spec parameter with the default shown.
 
 **Transaction level (FR-7)**
 
@@ -161,6 +166,11 @@ Reason accuracy: among true positives, the flag's reason code must match the kin
 
 A period is (user, category, granularity, period start). Weeks start Monday; months start on the 1st.
 
+#### What a period contains
+
+- **Category:** spike detection is scored on **true** categories. The harness feeds detectors true categories for FR-8 evaluation, so spike metrics aren't confounded by categorizer errors. FR-3 and FR-4 measure categorization separately.
+- **Spend:** a period's spend is the net outflow of **every** transaction in the category: recurring bills, discretionary purchases, one-offs, refunds and unusual charges. This is what a deployed model sees. `expected_spend` covers the same set, so the ceiling and the models measure the same quantity.
+
 | Flagged period | Outcome |
 | --- | --- |
 | Matches a `truth_periods` row | True positive |
@@ -172,20 +182,28 @@ A period is (user, category, granularity, period start). Weeks start Monday; mon
 
 Recall is reported on all labels and on `clear` labels only. Precision is the same for both.
 
-**Driving transactions** (FR-8 "the transactions driving it"): extra spike purchases are statistically identical to normal ones, so no transaction is uniquely "the driver". The contract checks that every returned transaction is in the period and category, and that together they cover at least half of the excess over `expected_spend`.
+**Driving transactions** (FR-8 "the transactions driving it"): the returned set is capped at `max_drivers` (default 5) transactions, each of which must be in the period and category. It is scored by **excess coverage**: the returned spend divided by the period's excess over `expected_spend`, capped at 1. With the cap, returning small or irrelevant purchases scores low, so the metric can fail.
+
+Precision and recall against the overlay's extra purchases were considered and rejected. Extra purchases are drawn from the same merchants and prices as normal ones, so no detector can tell them apart; that score would measure luck.
 
 ### 2. Spikes as an overlay process
 
 Today a spike multiplies the discretionary purchase rate inside one Poisson draw. The normal and extra purchases can't be told apart, so the realized effect is unknown.
 
-**Change:** draw normal purchases at the unspiked rate λ as today, then draw extra purchases at rate λ·(m − 1) for the spike's days with a separate seeded generator. Both are `discretionary` in `truth_transactions`. The sum has the same distribution as today (Poisson superposition), so realism is unchanged.
+**Change:** draw normal purchases at the unspiked rate λ, then draw extra purchases at rate λ·(m − 1) for the spike's days with a separate seeded generator. The sum has the same distribution as today (Poisson superposition), so the modeled behavior is unchanged.
+
+Three implementation rules keep normal purchases independent of spikes:
+
+1. **Calibration on normal purchases only.** `calibrate_discretionary` today sets the rate scale from discretionary spend with spikes included, so turning spikes off would change every purchase. It now calibrates on normal purchases; extras are drawn afterwards at the calibrated rate.
+2. **A separate ledger process.** Extras are added under an internal `spike_extra` process with its own counter, so transaction IDs of normal purchases don't shift. They are written as `discretionary` in `truth_transactions`.
+3. **Merchant text is not covered.** Rendering draws from one random sequence per user, in transaction order, so extra rows change the `merchant_raw` of later transactions. The independence guarantee covers IDs, dates, amounts, merchants and true categories, not rendered text.
 
 What this buys:
 
 - `base_spend` and `extra_spend` are exact, so each label shows how much of the period was the spike and how much was noise.
-- Normal purchases no longer depend on whether spikes are on. `clean.yaml` and `default.yaml` users share identical normal spending, a free controlled comparison.
+- With spikes turned off in an otherwise identical spec, normal purchases keep their IDs, dates, amounts and merchants: a controlled comparison. (`clean.yaml` also turns rendering off, so against it only amounts and dates are comparable.)
 
-Cost: the default dataset's content hash changes once; regeneration is required.
+Cost: calibration changes slightly for users with spikes, and the default dataset's content hash changes once; regeneration is required.
 
 ### 3. Spike tiers
 
@@ -193,24 +211,36 @@ Cost: the default dataset's content hash changes once; regeneration is required.
 
 Weak labels stay in the data. Dropping them would hide how often realistic noise cancels a real overspend. Reporting both recalls keeps the headline number honest without letting weak labels dominate model selection.
 
-The spike volume floor (`min_weekly_rate`, 1 purchase a week) stays the same for both granularities, so low-volume categories such as Groceries keep weekly spikes. Expect about 18% of weekly labels to be `weak`; the audit shows weekly labels below 1.5 purchases a week are weak 27% of the time. A higher weekly floor (e.g. 3 a week) was considered and rejected: tiers already separate weak labels, and keeping every category eligible tests detectors on sparse categories too.
+The spike volume floor (`min_weekly_rate`, 1 purchase a week, checked against the user's rate before calibration as today) stays the same for both granularities, so low-volume categories such as Groceries keep weekly spikes. Expect about 18% of weekly labels to be `weak`; the audit shows weekly labels below 1.5 purchases a week are weak 27% of the time. A higher weekly floor was considered and rejected under the principle above; see option F.
 
 ### 4. Oracle ceiling
 
-The generator knows each user's true expected spend per period. The **oracle** ranks every period by `realized / expected_spend`. This is the best possible "unusual for this user" score, with no estimation error.
+The generator knows each user's true expected purchase count per period. A spike multiplies the purchase *rate*, so the test that matches the generative process is on counts. Spend adds heavy-tailed price noise on top, so a spend ratio is not the ceiling.
 
-- `sfc-data labels` reports the oracle's precision at the recall a simple baseline reaches, and its best precision at recall ≥ 0.5, per granularity.
-- `validate` fails when oracle precision at the baseline's recall is below the PRD target (0.70). Then no model can pass on this data, and the spec needs tuning (spike multiplier, volume floor), not the model.
-- The same is done for unusual charges with a transaction oracle: the true merchant price distribution plus a perfect duplicate check.
+- **Oracle score:** the Poisson upper-tail probability of the period's realized Poisson-process purchase count, given `expected_count`. Recurring bills are excluded from the score, since their count is fixed by schedule. The oracle may use truth freely; it is a ceiling, not a model.
+- **Operating point:** precision at a fixed recall of 0.5, which doesn't depend on any baseline.
+- **Monthly spikes:** `validate` fails when oracle precision is below the PRD target (0.70).
+- **Weekly spikes:** no gate. The oracle's weekly precision is recorded in `meta`, and the weekly target is **relative**: a model must reach 70% of the oracle's precision at the same recall.
+- **Unusual charges:** a transaction oracle (true merchant price distribution plus a perfect duplicate check), gated at 0.70.
 
-The oracle is an upper bound on the ranking problem only. Real detectors also have to estimate `expected_spend`, so a model at the oracle is not expected.
+**Feasibility, from the PR review** (default spec, discretionary purchases, precision at recall 0.5):
+
+| Oracle | Monthly | Weekly |
+| --- | --- | --- |
+| Spend ratio | 0.29 | 0.02 |
+| Purchase count (Poisson tail) | 0.98 | 0.05 |
+
+Restricting weekly spikes to categories with ≥ 6 purchases a week after calibration would lift the weekly count oracle to 0.71, but that would change the modeled behavior, so weekly gets a relative target instead (option F). On this data, weekly spike detection is close to impossible for any detector. Weekly results are diagnostic, and the PRD target for weekly spikes changes accordingly.
+
+The oracle is an upper bound on the ranking problem only. Real detectors also have to estimate the expected count, so a model at the oracle is not expected.
 
 ### 5. Truth isolation
 
-Isolation stays a convention, as in FR-1 option D-b: model-visible tables have plain names, truth tables are prefixed `truth_`, and model code reads only the former. FR-2 adds nothing to enforce it.
+Isolation stays a convention, as in FR-1 option D-b: model-visible tables have plain names, truth tables are prefixed `truth_`, and model code reads only the former. There is no runtime guard.
 
-- `load_truth(path)` in `evaluation/labels.py` is the intended reader of truth tables; model code under `intelligence/` should not import it.
-- Code review is the control. A guarded connection (an SQLite authorizer denying reads of `truth_*`) was considered and deferred; see option D.
+- `load_truth(path)` in `data/labels.py` is the intended reader of truth tables; model code under `intelligence/` must not import it.
+- A unit test fails if any file under `intelligence/` contains `truth_` or imports `data.labels`. This is cheap and catches accidental reads in CI.
+- Code review covers the rest. A guarded connection (an SQLite authorizer denying reads of `truth_*`) was considered and deferred; see option D.
 
 ### 6. Category labels
 
@@ -224,18 +254,19 @@ No generator change. FR-2 records:
 
 ```
 src/smart_financial_coach/data/
-  generator/
-    events.py               spike overlay, realized spend, tiers
-    expected.py             expected spend per period (new)
-    dataset.py              schema additions
-    validate.py             label checks
-    cli.py                  `sfc-data labels`
-src/smart_financial_coach/evaluation/
   labels.py                 load_truth; label contract: matching rules, ignore masks, oracle
-configs/data/default.yaml   weak_lift, contract params; test users 40 per persona
+  generator/
+    events.py               spike overlay (`spike_extra` process), realized spend, tiers
+    calibration.py          calibrate on normal purchases only
+    expected.py             expected count and spend per period (new)
+    dataset.py              schema additions
+    validate.py             label checks, oracle gate
+    cli.py                  `sfc-data labels`
+tests/unit/test_truth_isolation.py   nothing under intelligence/ reads truth
+configs/data/default.yaml   weak_lift, max_drivers, contract params; test users 40 per persona
 ```
 
-No new dependencies.
+New dependency: `scipy`, for the Poisson tail probability.
 
 ## Options considered
 
@@ -281,6 +312,17 @@ The test population has 268 unusual charges and 168 spike periods. At 0.70 preci
 | (b) Raise event rates in an eval-only spec | Many more labels cheaply | Changes prevalence, and precision depends directly on prevalence |
 | (c) Report on all users | Most labels | Thresholds tuned and reported on the same users |
 
+### F. Weekly spike targets
+
+The review showed that the count oracle reaches only 0.05–0.08 precision at recall 0.5 on weekly spikes with the floor at 1 purchase a week.
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| (a) Raise the weekly floor to about 6 purchases a week | Gate holds at 0.70 | Changes the modeled behavior; about 70 weekly spikes left, mostly Dining; sparse categories untested |
+| (b) Larger weekly multipliers | Keeps every category | Changes the modeled behavior; spikes become unrealistically easy |
+| **(c) Target relative to the oracle; no weekly gate (chosen)** | Behavior unchanged; target always achievable by construction | Weekly results are diagnostic only on this data; PRD changes |
+| (d) Report weekly, no target | No PRD change | No bar on weekly quality at all |
+
 ## Data quality checks
 
 New checks in `validate`, all failing loudly:
@@ -288,20 +330,21 @@ New checks in `validate`, all failing loudly:
 - **Label consistency:** `anomaly_kind` is set if and only if `process = unusual_charge`. Every `duplicate` has a `related_transaction_id` with the same user, text and amount, earlier by at most 90 minutes. Every `new_merchant_large` merchant is new to that user at that time. Every `amount_outlier` is above the merchant's price p99 at the user's scale.
 - **Spike integrity:** periods inside the calendar and after the warm-up; Monday or month-first starts; no overlap within a category (including the ±7-day buffer); no month above `peak_threshold`; `base_spend + extra_spend` matches the ledger to the cent.
 - **Tiers:** `weak` share within a spec range (default ≤ 25% for weeks, ≤ 15% for months; the audit measured about 18% and 8%).
-- **Ceiling:** oracle precision at the baseline's recall ≥ 0.70 at both granularities and for unusual charges.
+- **Ceiling:** count-oracle precision at recall 0.5 ≥ 0.70 for monthly spikes and for unusual charges. Weekly oracle precision is recorded in `meta`, not gated.
 
 ## Testing
 
-- **Unit:** each contract rule on hand-built frames: duplicate original ignored, week-in-month ignored, warm-up ignored, unusual-charge period ignored, reason mismatch counted. Overlay: with spikes off, normal purchases are byte-identical to spikes on.
+- **Unit:** each contract rule on hand-built frames: duplicate original ignored, week-in-month ignored, warm-up ignored, unusual-charge period ignored, reason mismatch counted. Overlay: with spikes off, normal purchases keep the same IDs, dates, amounts and merchants. Driver cap enforced. Isolation test: a planted `truth_` reference under `intelligence/` fails it.
 - **Statistical:** on `small.yaml`, the mean realized lift matches the mean planted multiplier within tolerance (superposition preserved).
-- **Integration:** `generate small.yaml` → `validate` passes → `labels` report runs → a random-score detector gets precision near prevalence, and the oracle beats the target.
+- **Integration:** `generate small.yaml` → `validate` passes → `labels` report runs → a random-score detector gets precision near prevalence, and the monthly oracle beats 0.70.
 
 ## Milestones
 
-1. Label contract and `evaluation/labels.py` on the existing tables (no regeneration). This unblocks the evaluation harness immediately.
-2. `related_transaction_id`, spike overlay, realized spend and tiers; regenerate default.
-3. `truth_expected_spend`, oracle ceiling and `sfc-data labels`.
-4. Label checks in `validate`; test-population size change; update the FR-1 doc and Technical Design.
+1. **Feasibility first:** expected counts and spend (`expected.py`, `truth_expected`) and the count oracle, on the current generator. Confirm the monthly and unusual-charge gates pass and record the weekly oracle. The script in the PR review mostly covers this; everything below depends on its result.
+2. Label contract and `data/labels.py` on the existing tables. This unblocks the evaluation harness.
+3. `related_transaction_id`; spike overlay with calibration on normal purchases and the `spike_extra` process; realized spend and tiers. Regenerate default.
+4. `sfc-data labels`; label checks and oracle gate in `validate`; isolation test; test-population size change.
+5. Update the FR-1 doc, the Technical Design and the PRD.
 
 ## Decisions and open questions
 
@@ -310,20 +353,23 @@ New checks in `validate`, all failing loudly:
 - [x] Positives are planted events only, with `clear` / `weak` tiers (A-a).
 - [x] Spikes become an overlay process; one-time content hash change (B-a).
 - [x] Granularity overlaps, warm-up, duplicate originals and unusual-charge periods are ignored (C-a).
-- [x] Truth isolation stays a convention; no guarded connection (D-c).
+- [x] Truth isolation stays a convention; no guarded connection, plus a unit test that nothing under `intelligence/` reads truth (D-c).
 - [x] Anomaly thresholds tuned on train users, reported on test users; test users 40 per persona (E-a).
-- [x] Spike volume floor stays at 1 purchase a week for both granularities; weak threshold 1.3× expected.
-- [x] `validate` fails when the oracle can't reach the PRD precision target.
+- [x] Modeled behavior is not tuned to targets. The spike volume floor stays at 1 purchase a week, before calibration, for both granularities; weak threshold 1.3× expected.
+- [x] Oracle is the count-based Poisson tail at a fixed recall of 0.5. `validate` fails when it is below 0.70 for monthly spikes or unusual charges.
+- [x] Weekly spikes: no gate; target is 70% of the oracle's precision at the same recall (F-c).
+- [x] Spike metrics are scored on true categories; a period's spend is every transaction in the category, and expectations cover the same set.
+- [x] Driving transactions: at most 5, scored by excess coverage.
 
-**Technical Design updates (to apply)**
+**Document updates (to apply)**
 
-- [ ] Ground truth table: add `related_transaction_id`, the new `truth_periods` columns and `truth_expected_spend`.
-- [ ] `score_transactions` returns a reason **code** with the plain-language reason, so reason accuracy can be scored.
-- [ ] Controls: "anomaly thresholds tuned on train users, reported on test users".
+- [ ] Technical Design ground truth table: add `related_transaction_id`, the new `truth_periods` columns and `truth_expected`.
+- [ ] Technical Design: `score_transactions` returns a reason **code** with the plain-language reason, so reason accuracy can be scored.
+- [ ] Technical Design controls: "anomaly thresholds tuned on train users, reported on test users" and "spike metrics scored on true categories".
+- [ ] PRD success metrics: spending-spike precision ≥ 0.70 for monthly periods; weekly periods at ≥ 70% of the oracle's precision at the same recall.
 
 **Open questions**
 
 - [ ] Is Income a class the categorizer predicts? (Carried from FR-1.)
-- [ ] Should the PRD precision targets be stated per granularity? The audit suggests weekly spikes are inherently noisier than monthly ones.
-- [ ] With the volume floor at 1, can the oracle reach 0.70 precision on weekly spikes? If not, the oracle gate fails `validate`, and we must raise the floor or the multiplier, or restate the weekly target.
+- [ ] Does the unusual-charge oracle reach 0.70? Not yet measured; milestone 1 answers it. If not, its target moves the way the weekly one did, rather than the behavior changing.
 - [ ] Do we want a "silent spike" kind, a gradual multi-week drift? It is realistic and FR-8 doesn't exclude it, but it needs its own label shape.
