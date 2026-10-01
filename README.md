@@ -10,12 +10,13 @@ Statistical models compute every number (categorization, anomaly detection, goal
 ```
 src/smart_financial_coach/
   config.py        settings from env vars (SFC_*) / .env
-  data/            generator, data store (SQLite + Parquet), feature pipeline
+  data/            generator (FR-1), data store (SQLite), feature pipeline
   intelligence/    categorization, anomaly and forecasting services
   access/          MCP tool server with session-scoped identity
   experience/      coach agent, web app
   evaluation/      evaluation harness and reports
 artifacts/         versioned model artifacts
+configs/data/      generator specs, persona files and merchant catalog
 data/              generated data (git-ignored)
 docs/product/      product requirements (PRD)
 docs/design/       technical design and architecture decisions
@@ -36,8 +37,19 @@ uv run pre-commit install      # optional: run checks on commit
 
 ```sh
 uv run pytest                  # tests
+uv run pytest -m slow          # long-running checks, e.g. full dataset runtime (not run in CI)
 uv run ruff check . && uv run ruff format .
 uv run mypy                    # strict type checking
 ```
 
 CI (`.github/workflows/ci.yml`) runs lint, format check, type check and tests on every push.
+
+## Synthetic data
+
+```sh
+uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite
+uv run sfc-data validate --spec configs/data/default.yaml data/synthetic/default.sqlite
+uv run sfc-data hash data/synthetic/default.sqlite
+```
+
+`small.yaml` (30 users, a few seconds) is for tests; `clean.yaml` has canonical merchant names and no planted events. Design: [FR-1 Synthetic Data Generator — Feature Design.md](<docs/design/features/FR-1 Synthetic Data Generator — Feature Design.md>).

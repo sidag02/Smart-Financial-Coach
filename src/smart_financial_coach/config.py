@@ -22,10 +22,6 @@ class Settings(BaseSettings):
     artifacts_dir: Path = PROJECT_ROOT / "artifacts"
     sqlite_filename: str = "sfc.sqlite3"
 
-    # Synthetic data: separate seeds for training and test users
-    train_seed: int = 42
-    test_seed: int = 1337
-
     # LLM (provider TBD, see Technical Design open questions)
     llm_provider: str | None = None
     llm_model: str | None = None

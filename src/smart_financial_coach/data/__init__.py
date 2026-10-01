@@ -1,1 +1,1 @@
-"""Data layer: synthetic data generator, data store (SQLite + Parquet) and feature pipeline."""
+"""Data layer: synthetic data generator, data store (SQLite) and feature pipeline."""

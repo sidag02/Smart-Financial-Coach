@@ -12,7 +12,12 @@ dependencies = [
     "pydantic",
     "pydantic-settings",
     "mcp",
+    "pyyaml",
+    "holidays",
 ]
+
+[project.scripts]
+sfc-data = "smart_financial_coach.data.generator.cli:main"
 
 [dependency-groups]
 dev = [
@@ -22,6 +27,7 @@ dev = [
     "mypy",
     "pandas-stubs",
     "pre-commit",
+    "types-pyyaml",
 ]
 
 [build-system]

@@ -38,8 +38,8 @@ The system is nine modules in four layers, plus a cross-cutting evaluation harne
 
 | Layer | Module | Responsibility | Inputs | Outputs |
 | --- | --- | --- | --- | --- |
-| Data | Data generator | Produce persona-based multi-user transactions with ground-truth labels and injected anomalies | Persona configs, random seed | Transactions, labels, goals |
-| Data | Data store | Hold transactions, users, goals, model outputs | Generator output | Queryable tables |
+| Data | Data generator | Generate persona-based multi-user transactions, goals and planted events (unusual charges, spending spikes) with ground truth, from a parameter spec | Spec file (personas, catalog, events, seeds) | One SQLite file: model-visible tables + `truth_*` tables |
+| Data | Data store | Hold transactions, users, goals, model outputs; data-access layer exposes only model-visible tables to models | Generator SQLite file | Queryable tables |
 | Data | Feature pipeline | Clean merchant text; build per-user history and weekly/monthly aggregates | Raw transactions | Feature tables per model |
 | Intelligence | Categorization service | Assign category + confidence | Merchant text, amount | Category, confidence |
 | Intelligence | Anomaly service | Flag unusual transactions and spending spikes against the user's baseline | Transaction and aggregate features | Flags, scores, reasons |
@@ -47,7 +47,7 @@ The system is nine modules in four layers, plus a cross-cutting evaluation harne
 | Access | Tool server | Expose intelligence services as typed tools; inject user identity | Tool calls + session identity | Structured tool results |
 | Experience | Coach agent | Turn questions into tool calls and answers | User message, tool results | Grounded answer + tool trace |
 | Experience | Web app | Dashboard, chat, user selection | User actions | Rendered views |
-| Cross-cutting | Evaluation harness | Score every model and the coach against ground truth and baselines | Held-out data, test sets | Metrics report |
+| Cross-cutting | Evaluation harness | Build training and evaluation splits (each example sees only data up to its origin); score every model and the coach against ground truth and baselines | Generator SQLite file, test sets | Splits, metrics report |
 
 ## Interfaces
 
@@ -57,10 +57,20 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 
 | Entity | Key fields |
 | --- | --- |
-| Transaction | transaction\_id, user\_id, timestamp, amount, merchant\_raw, category (label, eval only), is\_anomaly (label, eval only) |
+| Transaction | transaction\_id, user\_id, timestamp, amount, currency, merchant\_raw, channel |
 | User | user\_id, persona, monthly\_income\_estimate |
-| Goal | goal\_id, user\_id, name, target\_amount, target\_date, current\_balance |
+| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date, as\_of\_date, current\_balance (as of as\_of\_date) |
 | Anomaly flag | flag\_id, user\_id, level (transaction or period), ref (transaction\_id or period + category), score, reason |
+
+**Ground truth** (eval only, in separate `truth_*` tables that models never read)
+
+| Entity | Key fields |
+| --- | --- |
+| Transaction truth | transaction\_id, category, merchant\_id, process, is\_recurring, anomaly\_kind |
+| Period truth (spikes) | user\_id, granularity, period\_start, category, multiplier |
+| Goal truth | goal\_id, outcome\_class, met |
+
+Full table definitions are in FR-1 Synthetic Data Generator — Feature Design.
 
 **Service contracts** (each model service implements one of these)
 
@@ -88,7 +98,7 @@ v1 runs as a single Python deployment on one machine; each component has a named
 | Concern | v1 | Upgrade path (v2) |
 | --- | --- | --- |
 | Language / runtime | Python 3.11, pinned dependencies | Containerized services |
-| Data store | Local files (Parquet) + SQLite | Managed Postgres with row-level security |
+| Data store | SQLite (one file per generated dataset) | Managed Postgres with row-level security |
 | Model artifacts | Versioned files in the repo's artifact folder | Model registry |
 | Tool server | Local process speaking MCP over stdio / HTTP | Hosted service behind auth gateway |
 | LLM | Hosted API (provider TBD), key from environment | Same, with rate limiting and cost budgets |
@@ -109,7 +119,7 @@ Six high-level choices shape the system; each decision favors trustworthy number
 | Where personalization lives | (a) One global model · (b) One model per user · (c) Global model + per-user baseline features | Categorization (a); anomalies and forecasts (c) or (b), settled by experiment | Merchant meaning is shared across users; "normal spending" is personal |
 | Compute timing | (a) Batch precompute nightly · (b) Compute on each request | (a) for forecasts and flags, (b) for categorization of new transactions | Keeps chat latency low; forecasts change slowly |
 | Model hosting | (a) In-process library · (b) Separate model service | (a) | Simplest for v1; the service contracts allow a split later without caller changes |
-| Data store | (a) Flat files · (b) SQLite · (c) Postgres | (b) with Parquet for bulk data | Zero ops for v1; same SQL moves to Postgres in v2 |
+| Data store | (a) Flat files (e.g. Parquet) · (b) SQLite · (c) Postgres | (b) | Zero ops for v1; standard library; one file per dataset; same SQL moves to Postgres in v2 |
 
 ## Security and data isolation
 
@@ -145,7 +155,7 @@ Every model is scored against planted ground truth and a simple baseline, with o
 
 | Problem | Data split | Baseline | Metrics |
 | --- | --- | --- | --- |
-| Categorization | Stratified 80/20 by transaction, plus a test set of merchants never seen in training | Keyword rules | Macro F1, per-class F1, confusion matrix |
+| Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training | Keyword rules | Macro F1, per-class F1, confusion matrix |
 | Unusual transactions | All transactions scored; labels hidden from training | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate |
 | Spending spikes | Weekly and monthly aggregates; labels hidden | Per-user mean ± k·std per category | Period-level precision and recall |
 | Goal forecasting | Rolling-origin backtest: train on months 1..k, predict k+1..k+3 | Seasonal-naive | RMSE, MAPE; Brier score for P(goal met) |
@@ -153,8 +163,10 @@ Every model is scored against planted ground truth and a simple baseline, with o
 
 **Controls against flattering results**
 
-- Label noise and ambiguous merchants injected into the data.
+- Ambiguous merchants and messy merchant text generated into the data.
+- Label noise applied by the training pipeline to loaded training data; the generator itself only generates.
 - Separate seeds for training and test users.
+- Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. The evaluation harness enforces this when it builds splits (build order step 4).
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 
 ## Build order and open questions
@@ -164,7 +176,7 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 1. Foundations: repo layout, pinned dependencies, configuration, CI.
 2. Data generator, data store and data quality checks.
 3. Feature pipeline and service interfaces with baseline implementations.
-4. Evaluation harness running on the baselines.
+4. Evaluation harness: training and evaluation splits (incl. the `as_of_date` cutoff for goal examples), running on the baselines.
 5. Model experiments per problem; record decisions.
 6. Tool server with session-scoped identity.
 7. Coach agent and coach test suite.

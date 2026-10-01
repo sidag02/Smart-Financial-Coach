@@ -21,4 +21,4 @@ jobs:
       - name: Type check
         run: uv run mypy
       - name: Tests
-        run: uv run pytest -m "not llm" --cov --cov-report=term-missing
+        run: uv run pytest -m "not llm and not slow" --cov --cov-report=term-missing
