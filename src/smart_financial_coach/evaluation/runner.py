@@ -50,8 +50,9 @@ class RunResult:
 
 
 # What can change a run's results. Docs, tests and CI don't, so commits touching only them keep
-# earlier runs valid (a full sweep takes hours).
-CODE_PATHS = ("src", "configs", "pyproject.toml", "uv.lock")
+# earlier runs valid (a full sweep takes hours). Not `configs/experiments/`: each run's own config
+# is in its config hash, and adding a round's configs mustn't invalidate earlier rounds.
+CODE_PATHS = ("src", "configs/models", "configs/data", "pyproject.toml", "uv.lock")
 
 
 def _git(*args: str) -> str:
@@ -74,9 +75,12 @@ def code_version() -> str:
     digest = hashlib.sha256()
     for path in CODE_PATHS:
         digest.update(f"{path}={_git('rev-parse', f'HEAD:{path}')}\n".encode())
-    digest.update(_git("diff", "HEAD", "--", *CODE_PATHS).encode())
-    untracked = _git("ls-files", "--others", "--exclude-standard", "--", *CODE_PATHS)
-    for name in sorted(untracked.splitlines()):
+    digest.update(
+        _git("diff", "--binary", "HEAD", "--", *CODE_PATHS).encode()
+    )  # binary content too
+    # -z: NUL-separated and unquoted, so non-ASCII names resolve to files
+    untracked = _git("ls-files", "-z", "--others", "--exclude-standard", "--", *CODE_PATHS)
+    for name in sorted(n for n in untracked.split("\0") if n):
         digest.update(name.encode() + b"\0" + (PROJECT_ROOT / name).read_bytes())
     return digest.hexdigest()[:16]
 

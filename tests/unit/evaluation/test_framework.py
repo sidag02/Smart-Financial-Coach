@@ -289,7 +289,7 @@ def test_leaderboard_names_a_missing_baseline(
 
 
 def test_code_version_covers_code_not_docs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Untracked code changes the version; docs don't (PR #8 re-review)."""
+    """Untracked code changes the version; docs and experiment configs don't (PR #8 review)."""
     import subprocess
 
     def git(*args: str) -> None:
@@ -297,6 +297,7 @@ def test_code_version_covers_code_not_docs(tmp_path: Path, monkeypatch: pytest.M
 
     (tmp_path / "src").mkdir()
     (tmp_path / "docs").mkdir()
+    (tmp_path / "configs" / "experiments").mkdir(parents=True)
     (tmp_path / "src" / "a.py").write_text("x = 1\n")
     git("init", "-q")
     git("add", ".")
@@ -305,7 +306,11 @@ def test_code_version_covers_code_not_docs(tmp_path: Path, monkeypatch: pytest.M
     base = runner.code_version()
 
     (tmp_path / "docs" / "notes.md").write_text("docs only\n")
-    assert runner.code_version() == base
+    (tmp_path / "configs" / "experiments" / "round2.yaml").write_text("name: next\n")
+    assert runner.code_version() == base  # docs and new experiment configs keep runs valid
+    (tmp_path / "src" / "café.py").write_text("z = 1\n")  # non-ASCII untracked name
+    assert runner.code_version() != base
+    (tmp_path / "src" / "café.py").unlink()
     (tmp_path / "src" / "new_model.py").write_text("y = 2\n")  # untracked
     untracked = runner.code_version()
     (tmp_path / "src" / "new_model.py").write_text("y = 3\n")
