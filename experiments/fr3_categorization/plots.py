@@ -351,6 +351,55 @@ def confusion(r: dict[str, Any], out: Path, kind: str = "both") -> Path:
     return save(fig, out, f"unseen_confusion_{kind}")
 
 
+def calibration(r: dict[str, Any], out: Path) -> Path:
+    exps = r["experiments"]
+    threshold = r["setup"]["confidence_threshold"]
+    fig, axes = plt.subplots(1, 2, figsize=(11, 3.6), sharey=True)
+    fig.subplots_adjust(left=0.13, right=0.97, top=0.66, bottom=0.14, wspace=0.12)
+    title(
+        fig,
+        "Confidence calibration (uncalibrated logistic regression)",
+        "Calibrated on known merchants, over-confident on unseen ones; "
+        f"confidence >= {threshold} still ranks well.",
+    )
+    legend(fig, 0.82)
+    sets = list(TEST_SETS.items())
+    panels = (
+        ("ece", "Expected calibration error (lower is better)", 0.25),
+        ("accuracy_at_threshold", f"Accuracy at confidence >= {threshold}", 1.0),
+    )
+    height = 0.24
+    for ax, (metric, label, xmax) in zip(axes, panels, strict=True):
+        style(ax)
+        for s_idx, (key, _) in enumerate(sets):
+            base = len(sets) - 1 - s_idx
+            for m_idx, (kind, (_, color)) in enumerate(MODELS.items()):
+                cal = exps[kind][key]["calibration"]
+                value = cal[metric]
+                yi = base + (1 - m_idx) * (height + 0.03)
+                ax.barh(yi, value, height=height, color=color)
+                if metric == "accuracy_at_threshold":
+                    # Bars sit near 1.0, so the label goes inside the bar end.
+                    text = f"{value:.3f} on {cal['coverage_at_threshold']:.0%} of rows"
+                    ax.text(
+                        value - 0.015,
+                        yi,
+                        text,
+                        va="center",
+                        ha="right",
+                        fontsize=8,
+                        color="white" if kind != "both" else INK,
+                    )
+                else:
+                    ax.text(
+                        value + xmax * 0.01, yi, f"{value:.3f}", va="center", fontsize=8, color=INK
+                    )
+        ax.set_xlim(0, xmax)
+        ax.set_title(label, pad=8, fontsize=10)
+    axes[0].set_yticks([len(sets) - 1 - i for i in range(len(sets))], [lab for _, lab in sets])
+    return save(fig, out, "calibration")
+
+
 def classes(r: dict[str, Any], out: Path) -> Path:
     facts = r["facts"]
     counts = pd.Series(facts["transactions_by_category"]).sort_values()
@@ -473,6 +522,15 @@ def report_html(r: dict[str, Any], figures: dict[str, Path], embed: bool) -> str
         f'<td class="num">{e["transactions"]:,}</td></tr>'
         for e in unseen["top_errors"]
     )
+    sens = "".join(
+        f'<tr><td>{MODELS[k][0]}</td><td class="num">{float(c):g}'
+        + (" (used)" if float(c) == r["setup"]["C_by_kind"][k] else "")
+        + "</td>"
+        + "".join(f'<td class="num">{by_c[c][t]:.3f}</td>' for t in TEST_SETS)
+        + "</tr>"
+        for k, by_c in r["c_sensitivity"].items()
+        for c in sorted(by_c, key=float)
+    )
     d, env = r["dataset"], r["environment"]
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -496,11 +554,18 @@ spending categories; Income excluded.</p>
 <table><tr><th>Merchant</th><th>True</th><th>Predicted</th><th class="num">Transactions</th></tr>
 {errors}</table>
 {img("unseen_per_merchant", "Per-merchant accuracy")}
+<h2>Confidence calibration</h2>
+{img("calibration", "Calibration error and accuracy at high confidence")}
+<h2>Sensitivity to the regularization strength C</h2>
+<p class="sub">C was fixed by hand before the first run and not tuned. Macro F1 at other
+values, for reference only; not used to choose C.</p>
+<table><tr><th>Features</th><th class="num">C</th>{head}</tr>{sens}</table>
 <h2>Dataset</h2>
 {img("dataset_categories", "Transactions per category")}
 <p class="meta">Dataset {d["spec_name"]} · spec hash {d["spec_hash"][:12]} · generator
 {d["generator_version"]} · code {env["git_commit"][:7]} · Python {env["python"]} ·
-scikit-learn {env["sklearn"]} · embeddings {env["embedding_model"]} ·
+scikit-learn {env["sklearn"]} · embeddings {env["embedding_model"]}
+({env["embedding_file"].get("source")} @ {env["embedding_file"].get("revision", "?")[:12]}) ·
 seed {r["setup"]["seed"]}</p>
 </main></body></html>
 """
@@ -567,6 +632,7 @@ def main() -> None:
             by_scope(results, out),
             per_merchant(results, out),
             confusion(results, out),
+            calibration(results, out),
             classes(results, out),
         )
     }

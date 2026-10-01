@@ -31,9 +31,9 @@ td.num, th.num { text-align:right; }
 <h1>FR-3 categorization feasibility</h1>
 <p class="sub">Logistic regression on the default synthetic dataset. Macro F1 over the 12
 spending categories; Income excluded.</p>
-<div class="tiles"><div class="tile"><div class="label">Known merchants (FR-3)</div><div class="value">0.988</div><div class="note pass">✓ target ≥ 0.90</div></div><div class="tile"><div class="label">Unseen merchants (FR-4)</div><div class="value">0.638</div><div class="note fail">✗ target ≥ 0.80 · 95% interval 0.56&ndash;0.73</div></div><div class="tile"><div class="label">All test users</div><div class="value">0.929</div><div class="note ">realistic mix of known and new merchants; no target</div></div></div>
+<div class="tiles"><div class="tile"><div class="label">Known merchants (FR-3)</div><div class="value">0.988</div><div class="note pass">✓ target ≥ 0.90</div></div><div class="tile"><div class="label">Unseen merchants (FR-4)</div><div class="value">0.643</div><div class="note fail">✗ target ≥ 0.80 · 95% interval 0.55&ndash;0.73</div></div><div class="tile"><div class="label">All test users</div><div class="value">0.929</div><div class="note ">realistic mix of known and new merchants; no target</div></div></div>
 <h2>Headline</h2>
-<table><tr><th>Features</th><th class="num">Known merchants</th><th class="num">All test users</th><th class="num">Unseen merchants</th><th class="num">Unseen 95% interval</th></tr><tr><td>Character n-grams</td><td class="num">0.986</td><td class="num">0.868</td><td class="num">0.504</td><td class="num">0.440&ndash;0.562</td></tr><tr><td>Sentence embeddings</td><td class="num">0.973</td><td class="num">0.842</td><td class="num">0.593</td><td class="num">0.554&ndash;0.728</td></tr><tr><td>Both</td><td class="num">0.988</td><td class="num">0.929</td><td class="num">0.638</td><td class="num">0.559&ndash;0.726</td></tr></table>
+<table><tr><th>Features</th><th class="num">Known merchants</th><th class="num">All test users</th><th class="num">Unseen merchants</th><th class="num">Unseen 95% interval</th></tr><tr><td>Character n-grams</td><td class="num">0.986</td><td class="num">0.868</td><td class="num">0.504</td><td class="num">0.440&ndash;0.562</td></tr><tr><td>Sentence embeddings</td><td class="num">0.973</td><td class="num">0.913</td><td class="num">0.643</td><td class="num">0.554&ndash;0.728</td></tr><tr><td>Both</td><td class="num">0.988</td><td class="num">0.929</td><td class="num">0.638</td><td class="num">0.559&ndash;0.726</td></tr></table>
 <figure><img src="figures/headline.png" alt="Macro F1 by test set and feature set"></figure>
 <h2>Is the unseen-merchant gap real?</h2>
 <figure><img src="figures/unseen_bootstrap.png" alt="Bootstrap distribution of unseen-merchant macro F1"></figure>
@@ -45,10 +45,17 @@ spending categories; Income excluded.</p>
 <table><tr><th>Merchant</th><th>True</th><th>Predicted</th><th class="num">Transactions</th></tr>
 <tr><td>Arco</td><td>Transportation</td><td>Shopping</td><td class="num">2,255</td></tr><tr><td>Chick-fil-A</td><td>Dining</td><td>Groceries</td><td class="num">1,876</td></tr><tr><td>McDonald&#x27;s</td><td>Dining</td><td>Groceries</td><td class="num">1,592</td></tr><tr><td>Caviar</td><td>Dining</td><td>Shopping</td><td class="num">1,328</td></tr><tr><td>Rite Aid</td><td>Health & Fitness</td><td>Shopping</td><td class="num">1,107</td></tr><tr><td>The Gift Nook</td><td>Shopping</td><td>Dining</td><td class="num">1,047</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Dining</td><td class="num">1,007</td></tr><tr><td>Alamo Drafthouse</td><td>Entertainment</td><td>Dining</td><td class="num">986</td></tr><tr><td>Giant Eagle</td><td>Groceries</td><td>Transportation</td><td class="num">841</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Shopping</td><td class="num">822</td></tr><tr><td>Sittercity</td><td>Childcare & Education</td><td>Entertainment</td><td class="num">567</td></tr><tr><td>Clipper Card</td><td>Transportation</td><td>Groceries</td><td class="num">519</td></tr></table>
 <figure><img src="figures/unseen_per_merchant.png" alt="Per-merchant accuracy"></figure>
+<h2>Confidence calibration</h2>
+<figure><img src="figures/calibration.png" alt="Calibration error and accuracy at high confidence"></figure>
+<h2>Sensitivity to the regularization strength C</h2>
+<p class="sub">C was fixed by hand before the first run and not tuned. Macro F1 at other
+values, for reference only; not used to choose C.</p>
+<table><tr><th>Features</th><th class="num">C</th><th class="num">Known merchants</th><th class="num">All test users</th><th class="num">Unseen merchants</th></tr><tr><td>Character n-grams</td><td class="num">1</td><td class="num">0.988</td><td class="num">0.876</td><td class="num">0.531</td></tr><tr><td>Character n-grams</td><td class="num">3</td><td class="num">0.987</td><td class="num">0.885</td><td class="num">0.531</td></tr><tr><td>Character n-grams</td><td class="num">10 (used)</td><td class="num">0.986</td><td class="num">0.868</td><td class="num">0.504</td></tr><tr><td>Sentence embeddings</td><td class="num">1</td><td class="num">0.972</td><td class="num">0.914</td><td class="num">0.653</td></tr><tr><td>Sentence embeddings</td><td class="num">3 (used)</td><td class="num">0.973</td><td class="num">0.913</td><td class="num">0.643</td></tr><tr><td>Sentence embeddings</td><td class="num">10</td><td class="num">0.972</td><td class="num">0.914</td><td class="num">0.642</td></tr><tr><td>Both</td><td class="num">1</td><td class="num">0.988</td><td class="num">0.932</td><td class="num">0.652</td></tr><tr><td>Both</td><td class="num">3 (used)</td><td class="num">0.988</td><td class="num">0.929</td><td class="num">0.638</td></tr><tr><td>Both</td><td class="num">10</td><td class="num">0.988</td><td class="num">0.932</td><td class="num">0.649</td></tr></table>
 <h2>Dataset</h2>
 <figure><img src="figures/dataset_categories.png" alt="Transactions per category"></figure>
 <p class="meta">Dataset default · spec hash 130e78f55383 · generator
-0.1.0 · code 7afc716 · Python 3.11.15 ·
-scikit-learn 1.9.1 · embeddings BAAI/bge-small-en-v1.5 ·
+0.1.0 · code 4ed71fd · Python 3.11.15 ·
+scikit-learn 1.9.1 · embeddings BAAI/bge-small-en-v1.5
+(Qdrant/bge-small-en-v1.5-onnx-Q @ aa8f8b060edb) ·
 seed 0</p>
 </main></body></html>

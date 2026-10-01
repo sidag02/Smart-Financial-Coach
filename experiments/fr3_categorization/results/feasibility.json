@@ -6,11 +6,17 @@
     "generator_version": "0.1.0"
   },
   "environment": {
-    "git_commit": "7afc7164df2a7a331c45d15b288935631c07e960",
+    "git_commit": "4ed71fdb43c26ef036bb2a19ae9f0225b3dc0d9e",
     "python": "3.11.15",
     "platform": "macOS-26.6.2-arm64-arm-64bit",
     "sklearn": "1.9.1",
-    "embedding_model": "BAAI/bge-small-en-v1.5"
+    "embedding_model": "BAAI/bge-small-en-v1.5",
+    "embedding_file": {
+      "source": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+      "file": "model_optimized.onnx",
+      "sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431"
+    }
   },
   "setup": {
     "seed": 0,
@@ -45,7 +51,14 @@
       "Travel",
       "Utilities"
     ],
-    "bootstrap_reps": 1000
+    "bootstrap_reps": 1000,
+    "C_by_kind": {
+      "ngrams": 10.0,
+      "embeddings": 3.0,
+      "both": 3.0
+    },
+    "confidence_threshold": 0.9,
+    "ece_bins": 15
   },
   "facts": {
     "transactions": 1098595,
@@ -114,15 +127,23 @@
   },
   "embedding": {
     "strings": 12794,
-    "seconds": 10.183836167001573
+    "seconds": 10.178598708000209
   },
   "experiments": {
     "ngrams": {
       "description": "Character 2-4-grams of merchant_raw + amount bin, sign, channel, hour",
-      "fit_seconds": 7.8872007919999305,
+      "C": 10.0,
+      "fit_seconds": 5.602490249999391,
       "known": {
         "n": 144785,
         "macro_f1_spending": 0.9864328358621816,
+        "calibration": {
+          "accuracy": 0.9820423386400525,
+          "mean_confidence": 0.9840693520503544,
+          "ece": 0.0079742985427179,
+          "accuracy_at_threshold": 0.9998707407274424,
+          "coverage_at_threshold": 0.9618054356459578
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.9989457037427517,
@@ -404,6 +425,13 @@
       "test_users": {
         "n": 374673,
         "macro_f1_spending": 0.8683900561694843,
+        "calibration": {
+          "accuracy": 0.8911824444248718,
+          "mean_confidence": 0.9221914305163227,
+          "ece": 0.038266689542238226,
+          "accuracy_at_threshold": 0.9970662845413528,
+          "coverage_at_threshold": 0.8269771240521735
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.5933441558441559,
@@ -685,6 +713,13 @@
       "unseen": {
         "n": 78073,
         "macro_f1_spending": 0.5036911166037986,
+        "calibration": {
+          "accuracy": 0.544003688855302,
+          "mean_confidence": 0.6864256968075789,
+          "ece": 0.15980996170541664,
+          "accuracy_at_threshold": 0.964946956556815,
+          "coverage_at_threshold": 0.317536152062813
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.0328692962103635,
@@ -2449,10 +2484,18 @@
     },
     "embeddings": {
       "description": "Sentence embedding of normalized text (BAAI/bge-small-en-v1.5) + same side features",
-      "fit_seconds": 51.02990991700062,
+      "C": 3.0,
+      "fit_seconds": 49.54611641700103,
       "known": {
         "n": 144785,
         "macro_f1_spending": 0.9725249793772699,
+        "calibration": {
+          "accuracy": 0.9616603929965121,
+          "mean_confidence": 0.9646262528177761,
+          "ece": 0.011870345739669476,
+          "accuracy_at_threshold": 0.9985090033260695,
+          "coverage_at_threshold": 0.9033049003695134
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.9978914074855034,
@@ -2733,7 +2776,14 @@
       },
       "test_users": {
         "n": 374673,
-        "macro_f1_spending": 0.8423792436379167,
+        "macro_f1_spending": 0.9125775139410764,
+        "calibration": {
+          "accuracy": 0.9217317500860751,
+          "mean_confidence": 0.9413813143794312,
+          "ece": 0.027470739286307676,
+          "accuracy_at_threshold": 0.9941952205626073,
+          "coverage_at_threshold": 0.8423398536857473
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.9880668257756563,
@@ -3014,7 +3064,14 @@
       },
       "unseen": {
         "n": 78073,
-        "macro_f1_spending": 0.5934563477479732,
+        "macro_f1_spending": 0.6429110433936377,
+        "calibration": {
+          "accuracy": 0.758597722644192,
+          "mean_confidence": 0.852302156883883,
+          "ece": 0.10019740960233035,
+          "accuracy_at_threshold": 0.9674144185464704,
+          "coverage_at_threshold": 0.6143737271527929
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.8421052631578947,
@@ -4779,10 +4836,18 @@
     },
     "both": {
       "description": "Both",
-      "fit_seconds": 31.577889625001262,
+      "C": 3.0,
+      "fit_seconds": 27.524370708000788,
       "known": {
         "n": 144785,
         "macro_f1_spending": 0.9881774156037381,
+        "calibration": {
+          "accuracy": 0.9824014918672515,
+          "mean_confidence": 0.9830974223730476,
+          "ece": 0.00887131679571259,
+          "accuracy_at_threshold": 0.9999426029559477,
+          "coverage_at_threshold": 0.9626687847498014
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.9989457037427517,
@@ -5064,6 +5129,13 @@
       "test_users": {
         "n": 374673,
         "macro_f1_spending": 0.9286593470540841,
+        "calibration": {
+          "accuracy": 0.9383222169732006,
+          "mean_confidence": 0.938177164644006,
+          "ece": 0.014318832000836251,
+          "accuracy_at_threshold": 0.9991568457154449,
+          "coverage_at_threshold": 0.8420195744022121
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.9795704557359874,
@@ -5345,6 +5417,13 @@
       "unseen": {
         "n": 78073,
         "macro_f1_spending": 0.6380118269435803,
+        "calibration": {
+          "accuracy": 0.769177564586989,
+          "mean_confidence": 0.7671086388027495,
+          "ece": 0.056123738956069535,
+          "accuracy_at_threshold": 0.9918275140360785,
+          "coverage_at_threshold": 0.3855494216950802
+        },
         "per_class": {
           "Childcare & Education": {
             "precision": 0.6938775510204082,
@@ -7108,5 +7187,58 @@
       }
     }
   },
-  "total_seconds": 148.93993933299862
+  "c_sensitivity": {
+    "ngrams": {
+      "1.0": {
+        "known": 0.9878914173720047,
+        "test_users": 0.8759002929177488,
+        "unseen": 0.5314849648358957
+      },
+      "3.0": {
+        "known": 0.9874459931710168,
+        "test_users": 0.8854052635403157,
+        "unseen": 0.5309828236110311
+      },
+      "10.0": {
+        "known": 0.9864328358621816,
+        "test_users": 0.8683900561694843,
+        "unseen": 0.5036911166037986
+      }
+    },
+    "embeddings": {
+      "1.0": {
+        "known": 0.9719740598368959,
+        "test_users": 0.9143553187364687,
+        "unseen": 0.6531689860590859
+      },
+      "10.0": {
+        "known": 0.9720076403399117,
+        "test_users": 0.913517294809077,
+        "unseen": 0.6415726153198177
+      },
+      "3.0": {
+        "known": 0.9725249793772699,
+        "test_users": 0.9125775139410764,
+        "unseen": 0.6429110433936377
+      }
+    },
+    "both": {
+      "1.0": {
+        "known": 0.988253098666691,
+        "test_users": 0.9317439949495253,
+        "unseen": 0.651634067622863
+      },
+      "10.0": {
+        "known": 0.9883450523460624,
+        "test_users": 0.9323816548455416,
+        "unseen": 0.6486196919799948
+      },
+      "3.0": {
+        "known": 0.9881774156037381,
+        "test_users": 0.9286593470540841,
+        "unseen": 0.6380118269435803
+      }
+    }
+  },
+  "total_seconds": 323.5656289590006
 }
