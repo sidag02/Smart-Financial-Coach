@@ -37,6 +37,7 @@ uv run pre-commit install      # optional: run checks on commit
 
 ```sh
 uv run pytest                  # tests
+uv run pytest -m slow          # long-running checks, e.g. full dataset runtime (not run in CI)
 uv run ruff check . && uv run ruff format .
 uv run mypy                    # strict type checking
 ```
