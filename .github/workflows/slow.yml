@@ -1,13 +1,20 @@
 name: Slow tests
 
-# Long-running checks that the main CI job skips: full default-spec generation and validation.
-# Runs on PRs that touch data generation or labels, daily on main, and on demand.
+# Long-running checks that the main CI job skips: full default-spec generation and validation,
+# and the real embedding model end to end (FR-3). Runs on PRs that touch data generation, labels,
+# models or evaluation, daily on main, and on demand.
 on:
   pull_request:
     paths:
       - "src/smart_financial_coach/data/**"
+      - "src/smart_financial_coach/intelligence/**"
+      - "src/smart_financial_coach/evaluation/**"
       - "configs/data/**"
+      - "configs/models/**"
+      - "configs/experiments/**"
       - "tests/unit/data/**"
+      - "tests/unit/intelligence/**"
+      - "tests/unit/evaluation/**"
       - "pyproject.toml"
       - "uv.lock"
       - ".github/workflows/slow.yml"

@@ -1,0 +1,14 @@
+# Round 1: the starting candidate (FR-3 §3). Character n-grams + frozen bge-small embeddings +
+# amount, sign, channel and hour; C chosen on the validation folds; confidence calibrated per
+# familiarity group, method chosen by cross-validated Brier score.
+name: linear_both
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {ngrams: true, embeddings: BAAI/bge-small-en-v1.5}}}
+grid: {base.C: [1.0, 3.0, 10.0]}
+complexity: 2  # n-grams + an external embedding model
+tags: {round: "1"}

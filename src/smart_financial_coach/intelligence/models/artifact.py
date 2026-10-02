@@ -75,6 +75,10 @@ def load_artifact(directory: Path, *, trusted_root: Path) -> Model:
             f"{directory}: model is {model.name} {model.version}, "
             f"manifest says {manifest['name']} {manifest['version']}"
         )
+    # Models that depend on files outside the artifact (e.g. a downloaded embedding model)
+    # check them here, so a model never runs against a different file than it was trained with
+    if callable(check := getattr(model, "verify_environment", None)):
+        check()
     return model
 
 

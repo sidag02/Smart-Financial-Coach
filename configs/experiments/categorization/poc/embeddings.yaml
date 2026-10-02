@@ -1,0 +1,10 @@
+# The FR-3 POC's "embeddings" configuration (feasibility.py at commit 55d4197), for the reproduction
+# check only: `sfc-experiment run ... --reproduce-poc`. C fixed by hand as in the POC, no label
+# noise, no calibration, the POC's normalizer (single prefix strip), hour bins on.
+name: poc_embeddings
+task: categorization
+model:
+  type: categorization/linear_text
+  params: {ngrams: false, embeddings: BAAI/bge-small-en-v1.5, C: 3.0, normalizer: poc, hour: true, max_rows_per_class: 20000, seed: 0}
+task_params: {label_noise: 0.0}
+tags: {round: "1"}

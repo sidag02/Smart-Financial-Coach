@@ -12,6 +12,7 @@ from smart_financial_coach.evaluation.metrics.classification import (
     group_confusions,
     interval,
     macro_f1,
+    misallocated_spend,
     per_class_f1,
 )
 
@@ -46,8 +47,18 @@ def test_calibration() -> None:
     out = calibration(truth, pred, conf)
 
     assert out["ece"] == pytest.approx(0.45)
+    assert out["brier"] == pytest.approx((2 * 0.05**2 + 2 * 0.95**2) / 4)
     assert out["acc_at_90"] == 0.5
     assert out["coverage_at_90"] == 1.0
+
+
+def test_misallocated_spend_weighs_dollars() -> None:
+    truth = pd.Series(["Housing", "Dining", "Dining"])
+    pred = pd.Series(["Housing", "Dining", "Shopping"])
+
+    assert misallocated_spend(truth, pred, pd.Series([-2000.0, -4.0, -6.0])) == pytest.approx(
+        6 / 2010
+    )
 
 
 def test_bootstrap_resamples_groups_within_their_label() -> None:

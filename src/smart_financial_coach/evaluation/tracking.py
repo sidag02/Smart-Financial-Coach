@@ -8,6 +8,7 @@ gitignored); `SFC_MLFLOW_TRACKING_URI` points it at a shared server instead.
 """
 
 import os
+import re
 import time
 from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
@@ -23,6 +24,7 @@ from mlflow.tracking import MlflowClient
 from smart_financial_coach.config import PROJECT_ROOT, get_settings
 
 LOCAL_STORE = PROJECT_ROOT / "mlruns"
+INVALID_KEY = re.compile(r"[^\w.\-: /]")  # characters MLflow rejects in param names
 KIND_TAG = "sfc.kind"  # "experiment" on runs the leaderboard and finalize consider
 PARENT_TAG = "mlflow.parentRunId"
 CHAMPION = "champion"
@@ -44,7 +46,7 @@ def flatten(value: Mapping[str, Any], prefix: str = "") -> dict[str, str]:
     """Nested config as dotted MLflow params: {"model": {"type": "x"}} -> {"model.type": "x"}."""
     out: dict[str, str] = {}
     for key, item in value.items():
-        name = f"{prefix}{key}"
+        name = prefix + INVALID_KEY.sub("", str(key))  # "$model" -> "model"
         if isinstance(item, Mapping) and item:
             out |= flatten(item, f"{name}.")
         else:

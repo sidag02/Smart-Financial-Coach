@@ -110,6 +110,7 @@ def accuracy(predictions: pd.DataFrame, examples: Examples) -> float:
 class ToyTask:
     name = "toy"
     selection_metric = "unseen_accuracy"
+    tuning_metric = "unseen_accuracy"
     tiebreak_metrics: tuple[str, ...] = ("val_seen_accuracy_error",)
     required_baselines: tuple[str, ...] = ("majority",)
     reproduction = ExperimentConfig(name="poc", task="toy", model={"type": "toy/memory"})

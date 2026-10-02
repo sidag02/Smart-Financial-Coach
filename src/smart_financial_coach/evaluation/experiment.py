@@ -8,6 +8,7 @@ task_params: {label_noise: 0.02, max_rows_per_class: 20000}
 complexity: 2  # components and dependencies; lower is simpler (last tie-breaker)
 """
 
+import copy
 import hashlib
 import itertools
 import json
@@ -16,6 +17,8 @@ from typing import Any
 
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
+
+from smart_financial_coach.intelligence.models.registry import MODEL_MARKER
 
 
 class _Model(BaseModel):
@@ -51,7 +54,20 @@ class ExperimentConfig(_Model):
         ]
 
     def model_spec(self, point: dict[str, Any]) -> dict[str, Any]:
-        return {"type": self.model.type, "params": {**self.model.params, **point}}
+        """The model spec with a grid point applied. Dotted keys reach into nested models:
+        `base.C` sets `C` on the model in the `base` param (`{"$model": ...}`)."""
+        spec: dict[str, Any] = {"type": self.model.type, "params": copy.deepcopy(self.model.params)}
+        for key, value in point.items():
+            *path, name = key.split(".")
+            target: dict[str, Any] = spec
+            for step in path:
+                nested = target["params"].get(step)
+                if not (isinstance(nested, dict) and MODEL_MARKER in nested):
+                    raise ValueError(f"grid key {key!r}: {step!r} is not a nested model")
+                target = nested[MODEL_MARKER]
+                target.setdefault("params", {})
+            target["params"][name] = value
+        return spec
 
 
 def load_experiment(path: str | Path) -> ExperimentConfig:
