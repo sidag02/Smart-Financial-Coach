@@ -25,11 +25,6 @@ class Settings(BaseSettings):
     # Experiment tracking (evaluation only; serving never reads it). None: local store in mlruns/
     mlflow_tracking_uri: str | None = None
 
-    # Promotion gate for single-transaction categorization latency (p95, cold start). 5 ms is the
-    # FR-3 target on a laptop CPU; slower machines (CI runners) set their own, like the generator's
-    # SFC_RUNTIME_BUDGET_SECONDS. Check it on the serving hardware before relying on it.
-    latency_gate_ms: float = 5.0
-
     # LLM (provider TBD, see Technical Design open questions)
     llm_provider: str | None = None
     llm_model: str | None = None

@@ -1,0 +1,7 @@
+# Launch round (FR-3 "Trimmed for launch"): round 0 baseline on the launch round's 3 folds
+name: majority
+task: categorization
+model: {type: categorization/majority}
+task_params: {k: 3}
+baseline: true
+tags: {round: "0", plan: launch}

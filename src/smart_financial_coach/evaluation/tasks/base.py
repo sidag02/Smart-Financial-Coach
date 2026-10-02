@@ -53,6 +53,7 @@ class Task(Protocol):
     # Logged metrics that break ties, in order; lower is better. `complexity` is always last.
     tiebreak_metrics: tuple[str, ...]
     required_baselines: tuple[str, ...]  # baseline run names eligibility and gates compare to
+    report_metrics: tuple[str, ...]  # logged metrics shown in the comparison report
 
     def load(self, data: Path) -> Examples: ...
 
@@ -80,6 +81,16 @@ class Task(Protocol):
 
     def tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         """Whether two runs' pooled validation predictions are statistically tied."""
+        ...
+
+    def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
+        """95% interval of the selection metric on a run's pooled validation predictions."""
+        ...
+
+    def difference_interval(
+        self, examples: Examples, a: pd.DataFrame, b: pd.DataFrame
+    ) -> tuple[float, float]:
+        """95% paired interval of the selection metric, run a minus run b."""
         ...
 
     def gates(

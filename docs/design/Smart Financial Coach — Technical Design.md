@@ -118,7 +118,7 @@ Six high-level choices shape the system; each decision favors trustworthy number
 | Role of the LLM | (a) LLM analyzes raw transactions directly · (b) LLM writes SQL over the data · (c) LLM calls purpose-built model tools | (c) | Numbers come from tested models, not generation; (a) hallucinates arithmetic, (b) is flexible but hard to validate and secure |
 | Tool interface | (a) Provider-specific function calling · (b) Custom REST API · (c) MCP server | (c) | One contract usable by any MCP-compatible assistant; no provider lock-in. Cost: an extra process and protocol to operate |
 | Where personalization lives | (a) One global model · (b) One model per user · (c) Global model + per-user baseline features | Categorization (a); anomalies and forecasts (c) or (b), settled by experiment | Merchant meaning is shared across users; "normal spending" is personal |
-| Compute timing | (a) Batch precompute nightly · (b) Compute on each request | (a) for forecasts and flags, (b) for categorization of new transactions | Keeps chat latency low; forecasts change slowly |
+| Compute timing | (a) Batch precompute nightly · (b) Compute on each request · (c) Batch on ingestion | (a) for forecasts and flags, (c) for categorization of new transactions | Keeps chat latency low; forecasts change slowly. Transactions arrive from bank feeds in batches, so categorizing them on ingestion, batched across users, keeps per-transaction latency off any user's path. Serving cost becomes a cluster-sizing question (FR-3, decision Oct 2, 2026) |
 | Model hosting | (a) In-process library · (b) Separate model service | (a) | Simplest for v1; the service contracts allow a split later without caller changes |
 | Data store | (a) Flat files (e.g. Parquet) · (b) SQLite · (c) Postgres | (b) | Zero ops for v1; standard library; one file per dataset; same SQL moves to Postgres in v2 |
 
@@ -138,7 +138,7 @@ The assistant can never choose whose data it reads: user identity is bound to th
 
 No model is chosen in this doc. Once each interface and feature set is fixed, candidates are either ruled out by theory or compared by experiment on the evaluation framework, and the winner is recorded as a decision.
 
-**Selection criteria, in order:** primary metric on held-out data → beats the baseline → latency within budget → explainability of outputs → operational simplicity.
+**Selection criteria, in order:** primary metric on held-out data → beats the baseline → latency within budget → explainability of outputs → operational simplicity. For batch-precomputed services (categorization, flags, forecasts), "latency" means batch serving cost, used to break ties and size the cluster rather than as a gate. Only paths a user waits on, such as chat answers (NFR-5), get hard latency gates.
 
 | Problem | Candidate families to evaluate | Decided by |
 | --- | --- | --- |

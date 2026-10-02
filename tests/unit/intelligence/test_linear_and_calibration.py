@@ -50,7 +50,12 @@ def test_fits_and_meets_the_contract(data: tuple[pd.DataFrame, pd.Series]) -> No
 
 @pytest.mark.parametrize(
     "params",
-    [{"embeddings": None}, {"ngrams": False}, {"amount": False, "hour": False, "channel": False}],
+    [
+        {"embeddings": None},
+        {"ngrams": False},
+        {"amount": False, "hour": False, "channel": False},
+        {"ngram_min": 1, "ngram_max": 5},
+    ],
 )
 def test_feature_blocks_switch(
     data: tuple[pd.DataFrame, pd.Series], params: dict[str, object]

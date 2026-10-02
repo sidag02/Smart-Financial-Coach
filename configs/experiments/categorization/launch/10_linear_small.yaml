@@ -1,0 +1,13 @@
+# Launch round (FR-3 "Trimmed for launch"), round 2: the reference: n-grams 2-4 + bge-small (round 1's candidate).
+# C fixed at 1.0 (round 1's choice for this family); 3 folds, like the rest of this folder.
+name: 10_linear_small
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-small-en-v1.5}}}
+task_params: {k: 3}
+complexity: 2
+tags: {round: "2", plan: launch}

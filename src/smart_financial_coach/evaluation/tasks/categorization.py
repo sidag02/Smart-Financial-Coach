@@ -21,7 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from smart_financial_coach.config import PROJECT_ROOT, get_settings
+from smart_financial_coach.config import PROJECT_ROOT
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.generator.taxonomy import INCOME
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
@@ -102,7 +102,19 @@ class CategorizationTask:
     name = "categorization"
     selection_metric = "unseen_macro_f1"  # ranks runs (the decision rule)
     tuning_metric = "tuning_macro_f1"  # picks C within a run: mean of known and unseen
-    tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_p95_ms")
+    # Among tied runs: better confidence, then cheaper batch serving (ms for a fixed 10k-row batch)
+    tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_batch_ms")
+    # Columns of the comparison report (`sfc-experiment report`), after the selection metric
+    report_metrics: tuple[str, ...] = (
+        "val_known_macro_f1",
+        "val_unseen_brier",
+        "val_unseen_ece",
+        "val_unseen_acc_at_90",
+        "val_unseen_coverage_at_90",
+        "val_unseen_misallocated_spend",
+        "latency_batch_ms",
+        "latency_p95_ms",
+    )
     required_baselines: tuple[str, ...] = (KEYWORD_BASELINE,)  # eligibility and gates need it
 
     def __init__(self, reps: int = BOOTSTRAP_REPS) -> None:
@@ -330,33 +342,49 @@ class CategorizationTask:
         floor = baselines.get(KEYWORD_BASELINE, {}).get("val_known_macro_f1", float("inf"))
         return bool(known >= KNOWN_GATE and known > floor)
 
+    def _unseen_stack(
+        self, examples: Examples, pooled: pd.DataFrame
+    ) -> tuple[list[str], npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+        """Per-merchant confusion matrices of the pooled unseen-merchant (spending) rows."""
+        rows = self._join(examples, pooled[pooled["held_out"] == UNSEEN].reset_index(drop=True))
+        rows = rows[rows["category"] != INCOME]
+        return group_confusions(
+            rows["category"], rows["predicted"], rows["merchant_id"], self.spending
+        )
+
+    def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
+        """95% merchant-bootstrap interval of validation unseen-merchant macro F1."""
+        _, stack, majority = self._unseen_stack(examples, pooled)
+        weights = bootstrap_weights(majority, self.reps, np.random.default_rng(0))
+        return interval(bootstrap_macro_f1(stack, weights, len(self.spending)))
+
+    def difference_interval(
+        self, examples: Examples, a: pd.DataFrame, b: pd.DataFrame
+    ) -> tuple[float, float]:
+        """95% paired merchant-bootstrap interval of unseen macro F1, run a minus run b."""
+        names_a, stack_a, majority = self._unseen_stack(examples, a)
+        names_b, stack_b, _ = self._unseen_stack(examples, b)
+        if names_a != names_b:
+            raise ValueError("runs held out different merchants; they aren't comparable")
+        weights = bootstrap_weights(majority, self.reps, np.random.default_rng(0))
+        n = len(self.spending)
+        return interval(
+            bootstrap_macro_f1(stack_a, weights, n) - bootstrap_macro_f1(stack_b, weights, n)
+        )
+
     def tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         """Paired merchant bootstrap of the unseen macro-F1 difference: tied if its CI holds 0."""
-        stacks = []
-        for pooled in (leader, other):
-            rows = self._join(examples, pooled[pooled["held_out"] == UNSEEN].reset_index(drop=True))
-            rows = rows[rows["category"] != INCOME]
-            names, stack, majority = group_confusions(
-                rows["category"], rows["predicted"], rows["merchant_id"], self.spending
-            )
-            stacks.append((names, stack, majority))
-        if stacks[0][0] != stacks[1][0]:
-            raise ValueError("runs held out different merchants; they aren't comparable")
-        weights = bootstrap_weights(stacks[0][2], self.reps, np.random.default_rng(0))
-        n = len(self.spending)
-        diff = bootstrap_macro_f1(stacks[0][1], weights, n) - bootstrap_macro_f1(
-            stacks[1][1], weights, n
-        )
-        lo, hi = interval(diff)
+        lo, hi = self.difference_interval(examples, leader, other)
         return lo <= 0 <= hi
 
     def gates(
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> list[Gate]:
+        """Quality gates only. Latency is reported, not gated: categorization runs in batches on
+        ingestion, so serving time is a cluster-sizing cost, not a property to reject a model on
+        (decision Oct 2, 2026; FR-3 "Metrics and why", point 7)."""
         known = metrics.get("test_known_macro_f1", float("nan"))
         keyword = baselines.get(KEYWORD_BASELINE, {}).get("test_known_macro_f1")
-        latency = metrics.get("latency_p95_ms", float("inf"))
-        gate_ms = get_settings().latency_gate_ms
         return [
             Gate("known_macro_f1", known >= KNOWN_GATE, f"{known:.3f} vs {KNOWN_GATE}"),
             Gate(
@@ -365,11 +393,6 @@ class CategorizationTask:
                 f"{known:.3f} vs {keyword:.3f}"
                 if keyword is not None
                 else "no keyword baseline run",
-            ),
-            Gate(
-                "latency_p95",
-                latency <= gate_ms,
-                f"{latency:.2f} ms vs {gate_ms} ms",
             ),
         ]
 

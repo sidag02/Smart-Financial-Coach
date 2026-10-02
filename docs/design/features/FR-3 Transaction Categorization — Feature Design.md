@@ -113,7 +113,7 @@ What the errors show:
 3. Unseen-merchant macro F1 is measured and reported with a confidence interval from the first commit, so FR-4 starts from a number.
 4. Confidence is calibrated on **unseen as well as known** merchants, well enough for FR-5 to threshold it later. Expected calibration error is reported on every test set and for seen and unseen strings separately. The POC's uncalibrated model is at 0.009 on known merchants and 0.056 on unseen ones.
 5. Model code never reads ground truth. Labels reach the model only as a training argument.
-6. Single-transaction latency is well inside the chat budget (NFR-5): target < 5 ms per transaction on CPU for the default model.
+6. Serving cost is measured and reported (batch time for 10k transactions, single-call p95), not gated: categorization runs in batches on ingestion, so cost is a cluster-sizing question ([Metrics and why](#metrics-and-why), point 7).
 7. Swapping the categorization model is a promotion, not a code change: callers load the promoted model through one function.
 8. Every experiment is tracked (config, data, splits, code version, metrics) and can be rerun to the same numbers.
 
@@ -297,7 +297,7 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 `sfc-model promote --task categorization --run <id>`:
 
 1. Requires the run to be the rank-1 finalist: finalists are never re-ranked on test scores.
-2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, latency within budget, and a written note on explainability and operations (`--note`, stored on the run).
+2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, and a written note on explainability and operations (`--note`, stored on the run).
 3. Registers the model in the MLflow model registry as `categorization` and moves the `champion` alias to it.
 4. Exports it to `artifacts/categorization/<version>/` and writes `artifacts/categorization/PROMOTED`, which holds the version.
 5. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results and the note. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
@@ -482,15 +482,21 @@ Each metric has one job. This section records why it was chosen, which alternati
 - **Why:** the dashboard and the coach sum dollars by category, and misfiling a $2,000 rent payment matters more than misfiling a $4 coffee. Macro F1 counts transactions, not dollars.
 - **Reported, not gated:** a few large, easy recurring merchants (Housing, Utilities) dominate it, so it can look good while small categories are wrong. It complements macro F1 rather than replacing it.
 
-**7. Is it fast enough? p95 wall time of single-transaction calls on distinct rows** (gate: ≤ 5 ms).
+**7. What does it cost to serve? Reported, never gated** (decision Oct 2, 2026, made after the launch round's results were known; recorded as such in the launch-round report).
 
-- **Why p95:** the chat budget (NFR-5) is a limit on slow cases, which the mean hides. p99 from 200 calls rests on two observations.
-- **Why distinct rows, from a cold start:** timing one row repeatedly measures only warm caches. The embedding cache is process-wide and isn't saved with the model, so a freshly started server embeds each string on first sight. The runner clears model caches before timing (`reset_caches`), so the gated `latency_p95_ms` includes those first-sight costs. A second pass on the same rows is reported as `latency_warm_p95_ms`.
-- **Measured (milestone 3, after review):**
-  - The combined model: 3.1 ms p95 cold, 1.2 ms p95 warm on a laptop. A GitHub Actions runner measured **8.95 ms p95 cold**, over the gate. The gate is therefore a setting (`SFC_LATENCY_GATE_MS`, default 5): CI sets its own, as it does for the generator's runtime budget. **It must be checked on the serving hardware before launch**; if that hardware is runner-class, shipping the vocabulary's vectors (below) is the fix.
-  - If cold starts matter for the dashboard's first load, the training vocabulary's vectors (about 20 MB for 13k strings) could ship with the artifact or warm on `load_service`. That's tied to the open artifact-size question.
-  - The cache is a bounded LRU (100k vectors, about 150 MB), so a long-running server's memory stays predictable.
-  - Before profiling it was 8.4 ms: pandas `isin` rebuilt the 13k-string vocabulary set on every call.
+- **Why no gate:** categorization runs **on ingestion, in batches** across users, not per request. New transactions arrive from bank feeds in batches, and no user waits on a single categorization. A slower model costs more CPU, which the cluster is sized for, and the categorization workers can run on bigger nodes. Rejecting an otherwise better model for a few milliseconds per transaction would optimize the wrong thing. The milestone 3 gate (5 ms p95 per transaction) also turned out to depend on the machine: 3.1 ms on a laptop, 8.95 ms on a CI runner.
+- **The cost metric that matters: `latency_batch_ms`,** the time for one fixed 10k-row batch (the runner's latency sample). It is the second tie-breaker among statistically tied runs, so a cheaper model wins a real tie. It is measured in the same run environment for every candidate, so it ranks consistently even though its absolute value depends on the machine.
+- **Also reported:**
+  - `latency_p95_ms`: one-transaction calls on distinct rows from a cold start (caches cleared with `reset_caches`), for the chat path's occasional single lookups;
+  - `latency_warm_p95_ms`: the same rows a second time, with warm caches.
+
+  Measured (milestone 3): 3.1 ms cold and 1.2 ms warm on a laptop; 8.95 ms cold on a CI runner.
+- **Serving at scale is a deployment concern, sized in milestone 5's `predict` and the serving design:**
+  - throughput per core and cost per million transactions;
+  - pod memory: the ONNX model is 67 MB for bge-small and about twice that for bge-base, and the embedding cache is a bounded LRU of up to about 150 MB;
+  - cold start: model load, plus each new pod embedding strings on first sight; ship the training vocabulary's vectors (about 20 MB) or warm on `load_service`;
+  - ONNX thread settings: one thread per worker, CPU requests equal to limits, so container CPU throttling doesn't create tail latency.
+- **Before profiling,** a single call took 8.4 ms: pandas `isin` rebuilt the 13k-string vocabulary set on every call. Fixed in milestone 3.
 
 **8. Diagnostics, reported and never gated:**
 
@@ -561,7 +567,7 @@ The framework exists so that choosing a model is an experiment, not an argument.
 3. **Ties, defined against the leader only** (pairwise ties aren't transitive, so they wouldn't give one order across ~40 runs):
    - The leader is the eligible run with the best point estimate.
    - Its tie set is every eligible run whose paired difference with the leader has a 95% interval containing 0 (merchant-level bootstrap over the same validation folds). The leader is in its own tie set.
-   - Within the tie set, runs are ordered by validation unseen-merchant Brier score after calibration (see [Metrics and why](#metrics-and-why), point 5; the plan first said ECE), then p95 latency, then explainability, then operational simplicity (fewer components and dependencies).
+   - Within the tie set, runs are ordered by validation unseen-merchant Brier score after calibration (see [Metrics and why](#metrics-and-why), point 5; the plan first said ECE), then batch serving cost (`latency_batch_ms`; the plan first said p95 latency, see [Metrics and why](#metrics-and-why), point 7), then explainability, then operational simplicity (fewer components and dependencies).
    - If the tie set has fewer than three runs, the rest of the order is by point estimate.
 4. **Finalists:** the top three in that order go to `finalize`, and the baselines are scored with them (see [Selection discipline](#selection-discipline)). The rule's winner is promoted if it passes the test gates. If it fails one, that's investigated before anything is promoted; the finalists are never re-ranked on test scores.
 
@@ -681,7 +687,7 @@ Sharing needs a tracking server everyone can reach. Until one is chosen, runs li
 - **Unit:** label noise never touches validation, calibration or test rows. Loading an artifact whose embedding file checksum doesn't match the manifest fails. In cross-fitting, every holdout-eligible training merchant is held out in exactly one fold, protected merchants in none, and no held-out merchant appears in that fold model's training rows. The shipped model trains on every training merchant. The familiarity vocabulary includes strings the per-class cap sampled out. The normalizer handles every rendering distortion type (prefix, store number, reference code, truncation, `PPD ID:`), idempotent, never empty for non-empty input. Baseline keyword file contains no catalog merchant names. The contract returns one row per input with a known category and confidence in [0, 1]. An empty frame returns an empty frame. `fit` then `categorize` is deterministic for a fixed seed. Label noise flips the configured share and never keeps the original label. Splits: no transaction in two splits, unseen set contains only holdout merchants.
 - **Framework (fake models, no real data):** the registry builds a model from config and rejects unknown names. Each splitter's leak check fails on a constructed leak (shared ID, held-out merchant in fold training rows, protected merchant in a held-out group, non-holdout merchant in the unseen set). The generator and the task get the same holdout-eligible merchants from the shared function. The runner logs params, tags, split hashes and `val_*` metrics to a temporary MLflow store and writes no `test_*` metrics; `--reproduce-poc` refuses any config that isn't a POC config. `finalize` refuses more than three runs and runs with different split hashes, and always scores the baselines. The decision rule orders a constructed set of runs where pairwise ties aren't transitive (A ties B, B ties C, A beats C) the same way every time. `promote` refuses a non-finalist and a run that fails a gate, leaves the MLflow alias and `PROMOTED` pointing at the same version, and appends to `promotions.jsonl`. Nothing under `intelligence/` imports `mlflow`. `load_service` returns a contract-checked model, and a model that returns too few rows, an unknown category or confidence outside [0, 1] fails the check. A resumed sweep skips finished configs.
 - **Integration (`small.yaml`, stub embedder):** run → finalize → promote → `load_service` → predict end to end; the model beats the baseline on known merchants; a rerun gives identical metrics (NFR-8). Swapping the promoted run to a different model type needs no code change.
-- **Slow (`default.yaml`, real embedder):** reproduces the POC within ±0.005 (§3); known-merchant macro F1 ≥ 0.90; latency within budget.
+- **Slow (`default.yaml`, real embedder):** reproduces the POC within ±0.005 (§3); known-merchant macro F1 ≥ 0.90; serving cost is logged.
 - **Isolation:** the existing test covers `intelligence/`; it is extended to forbid `mlflow` imports there and to cover `data/store.py` and `data/features/`.
 
 ## Milestones
