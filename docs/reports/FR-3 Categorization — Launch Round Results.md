@@ -55,6 +55,8 @@ The round showed the rule ranking first a run that failed the 5 ms per-transacti
 - **What gets measured instead:** throughput, pod memory and cold start on the serving profile, as deployment sizing in milestone 5 and the serving design.
 - **The order doesn't change:** Brier already separates every tied run, so bge-base stays first and is now promotable.
 
+**A rule change made after seeing results.** It was decided after the launch round's numbers were known, including bge-base's. It uses no test data, and its reason is the serving pattern, not any run's score. But a document meant to show disciplined selection should say so plainly. Review measurements support it independently: one cold p95 varied 17% across 8 repeats on the same machine (3.17–3.73 ms for bge-small), so a hard millisecond cut near 5 ms would have flipped with reruns.
+
 The FR-3 design ("Metrics and why", point 7) and the Technical Design (compute timing, selection criteria) record the decision.
 
 ## Next (milestone 5)

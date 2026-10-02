@@ -482,7 +482,7 @@ Each metric has one job. This section records why it was chosen, which alternati
 - **Why:** the dashboard and the coach sum dollars by category, and misfiling a $2,000 rent payment matters more than misfiling a $4 coffee. Macro F1 counts transactions, not dollars.
 - **Reported, not gated:** a few large, easy recurring merchants (Housing, Utilities) dominate it, so it can look good while small categories are wrong. It complements macro F1 rather than replacing it.
 
-**7. What does it cost to serve? Reported, never gated** (decision Oct 2, 2026).
+**7. What does it cost to serve? Reported, never gated** (decision Oct 2, 2026, made after the launch round's results were known; recorded as such in the launch-round report).
 
 - **Why no gate:** categorization runs **on ingestion, in batches** across users, not per request. New transactions arrive from bank feeds in batches, and no user waits on a single categorization. A slower model costs more CPU, which the cluster is sized for, and the categorization workers can run on bigger nodes. Rejecting an otherwise better model for a few milliseconds per transaction would optimize the wrong thing. The milestone 3 gate (5 ms p95 per transaction) also turned out to depend on the machine: 3.1 ms on a laptop, 8.95 ms on a CI runner.
 - **The cost metric that matters: `latency_batch_ms`,** the time for one fixed 10k-row batch (the runner's latency sample). It is the second tie-breaker among statistically tied runs, so a cheaper model wins a real tie. It is measured in the same run environment for every candidate, so it ranks consistently even though its absolute value depends on the machine.

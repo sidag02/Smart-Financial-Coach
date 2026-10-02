@@ -73,7 +73,7 @@ def _model(tracker: Tracker, run: RunRecord, tmp: Path) -> Model:
     return load_artifact(folder, trusted_root=tmp)
 
 
-def _rebuild(
+def rebuild_splits(
     task: Task, data: Path, tracker: Tracker, run: RunRecord, tmp: Path
 ) -> tuple[Examples, Splits]:
     """The run's examples and splits, rebuilt from the data and checked against the run's tags."""
@@ -85,7 +85,7 @@ def _rebuild(
     return examples, splits
 
 
-def _comparable(tracker: Tracker, task: Task, split_hash: str | None) -> list[RunRecord]:
+def comparable_runs(tracker: Tracker, task: Task, split_hash: str | None) -> list[RunRecord]:
     """Runs on the same data and splits as `split_hash` (default: the latest run's)."""
     runs = tracker.find(task.name, {})
     if split_hash is None and runs:
@@ -100,7 +100,7 @@ def code_versions(runs: list[RunRecord]) -> set[str]:
 
 
 def _require_baselines(task: Task, runs: list[RunRecord]) -> None:
-    present = {r.name for r in _baselines(runs)}
+    present = {r.name for r in baseline_runs(runs)}
     if missing := [b for b in task.required_baselines if b not in present]:
         raise SelectionError(
             f"no {', '.join(missing)} baseline run on these splits; run round 0 first "
@@ -108,7 +108,7 @@ def _require_baselines(task: Task, runs: list[RunRecord]) -> None:
         )
 
 
-def _baselines(runs: list[RunRecord]) -> list[RunRecord]:
+def baseline_runs(runs: list[RunRecord]) -> list[RunRecord]:
     return [r for r in runs if r.tags.get("sfc.baseline") == "true"]
 
 
@@ -117,10 +117,10 @@ def leaderboard(
 ) -> list[Standing]:
     """Candidate runs in decision-rule order (baselines are the floor, not candidates)."""
     task = get_task(task_name)
-    runs = _comparable(tracker, task, split_hash)
+    runs = comparable_runs(tracker, task, split_hash)
     if any(r.tags.get("sfc.baseline") != "true" for r in runs):
         _require_baselines(task, runs)
-    baselines = {r.name: r.metrics for r in _baselines(runs)}
+    baselines = {r.name: r.metrics for r in baseline_runs(runs)}
     candidates = [r for r in runs if r.tags.get("sfc.baseline") != "true"]
     if not candidates:
         return []
@@ -129,7 +129,7 @@ def leaderboard(
     by_id = {r.run_id: r for r in candidates}
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
-        examples, _ = _rebuild(task, data, tracker, candidates[0], tmp)
+        examples, _ = rebuild_splits(task, data, tracker, candidates[0], tmp)
         predictions: dict[str, pd.DataFrame] = {}
 
         def pooled(run_id: str) -> pd.DataFrame:
@@ -199,7 +199,7 @@ def finalize(
         )
     if run_ids:
         split_hash = tracker.get(run_ids[0]).tags.get("sfc.split_hash")
-    _require_baselines(task, _comparable(tracker, task, split_hash))  # else nothing is eligible
+    _require_baselines(task, comparable_runs(tracker, task, split_hash))  # else nothing is eligible
     order = [s.run_id for s in leaderboard(task_name, data, tracker, split_hash) if s.eligible]
     chosen = run_ids or order[:MAX_FINALISTS]
     if not chosen:
@@ -214,7 +214,7 @@ def finalize(
             raise SelectionError(f"{run.run_id} is a baseline; baselines are scored automatically")
     if len({r.tags["sfc.split_hash"] for r in finalists}) > 1:
         raise SelectionError("finalists were trained on different splits")
-    comparable = _comparable(tracker, task, finalists[0].tags["sfc.split_hash"])
+    comparable = comparable_runs(tracker, task, finalists[0].tags["sfc.split_hash"])
     used = [
         r
         for r in comparable
@@ -227,7 +227,7 @@ def finalize(
         )
     if again := [r.run_id for r in finalists if r.tags.get(TEST_SCORED_TAG) == "true"]:
         raise SelectionError(f"{', '.join(again)} already scored on the test sets")
-    baselines = _baselines(comparable)
+    baselines = baseline_runs(comparable)
     if not baselines:
         raise SelectionError("no baseline runs on these splits; run the round 0 baselines first")
     if len(versions := code_versions(finalists + baselines)) > 1 and not reason:
@@ -240,7 +240,7 @@ def finalize(
     scored: dict[str, dict[str, float]] = {}
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
-        examples, splits = _rebuild(task, data, tracker, finalists[0], tmp)
+        examples, splits = rebuild_splits(task, data, tracker, finalists[0], tmp)
         for run in finalists + baselines:
             if run in baselines and run.tags.get(TEST_SCORED_TAG) == "true":
                 scored[run.run_id] = {k: v for k, v in run.metrics.items() if k.startswith("test_")}
@@ -260,7 +260,7 @@ def finalize(
 
 
 def check_gates(task: Task, run: RunRecord, tracker: Tracker) -> list[Gate]:
-    baselines = _baselines(_comparable(tracker, task, run.tags["sfc.split_hash"]))
+    baselines = baseline_runs(comparable_runs(tracker, task, run.tags["sfc.split_hash"]))
     return task.gates(run.metrics, {b.name: b.metrics for b in baselines})
 
 

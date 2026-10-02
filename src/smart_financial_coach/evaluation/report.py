@@ -14,11 +14,12 @@ import pandas as pd
 from smart_financial_coach.evaluation.promote import (
     FINALIST_TAG,
     RANK_TAG,
-    _baselines,
-    _comparable,
-    _rebuild,
+    SelectionError,
+    baseline_runs,
     code_versions,
+    comparable_runs,
     leaderboard,
+    rebuild_splits,
 )
 from smart_financial_coach.evaluation.runner import PREDICTIONS_FILE, PREDICTIONS_PATH
 from smart_financial_coach.evaluation.tasks.base import get_task
@@ -39,29 +40,33 @@ def comparison_report(
     task_name: str, data: Path, tracker: Tracker, split_hash: str | None = None
 ) -> str:
     task = get_task(task_name)
+    runs = {r.run_id: r for r in comparable_runs(tracker, task, split_hash)}
+    if not runs:
+        raise SelectionError("no finished runs on these splits; run some experiments first")
     standings = leaderboard(task_name, data, tracker, split_hash)
-    runs = {r.run_id: r for r in _comparable(tracker, task, split_hash)}
-    baselines = _baselines(list(runs.values()))
+    baselines = baseline_runs(list(runs.values()))
     selection = f"val_{task.selection_metric}"
     keys = task.report_metrics
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
         first = runs[standings[0].run_id] if standings else next(iter(runs.values()))
-        examples, _ = _rebuild(task, data, tracker, first, tmp)
+        examples, _ = rebuild_splits(task, data, tracker, first, tmp)
 
         def pooled(run_id: str) -> pd.DataFrame:
             path = tracker.download(run_id, f"{PREDICTIONS_PATH}/{PREDICTIONS_FILE}", tmp / run_id)
             return pd.read_parquet(path)
 
-        leader = pooled(standings[0].run_id) if standings else None
+        # The leader is the first *eligible* run; with none, there is nothing to compare against
+        eligible = [s for s in standings if s.eligible]
+        leader = pooled(eligible[0].run_id) if eligible else None
         rows = []
         for place, s in enumerate(standings, start=1):
             run = runs[s.run_id]
             mine = pooled(s.run_id)
             lo, hi = task.selection_interval(examples, mine)
-            if leader is None or place == 1:
-                diff = "—"
+            if leader is None or not s.eligible or s.run_id == eligible[0].run_id:
+                diff = DASH
             else:
                 d_lo, d_hi = task.difference_interval(examples, mine, leader)
                 diff = f"{d_lo:+.3f} to {d_hi:+.3f}"
