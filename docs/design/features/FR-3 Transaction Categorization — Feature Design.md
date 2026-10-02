@@ -189,7 +189,9 @@ Predictions are written to a separate SQLite file, not the generator's file (opt
 
 Every run logs its fitted model to MLflow. Promotion copies the chosen one to `artifacts/categorization/<version>/` and points `artifacts/categorization/PROMOTED` at it; serving reads only that folder (see [Promotion and serving](#promotion-and-serving)).
 
-The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is derived from the config hash and the data `spec_hash`. Only artifacts from this folder are loaded, since joblib files are pickles.
+The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, the model file's SHA-256, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is derived from the config hash and the data `spec_hash`. Only artifacts from this folder are loaded, since joblib files are pickles.
+
+**Where the files live (decision Oct 2, 2026).** The manifest is committed; `model.joblib` is not. Saved models are 9.5–12.7 MB, above the repo's 5 MB file limit, and every retraining would add one to git history for good. Each promoted model file is attached to a **GitHub Release** of this repository, tagged `categorization-<version>`. The repository is public, so anyone can download it with a plain URL and no credentials. The committed manifest's `model_sha256` is the trust anchor: a downloaded file is unpickled only if it matches, so a replaced release asset is refused rather than run.
 
 ## Training and evaluation framework
 
@@ -300,11 +302,14 @@ With 58 unseen merchants and a 0.17-wide interval, enough experiments will find 
 2. Checks the task's gates in the Technical Design's order: primary metric on held-out data (FR-3: `test_known` ≥ 0.90), beats the baseline, and a written note on explainability and operations (`--note`, stored on the run).
 3. Registers the model in the MLflow model registry as `categorization` and moves the `champion` alias to it.
 4. Exports it to `artifacts/categorization/<version>/` and writes `artifacts/categorization/PROMOTED`, which holds the version.
-5. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results and the note. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
+5. Uploads `model.joblib` to a GitHub Release tagged `categorization-<version>` (through the `gh` CLI, so it needs a login with write access to the repository). The manifest and pointer stay in the repo; the model file is git-ignored.
+6. Appends a line to the committed `artifacts/categorization/promotions.jsonl`: version, MLflow run ID, date, the gate results, the note and the model file's download URL. With the default local tracking store, the registry lives in a gitignored database on one machine, so this log is the promotion history every clone can see. Tests check that `PROMOTED` matches the log's last entry; the check against the MLflow alias runs only where that tracking store is reachable.
+
+The promotion is complete when the pointer, manifest and log are committed and merged. Until then, other clones still serve the previous version.
 
 **Departing from the rule is possible but visible.** Naming finalists, a second round of test scoring on the same splits, or promoting a finalist other than #1 each need `--override "<reason>"`. The reason is recorded as a tag on every run it touches and in `promotions.jsonl`.
 
-`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
+`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. If the folder has no `model.joblib` yet, it first downloads the file from the URL in the promotion log, into that folder, and checks it against the committed manifest before loading, the same pattern as the embedding file. So a fresh clone runs with `uv sync` and `sfc-model predict`; the first call fetches the model. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 
 ### Path to a general framework
 
@@ -674,6 +679,19 @@ Sharing needs a tracking server everyone can reach. Until one is chosen, runs li
 | **(b) MLflow alias + exported folder and `PROMOTED` pointer (recommended)** | Serving needs only files; registry still records what was promoted and when | Registry history is machine-local until a shared server exists, so `promote` also appends to a committed `promotions.jsonl`; tests check `PROMOTED` against it |
 | (c) Pointer file only, no registry | Simplest | Loses promotion history in the tracker |
 
+**Where the exported model file is stored** (decided Oct 2, 2026, for option b):
+
+| Option | Pros | Cons |
+| --- | --- | --- |
+| (i) Commit it | Nothing to download | 10–13 MB, over the 5 MB file limit; every retraining grows git history for good |
+| (ii) Shrink it, then commit (float32 coefficients + xz) | Fits: bge-base drops from 10.0 MB to 3.6 MB | Borderline for larger models (n-grams 1–5 about 4.5 MB); the served model differs numerically from the one `finalize` scored; history still grows |
+| (iii) Git LFS | Stays in the repo | Every clone and CI job needs LFS; storage and bandwidth quotas |
+| **(iv) GitHub Release asset per promoted version (chosen)** | No new service; public download URL; kept until deleted; files up to 2 GiB | `promote` needs `gh` with write access; first use downloads the file |
+| (v) MLflow server or object storage (S3, GCS) | The standard production store | A server or a cloud account to run, for a single file per promotion |
+| (vi) Container registry (ghcr.io) | Fits Kubernetes deployment | No generic file store; it means baking the model into an image |
+
+Releases are the store until continuous deployment is built. CD will then use the container registry (vi): the serving image is built with the promoted model in it, checked against the same committed manifest. Moving the file elsewhere only changes the URL in the promotion log; the pointer, manifest and checksum stay as they are.
+
 ### H. How experiments are compared
 
 | Option | Pros | Cons |
@@ -722,12 +740,11 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 
 **Milestone 5: finalize, promote, predict.** On one branch from `main`, one PR.
 
-1. **Decide where promoted models live (blocking, owner's call).** `promote` exports to `artifacts/categorization/<version>/`, which the repo versions, but the pre-commit hook rejects files over 5 MB, and the saved models are **9.5–12 MB** (`model.joblib`). Options:
-   - **Shrink:** float32 coefficients and pruned near-zero n-gram weights. Re-check quality afterwards.
-   - **Git LFS for `artifacts/`:** every clone and CI need LFS.
-   - **Don't commit model files** (recommended for serving on Kubernetes): commit `PROMOTED` and `promotions.jsonl` only, keep `model.joblib` and its manifest in the MLflow artifact store or object storage (S3/GCS), and have the serving image or an init container pull the promoted version. `load_artifact` already verifies the checksum against the manifest, so the pointer and the file can live in different places safely.
-
-   Update §"Promotion and serving", option G and the open question below with the choice.
+1. **Store promoted model files in GitHub Releases** (decided Oct 2, 2026; see [Model artifact](#model-artifact) and option G). Build it before promoting:
+   - git-ignore `artifacts/*/*/model.joblib`; the manifest, `PROMOTED` and `promotions.jsonl` stay committed;
+   - `promote` uploads `model.joblib` to the release `categorization-<version>` with `gh` and records the download URL in the promotion log;
+   - `load_service` downloads a missing model file from that URL into the version folder, and the existing checksum check against the committed manifest runs before anything is unpickled;
+   - tests: a missing file is fetched (a fake downloader, no network), and a file that doesn't match the manifest is refused and not loaded.
 2. **`sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite`.** It scores the rule's top three plus the three baselines on the test sets, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
 3. **`sfc-model promote --task categorization --run <rank-1 run> --note "<explainability and operations>"`.** The gates are known-merchant test macro F1 ≥ 0.90 and above the keyword baseline. If the rank-1 finalist fails a gate, investigate; don't promote #2 without an override reason (the rule).
 4. **`sfc-model predict`** (to build; the CLI has `promote` and `show` so far). Write `transaction_categories` (`transaction_id`, `user_id`, `category`, `confidence`, `model_version`; index on `user_id`) to a separate SQLite file (option C-b) through `load_service("categorization")`, in batches. Log rows per second per process as the sizing number.
@@ -767,7 +784,7 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 - [x] FR-3 builds the training and evaluation framework (generic model interface, registry, splitters, runner, promotion), extended feature by feature along [Path to a general framework](#path-to-a-general-framework).
 - [x] MLflow for experiment tracking and the model registry (F-b), installed through a `train` dependency group so serving installs stay lean (from review).
 - [ ] Validation folds hold out only holdout-eligible merchants, so validation-unseen matches `test_unseen`'s population; ties defined against the leader; baselines always scored in `finalize`; a committed promotion log (from review on PR #6).
-- [ ] Serving from an exported folder and `PROMOTED` pointer, never from MLflow (G-b).
+- [ ] Serving from an exported folder and `PROMOTED` pointer, never from MLflow (G-b); model files in GitHub Releases, verified against the committed manifest (decided Oct 2, 2026).
 - [ ] Experiments compared on validation; test sets scored once for at most three finalists (H-b), with the decision rule in [Experiment plan](#experiment-plan).
 
 **Technical Design updates (after approval)**
@@ -780,7 +797,7 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 **Open questions**
 
 - [ ] **Where the shared MLflow server runs.** Sharing runs needs a server everyone can reach (self-hosted `mlflow server` with a database and artifact store, or a managed MLflow). Until then the local store works and the report in the repo carries the comparison.
-- [ ] **Promoted artifacts may exceed the repo's 5 MB file limit.** The n-gram block alone is about 13 × 200k coefficients (around 20 MB as float64). Options: store float32 and prune near-zero n-grams, Git LFS for `artifacts/`, or don't commit artifacts and re-export them from the MLflow registry. To be settled in milestone 3, when the size is measured.
+- [x] **Promoted artifacts exceed the repo's 5 MB file limit** (9.5–12.7 MB measured). Settled Oct 2, 2026: model files go to GitHub Releases; the manifest, pointer and log are committed ([Model artifact](#model-artifact), option G).
 
 - [ ] **FR-4 approach.** Embeddings get 0.64 (interval 0.56–0.73) against the 0.80 target. Options for the FR-4 design: a larger embedding model; training on one row per unique merchant string, so frequent merchants don't dominate; or an LLM fallback for low-confidence, never-seen strings, cached per normalized merchant so cost scales with merchants, not transactions. The LLM option would make categorization depend on the LLM provider, which NFR-6 avoids for the dashboard. A cached fallback would keep the dashboard working during an outage, but new merchants would wait.
 - [ ] Is the unseen-merchant target realistic with 3–10 merchants per class? The feasibility interval is 0.17 wide, so near the target a pass or fail would be mostly luck. FR-4 may need a larger holdout or a merchant-level metric. The review agrees this should be settled in the FR-4 design, the way FR-2 decided weekly spikes.
