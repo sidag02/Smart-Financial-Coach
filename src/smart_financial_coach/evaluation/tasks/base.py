@@ -54,6 +54,7 @@ class Task(Protocol):
     tiebreak_metrics: tuple[str, ...]
     required_baselines: tuple[str, ...]  # baseline run names eligibility and gates compare to
     report_metrics: tuple[str, ...]  # logged metrics shown in the comparison report
+    test_report_metrics: tuple[str, ...]  # test metrics shown for finalists and baselines
 
     def load(self, data: Path) -> Examples: ...
 

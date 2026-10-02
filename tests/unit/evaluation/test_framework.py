@@ -1,5 +1,6 @@
 """End to end on the toy task: run -> leaderboard -> finalize -> promote -> load_service."""
 
+import shutil
 from collections.abc import Callable
 from pathlib import Path
 
@@ -21,7 +22,10 @@ from smart_financial_coach.evaluation.runner import run_experiment
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.models import ContractError
 from smart_financial_coach.intelligence.models.artifact import (
+    MODEL_FILE,
     POINTER_FILE,
+    URL_KEY,
+    ArtifactError,
     promotion_errors,
     promotions,
 )
@@ -217,6 +221,68 @@ def test_switching_models_needs_no_code_change(
     assert tracker.champion_run("toy") == alt.run_id
 
 
+class FolderPublisher:
+    """Publishes into a local folder and returns `file://` URLs: a release with no network."""
+
+    def __init__(self, folder: Path) -> None:
+        self.folder = folder
+        self.tags: list[str] = []
+
+    def publish(self, tag: str, path: Path, notes: str) -> str:
+        self.tags.append(tag)
+        (self.folder / tag).mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, self.folder / tag / path.name)
+        return (self.folder / tag / path.name).as_uri()
+
+
+def test_published_model_is_downloaded_on_first_use(
+    toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
+) -> None:
+    """A fresh clone has the committed manifest and log, but not the model file."""
+    artifacts, publisher = tmp_path / "artifacts", FolderPublisher(tmp_path / "releases")
+    finalize("toy", toy_data, tracker)
+    entry = promote("toy", runs["memory_hint"], NOTE, tracker, artifacts, publisher=publisher)
+    model_file = artifacts / "toy" / entry["version"] / MODEL_FILE
+    model_file.unlink()
+
+    served = load_service("toy", artifacts)
+
+    assert publisher.tags == [f"toy-{entry['version']}"]
+    assert entry[URL_KEY].startswith("file://")
+    assert model_file.exists()
+    assert served.version == entry["version"]
+
+
+def test_downloaded_model_must_match_the_committed_manifest(
+    toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
+) -> None:
+    artifacts, releases = tmp_path / "artifacts", tmp_path / "releases"
+    finalize("toy", toy_data, tracker)
+    entry = promote(
+        "toy", runs["memory_hint"], NOTE, tracker, artifacts, publisher=FolderPublisher(releases)
+    )
+    folder = artifacts / "toy" / entry["version"]
+    (folder / MODEL_FILE).unlink()
+    (releases / f"toy-{entry['version']}" / MODEL_FILE).write_bytes(b"not the promoted model")
+
+    with pytest.raises(ArtifactError, match="doesn't match"):
+        load_service("toy", artifacts)
+    assert sorted(p.name for p in folder.iterdir()) == ["manifest.json"]  # nothing left to load
+
+
+def test_unpublished_model_cant_be_loaded_elsewhere(
+    toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
+) -> None:
+    artifacts = tmp_path / "artifacts"
+    finalize("toy", toy_data, tracker)
+    entry = promote("toy", runs["memory_hint"], NOTE, tracker, artifacts)
+    (artifacts / "toy" / entry["version"] / MODEL_FILE).unlink()
+
+    assert URL_KEY not in entry
+    with pytest.raises(ArtifactError, match="no URL"):
+        load_service("toy", artifacts)
+
+
 def test_promote_refusals(
     toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
 ) -> None:
@@ -340,8 +406,11 @@ def test_comparison_report(toy_data: Path, tracker: Tracker, runs: dict[str, str
 
     assert "| 1 | `memory_hint` (tied) |" in before
     assert "`majority`" in before.split("**Baselines**")[1]
-    assert "Finalists on the test sets" not in before
-    assert "| 1 | `memory_hint` | " in after.split("**Finalists on the test sets:**")[1]
+    assert "on the test sets" not in before
+    tests = after.split("**Finalists and baselines on the test sets**")[1]
+    assert "| 1 | `memory_hint` | " in tests
+    assert "| baseline | `majority` | " in tests
+    assert "`test_unseen_accuracy`" in tests
 
 
 def test_report_edge_cases(toy_data: Path, tracker: Tracker, make_config: MakeConfig) -> None:

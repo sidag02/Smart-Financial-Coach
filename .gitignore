@@ -19,9 +19,13 @@ htmlcov/
 .env.*
 !.env.example
 
-# Generated data (model artifacts in artifacts/ are versioned)
+# Generated data (artifacts/ is versioned, except model files: they are published to GitHub
+# Releases and downloaded on first use, see evaluation/publish.py)
 data/*
 !data/.gitkeep
+
+artifacts/*/*/model.joblib
+artifacts/*/*/model.joblib.part
 
 # OS / editors
 .DS_Store

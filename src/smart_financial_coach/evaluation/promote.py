@@ -5,8 +5,8 @@
 - `finalize` scores the leaderboard's top three on the test sets, plus the round 0 baselines,
   once per split.
 - `promote` checks the rank-1 finalist against the task's gates, exports it to
-  `artifacts/<task>/`, points the MLflow `champion` alias and `PROMOTED` at it, and appends to
-  `promotions.jsonl`.
+  `artifacts/<task>/`, publishes the model file (a GitHub Release, see `publish`), points the
+  MLflow `champion` alias and `PROMOTED` at it, and appends to `promotions.jsonl`.
 - Departing from the rule (naming finalists, a second round, promoting another finalist) needs an
   override reason, recorded on the run and in the promotion log.
 """
@@ -22,6 +22,7 @@ import pandas as pd
 
 from smart_financial_coach.config import get_settings
 from smart_financial_coach.evaluation.experiment import ExperimentConfig
+from smart_financial_coach.evaluation.publish import Publisher
 from smart_financial_coach.evaluation.runner import (
     CONFIG_FILE,
     PREDICTIONS_FILE,
@@ -35,6 +36,7 @@ from smart_financial_coach.evaluation.tracking import MODEL_PATH, RunRecord, Tra
 from smart_financial_coach.intelligence.models.artifact import (
     MANIFEST_FILE,
     MODEL_FILE,
+    URL_KEY,
     load_artifact,
     read_manifest,
     record_promotion,
@@ -272,11 +274,15 @@ def promote(
     artifacts_dir: Path | None = None,
     *,
     override: str | None = None,
+    publisher: Publisher | None = None,
 ) -> dict[str, Any]:
     """Export the rule's winner, if it passes every gate, and make it what `load_service` returns.
 
     Only the rank-1 finalist is promoted: finalists are never re-ranked on test scores. Promoting
     another needs `override`, a reason recorded in the promotion log.
+
+    `publisher` makes the model file downloadable and its URL goes in the log. Without one, the
+    file stays on this machine, and other clones can't load the promoted model.
     """
     task = get_task(task_name)
     run = tracker.get(run_id)
@@ -307,6 +313,13 @@ def promote(
             for name in (MODEL_FILE, MANIFEST_FILE):
                 shutil.copy2(source / name, target / name)
 
+    url = None
+    if publisher is not None:
+        notes = (
+            f"{task.name} model {model.version}, MLflow run {run_id}. Loaded only if it matches "
+            f"artifacts/{task.name}/{model.version}/{MANIFEST_FILE}."
+        )
+        url = publisher.publish(f"{task.name}-{model.version}", target / MODEL_FILE, notes)
     registry_version = tracker.register_champion(task.name, run, model.version)
     entry = {
         "version": model.version,
@@ -315,6 +328,7 @@ def promote(
         "promoted_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "gates": [{"name": g.name, "passed": g.passed, "detail": g.detail} for g in gates],
         "note": note.strip(),
+        **({URL_KEY: url} if url else {}),
         **({"override": reason} if reason else {}),
     }
     record_promotion(service_dir, entry)

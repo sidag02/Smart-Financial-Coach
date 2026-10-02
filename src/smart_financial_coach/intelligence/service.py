@@ -4,7 +4,9 @@
     categorizer.predict(transactions)  # contract-checked
 
 Promoting a different run changes what this returns; no calling code changes. Serving reads only
-files under `artifacts/`, never the experiment tracker.
+files under `artifacts/`, never the experiment tracker. A promoted model file that isn't there yet
+(a fresh clone) is downloaded once from the URL in the promotion log and checked against the
+committed manifest before it is loaded.
 """
 
 import importlib
@@ -12,7 +14,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from smart_financial_coach.config import get_settings
-from smart_financial_coach.intelligence.models.artifact import load_artifact, promoted_version
+from smart_financial_coach.intelligence.models.artifact import (
+    MODEL_FILE,
+    fetch_model,
+    load_artifact,
+    model_url,
+    promoted_version,
+)
 from smart_financial_coach.intelligence.models.contract import Checked, Contract
 
 # Modules whose import registers the product's services; tests register their own
@@ -48,5 +56,8 @@ def get_service(name: str) -> Service:
 def load_service(name: str, artifacts_dir: Path | None = None) -> Checked:
     service = get_service(name)
     root = (artifacts_dir or get_settings().artifacts_dir) / name
-    model = load_artifact(root / promoted_version(root), trusted_root=root)
+    version = promoted_version(root)
+    if not (root / version / MODEL_FILE).exists():
+        fetch_model(root / version, model_url(root, version))
+    model = load_artifact(root / version, trusted_root=root)
     return service.wrapper(model, service.contract)

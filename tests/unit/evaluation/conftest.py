@@ -119,6 +119,7 @@ class ToyTask:
     tiebreak_metrics: tuple[str, ...] = ("val_seen_accuracy_error",)
     required_baselines: tuple[str, ...] = ("majority",)
     report_metrics: tuple[str, ...] = ("val_seen_accuracy", "latency_p95_ms")
+    test_report_metrics: tuple[str, ...] = ("test_known_accuracy", "test_unseen_accuracy")
     reproduction = ExperimentConfig(name="poc", task="toy", model={"type": "toy/memory"})
 
     def load(self, data: Path) -> Examples:

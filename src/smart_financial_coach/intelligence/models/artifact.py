@@ -1,16 +1,21 @@
 """Model artifacts on disk: a fitted model, its manifest, and the promotion pointer and log.
 
-    artifacts/<service>/<version>/model.joblib   the fitted model
+    artifacts/<service>/<version>/model.joblib   the fitted model (git-ignored; downloaded)
     artifacts/<service>/<version>/manifest.json  what produced it, and the model file's checksum
     artifacts/<service>/PROMOTED                 the version callers get
-    artifacts/<service>/promotions.jsonl         every promotion, newest last
+    artifacts/<service>/promotions.jsonl         every promotion, newest last, with its model URL
+
+Everything but the model file is committed. The model file is published elsewhere (a GitHub
+Release) and fetched on first use from the URL in the promotion log.
 
 joblib files are pickles, so models are loaded only from a folder the caller names as trusted,
-and only if the file matches the checksum in its manifest.
+and only if the file matches the checksum in its manifest. The committed manifest is the trust
+anchor: a downloaded file that doesn't match it is deleted, never unpickled.
 """
 
 import hashlib
 import json
+import urllib.request
 from collections.abc import Mapping
 from pathlib import Path
 from typing import Any, cast
@@ -23,6 +28,8 @@ MODEL_FILE = "model.joblib"
 MANIFEST_FILE = "manifest.json"
 POINTER_FILE = "PROMOTED"
 LOG_FILE = "promotions.jsonl"
+URL_KEY = "model_url"  # where a promotion log entry says the model file can be downloaded
+DOWNLOAD_TIMEOUT_S = 60
 
 
 class ArtifactError(ValueError):
@@ -80,6 +87,39 @@ def load_artifact(directory: Path, *, trusted_root: Path) -> Model:
     if callable(check := getattr(model, "verify_environment", None)):
         check()
     return model
+
+
+def fetch_model(directory: Path, url: str) -> Path:
+    """Download `directory`'s model file from `url`, keeping it only if it matches the manifest."""
+    expected = read_manifest(directory)["model_sha256"]
+    target = directory / MODEL_FILE
+    partial = target.with_name(target.name + ".part")
+    try:
+        with (
+            urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response,
+            partial.open("wb") as f,
+        ):
+            while block := response.read(1 << 20):
+                f.write(block)
+        if (actual := sha256(partial)) != expected:
+            raise ArtifactError(
+                f"{url} doesn't match {directory / MANIFEST_FILE}: sha256 {actual}, "
+                f"expected {expected}"
+            )
+        partial.replace(target)
+    finally:
+        partial.unlink(missing_ok=True)
+    return target
+
+
+def model_url(service_dir: Path, version: str) -> str:
+    """The download URL the promotion log records for `version` (its latest promotion)."""
+    for entry in reversed(promotions(service_dir)):
+        if entry["version"] == version and entry.get(URL_KEY):
+            return str(entry[URL_KEY])
+    raise ArtifactError(
+        f"{service_dir / version} has no {MODEL_FILE}, and the promotion log has no URL for it"
+    )
 
 
 def promoted_version(service_dir: Path) -> str:

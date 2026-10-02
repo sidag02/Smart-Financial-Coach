@@ -6,9 +6,14 @@ sfc-experiment report --task categorization --data data/synthetic/default.sqlite
 sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite
 sfc-model promote --task categorization --run ID --note "linear weights explain each category"
 
+`promote` uploads the model file to a GitHub Release (needs `gh` with write access) and records its
+URL, so other clones download it on first use. --no-publish keeps it on this machine only.
+
 Departing from the decision rule (naming finalists, a second round on the same splits, promoting
 a finalist other than #1) needs --override "<reason>", recorded on the run and in the log.
 sfc-model show --task categorization
+sfc-model predict --task categorization --data data/synthetic/default.sqlite \
+    --out data/predictions/default.sqlite
 """
 
 import argparse
@@ -24,10 +29,16 @@ from smart_financial_coach.evaluation.promote import (
     leaderboard,
     promote,
 )
+from smart_financial_coach.evaluation.publish import GitHubReleases, PublishError
 from smart_financial_coach.evaluation.report import comparison_report
 from smart_financial_coach.evaluation.runner import LeakError, run_experiment
 from smart_financial_coach.evaluation.tracking import Tracker
+from smart_financial_coach.intelligence.categorization.batch import (
+    DEFAULT_BATCH_ROWS,
+    categorize_dataset,
+)
 from smart_financial_coach.intelligence.models.artifact import (
+    URL_KEY,
     ArtifactError,
     promoted_version,
     promotions,
@@ -100,8 +111,13 @@ def _promote(args: argparse.Namespace) -> int:
         Tracker(args.tracking_uri),
         args.artifacts_dir,
         override=args.override,
+        publisher=None if args.no_publish else GitHubReleases(get_settings().model_release_repo),
     )
     print(f"promoted {entry['version']} (run {entry['mlflow_run_id']})")
+    if url := entry.get(URL_KEY):
+        print(f"  model file: {url}")
+    else:
+        print("  model file not published: other clones can't load this promotion")
     for gate in entry["gates"]:
         print(f"  {'pass' if gate['passed'] else 'FAIL'} {gate['name']}: {gate['detail']}")
     return 0
@@ -115,11 +131,37 @@ def _show(args: argparse.Namespace) -> int:
     return 0
 
 
+def _predict(args: argparse.Namespace) -> int:
+    if args.task != "categorization":
+        raise ValueError(f"predict supports the categorization task only, not {args.task!r}")
+    run = categorize_dataset(
+        args.data,
+        args.out,
+        batch_rows=args.batch_rows,
+        artifacts_dir=args.artifacts_dir,
+        overwrite=args.overwrite,
+    )
+    print(f"wrote {run.rows:,} categories from model {run.model_version} to {args.out}")
+    print(
+        f"  model load {run.load_seconds:.1f} s; categorizing {run.categorize_seconds:.1f} s, "
+        f"{run.rows_per_second:,.0f} rows per second in one process"
+    )
+    return 0
+
+
 def _dispatch(parser: argparse.ArgumentParser, argv: Sequence[str] | None) -> int:
     args = parser.parse_args(argv)
     try:
         result: int = args.handler(args)
-    except (SelectionError, LeakError, ArtifactError, ValueError) as error:
+    except (
+        SelectionError,
+        LeakError,
+        ArtifactError,
+        PublishError,
+        ValueError,
+        FileExistsError,
+        FileNotFoundError,
+    ) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
     return result
@@ -175,7 +217,9 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
 
 
 def model_main(argv: Sequence[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="sfc-model", description="Promote and inspect models.")
+    parser = argparse.ArgumentParser(
+        prog="sfc-model", description="Promote, inspect and run models."
+    )
     commands = parser.add_subparsers(dest="command", required=True)
 
     pro = commands.add_parser("promote", help="promote a finalist that passes every gate")
@@ -183,14 +227,29 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     pro.add_argument("--run", required=True)
     pro.add_argument("--note", required=True, help="explainability and operations, in a sentence")
     pro.add_argument("--override", help="why a finalist other than #1 is promoted (recorded)")
+    pro.add_argument(
+        "--no-publish",
+        action="store_true",
+        help="don't upload the model file to a GitHub Release (other clones can't load it)",
+    )
     pro.set_defaults(handler=_promote)
 
     show = commands.add_parser("show", help="the promoted version and promotion history")
     show.add_argument("--task", required=True)
     show.set_defaults(handler=_show)
 
+    pred = commands.add_parser(
+        "predict", help="categorize a dataset with the promoted model into a predictions file"
+    )
+    pred.add_argument("--task", required=True)
+    pred.add_argument("--data", type=Path, required=True, help="a generated dataset")
+    pred.add_argument("--out", type=Path, required=True, help="the predictions file to write")
+    pred.add_argument("--batch-rows", type=int, default=DEFAULT_BATCH_ROWS)
+    pred.add_argument("--overwrite", action="store_true", help="replace an existing --out file")
+    pred.set_defaults(handler=_predict)
+
     _common(pro)
-    for sub in (pro, show):
+    for sub in (pro, show, pred):
         sub.add_argument(
             "--artifacts-dir", type=Path, help="default: SFC_ARTIFACTS_DIR or artifacts/"
         )
