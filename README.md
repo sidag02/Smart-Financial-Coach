@@ -64,6 +64,7 @@ Models are trained, compared and promoted through the evaluation framework; call
 ```sh
 uv run sfc-experiment run configs/experiments/categorization/ --data data/synthetic/default.sqlite
 uv run sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
+uv run sfc-experiment report --task categorization --data data/synthetic/default.sqlite   # Markdown, with intervals
 uv run sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite   # top three, once
 uv run sfc-model promote --task categorization --run <rank-1 id> --note "<explainability and operations>"
 uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db   # compare runs

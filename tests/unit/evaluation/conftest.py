@@ -118,6 +118,7 @@ class ToyTask:
     tuning_metric = "unseen_accuracy"
     tiebreak_metrics: tuple[str, ...] = ("val_seen_accuracy_error",)
     required_baselines: tuple[str, ...] = ("majority",)
+    report_metrics: tuple[str, ...] = ("val_seen_accuracy", "latency_p95_ms")
     reproduction = ExperimentConfig(name="poc", task="toy", model={"type": "toy/memory"})
 
     def load(self, data: Path) -> Examples:
@@ -193,6 +194,18 @@ class ToyTask:
             return accuracy(p[p["held_out"] == UNSEEN], examples)
 
         return abs(unseen(leader) - unseen(other)) < 0.02
+
+    def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
+        value = accuracy(pooled[pooled["held_out"] == UNSEEN], examples)
+        return value - 0.05, value + 0.05
+
+    def difference_interval(
+        self, examples: Examples, a: pd.DataFrame, b: pd.DataFrame
+    ) -> tuple[float, float]:
+        d = accuracy(a[a["held_out"] == UNSEEN], examples) - accuracy(
+            b[b["held_out"] == UNSEEN], examples
+        )
+        return d - 0.02, d + 0.02
 
     def gates(
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]

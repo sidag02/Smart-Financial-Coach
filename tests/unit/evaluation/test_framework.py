@@ -329,3 +329,16 @@ def test_code_version_covers_code_not_docs(tmp_path: Path, monkeypatch: pytest.M
 
     assert untracked != base
     assert runner.code_version() != untracked
+
+
+def test_comparison_report(toy_data: Path, tracker: Tracker, runs: dict[str, str]) -> None:
+    from smart_financial_coach.evaluation.report import comparison_report
+
+    before = comparison_report("toy", toy_data, tracker)
+    finalize("toy", toy_data, tracker)
+    after = comparison_report("toy", toy_data, tracker)
+
+    assert "| 1 | `memory_hint` (tied) |" in before
+    assert "`majority`" in before.split("**Baselines**")[1]
+    assert "Finalists on the test sets" not in before
+    assert "| 1 | `memory_hint` | " in after.split("**Finalists on the test sets:**")[1]

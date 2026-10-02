@@ -2,6 +2,7 @@
 
 sfc-experiment run configs/experiments/categorization/ --data data/synthetic/default.sqlite
 sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
+sfc-experiment report --task categorization --data data/synthetic/default.sqlite --out report.md
 sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite
 sfc-model promote --task categorization --run ID --note "linear weights explain each category"
 
@@ -23,6 +24,7 @@ from smart_financial_coach.evaluation.promote import (
     leaderboard,
     promote,
 )
+from smart_financial_coach.evaluation.report import comparison_report
 from smart_financial_coach.evaluation.runner import LeakError, run_experiment
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.models.artifact import (
@@ -63,6 +65,16 @@ def _leaderboard(args: argparse.Namespace) -> int:
         place = f"{i:>2}." if s.eligible else " - "
         tie = " (tied with leader)" if s.tied_with_leader and s.eligible else ""
         print(f"{place} {s.estimate:.4f}  {s.name}  {s.run_id}{tie}")
+    return 0
+
+
+def _report(args: argparse.Namespace) -> int:
+    text = comparison_report(args.task, args.data, Tracker(args.tracking_uri), args.split_hash)
+    if args.out:
+        args.out.write_text(text, encoding="utf-8")
+        print(f"wrote {args.out}")
+    else:
+        print(text)
     return 0
 
 
@@ -142,6 +154,13 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     board.add_argument("--split-hash", help="compare runs on these splits (default: latest run's)")
     board.set_defaults(handler=_leaderboard)
 
+    rep = commands.add_parser("report", help="the comparison report (Markdown) for comparable runs")
+    rep.add_argument("--task", required=True)
+    rep.add_argument("--data", type=Path, required=True)
+    rep.add_argument("--split-hash", help="report runs on these splits (default: latest run's)")
+    rep.add_argument("--out", type=Path, help="write to this file instead of printing")
+    rep.set_defaults(handler=_report)
+
     fin = commands.add_parser("finalize", help="score the leaderboard's top three on the test sets")
     fin.add_argument("--task", required=True)
     fin.add_argument("--data", type=Path, required=True)
@@ -150,7 +169,7 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     fin.add_argument("--override", help="why this departs from the decision rule (recorded)")
     fin.set_defaults(handler=_finalize)
 
-    for sub in (run, board, fin):
+    for sub in (run, board, rep, fin):
         _common(sub)
     return _dispatch(parser, argv)
 
