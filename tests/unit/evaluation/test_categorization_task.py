@@ -184,3 +184,23 @@ def test_grid_keys_must_reach_a_nested_model() -> None:
 
     with pytest.raises(ValueError, match="not a nested model"):
         config.model_spec({"a.C": 1.0})
+
+
+def test_latency_gate_follows_the_setting(
+    task: CategorizationTask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from smart_financial_coach.config import get_settings
+
+    metrics = {"test_known_macro_f1": 0.95, "latency_p95_ms": 9.0}
+    baselines = {"keyword": {"test_known_macro_f1": 0.5}}
+
+    def latency_gate() -> bool:
+        return next(g.passed for g in task.gates(metrics, baselines) if g.name == "latency_p95")
+
+    get_settings.cache_clear()
+    assert not latency_gate()  # 9 ms against the 5 ms default
+    monkeypatch.setenv("SFC_LATENCY_GATE_MS", "20")
+    get_settings.cache_clear()
+    assert latency_gate()
+    monkeypatch.delenv("SFC_LATENCY_GATE_MS")
+    get_settings.cache_clear()

@@ -21,7 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from smart_financial_coach.config import PROJECT_ROOT
+from smart_financial_coach.config import PROJECT_ROOT, get_settings
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.generator.taxonomy import INCOME
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
@@ -61,7 +61,6 @@ POC_RESULTS = {
     "poc_both": (0.988, 0.929, 0.638),
 }
 KNOWN_GATE = 0.90
-LATENCY_GATE_MS = 5.0
 KEYWORD_BASELINE = "keyword"  # the run name the "beats the baseline" rule compares against
 BOOTSTRAP_REPS = 1000
 AMBIGUOUS_CLASSES = ("Groceries", "Shopping")
@@ -357,6 +356,7 @@ class CategorizationTask:
         known = metrics.get("test_known_macro_f1", float("nan"))
         keyword = baselines.get(KEYWORD_BASELINE, {}).get("test_known_macro_f1")
         latency = metrics.get("latency_p95_ms", float("inf"))
+        gate_ms = get_settings().latency_gate_ms
         return [
             Gate("known_macro_f1", known >= KNOWN_GATE, f"{known:.3f} vs {KNOWN_GATE}"),
             Gate(
@@ -368,8 +368,8 @@ class CategorizationTask:
             ),
             Gate(
                 "latency_p95",
-                latency <= LATENCY_GATE_MS,
-                f"{latency:.2f} ms vs {LATENCY_GATE_MS} ms",
+                latency <= gate_ms,
+                f"{latency:.2f} ms vs {gate_ms} ms",
             ),
         ]
 

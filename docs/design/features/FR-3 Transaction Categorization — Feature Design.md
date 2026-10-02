@@ -487,7 +487,7 @@ Each metric has one job. This section records why it was chosen, which alternati
 - **Why p95:** the chat budget (NFR-5) is a limit on slow cases, which the mean hides. p99 from 200 calls rests on two observations.
 - **Why distinct rows, from a cold start:** timing one row repeatedly measures only warm caches. The embedding cache is process-wide and isn't saved with the model, so a freshly started server embeds each string on first sight. The runner clears model caches before timing (`reset_caches`), so the gated `latency_p95_ms` includes those first-sight costs. A second pass on the same rows is reported as `latency_warm_p95_ms`.
 - **Measured (milestone 3, after review):**
-  - The combined model: 3.1 ms p95 cold, 1.2 ms p95 warm. That is under the gate on a laptop, with less headroom than the warm number suggests.
+  - The combined model: 3.1 ms p95 cold, 1.2 ms p95 warm on a laptop. A GitHub Actions runner measured **8.95 ms p95 cold**, over the gate. The gate is therefore a setting (`SFC_LATENCY_GATE_MS`, default 5): CI sets its own, as it does for the generator's runtime budget. **It must be checked on the serving hardware before launch**; if that hardware is runner-class, shipping the vocabulary's vectors (below) is the fix.
   - If cold starts matter for the dashboard's first load, the training vocabulary's vectors (about 20 MB for 13k strings) could ship with the artifact or warm on `load_service`. That's tied to the open artifact-size question.
   - The cache is a bounded LRU (100k vectors, about 150 MB), so a long-running server's memory stays predictable.
   - Before profiling it was 8.4 ms: pandas `isin` rebuilt the 13k-string vocabulary set on every call.
