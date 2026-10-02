@@ -1,17 +1,18 @@
 # FR-3 Categorization Model Selection
 
-Oct 1, 2026 · @Sidd · Status: **Proposed** · Companion to FR-3 Transaction Categorization — Feature Design
+Oct 1, 2026 (decided Oct 2) · @Sidd · Status: **Accepted** · Companion to FR-3 Transaction Categorization — Feature Design
 
 ## Summary
 
 This note records which categorization model v1 starts with, what else was considered, why the choice was made, and what evidence would change it.
 
-- **Selected:** multinomial logistic regression over character n-grams of the raw merchant text, frozen sentence embeddings of the normalized text, and amount, sign and channel features. Confidence is calibrated separately for merchant strings the model has seen and strings it hasn't.
-- **Why:** it clears the FR-3 gate by a wide margin (0.988 macro F1 on known merchants against 0.90), is the best measured option on known merchants and all test users, trains in seconds on a CPU, and stays explainable.
-- **Not settled:** no measured option reaches FR-4's 0.80 on unseen merchants (best 0.643). Embeddings alone tie the combination there, so FR-4 may change the model; the triggers are in [What would change the selection](#what-would-change-the-selection).
-- **Method:** the Technical Design's selection criteria, in order: primary metric on held-out data → beats the baseline → latency within budget → explainability → operational simplicity. Candidates are ruled out by theory where possible and compared by experiment otherwise.
+- **Selected and promoted (Oct 2, 2026):** multinomial logistic regression over character 2–4-grams of the raw merchant text, frozen `bge-base-en-v1.5` sentence embeddings of the normalized text, and amount, sign, channel and hour features. Confidence is calibrated separately for strings the model has seen and strings it hasn't. Version `3f0ccc82-2f0e60a6`, from MLflow run `000ef7d3` (`20_linear_base`); its model file is in the GitHub Release `categorization-3f0ccc82-2f0e60a6`.
+- **Why:** the FR-3 decision rule ranked it first. It ties every launch candidate on unseen merchants and has the best-calibrated confidence there. On the test sets, scored once, it passes both gates: known-merchant macro F1 **0.970** against 0.90 and the keyword baseline's 0.461.
+- **Known issue, shipped knowingly:** on unseen merchants, Travel is its fallback guess (30% of those transactions, nearly all wrong, at confidence about 0.5). FR-5 review and feedback retraining are the remedy ([Known issues](#known-issues)).
+- **Not settled:** nothing reaches FR-4's 0.80 on unseen merchants (0.462 on test). That is FR-4's design.
+- **Method:** the Technical Design's selection criteria, applied through the FR-3 decision rule on validation data. Test sets were scored once, for three finalists and the baselines. Evidence: FR-3 Categorization — Launch Round Results (`docs/reports/`), and the POC on `poc/fr-3-categorization` (commit [`55d4197`](https://github.com/sidag02/Smart-Financial-Coach/tree/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization)).
 
-All numbers come from the POC on `poc/fr-3-categorization`, pinned to commit [`55d4197`](https://github.com/sidag02/Smart-Financial-Coach/tree/55d4197cef6c69e23bae81d2721394e27a7f9a4f/experiments/fr3_categorization) (default dataset, seed 0). Macro F1 is over the 12 spending categories.
+Macro F1 is over the 12 spending categories. Every launch-round number is under 2% uniform training label noise (FR-3 §5); the POC's numbers are noise-free.
 
 ## What the model has to do
 
@@ -25,63 +26,92 @@ The choice is constrained by more than accuracy. Each requirement below rules op
 | Confidence that FR-5 can threshold | FR-5 (P1) | Calibrated probabilities, on new merchants as well as known ones |
 | Learns from user corrections | FR-6 (P1) | Labels come in as a training argument; cheap to retrain or override |
 | Dashboard keeps working without the LLM | NFR-6 | The primary path can't depend on a hosted LLM |
-| Dashboard < 2 s; chat < 8 s at p95 | NFR-5 | Milliseconds per transaction on CPU |
+| Categorized on ingestion, in batches across users | Technical Design (compute timing) | Serving cost sizes the cluster; it is not a gate (decision Oct 2, 2026) |
 | AI cost per user tracked and in budget | NFR-9 | Per-transaction API calls are a cost risk at 1M+ rows |
 | Model code never reads ground truth | FR-2 §5 | Training code passes labels in; nothing under `intelligence/` reads `truth_*` |
 
 ## Options
 
-Each option is either measured in the POC, ruled out by theory, or scheduled for an experiment.
+Each option is measured, ruled out by theory, or deferred. Launch-round numbers are validation (known / unseen merchants) unless marked test.
 
-| Option | How it works | Measured result (known / all test users / unseen) | Strengths | Weaknesses | Status |
+| Option | How it works | Measured result | Strengths | Weaknesses | Status |
 | --- | --- | --- | --- | --- | --- |
-| Keyword rules | Generic words (`coffee`, `airlines`, `fee`) map to categories | Not yet measured | Transparent; no training | Brittle on messy text and brand names | **Baseline** the model must beat (Technical Design) |
-| Exact-match lookup | A table from normalized merchant string to its most common training category | Not measured | Trivial, fast, near-perfect on known strings | Undefined for any new string, so it can't serve FR-4 alone | Useful as a component: per-user overrides for FR-6 |
-| Linear model on character n-grams | TF-IDF of 2–4-character grams + side features, logistic regression | 0.986 / 0.868 / 0.504 | Strong memorization; fast; explainable by top n-grams | Knows nothing beyond training strings; over-confident on new ones (ECE 0.160) | Measured; becomes one half of the selected model |
-| Linear model on sentence embeddings | Frozen `bge-small-en-v1.5` vector of the normalized text + side features | 0.973 / 0.913 / **0.643** | Brings in outside knowledge ("Taco Bell" is food); best on online services | Weaker on known merchants; loses exact-string identity | Measured; candidate route for unfamiliar strings (FR-4) |
-| **Linear model on both** | Both feature blocks concatenated | **0.988 / 0.929** / 0.638 | Best on known merchants and all test users; best calibrated (ECE 0.009 known, 0.056 unseen) | N-grams sometimes outvote the embedding on unfamiliar strings (Caviar 1.00 → 0.64) | **Selected for FR-3** |
-| Gradient-boosted trees | Trees over dense features: embeddings, amount, channel, hour | Not measured | Non-linear interactions (e.g. amount × channel for ambiguous merchants); strong on tabular data | Poor fit for 200k sparse n-gram columns; larger artifacts; less transparent | Milestone 3 experiment, on dense features only |
-| Nearest neighbours over embeddings | Category of the closest known merchant strings | Not measured | No training; easy to add merchants; natural "similar to X" explanation | Needs an index; sensitive to embedding quality; hubness | FR-4 candidate |
-| Fine-tuned small transformer | Fine-tune a small text model on merchant strings | Not measured | Possibly best on unseen merchants | GPU likely; slower; heavier operations and artifacts | Milestone 3 if time allows, or FR-4 if cheaper options fall short |
-| LLM, zero- or few-shot, every transaction | Prompt a hosted LLM with the merchant text | Ruled out for the primary path | World knowledge; handles new categories without retraining | Cost and latency at 1M+ rows (NFR-5, NFR-9); outages break the dashboard (NFR-6); output can vary between calls (NFR-8) | **Ruled out by theory** as the primary path |
-| LLM fallback, cached per merchant | Only low-confidence, never-seen strings go to the LLM; the answer is cached per normalized merchant | Not measured | Cost scales with new merchants, not transactions; uses world knowledge where it is missing | Depends on the LLM provider; new merchants wait during an outage | FR-4 candidate |
-| External merchant database | Look up merchants in an enrichment service | Not applicable to v1 | Real-world coverage | Synthetic merchants aren't in it; vendor dependency | Revisit for v2 (real bank data) |
+| Keyword rules | Generic words (`coffee`, `airlines`, `fee`) map to categories | 0.474 / 0.425; test 0.461 known, 0.482 unseen | Transparent; no training; honest confidence (best unseen Brier) | Brittle on brand names; refund accuracy 0.03 | **The baseline** every model must beat |
+| Exact-match lookup | Normalized string → its most common training category | 0.980 / 0.074; test 0.874 on all test users | Near-perfect on known strings; robust to uniform label noise | Useless on any new string | Reference point. Candidate front stage: `Lookup(fallback=model)` (deferred round 6) |
+| Linear, n-grams + `bge-small` | The POC's "both" configuration | 0.968 / 0.503; test 0.970 / 0.471 | Half the batch cost of bge-base; best test unseen Brier among finalists | Tied, ranked third on unseen Brier | Finalist #3 |
+| Linear, n-grams 1–5 + `bge-small` | Wider n-gram range | 0.965 / 0.504; test 0.967 / 0.472 | Same cost as bge-small | No measurable change from 2–4 | Finalist #2 |
+| **Linear, n-grams + `bge-base`** | Larger embedding model | **0.969 / 0.512; test 0.970 / 0.462** | Best validation unseen confidence (Brier 0.216, accuracy at 0.9: 97%) | 2.8× bge-small's batch cost; twice its ONNX memory | **Selected and promoted** |
+| One calibrator for all strings | Same model, calibration not split by familiarity | 0.968 / 0.503 | Simpler | Unseen confidence ≥ 0.9 right 61% of the time instead of 92% | Rejected: the split stays |
+| Gradient-boosted trees | Trees over dense features | Not measured | Non-linear interactions (amount × channel for ambiguous merchants) | Poor fit for sparse n-grams; larger artifacts | Deferred (round 5) |
+| Nearest neighbours over embeddings | Category of the closest known strings | Not measured | No training; "similar to X" explanation | Needs an index; hubness | Deferred to FR-4 |
+| Fine-tuned small transformer | Fine-tune a small text model | Not measured | Possibly best on unseen merchants | GPU likely; heavier operations | Deferred (round 8) |
+| LLM on every transaction | Prompt a hosted LLM | Ruled out | World knowledge | Cost at 1M+ rows (NFR-9); outages break the dashboard (NFR-6); not deterministic (NFR-8) | **Ruled out by theory** |
+| LLM fallback, cached per merchant | Only low-confidence new strings go to an LLM | Not measured | Cost scales with new merchants | Provider dependency; new merchants wait in an outage | FR-4 candidate |
+| External merchant database | Enrichment service | Not applicable to v1 | Real-world coverage | Synthetic merchants aren't in it | Revisit for v2 |
 
 ## Why this model
 
-The selection follows the Technical Design's criteria in order.
+The Technical Design's criteria, in order, as applied by the FR-3 decision rule:
 
-1. **Primary metric on held-out data.** The combination is best on known merchants (0.988) and on all test users (0.929). On unseen merchants it ties embeddings alone (0.638 vs 0.643; the 95% intervals, 0.56–0.73 and 0.55–0.73, overlap almost completely). FR-3 gates on known merchants, so the combination wins.
-2. **Beats the baseline.** The keyword baseline is built in milestone 1. With the model at 0.988, a gap is expected; the milestone confirms it.
-3. **Latency.** Inference is one sparse matrix product plus an embedding lookup. Embeddings are cached per unique normalized string (12.8k on the default dataset, embedded in about 10 s), so a new transaction usually needs no embedding call at all.
-4. **Explainability.** Linear weights show which n-grams and features drove a category. That supports FR-16 (show where numbers came from) later.
-5. **Operational simplicity.** scikit-learn and an ONNX embedding model on CPU, with no GPU and no service. Training takes about 30 s.
+1. **Primary metric on held-out data.** The four launch candidates tie on validation unseen-merchant macro F1 (0.503–0.512; every paired difference from the leader spans 0). All clear the 0.90 known-merchant floor.
+2. **Beats the baseline.** All do, on validation and on test (0.970 against keyword's 0.461 known).
+3. **Tie-breaks.** First, unseen-merchant Brier score after calibration: bge-base is best (0.216, against 0.224 and 0.229). Second, batch serving cost, which wasn't needed because Brier already separated every tied run.
+4. **Explainability.** Linear weights show which n-grams, embedding dimensions and side features drove a category.
+5. **Operational simplicity.** scikit-learn and an ONNX embedding model on CPU. Measured on a laptop: about 12,200 transactions per second per process, 2.1 GB peak memory at 20k-row batches, 0.6 s to load.
 
-**Why logistic regression rather than another classifier.** It gives probabilities that are already well calibrated on known merchants (ECE 0.009). It handles 200k sparse features natively, trains deterministically, and copes with class imbalance through class weights. Nothing measured so far suggests the classifier, rather than the features, is the bottleneck.
+**Retraining cost** (new consideration for the feedback loop, not yet in the Technical Design's criteria): one calibrated configuration takes about 14 minutes on a laptop CPU with fixed C and 3 folds, and about 8 minutes with bge-small.
 
-**Why the regularization strength doesn't decide anything.** C was fixed by hand before the first run (10 for n-grams, 3 for embeddings) and not tuned. At C = 1, 3 and 10, unseen-merchant F1 moves by at most 0.03 and known-merchant F1 by at most 0.002. The ranking of options doesn't change. The production pipeline chooses C on cross-fitted predictions, holding out each group of merchants in turn. The shipped model still learns every merchant.
+**Test scores weren't used to choose.** On test, bge-small and n-grams 1–5 score slightly higher on unseen merchants (0.471–0.472 against 0.462) and on unseen Brier (0.208 against 0.248). All three intervals overlap almost completely (about 0.39–0.59), and the rule doesn't re-rank finalists on test scores.
 
-**Why calibration is split by familiarity.** The model is calibrated where it is already confident and right (known merchants) and over-confident where it is often wrong (unseen merchants). One calibrator fitted on known merchants would leave that untouched. Calibrating seen and unseen strings separately targets the case FR-5 needs, and "seen" is model-visible, so it works the same way in production. The unseen calibrator is fitted on cross-fitted predictions for merchants each fold model never saw, so no merchant has to be left out of the shipped model.
+## What lost, and why
+
+- **bge-small and n-grams 1–5:** tied on F1, ranked below bge-base on validation confidence. Either would be a reasonable choice; bge-small is the fallback if serving cost matters more later, at about a third of the batch time.
+- **One calibrator:** same categories, much worse confidence on unseen merchants. Per-familiarity calibration stays.
+- **Lookup:** best on known strings and on all test users (test 0.874 against 0.796), worthless on unseen merchants. It returns as the front stage of a composition, not as the model.
+- **Keyword rules:** the baseline. They edge the finalists on test unseen F1 (0.482, overlapping intervals) but misallocate more unseen spend (49% of dollars against 36%) and almost never get refunds right.
+
+## Deferred
+
+The launch round was trimmed (FR-3 design, "Trimmed for launch"). These rounds aren't dropped. They are the menu for the first retraining design:
+
+- **Round 2, rest:** word n-grams, raw vs normalized text for n-grams, other embedding models (bge-large was conditional on bge-base winning on F1; it tied).
+- **Round 3:** side-feature ablations (hour stays on).
+- **Round 4:** training regime: per-class caps, one row per unique string, class weights, **noise levels**.
+- **Round 5:** linear SVM, kNN, boosted trees.
+- **Round 6:** `Routed`, `Lookup(fallback=...)`, stacking.
+- **Round 8:** fine-tuned transformer.
+
+## Decisions made along the way
+
+- **2% uniform label noise kept** (Oct 1, 2026). Every candidate is compared under it, so comparisons are fair. Absolute numbers sit well below the noise-free POC, especially for rare categories and unseen merchants. The shipped model is trained under it too, which is the likely cause of the Travel issue below.
+- **Serving cost reported, not gated** (Oct 2, 2026, after the launch round's results). Categorization runs batched on ingestion; batch cost is the second tie-breaker.
+- **Promoted model files live in GitHub Releases** (Oct 2, 2026). The manifest with the file's checksum is committed and is what a downloaded file must match; continuous deployment will move to a container registry.
+- **Ship bge-base despite the Travel issue** (owner, Oct 2, 2026, after seeing test results). A decent cold-start model is enough; feedback retraining (FR-5, FR-6) decides quality after launch.
+
+## Known issues
+
+- **Travel is the fallback for unfamiliar merchants.** On the default dataset the promoted model calls 27,271 transactions Travel against 2,851 true ones. At holdout merchants it calls 30% of rows Travel, nearly all wrongly, at average confidence about 0.5; at known merchants, accuracy is 0.983. Likely mechanism: uniform noise puts as many wrong labels into Travel as into any category (39% of Travel's training labels are wrong), and balanced class weights give that rarest class the most weight. On the dashboard, a user's Travel spend will be inflated by new merchants until they are reviewed or corrected.
+- **Under-confident on known merchants.** Known-merchant ECE is 0.153 on test: only 33% of rows reach confidence 0.9, and those are all right. Cross-validated Brier chose no calibration for familiar strings. FR-5 should pick its threshold from the reliability curve.
 
 ## What would change the selection
 
-These are the conditions under which another model should be tried, and the evidence that would decide it. Each is checked on the same splits, seeds and metrics as the POC, and the result is recorded in the evaluation report.
+Each trigger is checked on the same splits and metrics, and the result recorded in the evaluation report.
 
 | Trigger | What it means | Options to evaluate | Decided by |
 | --- | --- | --- | --- |
-| **FR-4 gate not met** (expected; best is 0.643 against 0.80) | The default can't categorize new merchants well enough | Routing by familiarity (n-grams for seen strings, embeddings for unseen); a larger embedding model; training on one row per unique string; nearest neighbours; cached LLM fallback | Unseen-merchant macro F1 on cross-fitted held-out merchants, then on test users with its merchant-bootstrap interval |
-| **The 0.80 gate itself changes** | With 3–10 holdout merchants per class, the interval is 0.17 wide | Same as above, judged against the revised gate | FR-4 design, as FR-2 did for weekly spikes |
-| **Calibration error on unseen merchants stays high after calibration** | FR-5 can't trust thresholds on new merchants | Ensembles or models with better uncertainty; abstaining (routing to review) below a threshold | ECE on unseen strings; accuracy and coverage at the review threshold |
-| **A different model wins milestone 3** | Gradient-boosted trees or a fine-tuned transformer beat the default on held-out macro F1 | Switch only if it also passes latency, explainability and operations, in that order | The Technical Design's selection criteria |
-| **Ambiguous merchants matter more** | Warehouse clubs and marketplaces cap Groceries and Shopping at about 1.3% error from text alone | Features beyond text: amount bands per merchant, the user's own history at that merchant; trees handle these interactions well | Groceries and Shopping per-class F1 against the majority-category oracle |
-| **Real bank data (v2)** | Messier text, many more merchants, different class mix | Re-run every option on real data before launch; enrichment services become possible | All metrics re-validated on real data (PRD launch gate) |
-| **User corrections arrive (FR-6)** | Labels change continuously | Per-user override table in front of the model, plus periodic retraining; models that update cheaply are favored | Correction rate and whether corrected merchants stay corrected |
-| **Latency or cost budget tightens** (NFR-5, NFR-9) | Embedding or LLM calls become too slow or expensive | Keep the string-level embedding cache; drop to n-grams only for seen strings | p95 latency and cost per active user |
-| **The taxonomy changes** | Categories are added or split | Retraining handles it for supervised models; zero-shot options handle it without labels | Per-class F1 on the new categories |
-
-**Not a trigger:** a small improvement on known merchants alone. The default is already at 0.988, and the remaining errors are mostly the ambiguous-merchant ceiling.
+| **Travel fallback persists after the first feedback** | New merchants keep inflating Travel | Train the shipped model without injected noise; frequency-proportional noise; no class weights; `Lookup` plus a calibrated abstain | Travel precision on unseen merchants; misallocated spend |
+| **FR-4 gate not met** (expected; 0.462 on test against 0.80) | The model can't categorize new merchants well enough | Routing by familiarity; larger embedding models; one row per unique string; nearest neighbours; cached LLM fallback | Unseen-merchant macro F1 on validation, then on test with its merchant-bootstrap interval |
+| **The 0.80 gate itself changes** | With 3–10 holdout merchants per class, the interval is about 0.2 wide | Same as above, judged against the revised gate | FR-4 design |
+| **FR-5 can't find a useful threshold** | Confidence too flat on known merchants or too sharp on unseen ones | Recalibrate familiar strings; ensembles; abstention | Accuracy and coverage along the reliability curve |
+| **A deferred round wins** | Trees, kNN or a transformer beat the default on held-out macro F1 | Switch if it also passes explainability and operations | The decision rule |
+| **Ambiguous merchants matter more** | Warehouse clubs and marketplaces cap Groceries and Shopping | Per-merchant amount bands; the user's own history at that merchant | Groceries and Shopping F1 against the majority-category oracle |
+| **Real bank data (v2)** | Messier text, more merchants, different class mix | Re-run every option on real data before launch | All metrics re-validated (PRD launch gate) |
+| **User corrections arrive (FR-6)** | Labels change continuously | Per-user overrides in front of the model; scheduled retraining; models that retrain cheaply | Correction rate and whether corrected merchants stay corrected |
+| **Serving cost becomes binding** | Cluster cost for the ingestion batch grows | bge-small (about a third of the batch time, tied on F1); n-grams only for seen strings | Rows per second per core; cost per million transactions |
+| **The taxonomy changes** | Categories are added or split | Retraining handles it for supervised models | Per-class F1 on the new categories |
 
 ## Open questions
 
 - [ ] Whether FR-4 routes by familiarity, which would make the model a small ensemble, or keeps a single model with better features.
 - [ ] Whether the LLM fallback is acceptable under NFR-6, given that new merchants would wait during an outage.
+- [ ] Whether the shipped model should train on injected label noise at all, or only the experiments that compare candidates (the Travel issue). For the retraining design.
