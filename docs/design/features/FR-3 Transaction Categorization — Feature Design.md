@@ -485,10 +485,11 @@ Each metric has one job. This section records why it was chosen, which alternati
 **7. Is it fast enough? p95 wall time of single-transaction calls on distinct rows** (gate: ≤ 5 ms).
 
 - **Why p95:** the chat budget (NFR-5) is a limit on slow cases, which the mean hides. p99 from 200 calls rests on two observations.
-- **Why distinct rows:** timing one row repeatedly measures only warm caches.
-- **Measured (milestone 3):**
-  - 0.9–1.4 ms p95 for the combined model.
-  - The first time a never-seen merchant string is embedded, it costs about 2.8 ms.
+- **Why distinct rows, from a cold start:** timing one row repeatedly measures only warm caches. The embedding cache is process-wide and isn't saved with the model, so a freshly started server embeds each string on first sight. The runner clears model caches before timing (`reset_caches`), so the gated `latency_p95_ms` includes those first-sight costs. A second pass on the same rows is reported as `latency_warm_p95_ms`.
+- **Measured (milestone 3, after review):**
+  - The combined model: 3.1 ms p95 cold, 1.2 ms p95 warm. That is under the gate on a laptop, with less headroom than the warm number suggests.
+  - If cold starts matter for the dashboard's first load, the training vocabulary's vectors (about 20 MB for 13k strings) could ship with the artifact or warm on `load_service`. That's tied to the open artifact-size question.
+  - The cache is a bounded LRU (100k vectors, about 150 MB), so a long-running server's memory stays predictable.
   - Before profiling it was 8.4 ms: pandas `isin` rebuilt the 13k-string vocabulary set on every call.
 
 **8. Diagnostics, reported and never gated:**

@@ -77,6 +77,11 @@ class Memory(BaseModel):
         self.majority = str(y.value_counts().sort_index().idxmax())
         return self
 
+    resets = 0  # how often the runner asked for a cold start (class-wide, for tests)
+
+    def reset_caches(self) -> None:
+        Memory.resets += 1
+
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
         fallback = x["hint"] if self.trust_hint else pd.Series(self.majority, index=x.index)
         label = x["group"].map(self.groups).fillna(fallback)

@@ -10,6 +10,7 @@ the cached file differs. The cache lives under `SFC_DATA_DIR/models/fastembed` (
 """
 
 import hashlib
+from collections import OrderedDict
 from collections.abc import Sequence
 from pathlib import Path
 from typing import Any, Protocol
@@ -102,19 +103,32 @@ def get_embedder(name: str) -> Embedder:
     return FastEmbedder(name)
 
 
-# Process-wide cache: fold models in one run embed each string once
-_CACHE: dict[tuple[str, str], npt.NDArray[np.float32]] = {}
+# Process-wide, least-recently-used cache: fold models in one run embed each string once, and a
+# long-running server keeps its memory bounded (100k vectors of 384 floats is about 150 MB)
+MAX_CACHED = 100_000
+_CACHE: OrderedDict[tuple[str, str], npt.NDArray[np.float32]] = OrderedDict()
+
+
+def clear_cache() -> None:
+    """Forget every cached vector, as a freshly started process would."""
+    _CACHE.clear()
 
 
 def embed(embedder: Embedder, texts: Sequence[str], fingerprint: str) -> Vectors:
-    """Vectors for `texts`, embedding only strings this process hasn't seen with this model."""
-    missing = sorted({t for t in texts if (fingerprint, t) not in _CACHE})
-    if missing:
-        for text, vector in zip(missing, embedder.embed(missing), strict=True):
-            _CACHE[(fingerprint, text)] = vector
+    """Vectors for `texts`, embedding only strings not in the cache."""
     if not texts:
         return np.zeros((0, embedder.dim), dtype=np.float32)
-    return np.stack([_CACHE[(fingerprint, t)] for t in texts])
+    unique = sorted(set(texts))
+    missing = [t for t in unique if (fingerprint, t) not in _CACHE]
+    found = {t: _CACHE[(fingerprint, t)] for t in unique if (fingerprint, t) in _CACHE}
+    if missing:
+        found |= dict(zip(missing, embedder.embed(missing), strict=True))
+    for text in unique:  # most recently used last; the oldest are evicted first
+        _CACHE[(fingerprint, text)] = found[text]
+        _CACHE.move_to_end((fingerprint, text))
+    while len(_CACHE) > MAX_CACHED:
+        _CACHE.popitem(last=False)
+    return np.stack([found[t] for t in texts])
 
 
 def verify(embedder: Embedder, expected: dict[str, str]) -> None:

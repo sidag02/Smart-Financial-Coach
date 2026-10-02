@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
 from smart_financial_coach.config import PROJECT_ROOT
@@ -250,11 +251,9 @@ class CategorizationTask:
             | self._scores(unseen, "unseen")
         )
 
-        # Confidence by familiarity, as the shipped model sees it: is the normalized string in its
-        # training rows? Calibration is fitted per familiarity group, so it's checked per group
-        train_rows = examples.frame.set_index("transaction_id").loc[splits.sets[TRAIN].tolist()]
-        vocabulary = set(train_rows["merchant_raw"].map(normalize_merchant))
-        familiar = everyone["merchant_raw"].map(normalize_merchant).isin(vocabulary).to_numpy()
+        # Confidence by familiarity, as the shipped model sees it. Calibration is fitted per
+        # familiarity group, so it's checked per group
+        familiar = self._familiar(model, examples, splits)
         for name, mask in (("familiar", familiar), ("unfamiliar", ~familiar)):
             rows = everyone[mask]
             cal = calibration(rows["category"], rows["predicted"], rows["confidence"])
@@ -305,6 +304,18 @@ class CategorizationTask:
             if label in ceiling:
                 out[f"known_oracle_f1.{slug(label)}"] = ceiling[label]
         return out
+
+    @staticmethod
+    def _familiar(model: Checked, examples: Examples, splits: Splits) -> npt.NDArray[np.bool_]:
+        """Familiarity of each test-user row: the model's own flag when it has one (so it uses
+        the model's normalizer), else whether the normalized string occurs in training rows."""
+        rows = examples.rows(splits.sets["test_all"])
+        scorer = getattr(model.model, "base", model.model)
+        if callable(scores := getattr(scorer, "scores", None)):
+            return np.asarray(scores(rows)[1], dtype=bool)
+        train = examples.frame.set_index("transaction_id").loc[splits.sets[TRAIN].tolist()]
+        vocabulary = set(train["merchant_raw"].map(normalize_merchant))
+        return rows["merchant_raw"].map(normalize_merchant).isin(vocabulary).to_numpy()
 
     @staticmethod
     def _holdout(examples: Examples) -> set[str]:

@@ -127,6 +127,10 @@ class Calibrated(CategorizerModel):
                 out[mask] = self.calibrators[name].apply(proba[mask])
         return out
 
+    def reset_caches(self) -> None:
+        if callable(reset := getattr(self.base, "reset_caches", None)):
+            reset()
+
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
         proba, familiar = self.base.scores(x)
         top, _ = _top(proba)

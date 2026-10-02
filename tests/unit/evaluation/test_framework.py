@@ -25,6 +25,7 @@ from smart_financial_coach.intelligence.models.artifact import (
     promotion_errors,
     promotions,
 )
+from smart_financial_coach.intelligence.models.registry import model_class
 from smart_financial_coach.intelligence.service import load_service
 
 MakeConfig = Callable[..., ExperimentConfig]
@@ -55,6 +56,17 @@ def test_run_logs_validation_only(toy_data: Path, tracker: Tracker, runs: dict[s
         assert run.tags[tag]
     assert run.params["chosen.confidence"] in {"0.7", "0.9"}
     assert len({tracker.get(r).tags["sfc.split_hash"] for r in runs.values()}) == 1
+
+
+def test_latency_is_timed_from_a_cold_start(
+    toy_data: Path, tracker: Tracker, make_config: MakeConfig
+) -> None:
+    memory = model_class("toy/memory")  # the toy model counts cache resets
+    before = memory.resets  # type: ignore[attr-defined]
+    result = run_experiment(make_config("cold"), toy_data, tracker)
+
+    assert memory.resets == before + 1  # type: ignore[attr-defined]
+    assert {"latency_p95_ms", "latency_warm_p95_ms"} <= set(result.metrics)
 
 
 def test_identical_run_is_skipped_unless_forced(

@@ -28,6 +28,7 @@ from smart_financial_coach.data.features.merchant_text import (
 )
 from smart_financial_coach.intelligence.categorization.contract import CategorizerModel
 from smart_financial_coach.intelligence.categorization.embeddings import (
+    clear_cache,
     embed,
     get_embedder,
     verify,
@@ -167,6 +168,10 @@ class LinearText(CategorizerModel):
         proba, _ = self.scores(x)
         top = proba.argmax(axis=1)
         return self._output(x, np.asarray(self.categories)[top], proba[np.arange(len(top)), top])
+
+    def reset_caches(self) -> None:
+        """Drop process-wide caches, so the next calls cost what a fresh server's would."""
+        clear_cache()
 
     def verify_environment(self) -> None:
         """Called when an artifact is loaded: the embedding file must be the one trained with."""

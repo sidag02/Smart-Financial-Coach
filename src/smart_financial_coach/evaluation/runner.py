@@ -227,7 +227,14 @@ def run_experiment(
             held_out_report = dict(getattr(model, "report", {}))
         checked = Checked(model, get_service(task.name).contract)
         sample = examples.rows(splits.sets[TRAIN][:LATENCY_ROWS])
-        metrics = {f"val_{k}": v for k, v in val.items()} | latency_ms(checked, sample)
+        # The gate is about a freshly started server: models with process-wide caches (e.g.
+        # embeddings) drop them first, so the timing includes first-sight costs
+        if callable(reset := getattr(model, "reset_caches", None)):
+            reset()
+        latency = latency_ms(checked, sample)
+        warm = latency_ms(checked, sample)["latency_p95_ms"]  # same rows again, caches warm
+        metrics = {f"val_{k}": v for k, v in val.items()} | latency
+        metrics["latency_warm_p95_ms"] = warm
         metrics |= {f"held_out.{k}": v for k, v in held_out_report.items()}
         if reproduce_poc:
             test = task.test_metrics(examples, splits, checked)
