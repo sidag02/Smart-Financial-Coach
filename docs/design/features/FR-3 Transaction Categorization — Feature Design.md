@@ -1,6 +1,6 @@
 # FR-3 Transaction Categorization — Feature Design
 
-Oct 1, 2026 · @Sidd · Status: **Proposed** · Branch: `feature/fr-3`
+Oct 1, 2026 (accepted Oct 2) · @Sidd · Status: **Accepted** · PRs #6–#14
 
 ## Summary
 
@@ -503,7 +503,7 @@ Each metric has one job. This section records why it was chosen, which alternati
   - `latency_warm_p95_ms`: the same rows a second time, with warm caches.
 
   Measured (milestone 3): 3.1 ms cold and 1.2 ms warm on a laptop; 8.95 ms cold on a CI runner.
-- **Measured with `sfc-model predict`** (milestone 5; bge-base, default dataset, laptop CPU, one process): about 12,200 transactions per second; 2.1 GB peak memory at 20k-row batches (the default) and 7.2 GB at 100k, at the same throughput; 0.6 s to load the model once its file is downloaded.
+- **Measured with `sfc-model predict`** (bge-base, default dataset, laptop CPU, one process): about 12,000 transactions per second; 0.6 s to load the model once its file is downloaded. `predict` reads the dataset in batch-sized chunks (milestone 6, from review on #13), so peak memory depends on the batch size, not the dataset: 1.96 GB at 20k-row batches (the default) and 6.6 GB at 100k, at the same throughput. Before chunking, the whole dataset was loaded first: 2.1 GB and 7.2 GB. The model's per-batch working set, not the data, is most of the peak.
 - **Serving at scale is a deployment concern, for the serving design:**
   - throughput per core and cost per million transactions;
   - pod memory: the ONNX model is 67 MB for bge-small and about twice that for bge-base, and the embedding cache is a bounded LRU of up to about 150 MB;
@@ -742,16 +742,17 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 | Plan trim | #10 | Milestone 4 trimmed for launch; Technical Design "Learning from user feedback" |
 | 4. Launch round | #11 | Launch-round configs and results (`docs/reports/FR-3 Categorization — Launch Round Results.md`), `sfc-experiment report`; latency gate removed (batched on ingestion) |
 | 5. Promote and predict | #13 | Model files in GitHub Releases; `finalize` (once); bge-base promoted (`3f0ccc82-2f0e60a6`); `sfc-model predict`; Model Selection doc and launch report updated |
+| 6. Docs | #14 | Technical Design updated (contract, predictions store, evaluation, artifacts); Income question closed in FR-1 and FR-2; this doc Accepted. Review follow-ups from #13: per-run temporary predictions files, chunked reads in `predict`, releases tagged at the training commit |
 
 **Where it stands.** `finalize` scored the top three (bge-base, n-grams 1–5, bge-small) and the baselines on the test sets once. bge-base passed both gates (known 0.970 against 0.90 and keyword's 0.461) and is promoted. Its known issue, Travel as the fallback guess for unfamiliar merchants, was shipped knowingly by the owner's decision. FR-3 Categorization Model Selection and the launch report hold the results. The test sets on split `ce93ef87…` are now used: a further round needs `--override`.
 
 ### Remaining
 
-**Milestone 6: docs.**
+FR-3 is complete. What it leaves open belongs to other designs:
 
-- **Technical Design**, the four unticked items under "Technical Design updates" below. One more: its Infrastructure table's "model registry" becomes the MLflow registry plus the storage chosen in milestone 5.
-- **Close the Income question:** FR-1 (open questions) and FR-2 (§ on Income, and open questions) still list it. The answer: Income is a predicted class, excluded from the headline macro F1 (§4, option D-b).
-- **This doc:** tick the decisions reviewed and merged (PR #6's items, G-b, H-b), and set the status to **Accepted**.
+- **FR-4** (unseen merchants, 0.462 on test against 0.80): the approach, and whether the 0.80 target is meaningful with 3–10 holdout merchants per class (open questions below).
+- **FR-5 and FR-6** (review and corrections, the retraining design): the Travel fallback for unfamiliar merchants, and whether the shipped model should train on injected label noise at all; FR-5's review threshold from the reliability curve (FR-3 Categorization Model Selection, "Known issues").
+- **Serving design and CD:** model files baked into the serving image through the container registry, which removes first-use download's interim limits.
 
 ### Practical notes for the next session
 
@@ -765,11 +766,12 @@ Written for whoever continues FR-3. It records where the work stands, what remai
   - one PR per milestone, from a branch based on the latest `main` (rebase unpushed work onto `main` before pushing; the `main` ruleset requires an up-to-date branch and a green `check`);
   - before every push, check the open PR for review comments as a separate step and address them first, replying on each thread;
   - design or rule changes are proposed to the owner before they're made, recorded in this doc with their reason, and labelled when they come after seeing results;
-  - test sets are touched only by `finalize` (and `--reproduce-poc`).
+  - test sets are touched only by `finalize` (and `--reproduce-poc`);
+  - a promotion publishes its release before the promotion PR merges (the promotion takes effect only when `PROMOTED` merges). **If a promotion PR is rejected, delete its release** (`gh release delete <service>-<version> --cleanup-tag`), so the releases list never shows a model that didn't ship.
 
 ## Decisions and open questions
 
-**Decisions** (review on PR #4)
+**Decisions** (reviewed on PR #4, PR #6 and PR #12)
 
 - [x] FR-3 / FR-4 split as above: FR-3 gates on known merchants, FR-4 owns the unseen-merchant gap.
 - [x] Batch contract over model-visible rows (A-b).
@@ -780,21 +782,21 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 - [x] C and calibration chosen by grouped cross-fitting over merchants; the shipped model trains on all training rows; calibration split by familiarity, with the vocabulary built before the cap (from review).
 - [x] FR-3 builds the training and evaluation framework (generic model interface, registry, splitters, runner, promotion), extended feature by feature along [Path to a general framework](#path-to-a-general-framework).
 - [x] MLflow for experiment tracking and the model registry (F-b), installed through a `train` dependency group so serving installs stay lean (from review).
-- [ ] Validation folds hold out only holdout-eligible merchants, so validation-unseen matches `test_unseen`'s population; ties defined against the leader; baselines always scored in `finalize`; a committed promotion log (from review on PR #6).
-- [ ] Serving from an exported folder and `PROMOTED` pointer, never from MLflow (G-b); model files in GitHub Releases, verified against the committed manifest (decided Oct 2, 2026).
-- [ ] Experiments compared on validation; test sets scored once for at most three finalists (H-b), with the decision rule in [Experiment plan](#experiment-plan).
+- [x] Validation folds hold out only holdout-eligible merchants, so validation-unseen matches `test_unseen`'s population; ties defined against the leader; baselines always scored in `finalize`; a committed promotion log (from review on PR #6).
+- [x] Serving from an exported folder and `PROMOTED` pointer, never from MLflow (G-b); model files in GitHub Releases, verified against the committed manifest (decided Oct 2, 2026).
+- [x] Experiments compared on validation; test sets scored once for at most three finalists (H-b), with the decision rule in [Experiment plan](#experiment-plan).
 
-**Technical Design updates (after approval)**
+**Technical Design updates** (made in milestone 6)
 
-- [ ] `categorize` contract: batch of transaction rows → category, confidence, model version.
-- [ ] Data store: model outputs live in a separate predictions file per model version.
-- [ ] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants; grouped cross-fitting over merchants for C and calibration; ECE on every test set.
-- [ ] Evaluation framework: generic model interface, registry, promotion, MLflow tracking (the Infrastructure table's "model registry" becomes the MLflow registry plus exported artifacts); experiments compared on validation, test sets scored once.
+- [x] `categorize` contract: batch of transaction rows → category, confidence, model version.
+- [x] Data store: model outputs live in a separate predictions file per model version.
+- [x] Categorization evaluation row: headline macro F1 over 12 spending categories; merchant-level bootstrap interval for unseen merchants; grouped cross-fitting over merchants for C and calibration; ECE on every test set.
+- [x] Evaluation framework: generic model interface, registry, promotion, MLflow tracking (the Infrastructure table's "model registry" becomes the MLflow registry plus exported artifacts); experiments compared on validation, test sets scored once.
 
 **Open questions**
 
 - [ ] **Where the shared MLflow server runs.** Sharing runs needs a server everyone can reach (self-hosted `mlflow server` with a database and artifact store, or a managed MLflow). Until then the local store works and the report in the repo carries the comparison.
 - [x] **Promoted artifacts exceed the repo's 5 MB file limit** (9.5–12.7 MB measured). Settled Oct 2, 2026: model files go to GitHub Releases; the manifest, pointer and log are committed ([Model artifact](#model-artifact), option G).
 
-- [ ] **FR-4 approach.** Embeddings get 0.64 (interval 0.56–0.73) against the 0.80 target. Options for the FR-4 design: a larger embedding model; training on one row per unique merchant string, so frequent merchants don't dominate; or an LLM fallback for low-confidence, never-seen strings, cached per normalized merchant so cost scales with merchants, not transactions. The LLM option would make categorization depend on the LLM provider, which NFR-6 avoids for the dashboard. A cached fallback would keep the dashboard working during an outage, but new merchants would wait.
+- [ ] **FR-4 approach** (for the FR-4 design). Embeddings get 0.64 (interval 0.56–0.73) against the 0.80 target. Options for the FR-4 design: a larger embedding model; training on one row per unique merchant string, so frequent merchants don't dominate; or an LLM fallback for low-confidence, never-seen strings, cached per normalized merchant so cost scales with merchants, not transactions. The LLM option would make categorization depend on the LLM provider, which NFR-6 avoids for the dashboard. A cached fallback would keep the dashboard working during an outage, but new merchants would wait.
 - [ ] Is the unseen-merchant target realistic with 3–10 merchants per class? The feasibility interval is 0.17 wide, so near the target a pass or fail would be mostly luck. FR-4 may need a larger holdout or a merchant-level metric. The review agrees this should be settled in the FR-4 design, the way FR-2 decided weekly spikes.

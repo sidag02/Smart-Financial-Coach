@@ -16,7 +16,7 @@ The PRD's capabilities reduce to five learning problems, each with ground truth 
 
 | Capability | Formulation | Input → output | Primary metric |
 | --- | --- | --- | --- |
-| Transaction categorization | Supervised multi-class text classification | Raw merchant string + amount → category (\~12 classes) + confidence | Macro F1 |
+| Transaction categorization | Supervised multi-class text classification | Transaction rows (merchant text, amount, channel, time) → one of 12 spending categories or Income + calibrated confidence | Macro F1 over the 12 spending categories |
 | Unusual transactions | Unsupervised, per-user point anomaly detection | Transaction features relative to the user's history → anomaly score + flag + reason | Precision, recall, PR-AUC |
 | Spending spikes | Per-user anomaly detection on aggregated time series | Monthly spend per category → flagged period + deviation size + driving transactions (weekly deferred; see FR-2) | Precision, recall at period level |
 | Goal forecasting | Univariate time-series forecasting with seasonality, turned into a probability | Monthly net savings history → forecast with interval → P(goal met by date) | RMSE, MAPE; Brier score for P(goal met) |
@@ -39,9 +39,9 @@ The system is nine modules in four layers, plus a cross-cutting evaluation harne
 | Layer | Module | Responsibility | Inputs | Outputs |
 | --- | --- | --- | --- | --- |
 | Data | Data generator | Generate persona-based multi-user transactions, goals and planted events (unusual charges, spending spikes) with ground truth, from a parameter spec | Spec file (personas, catalog, events, seeds) | One SQLite file: model-visible tables + `truth_*` tables |
-| Data | Data store | Hold transactions, users, goals, model outputs; data-access layer exposes only model-visible tables to models | Generator SQLite file | Queryable tables |
+| Data | Data store | Hold transactions, users and goals; data-access layer exposes only model-visible tables to models. Model outputs live in separate predictions files, one per model version and dataset, so the generator's file stays a pure function of its spec | Generator SQLite file; predictions files | Queryable tables |
 | Data | Feature pipeline | Clean merchant text; build per-user history and weekly/monthly aggregates | Raw transactions | Feature tables per model |
-| Intelligence | Categorization service | Assign category + confidence | Merchant text, amount | Category, confidence |
+| Intelligence | Categorization service | Assign category + confidence, in batches on ingestion | Batches of transaction rows | Category, confidence, model version |
 | Intelligence | Anomaly service | Flag unusual transactions and spending spikes against the user's baseline | Transaction and aggregate features | Flags, scores, reasons |
 | Intelligence | Forecasting service | Forecast savings and estimate goal likelihood | Monthly net-savings series, goal | Forecast, interval, P(goal met), gap |
 | Access | Tool server | Expose intelligence services as typed tools; inject user identity | Tool calls + session identity | Structured tool results |
@@ -75,7 +75,7 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 
 **Service contracts** (each model service implements one of these)
 
-- `categorize(merchant_raw, amount) → {category, confidence}`
+- `categorize(transactions) → [{transaction_id, category, confidence, model_version}]`: batch-first over model-visible transaction rows (`transaction_id, user_id, ts, amount, currency, merchant_raw, channel`), one output row per input in order. Whole rows keep the contract stable whichever features a model uses; a single transaction is a one-row batch. Every service's output is checked against its contract at runtime (FR-3)
 - `score_transactions(user_id, transactions) → [{transaction_id, score, is_flagged, reason_code, reason}]` (`reason_code` is `duplicate`, `amount_unusual` or `new_merchant`, so reason accuracy can be scored)
 - `detect_spikes(user_id, period, granularity) → [{category, period, actual, expected, deviation, top_transactions}]` (v1: `granularity="month"` only; at most 5 `top_transactions`)
 - `forecast_goal(user_id, goal_id) → {projected_balance, interval, p_goal_met, gap, monthly_forecast[]}`
@@ -100,7 +100,8 @@ v1 runs as a single Python deployment on one machine; each component has a named
 | --- | --- | --- |
 | Language / runtime | Python 3.11, pinned dependencies | Containerized services |
 | Data store | SQLite (one file per generated dataset) | Managed Postgres with row-level security |
-| Model artifacts | Versioned files in the repo's artifact folder | Model registry |
+| Model artifacts | The repo's `artifacts/` holds each service's `PROMOTED` pointer, promotion log and model manifests; model files are attached to GitHub Releases and verified against the committed manifest on first use (FR-3) | Container registry: continuous deployment bakes the promoted model into the serving image |
+| Experiment tracking | MLflow with a local store: runs, metrics and the model registry (`champion` alias); serving never reads it | Shared MLflow server |
 | Tool server | Local process speaking MCP over stdio / HTTP | Hosted service behind auth gateway |
 | LLM | Hosted API (provider TBD), key from environment | Same, with rate limiting and cost budgets |
 | Web app | Local Python web app | Hosted front end + API |
@@ -142,7 +143,7 @@ No model is chosen in this doc. Once each interface and feature set is fixed, ca
 
 | Problem | Candidate families to evaluate | Decided by |
 | --- | --- | --- |
-| Categorization | Linear models on n-gram text features · gradient-boosted trees · sentence-embedding classifiers · small fine-tuned transformer | Experiment, incl. the unseen-merchant test |
+| Categorization | Linear models on n-gram text features · gradient-boosted trees · sentence-embedding classifiers · small fine-tuned transformer | Experiment, incl. the unseen-merchant test. **Decided (Oct 2, 2026):** logistic regression over character n-grams and frozen `bge-base-en-v1.5` embeddings, calibrated per familiarity group (FR-3 Categorization Model Selection) |
 | Unusual transactions | Isolation-based ensembles · one-class boundary methods · density methods · robust statistical rules | Experiment on precision / recall at a fixed alert rate |
 | Spending spikes | Robust per-user statistics on aggregates · seasonal decomposition residuals · forecast-residual methods | Experiment; theory narrows to seasonality-aware options |
 | Goal forecasting | Additive trend + seasonality models · ARIMA-family models · exponential smoothing | Experiment via rolling backtest; theory rules out options needing long history |
@@ -156,11 +157,19 @@ Every model is scored against planted ground truth and a simple baseline, with o
 
 | Problem | Data split | Baseline | Metrics |
 | --- | --- | --- | --- |
-| Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training | Keyword rules | Macro F1, per-class F1, confusion matrix |
+| Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training. Hyperparameters and calibrators come from grouped cross-fitting over merchants within train users | Keyword rules | Macro F1 over the 12 spending categories (Income on its own line), per-class F1, confusion matrix; a merchant-level bootstrap interval for unseen merchants; calibration (Brier, ECE) on every test set |
 | Unusual transactions | All transactions scored; labels hidden from training; thresholds tuned on train users, reported on test users | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate, reason accuracy |
 | Spending spikes | Monthly aggregates of all spend on true categories; labels hidden; thresholds tuned on train users, reported on test users | Per-user mean ± k·std per category | Period-level precision and recall (all and `clear` labels); excess coverage of driving transactions vs. a top-5-by-amount baseline |
 | Goal forecasting | Rolling-origin backtest: train on months 1..k, predict k+1..k+3 | Seasonal-naive | RMSE, MAPE; Brier score for P(goal met) |
 | Coach | \~30 scripted questions with expected facts, plus adversarial cases | None | Grounding accuracy, refusal accuracy, rubric score (LLM judge, 1–5) |
+
+**How models are trained, compared and promoted** (built in FR-3; each later model extends it rather than replacing it)
+
+- A generic model interface and registry: a candidate is a class plus a config file. Wrappers (calibration, routing, lookup) compose models through the same interface.
+- Composable splitters with leak checks that stop a run before any fit. A task owns each problem's examples, labels, splits, metrics, baseline and gates.
+- An experiment runner that logs every run's config, data hash, split hashes, code version and validation metrics to MLflow. A run is skipped on resume only if all of them match.
+- **Experiments are compared on validation data.** Each task writes its decision rule before the runs; test sets are scored once, for at most three finalists plus the baselines, enforced in code. Departing from the rule needs a recorded override reason.
+- Promotion checks the task's gates in the selection criteria's order, exports the model, records it in a committed promotion log, and is the only way a model reaches callers. Callers load "the promoted model" for a service, never a model class.
 
 **Controls against flattering results**
 
@@ -225,4 +234,4 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 - [ ] LLM provider: Anthropic or OpenAI?
 - [ ] Web framework for v1 (a Python dashboard framework vs. a separate front end)?
 - [ ] Tool server transport for v1: stdio only, or HTTP as well?
-- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, and whether "cheap to retrain" joins the model selection criteria. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
+- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria, and whether the shipped model trains on injected label noise at all (the promoted categorizer's Travel fallback for unfamiliar merchants is its likely effect; FR-3 Categorization Model Selection). Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).

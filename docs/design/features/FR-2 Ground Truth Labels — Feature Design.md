@@ -255,7 +255,7 @@ No generator change. FR-2 records:
 
 - The ambiguity ceiling (`meta.ambiguous_error_share`, 1.3% on default). The label report shows per-class F1 for the majority-category oracle, so Groceries and Shopping are judged against what is achievable.
 - Refunds keep their purchase's category and have a positive amount. The contract scores them like any spending transaction.
-- Whether Income is a predicted class stays open (from FR-1).
+- Income is a predicted class, excluded from the headline macro F1 (settled in FR-3 §4).
 
 ### 7. Module layout
 
@@ -379,7 +379,7 @@ New checks in `validate`, all failing loudly:
 
 **Open questions**
 
-- [ ] Is Income a class the categorizer predicts? (Carried from FR-1.)
+- [x] Is Income a class the categorizer predicts? (Carried from FR-1.) Settled in FR-3 (§4, option D-b): Income is a predicted 13th class, so text plus amount sign separate payroll from refunds, and it is excluded from the headline macro F1 (reported on its own line), so a near-perfect class doesn't inflate the average.
 - [ ] Do we want a "silent spike" kind, a gradual multi-week drift? It is realistic and FR-8 doesn't exclude it, but it needs its own label shape.
 
 ## Implementation notes

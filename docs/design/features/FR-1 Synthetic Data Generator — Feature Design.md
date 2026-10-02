@@ -504,7 +504,7 @@ The recommendations below were adopted when FR-1 was implemented.
 
 **Open questions**
 
-- [ ] Is Income a class the categorizer predicts, or handled by a rule on sign and channel? (Affects FR-3's "~12 classes".)
+- [x] Is Income a class the categorizer predicts, or handled by a rule on sign and channel? (Affects FR-3's "~12 classes".) Settled in FR-3 (§4, option D-b): Income is a predicted 13th class, so text plus amount sign separate payroll from refunds, and it is excluded from the headline macro F1 (reported on its own line), so a near-perfect class doesn't inflate the average.
 - [ ] Are real chain names acceptable in the merchant catalog, or should all merchants be fictional? The catalog currently mixes real chains with fictional local businesses; employers and freelance clients are all fictional.
 
 ## Implementation notes
