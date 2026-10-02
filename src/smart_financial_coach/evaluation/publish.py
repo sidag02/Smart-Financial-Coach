@@ -41,7 +41,8 @@ class GitHubReleases:
     nothing: the release's file is downloaded and must match the local one.
 
     The release's tag points at the commit that trained the model when GitHub has that commit, so
-    its source archives are the training code. Otherwise (a commit that was rebased away or never
+    its source archives are the training code. `promote` passes a commit only for runs trained from
+    a clean tree (`sfc.git_dirty`), since otherwise the commit isn't the training code. Otherwise (a commit that was rebased away or never
     pushed) the tag falls back to the default branch, and the notes say so; the manifest records
     the commit and code version either way.
     """

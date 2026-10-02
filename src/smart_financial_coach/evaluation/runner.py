@@ -68,6 +68,12 @@ def git_commit() -> str:
     return _git("rev-parse", "HEAD") or "unknown"
 
 
+def git_dirty() -> bool:
+    """Whether `CODE_PATHS` differ from `HEAD` (modified, staged or untracked), in which case `HEAD`
+    isn't the code that trained the model (`sfc.git_dirty`; `code_version` hashes it either way)."""
+    return bool(_git("status", "--porcelain", "--untracked-files=all", "--", *CODE_PATHS))
+
+
 def code_version() -> str:
     """A hash of everything under `CODE_PATHS` as it is now: committed, modified or untracked.
 
@@ -184,6 +190,7 @@ def run_experiment(
         "sfc.model_type": config.model.type,
         "sfc.baseline": str(config.baseline).lower(),
         "sfc.git_commit": git_commit(),
+        "sfc.git_dirty": str(git_dirty()).lower(),
         **{f"user.{k}": v for k, v in config.tags.items()},
     }
     with tracker.run(task.name, config.name, tags) as run_id:
