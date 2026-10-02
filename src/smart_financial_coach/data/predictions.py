@@ -7,8 +7,9 @@ version's output for one dataset, and every row carries that version.
                             model_version
     meta                    model_version, data_spec_hash, data_spec_name, created_at, rows
 
-A file is written to a temporary path and renamed into place when complete, so readers never see
-half a run.
+A run writes to its own temporary file next to the target and renames it into place when complete,
+so readers never see half a run, and overlapping runs (a retried job, two workers) don't share or
+delete each other's partial files.
 
     with CategoryWriter("data/predictions/default.sqlite", meta) as writer:
         writer.append(user_ids, categorizer.categorize(batch))
@@ -16,6 +17,7 @@ half a run.
 """
 
 import sqlite3
+import tempfile
 from collections.abc import Mapping
 from pathlib import Path
 from types import TracebackType
@@ -49,12 +51,14 @@ class CategoryWriter:
         if self.path.exists() and not overwrite:
             raise FileExistsError(f"{self.path} exists; pass overwrite to replace it")
         self.meta = dict(meta)
-        self.partial = self.path.with_name(self.path.name + ".part")
         self.rows = 0
 
     def __enter__(self) -> Self:
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.partial.unlink(missing_ok=True)
+        with tempfile.NamedTemporaryFile(
+            dir=self.path.parent, prefix=f"{self.path.name}.", suffix=".part", delete=False
+        ) as f:
+            self.partial = Path(f.name)
         self.conn = sqlite3.connect(self.partial)
         self.conn.executescript(_SCHEMA)
         return self

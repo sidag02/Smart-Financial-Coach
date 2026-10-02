@@ -319,7 +319,12 @@ def promote(
             f"{task.name} model {model.version}, MLflow run {run_id}. Loaded only if it matches "
             f"artifacts/{task.name}/{model.version}/{MANIFEST_FILE}."
         )
-        url = publisher.publish(f"{task.name}-{model.version}", target / MODEL_FILE, notes)
+        url = publisher.publish(
+            f"{task.name}-{model.version}",
+            target / MODEL_FILE,
+            notes,
+            commit=run.tags.get("sfc.git_commit"),
+        )
     registry_version = tracker.register_champion(task.name, run, model.version)
     entry = {
         "version": model.version,

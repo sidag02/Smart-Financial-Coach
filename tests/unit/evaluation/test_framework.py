@@ -227,9 +227,11 @@ class FolderPublisher:
     def __init__(self, folder: Path) -> None:
         self.folder = folder
         self.tags: list[str] = []
+        self.commits: list[str | None] = []
 
-    def publish(self, tag: str, path: Path, notes: str) -> str:
+    def publish(self, tag: str, path: Path, notes: str, commit: str | None = None) -> str:
         self.tags.append(tag)
+        self.commits.append(commit)
         (self.folder / tag).mkdir(parents=True, exist_ok=True)
         shutil.copy2(path, self.folder / tag / path.name)
         return (self.folder / tag / path.name).as_uri()
@@ -248,6 +250,7 @@ def test_published_model_is_downloaded_on_first_use(
     served = load_service("toy", artifacts)
 
     assert publisher.tags == [f"toy-{entry['version']}"]
+    assert publisher.commits == [tracker.get(runs["memory_hint"]).tags["sfc.git_commit"]]
     assert entry[URL_KEY].startswith("file://")
     assert model_file.exists()
     assert served.version == entry["version"]

@@ -10,7 +10,7 @@ from smart_financial_coach.data.predictions import (
     load_categories,
     load_prediction_meta,
 )
-from smart_financial_coach.data.store import load_meta, load_transactions
+from smart_financial_coach.data.store import iter_transactions, load_meta, load_transactions
 from smart_financial_coach.evaluation.cli import model_main
 from smart_financial_coach.intelligence.categorization.baseline import Majority
 from smart_financial_coach.intelligence.categorization.batch import categorize_dataset
@@ -94,6 +94,43 @@ def test_a_failed_run_leaves_no_file(tmp_path: Path) -> None:
         run()
 
     assert list(tmp_path.iterdir()) == []
+
+
+def test_overlapping_runs_keep_their_own_partial_files(tmp_path: Path) -> None:
+    """A retried job overlapping the old one: neither deletes or shares the other's partial file."""
+    out = tmp_path / "predictions.sqlite"
+
+    def batch(version: str) -> pd.DataFrame:
+        return pd.DataFrame(
+            {
+                "transaction_id": ["t1"],
+                "category": ["Dining"],
+                "confidence": [0.9],
+                "model_version": [version],
+            }
+        )
+
+    with CategoryWriter(out, {}) as first:
+        first.append(pd.Series(["u1"]), batch("first"))
+        with CategoryWriter(out, {}) as second:
+            second.append(pd.Series(["u1"]), batch("second"))
+            assert first.partial != second.partial
+        first.append(pd.Series(["u2"]), batch("first").assign(transaction_id="t2"))
+
+    assert load_categories(out)["model_version"].tolist() == ["first", "first"]  # last to finish
+    assert list(tmp_path.iterdir()) == [out]
+
+
+def test_chunked_reads_match_one_read(small_sqlite: Path) -> None:
+    chunks = list(iter_transactions(small_sqlite, chunk_rows=1_000))
+
+    assert len(chunks) > 1
+    assert all(len(c) <= 1_000 for c in chunks)
+    pd.testing.assert_frame_equal(
+        pd.concat(chunks, ignore_index=True), load_transactions(small_sqlite)
+    )
+    with pytest.raises(ValueError, match="positive"):
+        next(iter_transactions(small_sqlite, chunk_rows=0))
 
 
 def test_cli_predict(
