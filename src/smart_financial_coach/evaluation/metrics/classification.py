@@ -56,11 +56,21 @@ def per_class_f1(truth: pd.Series, pred: pd.Series, labels: Sequence[str]) -> di
 
 
 def calibration(truth: pd.Series, pred: pd.Series, confidence: pd.Series) -> dict[str, float]:
-    """Expected calibration error of the top-class confidence, and accuracy above 0.9."""
+    """Quality of the top-class confidence as a probability of being right.
+
+    - `brier`: mean squared error of confidence against correctness. A proper score: it is
+      minimized only by confidences that are both calibrated and discriminating, so it is the one
+      used to choose (calibration methods, tie-breaks).
+    - `ece`: expected calibration error over 15 equal-width bins. Easy to read ("0.9 means 90%")
+      but not proper (a constant confidence equal to the accuracy scores 0), so it is reported only.
+    - `acc_at_90`, `coverage_at_90`: the FR-5 operating point: how often confidence >= 0.9 is
+      right, and how many transactions clear it.
+    """
     conf = confidence.to_numpy(dtype=float)
     correct = (truth.to_numpy() == pred.to_numpy()).astype(float)
     if not len(conf):
-        return {"ece": float("nan"), "acc_at_90": float("nan"), "coverage_at_90": float("nan")}
+        nan = float("nan")
+        return {"brier": nan, "ece": nan, "acc_at_90": nan, "coverage_at_90": nan}
     bins = np.minimum((conf * ECE_BINS).astype(int), ECE_BINS - 1)
     weight = np.bincount(bins, minlength=ECE_BINS) / len(conf)
     acc = np.bincount(bins, weights=correct, minlength=ECE_BINS)
@@ -69,10 +79,19 @@ def calibration(truth: pd.Series, pred: pd.Series, confidence: pd.Series) -> dic
     ece = float((weight * np.abs(acc / counts - mean_conf / counts)).sum())
     confident = conf >= CONFIDENT
     return {
+        "brier": float(np.mean((conf - correct) ** 2)),
         "ece": ece,
         "acc_at_90": float(correct[confident].mean()) if confident.any() else float("nan"),
         "coverage_at_90": float(confident.mean()),
     }
+
+
+def misallocated_spend(truth: pd.Series, pred: pd.Series, amount: pd.Series) -> float:
+    """Share of dollars put in the wrong category: what the spend-by-category views feel."""
+    dollars = amount.abs().to_numpy(dtype=float)
+    wrong = truth.to_numpy() != pred.to_numpy()
+    total = dollars.sum()
+    return float(dollars[wrong].sum() / total) if total else float("nan")
 
 
 def group_confusions(

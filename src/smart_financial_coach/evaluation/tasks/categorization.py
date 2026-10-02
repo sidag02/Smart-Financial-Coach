@@ -18,10 +18,14 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 import pandas as pd
 
+from smart_financial_coach.config import PROJECT_ROOT, get_settings
+from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.generator.taxonomy import INCOME
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
+from smart_financial_coach.evaluation.experiment import load_experiment
 from smart_financial_coach.evaluation.metrics.classification import (
     bootstrap_macro_f1,
     bootstrap_weights,
@@ -29,6 +33,7 @@ from smart_financial_coach.evaluation.metrics.classification import (
     group_confusions,
     interval,
     macro_f1,
+    misallocated_spend,
     per_class_f1,
 )
 from smart_financial_coach.evaluation.splits import (
@@ -47,8 +52,15 @@ from smart_financial_coach.intelligence.categorization.contract import INPUT_COL
 from smart_financial_coach.intelligence.models.contract import Checked
 
 MIN_SCHEMA = 3  # truth_merchants.holdout_eligible
+POC_CONFIGS = PROJECT_ROOT / "configs" / "experiments" / "categorization" / "poc"
+# The POC's published test numbers (known / all test users / unseen merchants), for the
+# reproduction check (FR-3 §3)
+POC_RESULTS = {
+    "poc_ngrams": (0.986, 0.868, 0.504),
+    "poc_embeddings": (0.973, 0.913, 0.643),
+    "poc_both": (0.988, 0.929, 0.638),
+}
 KNOWN_GATE = 0.90
-LATENCY_GATE_MS = 5.0
 KEYWORD_BASELINE = "keyword"  # the run name the "beats the baseline" rule compares against
 BOOTSTRAP_REPS = 1000
 AMBIGUOUS_CLASSES = ("Groceries", "Shopping")
@@ -85,9 +97,12 @@ def content_hash(frame: pd.DataFrame, meta: Mapping[str, str]) -> str:
 
 
 class CategorizationTask:
+    """Metric choices and the alternatives considered: FR-3 design, "Metrics and why"."""
+
     name = "categorization"
-    selection_metric = "unseen_macro_f1"
-    tiebreak_metrics: tuple[str, ...] = ("val_unseen_ece", "latency_p95_ms")
+    selection_metric = "unseen_macro_f1"  # ranks runs (the decision rule)
+    tuning_metric = "tuning_macro_f1"  # picks C within a run: mean of known and unseen
+    tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_p95_ms")
     required_baselines: tuple[str, ...] = (KEYWORD_BASELINE,)  # eligibility and gates need it
 
     def __init__(self, reps: int = BOOTSTRAP_REPS) -> None:
@@ -208,7 +223,10 @@ class CategorizationTask:
         out = {
             f"{prefix}_macro_f1": macro_f1(
                 spending["category"], spending["predicted"], self.spending
-            )
+            ),
+            f"{prefix}_misallocated_spend": misallocated_spend(
+                spending["category"], spending["predicted"], spending["amount"]
+            ),
         }
         cal = calibration(rows["category"], rows["predicted"], rows["confidence"])
         return out | {f"{prefix}_{k}": v for k, v in cal.items()}
@@ -216,9 +234,11 @@ class CategorizationTask:
     def validation_metrics(self, examples: Examples, pooled: pd.DataFrame) -> dict[str, float]:
         rows = self._join(examples, pooled.reset_index(drop=True))
         held = pooled["held_out"].to_numpy()
-        return self._scores(rows[held == SEEN], "known") | self._scores(
+        out = self._scores(rows[held == SEEN], "known") | self._scores(
             rows[held == UNSEEN], "unseen"
         )
+        out["tuning_macro_f1"] = (out["known_macro_f1"] + out["unseen_macro_f1"]) / 2
+        return out
 
     def test_metrics(self, examples: Examples, splits: Splits, model: Checked) -> dict[str, float]:
         known = self._join(examples, model.predict(examples.rows(splits.sets["test_known"])))
@@ -229,6 +249,15 @@ class CategorizationTask:
             | self._scores(everyone, "all")
             | self._scores(unseen, "unseen")
         )
+
+        # Confidence by familiarity, as the shipped model sees it. Calibration is fitted per
+        # familiarity group, so it's checked per group
+        familiar = self._familiar(model, examples, splits)
+        for name, mask in (("familiar", familiar), ("unfamiliar", ~familiar)):
+            rows = everyone[mask]
+            cal = calibration(rows["category"], rows["predicted"], rows["confidence"])
+            out |= {f"all_{name}_{k}": v for k, v in cal.items()}
+        out["all_unfamiliar_share"] = float((~familiar).mean())
 
         spending = known[known["category"] != INCOME]
         for label, f1 in per_class_f1(
@@ -276,6 +305,18 @@ class CategorizationTask:
         return out
 
     @staticmethod
+    def _familiar(model: Checked, examples: Examples, splits: Splits) -> npt.NDArray[np.bool_]:
+        """Familiarity of each test-user row: the model's own flag when it has one (so it uses
+        the model's normalizer), else whether the normalized string occurs in training rows."""
+        rows = examples.rows(splits.sets["test_all"])
+        scorer = getattr(model.model, "base", model.model)
+        if callable(scores := getattr(scorer, "scores", None)):
+            return np.asarray(scores(rows)[1], dtype=bool)
+        train = examples.frame.set_index("transaction_id").loc[splits.sets[TRAIN].tolist()]
+        vocabulary = set(train["merchant_raw"].map(normalize_merchant))
+        return rows["merchant_raw"].map(normalize_merchant).isin(vocabulary).to_numpy()
+
+    @staticmethod
     def _holdout(examples: Examples) -> set[str]:
         f = examples.frame
         return set(f.loc[f["holdout"] == 1, "merchant_id"])
@@ -315,6 +356,7 @@ class CategorizationTask:
         known = metrics.get("test_known_macro_f1", float("nan"))
         keyword = baselines.get(KEYWORD_BASELINE, {}).get("test_known_macro_f1")
         latency = metrics.get("latency_p95_ms", float("inf"))
+        gate_ms = get_settings().latency_gate_ms
         return [
             Gate("known_macro_f1", known >= KNOWN_GATE, f"{known:.3f} vs {KNOWN_GATE}"),
             Gate(
@@ -326,13 +368,14 @@ class CategorizationTask:
             ),
             Gate(
                 "latency_p95",
-                latency <= LATENCY_GATE_MS,
-                f"{latency:.2f} ms vs {LATENCY_GATE_MS} ms",
+                latency <= gate_ms,
+                f"{latency:.2f} ms vs {gate_ms} ms",
             ),
         ]
 
     def reproduction_configs(self) -> set[str]:
-        return set()  # the POC's configurations arrive with the linear model (milestone 3)
+        """The POC's three configurations (feasibility at commit 55d4197), by config hash."""
+        return {load_experiment(p).config_hash() for p in sorted(POC_CONFIGS.glob("*.yaml"))}
 
 
 register_task("categorization", CategorizationTask)

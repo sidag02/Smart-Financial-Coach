@@ -16,6 +16,7 @@ dependencies = [
     "holidays",
     "scipy",
     "joblib",
+    "fastembed",
 ]
 
 [project.scripts]

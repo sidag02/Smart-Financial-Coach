@@ -19,14 +19,16 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 from smart_financial_coach.config import PROJECT_ROOT
 from smart_financial_coach.evaluation.experiment import ExperimentConfig
-from smart_financial_coach.evaluation.splits import TRAIN, Splits, leak_errors
+from smart_financial_coach.evaluation.splits import TRAIN, Ids, Splits, leak_errors
 from smart_financial_coach.evaluation.tasks.base import Examples, Task, get_task, latency_ms
 from smart_financial_coach.evaluation.tracking import KIND_TAG, MODEL_PATH, Tracker, flatten
 from smart_financial_coach.intelligence.models.artifact import save_artifact
+from smart_financial_coach.intelligence.models.base import HeldOutFit
 from smart_financial_coach.intelligence.models.contract import Checked
 from smart_financial_coach.intelligence.models.registry import build
 from smart_financial_coach.intelligence.service import get_service
@@ -113,19 +115,33 @@ def model_version(config: ExperimentConfig, examples: Examples) -> str:
     return f"{config.config_hash()[:8]}-{examples.data_hash[:8]}"
 
 
+@dataclass(frozen=True)
+class Pooled:
+    predictions: pd.DataFrame  # contract columns + `fold` + `held_out`, rows in fold order
+    outputs: pd.DataFrame | None  # `HeldOutFit` models: their held-out outputs, same rows
+
+
 def cross_fit(
     task: Task, examples: Examples, splits: Splits, config: ExperimentConfig, point: dict[str, Any]
-) -> pd.DataFrame:
+) -> Pooled:
     """Pooled out-of-fold predictions, with `fold` and `held_out` (which held-out set) columns."""
     contract = get_service(task.name).contract
-    parts = []
+    parts, outputs = [], []
     for i, fold in enumerate(splits.folds):
         x, y = task.training_rows(examples, fold.train, config.task_params, config.seed + i)
         model = Checked(build(config.model_spec(point)), contract).fit(x, y)
         for name, which in sorted(fold.held_out.items()):
-            out = model.predict(examples.rows(which))
-            parts.append(out.assign(fold=i, held_out=name))
-    return pd.concat(parts, ignore_index=True)
+            rows = examples.rows(which)
+            parts.append(model.predict(rows).assign(fold=i, held_out=name))
+            if isinstance(model.model, HeldOutFit):
+                outputs.append(model.model.held_out_outputs(rows).assign(fold=i))
+    pooled = pd.concat(parts, ignore_index=True)
+    return Pooled(pooled, pd.concat(outputs, ignore_index=True) if outputs else None)
+
+
+def ids_in_order(frame: pd.DataFrame) -> Ids:
+    """Row IDs in the frame's own order (not sorted): rows can repeat across folds."""
+    return np.asarray(frame.iloc[:, 0].to_numpy(), dtype=str)
 
 
 def _best(scored: list[tuple[dict[str, Any], dict[str, float]]], metric: str) -> int:
@@ -172,10 +188,12 @@ def run_experiment(
             metrics={"complexity": float(config.complexity)},
         )
         scored: list[tuple[dict[str, Any], dict[str, float]]] = []
-        pooled: list[pd.DataFrame] = []
+        pooled: list[Pooled] = []
         for point in points:
-            predictions = cross_fit(task, examples, splits, config, point) if splits.folds else None
-            metrics = {} if predictions is None else task.validation_metrics(examples, predictions)
+            result = cross_fit(task, examples, splits, config, point) if splits.folds else None
+            metrics = (
+                {} if result is None else task.validation_metrics(examples, result.predictions)
+            )
             if len(points) > 1:
                 with tracker.run(task.name, f"{config.name} {point}", {}, parent=run_id) as child:
                     tracker.log(
@@ -184,17 +202,40 @@ def run_experiment(
                         metrics={f"val_{k}": v for k, v in metrics.items()},
                     )
             scored.append((point, metrics))
-            if predictions is not None:
-                pooled.append(predictions)
-        best = _best(scored, task.selection_metric)
+            if result is not None:
+                pooled.append(result)
+        best = _best(scored, task.tuning_metric)
         chosen, val = scored[best]
 
         x, y = task.training_rows(examples, splits.sets[TRAIN], config.task_params, config.seed)
         model = build(config.model_spec(chosen)).fit(x, y)
         model.version = model_version(config, examples)
+        held_out_report: dict[str, float] = {}
+        if (
+            pooled
+            and isinstance(model, HeldOutFit)
+            and (outputs := pooled[best].outputs) is not None
+        ):
+            # Fit held-out stages (calibration) on the pooled fold outputs with clean labels, then
+            # recompute validation metrics on the out-of-fold calibrated confidences
+            labels = examples.labels_for(ids_in_order(outputs))
+            assert labels is not None
+            pooled[best].predictions["confidence"] = model.fit_held_out(
+                outputs.drop(columns="fold"), labels, outputs["fold"].to_numpy()
+            )
+            val = task.validation_metrics(examples, pooled[best].predictions)
+            held_out_report = dict(getattr(model, "report", {}))
         checked = Checked(model, get_service(task.name).contract)
         sample = examples.rows(splits.sets[TRAIN][:LATENCY_ROWS])
-        metrics = {f"val_{k}": v for k, v in val.items()} | latency_ms(checked, sample)
+        # The gate is about a freshly started server: models with process-wide caches (e.g.
+        # embeddings) drop them first, so the timing includes first-sight costs
+        if callable(reset := getattr(model, "reset_caches", None)):
+            reset()
+        latency = latency_ms(checked, sample)
+        warm = latency_ms(checked, sample)["latency_p95_ms"]  # same rows again, caches warm
+        metrics = {f"val_{k}": v for k, v in val.items()} | latency
+        metrics["latency_warm_p95_ms"] = warm
+        metrics |= {f"held_out.{k}": v for k, v in held_out_report.items()}
         if reproduce_poc:
             test = task.test_metrics(examples, splits, checked)
             metrics |= {f"test_{k}": v for k, v in test.items()}
@@ -205,7 +246,9 @@ def run_experiment(
             tracker.log_artifacts(run_id, out, "")
             if pooled:
                 (out / PREDICTIONS_PATH).mkdir()
-                pooled[best].to_parquet(out / PREDICTIONS_PATH / PREDICTIONS_FILE, index=False)
+                pooled[best].predictions.to_parquet(
+                    out / PREDICTIONS_PATH / PREDICTIONS_FILE, index=False
+                )
                 tracker.log_artifacts(run_id, out / PREDICTIONS_PATH, PREDICTIONS_PATH)
             manifest = {
                 "task": task.name,

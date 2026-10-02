@@ -363,10 +363,20 @@ The feasibility "both" configuration, made into a reproducible scikit-learn pipe
 | Hour of day | 3-hour bins of local `ts` | Kept only if the ablation shows it helps (milestone 3) |
 
 - **Classifier:** multinomial logistic regression with balanced class weights. C is chosen from {1, 3, 10} on cross-fitted validation predictions (§5).
-- **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. The vocabulary is built from all training rows *before* the per-class cap, so a known merchant's string isn't treated as unseen just because the cap sampled it out. In the POC split, that cuts known-merchant test rows wrongly treated as unseen from 1.3% to 0.9%, and test users' rows at known merchants from 2.6% to 1.8% (measured in review). Familiarity is model-visible, so it works the same way in production. Each familiarity group gets its own calibrator, fitted on the cross-fitted predictions in §5. The method (temperature or isotonic) is chosen by expected calibration error.
+- **Confidence:** the predicted class's probability after calibration, done separately for **seen** and **unseen** strings. A string is seen if its normalized form occurs in the training rows. The vocabulary is built from all training rows *before* the per-class cap, so a known merchant's string isn't treated as unseen just because the cap sampled it out. In the POC split, that cuts known-merchant test rows wrongly treated as unseen from 1.3% to 0.9%, and test users' rows at known merchants from 2.6% to 1.8% (measured in review). Familiarity is model-visible, so it works the same way in production. Each familiarity group gets its own calibrator, fitted on the cross-fitted predictions in §5. The method (none, temperature or isotonic) is chosen per group by cross-validated Brier score, not ECE; see [Metrics and why](#metrics-and-why), point 5.
 - **Why split calibration by familiarity:** in feasibility the model is already calibrated on known merchants (ECE 0.009). A calibrator fitted on known merchants would change almost nothing there and leave unseen merchants over-confident (ECE up to 0.16). That is the case FR-5's low-confidence review exists for.
 - **Why start here:** it meets the FR-3 target by a wide margin in feasibility, trains in seconds on CPU, and stays explainable (top n-grams per class). It is the candidate to beat, not a foregone conclusion: the [experiment plan](#experiment-plan) decides what is promoted.
-- **First check of the framework:** with label noise off, calibration off, C fixed at 3 and the POC's split, it must reproduce the POC's 0.988 / 0.929 / 0.638 within ±0.005. A larger gap means the port is wrong.
+- **First check of the framework (milestone 3, done).** With label noise off, calibration off, C fixed as in the POC and the POC's normalizer:
+
+  | Configuration | Known merchants | All test users | Unseen merchants | Unseen, 95% interval |
+  | --- | --- | --- | --- | --- |
+  | N-grams | 0.988 (POC 0.986) | 0.877 (0.868) | 0.511 (0.504) | 0.45–0.58 |
+  | Embeddings | 0.972 (0.973) | 0.912 (0.913) | 0.630 (0.643) | 0.56–0.70 |
+  | Both | 0.989 (0.988) | 0.932 (0.929) | 0.649 (0.638) | 0.57–0.74 |
+
+  - **The port is exact.** On the POC's own split (`train_test_split` and its cap), with the POC's embedding batching, the n-gram and combined models reproduce the POC to three decimals. The remaining differences above come from the framework's split drawing different training and test rows.
+  - **Unseen-merchant F1 has a noise floor of about ±0.015.** Changing embedding vectors by about 1e-4 (batch padding) moved it by up to 0.014, because one merchant can flip a class's F1. So the planned ±0.005 tolerance holds for known merchants and all test users (±0.01, the split) but cannot hold for unseen merchants. **Proposed criterion:** ±0.005 on known merchants, ±0.015 on unseen merchants, plus the exact-split check. The paired tie rule already treats differences this small as ties.
+  - **Fixed along the way:** in a padded batch, a string's embedding shifts slightly with its neighbours. Training batched, while serving embeds one string, so the two would see different features. Strings are now embedded one at a time: every call gives the same vector, at about 21 s instead of 10 s per run (cached).
 - **The one exemption from "test sets only in `finalize`":** this check has to score the test sets in round 1. It re-scores a configuration whose test numbers are already published, and nothing is chosen with it. The runner allows it only with `--reproduce-poc`, which accepts only the POC's configurations (by config hash), tags the run `reproduce_poc`, and excludes the run from the leaderboard and from `finalize`. There is no general way to score test sets outside `finalize`.
 
 ### 4. Income
@@ -394,6 +404,7 @@ This is what the [runner](#experiment-runner-and-tracking-mlflow) does for the c
    - Cost: K × 3 values of C = 15 fits, plus the shipped model's fit: 16 fits of about 30 s each, around 8 minutes on a laptop CPU per configuration.
    - The calibrators come from fold models, each trained on about 80% of the merchants, and are applied to the shipped model. That approximation is checked directly: §6 reports the shipped model's calibration error on the known-merchant test, all test users and unseen merchants.
 4. **Label noise:** applied *after* splitting, to the rows each model trains on (fold models and the shipped model). It flips a configurable share of spending labels uniformly to another spending category; Income labels are never flipped, and nothing is flipped to Income, since a payroll labeled Dining isn't a realistic correction error; the default is 2%, a Technical Design control against flattering results. It never touches held-out fold rows, calibration rows or test rows, so calibration can't learn the noise. The report states the rate.
+   - **Measured effect (milestone 3; rule kept by decision, Oct 1, 2026).** Uniform destinations send about the same number of wrong labels into every category, so small categories take most of the damage. In the default training rows, 39% of Travel's labels are wrong, and 12% of Housing's and Childcare & Education's, against 0.3% of Dining's. On validation fold 0 (C = 3, n-grams + embeddings), macro F1 goes from 0.989 known / 0.573 unseen without noise to 0.953 / 0.368 with it. Choosing the wrong category in proportion to category frequency (every class about 2% wrong) gave 0.984 / 0.553. Every experiment is compared under this noise, so the comparisons are fair, but absolute numbers sit well below the noise-free ones, especially for rare categories and unseen merchants. The round 1 candidate `linear_both` scored 0.967 known / 0.439 unseen on validation.
 5. **Cap per class:** at most `max_rows_per_class` training rows per class (default 20k) for each model, sampled with a fixed seed. Dining has 418k rows, so this keeps training fast and balanced without dropping rare classes. The familiarity vocabulary is built before the cap (§3).
 6. Log the run to MLflow: model, manifest (including the chosen C, K, the fold seed and each calibrator) and validation metrics. The test sets wait for `finalize`.
 
@@ -414,6 +425,82 @@ Also reported: expected calibration error on every test set and for seen and uns
 **Robustness of the known-merchant gate (checked in review).** 84.5% of known-merchant test strings appear verbatim in training, so memorization was a concern. But the n-gram model scores 0.986 on strings it has never seen as well. With a split by user instead of by transaction, it scores 0.985 overall and 0.970 on new strings. The gate doesn't rest on memorized strings. The report adds a never-seen-string slice of the known test so this stays visible.
 
 **Why a merchant-level bootstrap:** the unseen set has 78k transactions but only 58 merchants, as few as 3 for Travel and Entertainment. One merchant decides a class's F1, so a transaction-level interval would be falsely narrow.
+
+### Metrics and why
+
+Each metric has one job. This section records why it was chosen, which alternatives would also have made sense, and which would not. The test-set and validation metrics have the same names (`val_*`, `test_*`).
+
+**1. Is the category right? Macro F1 over the 12 spending categories** (headline, FR-3 gate, FR-4 target, selection).
+
+- **Why:** every category is a line on the dashboard and a bucket in `get_spending_summary`. A user who checks Travel cares about Travel as much as one who checks Dining, so each category counts equally, however rare (Travel is 0.3% of rows). F1 needs both precision (don't pollute a category with others' spend) and recall (don't lose a category's spend to others). Income is scored separately, so a near-perfect easy class doesn't inflate the average (§4). It is also the PRD's metric.
+- **Would also make sense:**
+  - Macro recall (balanced accuracy). Simpler, but blind to false positives, which inflate a category's total.
+  - Matthews correlation or Cohen's kappa. Single numbers that are robust to imbalance, but they don't break down by category, and they aren't the PRD's language.
+  - **Dollar-weighted error**, which is adopted as a secondary metric (point 6).
+- **Would not:**
+  - Accuracy or micro F1. Dining is 38% of rows, so a model that never predicts Travel loses under 1%.
+  - Weighted F1. Same domination by Dining.
+  - Top-k accuracy. The product shows one category.
+  - Per-class ROC-AUC or PR-AUC. They rank scores without a threshold, while the product takes the top class, so they don't measure the decision that ships.
+
+**2. Which C does a run use? The mean of validation macro F1 on known and unseen merchants** (`tuning_macro_f1`).
+
+- **Why:** C trades memorizing merchants against generalizing to new ones, and the shipped model serves both. Tuning on unseen merchants alone could accept a known-merchant regression that the 0.90 eligibility floor doesn't catch. Tuning on known merchants alone can't separate settings, because they all score 0.97–0.99.
+- **Would also make sense:** weighting by the production mix (about 22% of test-user rows are at unfamiliar strings). It needs a mix assumption that validation doesn't have, so the simpler symmetric mean was used.
+
+**3. Which run wins? Validation macro F1 on unseen merchants**, among runs at ≥ 0.90 on known merchants and above the keyword baseline (the [decision rule](#decision-rule)).
+
+- **Why:** every candidate already clears the known-merchant gate, so the unseen score is where they differ, and every new merchant a user meets is unseen.
+
+**4. How sure are we? A 95% interval from a merchant-level bootstrap, stratified by category; ties use a paired version on the same merchants.**
+
+- **Why:** the rows aren't independent; merchants are. One merchant can decide a class's F1 (§6), so resampling transactions gives intervals that are falsely narrow. Pairing removes the variation the two runs share, so a real difference isn't hidden by it.
+- **Measured (milestone 3):** perturbing embedding vectors by about 1e-4, from batch padding (since fixed), moved unseen-merchant F1 of the embeddings-only model by 0.014. Differences of that size are noise, which is what the paired tie rule absorbs.
+- **Would also make sense:** repeating the run with different seeds. That measures training variability, not merchant sampling, so it complements the bootstrap rather than replacing it.
+- **Would not:**
+  - McNemar's test on transactions. It assumes independent rows.
+  - "The two intervals don't overlap". That test is too conservative for paired runs, and it isn't a test of their difference.
+
+**5. Can FR-5 trust the confidence? Brier score of the top-class confidence, to choose; ECE and the 0.9 operating point, to report.**
+
+- **Why Brier:**
+  - It is a proper score: it is lowest only when confidences are both calibrated and discriminating (right answers confident, wrong ones not). That is what a review threshold needs.
+  - It is bounded, so one confident mistake can't dominate it.
+  - It chooses the calibration method per familiarity group, cross-validated across folds so a flexible method can't win by fitting the rows it is scored on. It also breaks ties in the decision rule.
+- **Why ECE is reported, not optimized:** "0.9 means right 90% of the time" is easy to read. But ECE isn't proper (a constant confidence equal to the accuracy scores 0), and it depends on the 15 bins.
+- **The FR-5 operating point:** accuracy at confidence ≥ 0.9, and the share of transactions above it.
+- **Would also make sense:**
+  - Log loss, which is proper and punishes confident mistakes hardest. It is unbounded, though, and isotonic calibration outputs exact 0 and 1, so it would need arbitrary clipping. It is used where it fits naturally: fitting the temperature.
+  - The area under the risk–coverage curve, which is FR-5's whole trade-off curve. It belongs in the FR-5 design.
+- **Would not:**
+  - ECE as an objective.
+  - Mean confidence.
+  - Per-class ECE across 13 classes with a handful of unseen merchants each, which is mostly noise.
+
+**6. What does the user feel? Misallocated spend: the share of spending dollars put in the wrong category** (`*_misallocated_spend`).
+
+- **Why:** the dashboard and the coach sum dollars by category, and misfiling a $2,000 rent payment matters more than misfiling a $4 coffee. Macro F1 counts transactions, not dollars.
+- **Reported, not gated:** a few large, easy recurring merchants (Housing, Utilities) dominate it, so it can look good while small categories are wrong. It complements macro F1 rather than replacing it.
+
+**7. Is it fast enough? p95 wall time of single-transaction calls on distinct rows** (gate: ≤ 5 ms).
+
+- **Why p95:** the chat budget (NFR-5) is a limit on slow cases, which the mean hides. p99 from 200 calls rests on two observations.
+- **Why distinct rows, from a cold start:** timing one row repeatedly measures only warm caches. The embedding cache is process-wide and isn't saved with the model, so a freshly started server embeds each string on first sight. The runner clears model caches before timing (`reset_caches`), so the gated `latency_p95_ms` includes those first-sight costs. A second pass on the same rows is reported as `latency_warm_p95_ms`.
+- **Measured (milestone 3, after review):**
+  - The combined model: 3.1 ms p95 cold, 1.2 ms p95 warm on a laptop. A GitHub Actions runner measured **8.95 ms p95 cold**, over the gate. The gate is therefore a setting (`SFC_LATENCY_GATE_MS`, default 5): CI sets its own, as it does for the generator's runtime budget. **It must be checked on the serving hardware before launch**; if that hardware is runner-class, shipping the vocabulary's vectors (below) is the fix.
+  - If cold starts matter for the dashboard's first load, the training vocabulary's vectors (about 20 MB for 13k strings) could ship with the artifact or warm on `load_service`. That's tied to the open artifact-size question.
+  - The cache is a bounded LRU (100k vectors, about 150 MB), so a long-running server's memory stays predictable.
+  - Before profiling it was 8.4 ms: pandas `isin` rebuilt the 13k-string vocabulary set on every call.
+
+**8. Diagnostics, reported and never gated:**
+
+- per-class F1;
+- Income F1 (it counts spending rows called Income);
+- refund accuracy;
+- the never-seen-string slice of the known test;
+- the ambiguity ceiling for Groceries and Shopping;
+- confidence quality for familiar and unfamiliar strings separately;
+- the unseen calibrator's report (cross-validated Brier per method and group).
 
 ### 7. Truth isolation
 
@@ -474,7 +561,7 @@ The framework exists so that choosing a model is an experiment, not an argument.
 3. **Ties, defined against the leader only** (pairwise ties aren't transitive, so they wouldn't give one order across ~40 runs):
    - The leader is the eligible run with the best point estimate.
    - Its tie set is every eligible run whose paired difference with the leader has a 95% interval containing 0 (merchant-level bootstrap over the same validation folds). The leader is in its own tie set.
-   - Within the tie set, runs are ordered by validation unseen-merchant ECE after calibration, then p95 latency, then explainability, then operational simplicity (fewer components and dependencies).
+   - Within the tie set, runs are ordered by validation unseen-merchant Brier score after calibration (see [Metrics and why](#metrics-and-why), point 5; the plan first said ECE), then p95 latency, then explainability, then operational simplicity (fewer components and dependencies).
    - If the tie set has fewer than three runs, the rest of the order is by point estimate.
 4. **Finalists:** the top three in that order go to `finalize`, and the baselines are scored with them (see [Selection discipline](#selection-discipline)). The rule's winner is promoted if it passes the test gates. If it fails one, that's investigated before anything is promoted; the finalists are never re-ranked on test scores.
 

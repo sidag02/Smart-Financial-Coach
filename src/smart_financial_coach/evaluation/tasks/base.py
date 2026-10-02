@@ -49,6 +49,7 @@ class Gate:
 class Task(Protocol):
     name: str  # the service it trains, e.g. "categorization"
     selection_metric: str  # validation metric the decision rule ranks by; higher is better
+    tuning_metric: str  # validation metric that picks a run's grid point; higher is better
     # Logged metrics that break ties, in order; lower is better. `complexity` is always last.
     tiebreak_metrics: tuple[str, ...]
     required_baselines: tuple[str, ...]  # baseline run names eligibility and gates compare to
@@ -111,15 +112,17 @@ def get_task(name: str) -> Task:
     return _TASKS[name]()
 
 
-def latency_ms(model: Checked, x: pd.DataFrame, *, repeats: int = 50) -> dict[str, float]:
-    """p50 and p95 wall time of a one-row batch, and of the whole frame once."""
+def latency_ms(model: Checked, x: pd.DataFrame, *, rows: int = 200) -> dict[str, float]:
+    """p50 and p95 wall time of one-row calls on distinct rows, and of the whole frame once.
+
+    Distinct rows, not one row repeated: a repeated row measures only warm caches.
+    """
     import time
 
-    one = x.iloc[:1]
     times = []
-    for _ in range(repeats):
+    for i in range(min(rows, len(x))):
         started = time.perf_counter()
-        model.predict(one)
+        model.predict(x.iloc[i : i + 1])
         times.append((time.perf_counter() - started) * 1000)
     started = time.perf_counter()
     model.predict(x)

@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 
 from smart_financial_coach.config import PROJECT_ROOT
-from smart_financial_coach.evaluation.experiment import experiment_files, load_experiment
+from smart_financial_coach.evaluation.experiment import (
+    ExperimentConfig,
+    experiment_files,
+    load_experiment,
+)
 from smart_financial_coach.evaluation.promote import leaderboard
 from smart_financial_coach.evaluation.runner import cross_fit, run_experiment
 from smart_financial_coach.evaluation.splits import TRAIN, UNSEEN
@@ -16,7 +20,13 @@ from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.categorization.contract import CONTRACT
 from smart_financial_coach.intelligence.models import Checked, build
 
-BASELINES = PROJECT_ROOT / "configs" / "experiments" / "categorization"
+EXPERIMENTS = PROJECT_ROOT / "configs" / "experiments" / "categorization"
+
+
+def baselines() -> list[ExperimentConfig]:
+    """The round 0 configs (candidates need the real embedder, so they aren't run here)."""
+    configs = [load_experiment(p) for p in experiment_files([EXPERIMENTS])]
+    return [c for c in configs if c.baseline]
 
 
 @pytest.fixture(scope="module")
@@ -83,9 +93,9 @@ def test_test_metrics(task: CategorizationTask, examples: Examples) -> None:
 
 def test_ties(task: CategorizationTask, examples: Examples) -> None:
     splits = task.split(examples, {}, 0)
-    configs = {c.name: c for c in map(load_experiment, experiment_files([BASELINES]))}
-    lookup = cross_fit(task, examples, splits, configs["lookup"], {})
-    keyword = cross_fit(task, examples, splits, configs["keyword"], {})
+    configs = {c.name: c for c in baselines()}
+    lookup = cross_fit(task, examples, splits, configs["lookup"], {}).predictions
+    keyword = cross_fit(task, examples, splits, configs["keyword"], {}).predictions
 
     assert task.tied(examples, lookup, lookup)
     assert not task.tied(examples, keyword, lookup)
@@ -105,8 +115,7 @@ def test_gates_and_eligibility(task: CategorizationTask) -> None:
 
 def test_round_zero_runs_end_to_end(small_sqlite: Path, tmp_path: Path) -> None:
     tracker = Tracker(f"sqlite:///{tmp_path / 'mlflow.db'}", artifact_root=tmp_path / "art")
-    configs = [load_experiment(p) for p in experiment_files([BASELINES])]
-    results = {c.name: run_experiment(c, small_sqlite, tracker) for c in configs}
+    results = {c.name: run_experiment(c, small_sqlite, tracker) for c in baselines()}
 
     assert set(results) == {"majority", "keyword", "lookup"}
     assert results["lookup"].metrics["val_known_macro_f1"] > 0.9
@@ -131,3 +140,67 @@ def test_data_hash_follows_content(
     assert edited.data_hash != examples.data_hash
     assert task.split(edited, {}, 0).hash() == task.split(examples, {}, 0).hash()
     assert task.load(small_sqlite).data_hash == examples.data_hash
+
+
+def test_calibrated_candidate_end_to_end(small_sqlite: Path, tmp_path: Path) -> None:
+    """Grid search reaches into the wrapped model; calibration is fitted on held-out folds."""
+    tracker = Tracker(f"sqlite:///{tmp_path / 'mlflow.db'}", artifact_root=tmp_path / "art")
+    for baseline in baselines():  # on the candidate's 3 folds: comparable runs share splits
+        run_experiment(baseline.model_copy(update={"task_params": {"k": 3}}), small_sqlite, tracker)
+    config = ExperimentConfig.model_validate(
+        {
+            "name": "linear_stub",
+            "task": "categorization",
+            "model": {
+                "type": "categorization/calibrated",
+                "params": {
+                    "base": {
+                        "$model": {
+                            "type": "categorization/linear_text",
+                            "params": {"embeddings": "stub:16"},
+                        }
+                    }
+                },
+            },
+            "grid": {"base.C": [1.0, 3.0]},
+            "task_params": {"k": 3},
+        }
+    )
+
+    result = run_experiment(config, small_sqlite, tracker)
+
+    assert result.chosen in ({"base.C": 1.0}, {"base.C": 3.0})
+    assert {"val_unseen_brier", "val_known_misallocated_spend", "val_tuning_macro_f1"} <= set(
+        result.metrics
+    )
+    assert any(k.startswith("held_out.") and k.endswith("_brier") for k in result.metrics)
+    assert [s.name for s in leaderboard("categorization", small_sqlite, tracker)] == ["linear_stub"]
+
+
+def test_grid_keys_must_reach_a_nested_model() -> None:
+    config = ExperimentConfig.model_validate(
+        {"name": "x", "task": "categorization", "model": {"type": "t", "params": {"a": 1}}}
+    )
+
+    with pytest.raises(ValueError, match="not a nested model"):
+        config.model_spec({"a.C": 1.0})
+
+
+def test_latency_gate_follows_the_setting(
+    task: CategorizationTask, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from smart_financial_coach.config import get_settings
+
+    metrics = {"test_known_macro_f1": 0.95, "latency_p95_ms": 9.0}
+    baselines = {"keyword": {"test_known_macro_f1": 0.5}}
+
+    def latency_gate() -> bool:
+        return next(g.passed for g in task.gates(metrics, baselines) if g.name == "latency_p95")
+
+    get_settings.cache_clear()
+    assert not latency_gate()  # 9 ms against the 5 ms default
+    monkeypatch.setenv("SFC_LATENCY_GATE_MS", "20")
+    get_settings.cache_clear()
+    assert latency_gate()
+    monkeypatch.delenv("SFC_LATENCY_GATE_MS")
+    get_settings.cache_clear()
