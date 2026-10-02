@@ -37,7 +37,4 @@ jobs:
         env:
           # The 60 s budget is for a laptop; runners took 100-155 s with coverage (FR-1 review)
           SFC_RUNTIME_BUDGET_SECONDS: "240"
-          # The 5 ms categorization latency gate is for a laptop (3.1 ms p95 cold); a runner
-          # measured 8.95 ms p95 cold (FR-3 milestone 3 review)
-          SFC_LATENCY_GATE_MS: "20"
         run: uv run pytest -m slow

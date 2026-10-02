@@ -21,7 +21,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from smart_financial_coach.config import PROJECT_ROOT, get_settings
+from smart_financial_coach.config import PROJECT_ROOT
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.generator.taxonomy import INCOME
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
@@ -102,7 +102,8 @@ class CategorizationTask:
     name = "categorization"
     selection_metric = "unseen_macro_f1"  # ranks runs (the decision rule)
     tuning_metric = "tuning_macro_f1"  # picks C within a run: mean of known and unseen
-    tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_p95_ms")
+    # Among tied runs: better confidence, then cheaper batch serving (ms for a fixed 10k-row batch)
+    tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_batch_ms")
     # Columns of the comparison report (`sfc-experiment report`), after the selection metric
     report_metrics: tuple[str, ...] = (
         "val_known_macro_f1",
@@ -111,6 +112,7 @@ class CategorizationTask:
         "val_unseen_acc_at_90",
         "val_unseen_coverage_at_90",
         "val_unseen_misallocated_spend",
+        "latency_batch_ms",
         "latency_p95_ms",
     )
     required_baselines: tuple[str, ...] = (KEYWORD_BASELINE,)  # eligibility and gates need it
@@ -378,10 +380,11 @@ class CategorizationTask:
     def gates(
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> list[Gate]:
+        """Quality gates only. Latency is reported, not gated: categorization runs in batches on
+        ingestion, so serving time is a cluster-sizing cost, not a property to reject a model on
+        (decision Oct 2, 2026; FR-3 "Metrics and why", point 7)."""
         known = metrics.get("test_known_macro_f1", float("nan"))
         keyword = baselines.get(KEYWORD_BASELINE, {}).get("test_known_macro_f1")
-        latency = metrics.get("latency_p95_ms", float("inf"))
-        gate_ms = get_settings().latency_gate_ms
         return [
             Gate("known_macro_f1", known >= KNOWN_GATE, f"{known:.3f} vs {KNOWN_GATE}"),
             Gate(
@@ -390,11 +393,6 @@ class CategorizationTask:
                 f"{known:.3f} vs {keyword:.3f}"
                 if keyword is not None
                 else "no keyword baseline run",
-            ),
-            Gate(
-                "latency_p95",
-                latency <= gate_ms,
-                f"{latency:.2f} ms vs {gate_ms} ms",
             ),
         ]
 

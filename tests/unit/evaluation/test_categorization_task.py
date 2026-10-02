@@ -108,8 +108,6 @@ def test_gates_and_eligibility(task: CategorizationTask) -> None:
     assert all(g.passed for g in task.gates(good, baselines))
     assert task.eligible(good, baselines)
     assert not task.eligible({"val_known_macro_f1": 0.89}, baselines)
-    slow = task.gates(good | {"latency_p95_ms": 9.0}, baselines)
-    assert [g.name for g in slow if not g.passed] == ["latency_p95"]
     assert not task.gates(good, {})[1].passed  # no keyword baseline: the gate can't pass
 
 
@@ -186,21 +184,10 @@ def test_grid_keys_must_reach_a_nested_model() -> None:
         config.model_spec({"a.C": 1.0})
 
 
-def test_latency_gate_follows_the_setting(
-    task: CategorizationTask, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from smart_financial_coach.config import get_settings
+def test_latency_is_not_a_gate(task: CategorizationTask) -> None:
+    """Batched on ingestion: a slow model is a sizing cost, not a reason to refuse it."""
+    metrics = {"test_known_macro_f1": 0.95, "latency_p95_ms": 500.0, "latency_batch_ms": 9e5}
+    gates = task.gates(metrics, {"keyword": {"test_known_macro_f1": 0.5}})
 
-    metrics = {"test_known_macro_f1": 0.95, "latency_p95_ms": 9.0}
-    baselines = {"keyword": {"test_known_macro_f1": 0.5}}
-
-    def latency_gate() -> bool:
-        return next(g.passed for g in task.gates(metrics, baselines) if g.name == "latency_p95")
-
-    get_settings.cache_clear()
-    assert not latency_gate()  # 9 ms against the 5 ms default
-    monkeypatch.setenv("SFC_LATENCY_GATE_MS", "20")
-    get_settings.cache_clear()
-    assert latency_gate()
-    monkeypatch.delenv("SFC_LATENCY_GATE_MS")
-    get_settings.cache_clear()
+    assert [g.name for g in gates] == ["known_macro_f1", "beats_keyword_baseline"]
+    assert all(g.passed for g in gates)
