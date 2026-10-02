@@ -319,7 +319,23 @@ def promote(
             f"{task.name} model {model.version}, MLflow run {run_id}. Loaded only if it matches "
             f"artifacts/{task.name}/{model.version}/{MANIFEST_FILE}."
         )
-        url = publisher.publish(f"{task.name}-{model.version}", target / MODEL_FILE, notes)
+        # The release is tagged at the training commit only if that commit *is* the training code
+        commit = run.tags.get("sfc.git_commit")
+        clean = run.tags.get("sfc.git_dirty") == "false"
+        if commit and not clean:
+            notes += (
+                f" Trained from uncommitted changes on top of commit {commit}, so this release "
+                "isn't tagged at it; the manifest's code version identifies the code."
+                if run.tags.get("sfc.git_dirty") == "true"
+                else f" Whether commit {commit} had uncommitted changes wasn't recorded, so this "
+                "release isn't tagged at it."
+            )
+        url = publisher.publish(
+            f"{task.name}-{model.version}",
+            target / MODEL_FILE,
+            notes,
+            commit=commit if clean else None,
+        )
     registry_version = tracker.register_champion(task.name, run, model.version)
     entry = {
         "version": model.version,

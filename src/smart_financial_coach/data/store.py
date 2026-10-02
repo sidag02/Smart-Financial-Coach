@@ -29,19 +29,35 @@ def _connect(path: str | Path) -> Iterator[sqlite3.Connection]:
         conn.close()
 
 
-def _read(path: str | Path, table: str, user_id: str | None) -> pd.DataFrame:
+def _query(table: str, user_id: str | None) -> tuple[str, tuple[str, ...]]:
     if table not in MODEL_TABLES:
         raise ValueError(f"{table} is not a model-visible table")
     t = TABLES[table]
     where, params = ("WHERE user_id = ?", (user_id,)) if user_id is not None else ("", ())
     columns, order = ", ".join(t.column_names), ", ".join(t.primary_key)
-    sql = f"SELECT {columns} FROM {table} {where} ORDER BY {order}"
+    return f"SELECT {columns} FROM {table} {where} ORDER BY {order}", params
+
+
+def _read(path: str | Path, table: str, user_id: str | None) -> pd.DataFrame:
+    sql, params = _query(table, user_id)
     with _connect(path) as conn:
         return pd.read_sql_query(sql, conn, params=params)
 
 
 def load_transactions(path: str | Path, user_id: str | None = None) -> pd.DataFrame:
     return _read(path, "transactions", user_id)
+
+
+def iter_transactions(
+    path: str | Path, chunk_rows: int, user_id: str | None = None
+) -> Iterator[pd.DataFrame]:
+    """Transactions in `load_transactions` order, `chunk_rows` at a time, so memory is bounded by
+    the chunk, not the dataset (batch categorization on ingestion)."""
+    if chunk_rows < 1:
+        raise ValueError(f"chunk_rows must be positive, got {chunk_rows}")
+    sql, params = _query("transactions", user_id)
+    with _connect(path) as conn:
+        yield from pd.read_sql_query(sql, conn, params=params, chunksize=chunk_rows)
 
 
 def load_users(path: str | Path, user_id: str | None = None) -> pd.DataFrame:

@@ -14,7 +14,7 @@ from pathlib import Path
 from time import perf_counter
 
 from smart_financial_coach.data.predictions import CategoryWriter
-from smart_financial_coach.data.store import load_meta, load_transactions
+from smart_financial_coach.data.store import iter_transactions, load_meta
 from smart_financial_coach.intelligence.categorization.contract import Categorizer
 from smart_financial_coach.intelligence.service import load_service
 
@@ -44,14 +44,11 @@ def categorize_dataset(
     overwrite: bool = False,
 ) -> BatchRun:
     """Categorize every transaction with the promoted model into the predictions file `out`."""
-    if batch_rows < 1:
-        raise ValueError(f"batch_rows must be positive, got {batch_rows}")
     started = perf_counter()
     categorizer = load_service("categorization", artifacts_dir)
     if not isinstance(categorizer, Categorizer):
         raise TypeError(f"the categorization service returned {type(categorizer).__name__}")
     loaded = perf_counter()
-    transactions = load_transactions(data)
     dataset = load_meta(data)
     meta = {
         "model_version": categorizer.version,
@@ -61,8 +58,7 @@ def categorize_dataset(
     }
     categorize_seconds = 0.0
     with CategoryWriter(out, meta, overwrite=overwrite) as writer:
-        for first in range(0, len(transactions), batch_rows):
-            batch = transactions.iloc[first : first + batch_rows]
+        for batch in iter_transactions(data, batch_rows):  # memory follows the batch, not the data
             start = perf_counter()
             categories = categorizer.categorize(batch)
             categorize_seconds += perf_counter() - start

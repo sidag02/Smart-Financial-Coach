@@ -24,8 +24,9 @@ class PublishError(RuntimeError):
 
 
 class Publisher(Protocol):
-    def publish(self, tag: str, path: Path, notes: str) -> str:
-        """Make `path` downloadable under `tag`; return its URL."""
+    def publish(self, tag: str, path: Path, notes: str, commit: str | None = None) -> str:
+        """Make `path` downloadable under `tag`, at `commit` (the code that trained it) when the
+        store can record one; return its URL."""
         ...
 
 
@@ -38,6 +39,12 @@ class GitHubReleases:
 
     Publishing a version that already has a release (promoting it again, e.g. a rollback) uploads
     nothing: the release's file is downloaded and must match the local one.
+
+    The release's tag points at the commit that trained the model, so its source archives are the
+    training code. `promote` passes a commit only for runs trained from a clean tree
+    (`sfc.git_dirty`); with uncommitted changes, the commit isn't the training code. A commit that
+    GitHub doesn't have (rebased away or never pushed) falls back to the default branch, and the
+    notes say so. The manifest records the commit and code version either way.
     """
 
     def __init__(self, repo: str | None = None, run: Run = _run) -> None:
@@ -60,14 +67,32 @@ class GitHubReleases:
             self.repo = done.stdout.strip()
         return self.repo
 
-    def publish(self, tag: str, path: Path, notes: str) -> str:
+    def publish(self, tag: str, path: Path, notes: str, commit: str | None = None) -> str:
         repo = self._repo()
         url = f"https://github.com/{repo}/releases/download/{tag}/{path.name}"
         if self._gh("release", "view", tag, "--repo", repo).returncode == 0:
             self._check_existing(repo, tag, path)
             return url
+        target: list[str] = []
+        if commit and self._gh("api", f"repos/{repo}/commits/{commit}").returncode == 0:
+            target = ["--target", commit]
+        elif commit:
+            notes += (
+                f" Trained at commit {commit}, which isn't on GitHub, so this release is tagged "
+                "at the default branch instead."
+            )
         done = self._gh(
-            "release", "create", tag, str(path), "--repo", repo, "--title", tag, "--notes", notes
+            "release",
+            "create",
+            tag,
+            str(path),
+            "--repo",
+            repo,
+            "--title",
+            tag,
+            "--notes",
+            notes,
+            *target,
         )
         if done.returncode != 0:
             raise PublishError(f"couldn't create release {tag} in {repo}: {done.stderr}")
