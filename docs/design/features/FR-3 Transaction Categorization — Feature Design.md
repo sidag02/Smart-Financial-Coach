@@ -598,7 +598,12 @@ The framework exists so that choosing a model is an experiment, not an argument.
 | 7. Calibration | One calibrator vs one per familiarity group (`by: none`). The three methods are already compared within every calibrated run (cross-validated Brier in `held_out.*`) | — |
 | 8. Optional | — | Fine-tuned transformer |
 
-- **Cost controls:** C is chosen once for the n-grams + embeddings family (round 1 chose 1.0) and fixed for round 2 variants; round 2 runs on three folds instead of five. About 4–5 configurations, roughly 3–4 hours.
+- **Cost controls:** C is fixed at 1.0, round 1's choice for the n-grams + embeddings family, so each configuration fits 3 fold models and the final model instead of 16 fits. The launch round runs on **3 folds**.
+- **One split for the whole launch round.** `k` changes the folds and the split hash, and the leaderboard and `finalize` only compare runs on the same split, with the keyword baseline on it. So the launch round's folder (`configs/experiments/categorization/launch/`) reruns everything it is compared against on the same 3 folds: the three round 0 baselines (minutes) and the round 1 reference (n-grams + `bge-small`, C = 1.0). Seven configurations in all, estimated at about 1–1.5 hours; milestone 4 records the measured time.
+- **Output:**
+  - the MLflow experiment with every launch-round run;
+  - a comparison table in the evaluation report, with validation metrics and merchant-bootstrap intervals for every run, and test metrics for the finalists once milestone 5 finalizes them;
+  - an updated FR-3 Categorization Model Selection (milestone 5), recording what won, what lost and why, what was deferred, and what stays open for FR-4.
 - **Deferred rounds aren't dropped.** They are the menu for the first retraining design, once real corrections show where the cold model is wrong.
 - **New selection consideration:** how cheaply a model retrains and absorbs corrections. It isn't in the Technical Design's criteria yet; until it is, it's recorded in milestone 5's promotion note.
 

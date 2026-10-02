@@ -191,10 +191,15 @@ Training personal preferences into the global model leaks one user's view into e
 3. **Scheduled retraining through the evaluation harness.** The same splits, gates and promotion as the cold model, so a bad batch of feedback can't ship unnoticed. Models already take labels as a training argument for this reason.
 4. **Clusters of preferences are product signal.** Many users pushing merchants towards a category that doesn't exist is a taxonomy question, not a model fix.
 
+**Constraints the design must meet**
+
+- **Privacy (user story 5: "I only ever see my own data").** Some merchant strings are personal: person-to-person payments (`ZELLE TO <name>`), a landlord's name, a babysitter's payment app handle. Promoted to a global label, one user's private text and their label for it would end up in a model every user is served by. So the agreement rule's threshold is a minimum number of **distinct users**, never a count of corrections. A string that only ever occurs for one user never becomes a global label; it stays that user's override.
+- **Measure gain on users who didn't correct.** Global gain is measured on users who supplied none of the corrections, as FR-2 separates train and test users. Otherwise it partly measures the correctors' own overrides, or the model memorizing their transactions, rather than generalization. The time-ordered replay handles leakage in time; this handles leakage between users.
+
 **What "good" will mean** (to measure on synthetic users with preference profiles and simulated correction behavior, replayed in time order):
 
 - **Personal accuracy after feedback:** corrections needed until a user's categories match their preferences, and how often a user corrects the same merchant twice.
-- **Global gain:** how fast unseen-merchant F1 rises once the first users' corrections arrive (a realistic route to FR-4's target).
+- **Global gain:** how fast unseen-merchant F1 rises once the first users' corrections arrive (a realistic route to FR-4's target), measured on users who didn't supply them.
 - **Isolation:** one user's preferences never change another user's categories.
 - **Robustness:** accidental or adversarial corrections don't move the global model.
 - **Calibration after retraining:** FR-5's thresholds keep their meaning.
@@ -220,4 +225,4 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 - [ ] LLM provider: Anthropic or OpenAI?
 - [ ] Web framework for v1 (a Python dashboard framework vs. a separate front end)?
 - [ ] Tool server transport for v1: stdio only, or HTTP as well?
-- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels, retraining cadence, and whether "cheap to retrain" joins the model selection criteria. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
+- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, and whether "cheap to retrain" joins the model selection criteria. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
