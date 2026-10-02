@@ -580,9 +580,27 @@ The framework exists so that choosing a model is an experiment, not an argument.
 | 8. Optional | Fine-tuned small transformer | Only if rounds 2–6 plateau well below 0.80 on unseen merchants |
 
 - Later rounds start from the best of earlier ones, so the grid grows with the number of rounds, not their product.
-- **Budget:** 16 fits of about 30 s per configuration (§5), about 8 minutes. Rounds 0–7 are about 40 configurations, roughly **5–6 hours** on a laptop CPU, plus the slower candidates: embedding all 12.8k strings with each larger model (once, then cached), kNN and boosted trees. That's an overnight run, which is why the runner resumes.
 - **Additions** to any round after the runs start are recorded in this section with a reason.
-- **Output:** the MLflow experiment with every run, a comparison table in the evaluation report (validation metrics and intervals for all runs, test metrics for the finalists), and an updated FR-3 Categorization Model Selection recording what won, what lost and why, and what stays open for FR-4.
+
+### Trimmed for launch (Oct 1, 2026)
+
+**Decision:** before launch, categorization needs a *decent* cold-start model, not the best possible one. What decides quality after launch is how well the model learns from user feedback (FR-5 review, FR-6 corrections; see the Technical Design, "Learning from user feedback"). So milestone 4 runs only what the cold model and FR-5 depend on.
+
+**Why the plan didn't fit anyway:** a calibrated n-grams + embeddings configuration took about **45 minutes**, not the planned 8: three values of C × five folds plus the final fit, each with embeddings and calibration. The full plan (about 40 configurations) would take about 30 hours.
+
+| Round | Kept for launch | Deferred |
+| --- | --- | --- |
+| 2. Text features | `bge-base-en-v1.5` vs `bge-small` (both with n-grams); n-grams 1–5 vs 2–4. Larger embedding models only if bge-base wins | Word n-grams, raw vs normalized text, the other embedding models |
+| 3. Side features | — | All ablations (hour stays on, as in the POC) |
+| 4. Training regime | — | Caps, one row per string, class weights, noise levels |
+| 5. Classifiers | — | Linear SVM, kNN, boosted trees |
+| 6. Composition | — | `Routed`, `Lookup` fallback, stacking: they belong with feedback-driven learning |
+| 7. Calibration | One calibrator vs one per familiarity group (`by: none`). The three methods are already compared within every calibrated run (cross-validated Brier in `held_out.*`) | — |
+| 8. Optional | — | Fine-tuned transformer |
+
+- **Cost controls:** C is chosen once for the n-grams + embeddings family (round 1 chose 1.0) and fixed for round 2 variants; round 2 runs on three folds instead of five. About 4–5 configurations, roughly 3–4 hours.
+- **Deferred rounds aren't dropped.** They are the menu for the first retraining design, once real corrections show where the cold model is wrong.
+- **New selection consideration:** how cheaply a model retrains and absorbs corrections. It isn't in the Technical Design's criteria yet; until it is, it's recorded in milestone 5's promotion note.
 
 ## Options considered
 
@@ -668,7 +686,7 @@ One PR per milestone.
 1. **Framework:** `Model` protocol, registry, wrappers, artifact and manifest; `Splits`, the four splitters and leak checks; `Task` protocol; runner with MLflow tracking; finalize, promote, `load_service`; CLI. Tested with fake models on `small.yaml`.
 2. **Categorization task and baselines:** `data/store.py`, `normalize_merchant`, the categorization task and its metrics (macro F1, bootstrap, ECE, report), majority, keyword and lookup baselines. Round 0 sets the baseline numbers.
 3. **Linear text model:** n-grams, embeddings, side features, cross-fitting for C, `Calibrated`. Round 1 reproduces the POC.
-4. **Experiments:** rounds 2–7 (and 8 if needed), with the candidate classes they need (`Routed`, kNN, trees). Mostly configs and results.
+4. **Experiments (trimmed for launch, see [Trimmed for launch](#trimmed-for-launch-oct-1-2026)):** round 2's embedding-size and n-gram-range variants, and round 7's calibration grouping. Mostly configs and results.
 5. **Promote and predict:** finalize, promote the winner, `predict` writes `transaction_categories`, latency check. Update FR-3 Categorization Model Selection.
 6. **Docs:** Technical Design (contract, Income, predictions store, evaluation harness), close the Income question in FR-1 and FR-2.
 
