@@ -283,6 +283,35 @@ def test_unpublished_model_cant_be_loaded_elsewhere(
         load_service("toy", artifacts)
 
 
+def test_retraining_after_a_code_change_gets_a_new_version(
+    toy_data: Path,
+    tracker: Tracker,
+    make_config: MakeConfig,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """Same config and data, different code: a different model, so a different version and tag."""
+    artifacts, publisher = tmp_path / "artifacts", FolderPublisher(tmp_path / "releases")
+    run_experiment(make_config("majority", "toy/majority", baseline=True), toy_data, tracker)
+    first = run_experiment(make_config("memory"), toy_data, tracker)
+    finalize("toy", toy_data, tracker)
+    one = promote("toy", first.run_id, NOTE, tracker, artifacts, publisher=publisher)
+
+    monkeypatch.setattr(runner, "code_version", lambda: "c0ffee00" * 8)  # after a code fix
+    run_experiment(make_config("majority", "toy/majority", baseline=True), toy_data, tracker)
+    second = run_experiment(make_config("memory"), toy_data, tracker)
+    reason = "retrain after a code fix"
+    finalize("toy", toy_data, tracker, run_ids=[second.run_id], override=reason)
+    two = promote(
+        "toy", second.run_id, NOTE, tracker, artifacts, publisher=publisher, override=reason
+    )
+
+    assert one["version"].rsplit("-", 1)[0] == two["version"].rsplit("-", 1)[0]  # config, data
+    assert one["version"] != two["version"]
+    assert publisher.tags == [f"toy-{one['version']}", f"toy-{two['version']}"]
+    assert load_service("toy", artifacts).version == two["version"]
+
+
 def test_promote_refusals(
     toy_data: Path, tracker: Tracker, runs: dict[str, str], tmp_path: Path
 ) -> None:

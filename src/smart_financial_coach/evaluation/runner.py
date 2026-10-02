@@ -111,8 +111,13 @@ def identity(config: ExperimentConfig, examples: Examples, splits: Splits) -> di
     }
 
 
-def model_version(config: ExperimentConfig, examples: Examples) -> str:
-    return f"{config.config_hash()[:8]}-{examples.data_hash[:8]}"
+def model_version(config: ExperimentConfig, examples: Examples, code: str) -> str:
+    """Names the fitted model: config, data and code version, so a retrain after a code fix gets a
+    new version (and release tag) instead of a second file under the old one.
+
+    Versions promoted before the code version was added have two parts (e.g. `3f0ccc82-2f0e60a6`).
+    """
+    return f"{config.config_hash()[:8]}-{examples.data_hash[:8]}-{code[:8]}"
 
 
 @dataclass(frozen=True)
@@ -209,7 +214,7 @@ def run_experiment(
 
         x, y = task.training_rows(examples, splits.sets[TRAIN], config.task_params, config.seed)
         model = build(config.model_spec(chosen)).fit(x, y)
-        model.version = model_version(config, examples)
+        model.version = model_version(config, examples, tags["sfc.code_version"])
         held_out_report: dict[str, float] = {}
         if (
             pooled

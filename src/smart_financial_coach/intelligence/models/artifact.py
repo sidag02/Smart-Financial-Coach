@@ -15,6 +15,7 @@ anchor: a downloaded file that doesn't match it is deleted, never unpickled.
 
 import hashlib
 import json
+import tempfile
 import urllib.request
 from collections.abc import Mapping
 from pathlib import Path
@@ -90,10 +91,18 @@ def load_artifact(directory: Path, *, trusted_root: Path) -> Model:
 
 
 def fetch_model(directory: Path, url: str) -> Path:
-    """Download `directory`'s model file from `url`, keeping it only if it matches the manifest."""
+    """Download `directory`'s model file from `url`, keeping it only if it matches the manifest.
+
+    Safe when several workers start at once: each downloads to its own temporary file in the same
+    folder and renames it into place only once verified, so no reader ever sees a partial file
+    under the final name, and concurrent downloads of the same file race harmlessly.
+    """
     expected = read_manifest(directory)["model_sha256"]
     target = directory / MODEL_FILE
-    partial = target.with_name(target.name + ".part")
+    with tempfile.NamedTemporaryFile(
+        dir=directory, prefix=f"{MODEL_FILE}.", suffix=".part", delete=False
+    ) as f:
+        partial = Path(f.name)
     try:
         with (
             urllib.request.urlopen(url, timeout=DOWNLOAD_TIMEOUT_S) as response,

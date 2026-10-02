@@ -25,7 +25,7 @@ data/*
 !data/.gitkeep
 
 artifacts/*/*/model.joblib
-artifacts/*/*/model.joblib.part
+artifacts/*/*/model.joblib.*.part
 
 # OS / editors
 .DS_Store

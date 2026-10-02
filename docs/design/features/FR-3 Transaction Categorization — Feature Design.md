@@ -189,7 +189,7 @@ Predictions are written to a separate SQLite file, not the generator's file (opt
 
 Every run logs its fitted model to MLflow. Promotion copies the chosen one to `artifacts/categorization/<version>/` and points `artifacts/categorization/PROMOTED` at it; serving reads only that folder (see [Promotion and serving](#promotion-and-serving)).
 
-The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, the model file's SHA-256, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is derived from the config hash and the data `spec_hash`. Only artifacts from this folder are loaded, since joblib files are pickles.
+The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, the model file's SHA-256, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is `<config hash>-<data hash>-<code version>` (first 8 characters each), so retraining after a code fix yields a new version and release tag rather than a second file under the old name. The code version was added after the first promotion (review on PR #12): `3f0ccc82-2f0e60a6`, promoted before the change, keeps its two-part name, since renaming it would change the file `finalize` scored. `promote` and the release step refuse a version that already exists with a different file. Only artifacts from this folder are loaded, since joblib files are pickles.
 
 **Where the files live (decision Oct 2, 2026).** The manifest is committed; `model.joblib` is not. Saved models are 9.5–12.7 MB, above the repo's 5 MB file limit, and every retraining would add one to git history for good. Each promoted model file is attached to a **GitHub Release** of this repository, tagged `categorization-<version>`. The repository is public, so anyone can download it with a plain URL and no credentials. The committed manifest's `model_sha256` is the trust anchor: a downloaded file is unpickled only if it matches, so a replaced release asset is refused rather than run.
 
@@ -309,7 +309,14 @@ The promotion is complete when the pointer, manifest and log are committed and m
 
 **Departing from the rule is possible but visible.** Naming finalists, a second round of test scoring on the same splits, or promoting a finalist other than #1 each need `--override "<reason>"`. The reason is recorded as a tag on every run it touches and in `promotions.jsonl`.
 
-`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. If the folder has no `model.joblib` yet, it first downloads the file from the URL in the promotion log, into that folder, and checks it against the committed manifest before loading, the same pattern as the embedding file. So a fresh clone runs with `uv sync` and `sfc-model predict`; the first call fetches the model. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
+`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. If the folder has no `model.joblib` yet, it first downloads the file from the URL in the promotion log and checks it against the committed manifest before loading, the same pattern as the embedding file. Each download goes to its own temporary file in that folder and is renamed into place only once verified, so workers starting together race harmlessly and never read a partial file. So a fresh clone runs with `uv sync` and `sfc-model predict`; the first call fetches the model.
+
+**Interim limits of first-use download**, until continuous deployment bakes the model into the serving image (option G):
+
+- A fresh worker needs **GitHub to be reachable** at cold start. An outage blocks new pods, not running ones, which already hold the file.
+- The version folder must be **writable**, which a read-only container filesystem isn't.
+
+**Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 
 ### Path to a general framework
 
