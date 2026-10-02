@@ -2,7 +2,8 @@
 
 Feature blocks (FR-3 §3), each switchable from config so experiments can ablate them:
 
-- n-grams: character 2-4-grams of `merchant_raw`, TF-IDF, fitted on training rows only.
+- n-grams: character n-grams of `merchant_raw` (2-4 by default), TF-IDF, fitted on training
+  rows only.
 - embeddings: a frozen sentence embedding of the normalized text, cached per unique string.
 - amount: log1p(|amount|) in 20 bins, so price bands can be non-monotone.
 - sign: amount > 0, which with the text separates Income from refunds.
@@ -53,6 +54,8 @@ class LinearText(CategorizerModel):
         self,
         C: float = 3.0,  # noqa: N803 (scikit-learn's name)
         ngrams: bool = True,
+        ngram_min: int = 2,
+        ngram_max: int = 4,
         embeddings: str | None = "BAAI/bge-small-en-v1.5",
         amount: bool = True,
         sign: bool = True,
@@ -66,6 +69,8 @@ class LinearText(CategorizerModel):
         super().__init__(
             C=C,
             ngrams=ngrams,
+            ngram_min=ngram_min,
+            ngram_max=ngram_max,
             embeddings=embeddings,
             amount=amount,
             sign=sign,
@@ -80,6 +85,7 @@ class LinearText(CategorizerModel):
             raise ValueError("linear_text needs n-grams, embeddings or both")
         self.C = C
         self.use_ngrams = ngrams
+        self.ngram_range = (ngram_min, ngram_max)
         self.embedding_model = embeddings
         self.side = {"amount": amount, "sign": sign, "channel": channel, "hour": hour}
         self.max_rows_per_class = max_rows_per_class
@@ -140,7 +146,7 @@ class LinearText(CategorizerModel):
         if self.use_ngrams:
             self.vectorizer = TfidfVectorizer(
                 analyzer="char_wb",
-                ngram_range=(2, 4),
+                ngram_range=self.ngram_range,
                 min_df=2,
                 sublinear_tf=True,
                 max_features=200_000,
