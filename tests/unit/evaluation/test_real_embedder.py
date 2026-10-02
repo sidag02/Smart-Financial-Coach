@@ -10,7 +10,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from smart_financial_coach.config import PROJECT_ROOT
+from smart_financial_coach.config import PROJECT_ROOT, get_settings
 from smart_financial_coach.evaluation.experiment import ExperimentConfig, load_experiment
 from smart_financial_coach.evaluation.promote import finalize, promote
 from smart_financial_coach.evaluation.runner import run_experiment
@@ -49,7 +49,7 @@ def test_real_embedder_trains_promotes_and_serves(small_sqlite: Path, tmp_path: 
     assert isinstance(categorizer, Categorizer)
     out = categorizer.categorize(transactions(["SQ *TACO BELL 1234", "DELTA AIR LINES"]))
 
-    assert run.metrics["latency_p95_ms"] < 5.0
+    assert run.metrics["latency_p95_ms"] < get_settings().latency_gate_ms  # this machine's gate
     assert out["category"].tolist() == ["Dining", "Travel"]
 
 
