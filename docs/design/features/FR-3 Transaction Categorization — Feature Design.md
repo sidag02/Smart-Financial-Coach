@@ -698,8 +698,60 @@ One PR per milestone.
 2. **Categorization task and baselines:** `data/store.py`, `normalize_merchant`, the categorization task and its metrics (macro F1, bootstrap, ECE, report), majority, keyword and lookup baselines. Round 0 sets the baseline numbers.
 3. **Linear text model:** n-grams, embeddings, side features, cross-fitting for C, `Calibrated`. Round 1 reproduces the POC.
 4. **Experiments (trimmed for launch, see [Trimmed for launch](#trimmed-for-launch-oct-1-2026)):** round 2's embedding-size and n-gram-range variants, and round 7's calibration grouping. Mostly configs and results.
-5. **Promote and predict:** finalize, promote the winner, `predict` writes `transaction_categories`, latency check. Update FR-3 Categorization Model Selection.
+5. **Promote and predict:** finalize, promote the winner, `predict` writes `transaction_categories`, serving cost logged (not gated). Update FR-3 Categorization Model Selection.
 6. **Docs:** Technical Design (contract, Income, predictions store, evaluation harness), close the Income question in FR-1 and FR-2.
+
+## Status and handoff (Oct 2, 2026)
+
+Written for whoever continues FR-3. It records where the work stands, what remains, and how the work has been done so far.
+
+### Done
+
+| Milestone | PR | What landed |
+| --- | --- | --- |
+| Design | #6 | Training framework, MLflow, experiment plan |
+| 1. Framework | #7 | Model protocol, registry, contracts, artifacts, splits and leak checks, runner, leaderboard, finalize, promote, `load_service`, CLIs |
+| 2. Task and baselines | #8 | Data store, normalizer, `holdout_eligible` (schema 3), categorization task, round 0 baselines; run identity = config + data content + split + code version |
+| 3. Linear model | #9 | `linear_text`, embeddings (one string per batch, pinned file), `calibrated` per familiarity group, "Metrics and why", POC reproduction |
+| Plan trim | #10 | Milestone 4 trimmed for launch; Technical Design "Learning from user feedback" |
+| 4. Launch round | #11 | Launch-round configs and results (`docs/reports/FR-3 Categorization — Launch Round Results.md`), `sfc-experiment report`; latency gate removed (batched on ingestion) |
+
+**Where the launch round stands.** The four calibrated linear candidates tie on unseen merchants (0.503–0.512 validation macro F1). The decision rule ranks them: (1) `20_linear_base` (bge-base), (2) `21_linear_ngrams15`, (3) `10_linear_small` (bge-small), (4) `70_linear_one_calibrator`. No test set has been scored for them yet.
+
+### Remaining
+
+**Milestone 5: finalize, promote, predict.** On one branch from `main`, one PR.
+
+1. **Decide where promoted models live (blocking, owner's call).** `promote` exports to `artifacts/categorization/<version>/`, which the repo versions, but the pre-commit hook rejects files over 5 MB, and the saved models are **9.5–12 MB** (`model.joblib`). Options:
+   - **Shrink:** float32 coefficients and pruned near-zero n-gram weights. Re-check quality afterwards.
+   - **Git LFS for `artifacts/`:** every clone and CI need LFS.
+   - **Don't commit model files** (recommended for serving on Kubernetes): commit `PROMOTED` and `promotions.jsonl` only, keep `model.joblib` and its manifest in the MLflow artifact store or object storage (S3/GCS), and have the serving image or an init container pull the promoted version. `load_artifact` already verifies the checksum against the manifest, so the pointer and the file can live in different places safely.
+
+   Update §"Promotion and serving", option G and the open question below with the choice.
+2. **`sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite`.** It scores the rule's top three plus the three baselines on the test sets, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
+3. **`sfc-model promote --task categorization --run <rank-1 run> --note "<explainability and operations>"`.** The gates are known-merchant test macro F1 ≥ 0.90 and above the keyword baseline. If the rank-1 finalist fails a gate, investigate; don't promote #2 without an override reason (the rule).
+4. **`sfc-model predict`** (to build; the CLI has `promote` and `show` so far). Write `transaction_categories` (`transaction_id`, `user_id`, `category`, `confidence`, `model_version`; index on `user_id`) to a separate SQLite file (option C-b) through `load_service("categorization")`, in batches. Log rows per second per process as the sizing number.
+5. **Update FR-3 Categorization Model Selection:** what won, what lost and why (cite the launch report), what was deferred (rounds 3–6, 8), the label-noise and latency decisions, and what stays open for FR-4.
+6. **Regenerate the launch report** after `finalize` (`sfc-experiment report ...`); it gains the finalists' test table.
+
+**Milestone 6: docs.**
+
+- **Technical Design**, the four unticked items under "Technical Design updates" below. One more: its Infrastructure table's "model registry" becomes the MLflow registry plus the storage chosen in milestone 5.
+- **Close the Income question:** FR-1 (open questions) and FR-2 (§ on Income, and open questions) still list it. The answer: Income is a predicted class, excluded from the headline macro F1 (§4, option D-b).
+- **This doc:** tick the decisions reviewed and merged (PR #6's items, G-b, H-b), and set the status to **Accepted**.
+
+### Practical notes for the next session
+
+- **The launch round's MLflow runs exist only on the machine that ran them**, in `mlruns/` (git-ignored, local SQLite store). Run IDs: keyword `6830162a…`, lookup `95a4e68b…`, majority `bd8bb11b…`, bge-small `dd8d5e85…`, bge-base `000ef7d3…`, n-grams 1–5 `6e25c1a9…`, one calibrator `87290714…`; split hash `ce93ef87…`.
+  - On another machine: regenerate the dataset and rerun the launch folder, about 40 minutes: `uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite --force`, then `uv run sfc-experiment run configs/experiments/categorization/launch/ --data data/synthetic/default.sqlite`.
+  - Those runs were made at an earlier code version. `finalize` compares finalists and baselines with each other, not with the current code, so they remain usable. A rerun of the launch folder creates new runs rather than resuming.
+- **Embedding model files** download to `data/models/fastembed` on first use (git-ignored; about 67 MB for bge-small, about 130 MB for bge-base).
+- **Long runs:** run them in the background with `PYTHONUNBUFFERED=1` so logs stream. A calibrated linear configuration with fixed C on 3 folds takes about 8 minutes (bge-base about 14).
+- **How the work has been done** (keep it):
+  - one PR per milestone, from a branch based on the latest `main` (rebase unpushed work onto `main` before pushing; the `main` ruleset requires an up-to-date branch and a green `check`);
+  - before every push, check the open PR for review comments as a separate step and address them first, replying on each thread;
+  - design or rule changes are proposed to the owner before they're made, recorded in this doc with their reason, and labelled when they come after seeing results;
+  - test sets are touched only by `finalize` (and `--reproduce-poc`).
 
 ## Decisions and open questions
 
