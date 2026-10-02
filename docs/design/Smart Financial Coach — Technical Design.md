@@ -173,6 +173,39 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. The evaluation harness enforces this when it builds splits (build order step 4).
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 
+## Learning from user feedback (direction, not yet designed)
+
+Categorization ships with a cold-start model that only needs to be decent (FR-3). After launch, quality comes from feedback: low-confidence review (FR-5) and user corrections (FR-6), both P1 for v1.1. A correction says more than "the model was wrong". It also shows how a user *prefers* to see their money. This section sets the direction, so v1 doesn't close doors. A feature design comes with FR-5 and FR-6.
+
+**A correction means one of two things, and the system has to tell them apart.**
+
+- **The model was wrong** ("Taco Bell isn't Shopping"). The fix should reach everyone.
+- **The user sees it differently** ("I count Costco as Groceries, not Shopping"). The fix should change only that user's view.
+
+Training personal preferences into the global model leaks one user's view into everyone's categories. Keeping real errors as per-user overrides makes every user fix the same mistake.
+
+**Direction**
+
+1. **Per-user overrides in front of the model.** A user's correction for a merchant applies to that user at once, with no retraining. It is deterministic and explainable.
+2. **Global labels only by agreement.** A correction becomes a training label when enough distinct users relabel the same merchant the same way.
+3. **Scheduled retraining through the evaluation harness.** The same splits, gates and promotion as the cold model, so a bad batch of feedback can't ship unnoticed. Models already take labels as a training argument for this reason.
+4. **Clusters of preferences are product signal.** Many users pushing merchants towards a category that doesn't exist is a taxonomy question, not a model fix.
+
+**Constraints the design must meet**
+
+- **Privacy (user story 5: "I only ever see my own data").** Some merchant strings are personal: person-to-person payments (`ZELLE TO <name>`), a landlord's name, a babysitter's payment app handle. Promoted to a global label, one user's private text and their label for it would end up in a model every user is served by. So the agreement rule's threshold is a minimum number of **distinct users**, never a count of corrections. A string that only ever occurs for one user never becomes a global label; it stays that user's override.
+- **Measure gain on users who didn't correct.** Global gain is measured on users who supplied none of the corrections, as FR-2 separates train and test users. Otherwise it partly measures the correctors' own overrides, or the model memorizing their transactions, rather than generalization. The time-ordered replay handles leakage in time; this handles leakage between users.
+
+**What "good" will mean** (to measure on synthetic users with preference profiles and simulated correction behavior, replayed in time order):
+
+- **Personal accuracy after feedback:** corrections needed until a user's categories match their preferences, and how often a user corrects the same merchant twice.
+- **Global gain:** how fast unseen-merchant F1 rises once the first users' corrections arrive (a realistic route to FR-4's target), measured on users who didn't supply them.
+- **Isolation:** one user's preferences never change another user's categories.
+- **Robustness:** accidental or adversarial corrections don't move the global model.
+- **Calibration after retraining:** FR-5's thresholds keep their meaning.
+
+**What v1 already does for it:** labels are a training argument, predictions are stored with `model_version`, retraining and promotion are one command with gates, and the confidence is calibrated per familiarity group. The deferred FR-3 experiment rounds (composition, training regime) are the starting menu for the retraining design.
+
 ## Build order and open questions
 
 Modules are built bottom-up so each layer is tested before the next depends on it.
@@ -192,3 +225,4 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 - [ ] LLM provider: Anthropic or OpenAI?
 - [ ] Web framework for v1 (a Python dashboard framework vs. a separate front end)?
 - [ ] Tool server transport for v1: stdio only, or HTTP as well?
+- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, and whether "cheap to retrain" joins the model selection criteria. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
