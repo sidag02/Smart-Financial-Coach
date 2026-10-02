@@ -189,7 +189,7 @@ Predictions are written to a separate SQLite file, not the generator's file (opt
 
 Every run logs its fitted model to MLflow. Promotion copies the chosen one to `artifacts/categorization/<version>/` and points `artifacts/categorization/PROMOTED` at it; serving reads only that folder (see [Promotion and serving](#promotion-and-serving)).
 
-The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, the model file's SHA-256, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is derived from the config hash and the data `spec_hash`. Only artifacts from this folder are loaded, since joblib files are pickles.
+The folder holds the fitted model (`model.joblib`) and `manifest.json`: registry name, params, config hash, training data `spec_hash`, git commit, seeds, split hashes, MLflow run ID, metrics, the model file's SHA-256, and the embedding file's source repository, revision and SHA-256. `fastembed` downloads the model at run time, so loading refuses to run if the cached file's checksum differs from the manifest. The version is `<config hash>-<data hash>-<code version>` (first 8 characters each), so retraining after a code fix yields a new version and release tag rather than a second file under the old name. The code version was added after the first promotion (review on PR #12): `3f0ccc82-2f0e60a6`, promoted before the change, keeps its two-part name, since renaming it would change the file `finalize` scored. `promote` and the release step refuse a version that already exists with a different file. Only artifacts from this folder are loaded, since joblib files are pickles.
 
 **Where the files live (decision Oct 2, 2026).** The manifest is committed; `model.joblib` is not. Saved models are 9.5–12.7 MB, above the repo's 5 MB file limit, and every retraining would add one to git history for good. Each promoted model file is attached to a **GitHub Release** of this repository, tagged `categorization-<version>`. The repository is public, so anyone can download it with a plain URL and no credentials. The committed manifest's `model_sha256` is the trust anchor: a downloaded file is unpickled only if it matches, so a replaced release asset is refused rather than run.
 
@@ -309,7 +309,14 @@ The promotion is complete when the pointer, manifest and log are committed and m
 
 **Departing from the rule is possible but visible.** Naming finalists, a second round of test scoring on the same splits, or promoting a finalist other than #1 each need `--override "<reason>"`. The reason is recorded as a tag on every run it touches and in `promotions.jsonl`.
 
-`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. If the folder has no `model.joblib` yet, it first downloads the file from the URL in the promotion log, into that folder, and checks it against the committed manifest before loading, the same pattern as the embedding file. So a fresh clone runs with `uv sync` and `sfc-model predict`; the first call fetches the model. **Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
+`load_service("categorization")` reads `PROMOTED`, loads that folder, verifies the manifest and the embedding checksum, and returns the model wrapped in its contract check. If the folder has no `model.joblib` yet, it first downloads the file from the URL in the promotion log and checks it against the committed manifest before loading, the same pattern as the embedding file. Each download goes to its own temporary file in that folder and is renamed into place only once verified, so workers starting together race harmlessly and never read a partial file. So a fresh clone runs with `uv sync` and `sfc-model predict`; the first call fetches the model.
+
+**Interim limits of first-use download**, until continuous deployment bakes the model into the serving image (option G):
+
+- A fresh worker needs **GitHub to be reachable** at cold start. An outage blocks new pods, not running ones, which already hold the file.
+- The version folder must be **writable**, which a read-only container filesystem isn't.
+
+**Serving never talks to MLflow:** the dashboard and coach depend only on files, so an MLflow outage or a missing server can't take categorization down (NFR-6's spirit), and the Technical Design's in-process hosting choice holds. Rolling back is promoting the previous run.
 
 ### Path to a general framework
 
@@ -496,7 +503,8 @@ Each metric has one job. This section records why it was chosen, which alternati
   - `latency_warm_p95_ms`: the same rows a second time, with warm caches.
 
   Measured (milestone 3): 3.1 ms cold and 1.2 ms warm on a laptop; 8.95 ms cold on a CI runner.
-- **Serving at scale is a deployment concern, sized in milestone 5's `predict` and the serving design:**
+- **Measured with `sfc-model predict`** (milestone 5; bge-base, default dataset, laptop CPU, one process): about 12,200 transactions per second; 2.1 GB peak memory at 20k-row batches (the default) and 7.2 GB at 100k, at the same throughput; 0.6 s to load the model once its file is downloaded.
+- **Serving at scale is a deployment concern, for the serving design:**
   - throughput per core and cost per million transactions;
   - pod memory: the ONNX model is 67 MB for bge-small and about twice that for bge-base, and the embedding cache is a bounded LRU of up to about 150 MB;
   - cold start: model load, plus each new pod embedding strings on first sight; ship the training vocabulary's vectors (about 20 MB) or warm on `load_service`;
@@ -733,23 +741,11 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 | 3. Linear model | #9 | `linear_text`, embeddings (one string per batch, pinned file), `calibrated` per familiarity group, "Metrics and why", POC reproduction |
 | Plan trim | #10 | Milestone 4 trimmed for launch; Technical Design "Learning from user feedback" |
 | 4. Launch round | #11 | Launch-round configs and results (`docs/reports/FR-3 Categorization — Launch Round Results.md`), `sfc-experiment report`; latency gate removed (batched on ingestion) |
+| 5. Promote and predict | #13 | Model files in GitHub Releases; `finalize` (once); bge-base promoted (`3f0ccc82-2f0e60a6`); `sfc-model predict`; Model Selection doc and launch report updated |
 
-**Where the launch round stands.** The four calibrated linear candidates tie on unseen merchants (0.503–0.512 validation macro F1). The decision rule ranks them: (1) `20_linear_base` (bge-base), (2) `21_linear_ngrams15`, (3) `10_linear_small` (bge-small), (4) `70_linear_one_calibrator`. No test set has been scored for them yet.
+**Where it stands.** `finalize` scored the top three (bge-base, n-grams 1–5, bge-small) and the baselines on the test sets once. bge-base passed both gates (known 0.970 against 0.90 and keyword's 0.461) and is promoted. Its known issue, Travel as the fallback guess for unfamiliar merchants, was shipped knowingly by the owner's decision. FR-3 Categorization Model Selection and the launch report hold the results. The test sets on split `ce93ef87…` are now used: a further round needs `--override`.
 
 ### Remaining
-
-**Milestone 5: finalize, promote, predict.** On one branch from `main`, one PR.
-
-1. **Store promoted model files in GitHub Releases** (decided Oct 2, 2026; see [Model artifact](#model-artifact) and option G). Build it before promoting:
-   - git-ignore `artifacts/*/*/model.joblib`; the manifest, `PROMOTED` and `promotions.jsonl` stay committed;
-   - `promote` uploads `model.joblib` to the release `categorization-<version>` with `gh` and records the download URL in the promotion log;
-   - `load_service` downloads a missing model file from that URL into the version folder, and the existing checksum check against the committed manifest runs before anything is unpickled;
-   - tests: a missing file is fetched (a fake downloader, no network), and a file that doesn't match the manifest is refused and not loaded.
-2. **`sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite`.** It scores the rule's top three plus the three baselines on the test sets, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
-3. **`sfc-model promote --task categorization --run <rank-1 run> --note "<explainability and operations>"`.** The gates are known-merchant test macro F1 ≥ 0.90 and above the keyword baseline. If the rank-1 finalist fails a gate, investigate; don't promote #2 without an override reason (the rule).
-4. **`sfc-model predict`** (to build; the CLI has `promote` and `show` so far). Write `transaction_categories` (`transaction_id`, `user_id`, `category`, `confidence`, `model_version`; index on `user_id`) to a separate SQLite file (option C-b) through `load_service("categorization")`, in batches. Log rows per second per process as the sizing number.
-5. **Update FR-3 Categorization Model Selection:** what won, what lost and why (cite the launch report), what was deferred (rounds 3–6, 8), the label-noise and latency decisions, and what stays open for FR-4.
-6. **Regenerate the launch report** after `finalize` (`sfc-experiment report ...`); it gains the finalists' test table.
 
 **Milestone 6: docs.**
 
@@ -759,6 +755,7 @@ Written for whoever continues FR-3. It records where the work stands, what remai
 
 ### Practical notes for the next session
 
+- **The promoted model doesn't need `mlruns/`.** `load_service("categorization")` downloads it from the GitHub Release on first use and checks it against the committed manifest. `uv run sfc-model predict --task categorization --data data/synthetic/default.sqlite --out data/predictions/default.sqlite` takes about 90 s on the default dataset.
 - **The launch round's MLflow runs exist only on the machine that ran them**, in `mlruns/` (git-ignored, local SQLite store). Run IDs: keyword `6830162a…`, lookup `95a4e68b…`, majority `bd8bb11b…`, bge-small `dd8d5e85…`, bge-base `000ef7d3…`, n-grams 1–5 `6e25c1a9…`, one calibrator `87290714…`; split hash `ce93ef87…`.
   - On another machine: regenerate the dataset and rerun the launch folder, about 40 minutes: `uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite --force`, then `uv run sfc-experiment run configs/experiments/categorization/launch/ --data data/synthetic/default.sqlite`.
   - Those runs were made at an earlier code version. `finalize` compares finalists and baselines with each other, not with the current code, so they remain usable. A rerun of the launch folder creates new runs rather than resuming.

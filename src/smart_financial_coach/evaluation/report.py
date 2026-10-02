@@ -36,6 +36,14 @@ def _metric_row(run: RunRecord, keys: tuple[str, ...]) -> list[str]:
     return [_cell(run.metrics.get(k), 2 if k.startswith("latency") else 3) for k in keys]
 
 
+def _test_cell(run: RunRecord, key: str) -> str:
+    """The metric, with its interval when the task logged one (`<key>_lo`, `<key>_hi`)."""
+    value, lo, hi = (run.metrics.get(k) for k in (key, f"{key}_lo", f"{key}_hi"))
+    if lo is None or hi is None:
+        return _cell(value)
+    return f"{_cell(value)} ({lo:.2f}{DASH}{hi:.2f})"
+
+
 def comparison_report(
     task_name: str, data: Path, tracker: Tracker, split_hash: str | None = None
 ) -> str:
@@ -113,18 +121,22 @@ def comparison_report(
     ]
     finalists = [r for r in runs.values() if r.tags.get(FINALIST_TAG) == "true"]
     if finalists:
-        tests = sorted({k for r in finalists for k in r.metrics if k.startswith("test_")})
+        # Baselines are scored with the finalists, so "beats the baseline" is visible here
+        tests = task.test_report_metrics
+        scored = [
+            (r.tags.get(RANK_TAG, DASH), r)
+            for r in sorted(finalists, key=lambda r: r.tags.get(RANK_TAG, ""))
+        ] + [("baseline", b) for b in baselines if any(k in b.metrics for k in tests)]
         lines += [
             "",
-            "**Finalists on the test sets:**",
+            "**Finalists and baselines on the test sets** (scored once, by `finalize`; "
+            "intervals are 95% merchant-bootstrap):",
             "",
             "| Rank | Run | " + " | ".join(f"`{k}`" for k in tests) + " |",
             "| --- | --- | " + " | ".join("---" for _ in tests) + " |",
             *(
-                f"| {r.tags.get(RANK_TAG)} | `{r.name}` | "
-                + " | ".join(_cell(r.metrics.get(k)) for k in tests)
-                + " |"
-                for r in sorted(finalists, key=lambda r: r.tags.get(RANK_TAG, ""))
+                f"| {rank} | `{r.name}` | " + " | ".join(_test_cell(r, k) for k in tests) + " |"
+                for rank, r in scored
             ),
         ]
     return "\n".join(lines) + "\n"

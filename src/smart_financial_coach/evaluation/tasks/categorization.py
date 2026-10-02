@@ -115,6 +115,18 @@ class CategorizationTask:
         "latency_batch_ms",
         "latency_p95_ms",
     )
+    # Test-set columns, for finalists and baselines once `finalize` has run
+    test_report_metrics: tuple[str, ...] = (
+        "test_known_macro_f1",
+        "test_all_macro_f1",
+        "test_unseen_macro_f1",
+        "test_unseen_brier",
+        "test_unseen_acc_at_90",
+        "test_known_ece",
+        "test_known_coverage_at_90",
+        "test_unseen_misallocated_spend",
+        "test_refund_accuracy",
+    )
     required_baselines: tuple[str, ...] = (KEYWORD_BASELINE,)  # eligibility and gates need it
 
     def __init__(self, reps: int = BOOTSTRAP_REPS) -> None:

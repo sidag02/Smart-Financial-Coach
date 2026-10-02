@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     data_dir: Path = PROJECT_ROOT / "data"
     artifacts_dir: Path = PROJECT_ROOT / "artifacts"
     sqlite_filename: str = "sfc.sqlite3"
+    # GitHub repository ("owner/name") whose releases hold promoted model files. None: the
+    # repository of the current checkout
+    model_release_repo: str | None = None
 
     # Experiment tracking (evaluation only; serving never reads it). None: local store in mlruns/
     mlflow_tracking_uri: str | None = None

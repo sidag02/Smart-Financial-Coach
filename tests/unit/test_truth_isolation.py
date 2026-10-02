@@ -12,8 +12,14 @@ from smart_financial_coach.config import PROJECT_ROOT
 
 PACKAGE = PROJECT_ROOT / "src" / "smart_financial_coach"
 MODEL_CODE = PACKAGE / "intelligence"
-# Model-visible code outside intelligence/: the data-access layer and the feature pipeline
-MODEL_VISIBLE = (MODEL_CODE, PACKAGE / "data" / "store.py", PACKAGE / "data" / "features")
+# Model-visible code outside intelligence/: the data-access layer, the predictions store and the
+# feature pipeline
+MODEL_VISIBLE = (
+    MODEL_CODE,
+    PACKAGE / "data" / "store.py",
+    PACKAGE / "data" / "predictions.py",
+    PACKAGE / "data" / "features",
+)
 FORBIDDEN = re.compile(r"truth_|data\.labels|data import labels|\bmlflow\b", re.IGNORECASE)
 
 

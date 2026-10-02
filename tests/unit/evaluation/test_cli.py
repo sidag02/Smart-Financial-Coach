@@ -37,7 +37,18 @@ def test_cli_run_to_promote(
 
     assert (
         model_main(
-            ["promote", "--task", "toy", "--run", run_id[1], "--note", "n", *uri, *artifacts]
+            [
+                "promote",
+                "--task",
+                "toy",
+                "--run",
+                run_id[1],
+                "--note",
+                "n",
+                "--no-publish",
+                *uri,
+                *artifacts,
+            ]
         )
         == 0
     )
