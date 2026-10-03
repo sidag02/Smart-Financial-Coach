@@ -129,3 +129,11 @@ def test_a_twin_beating_rank_one_stops_finalize(toy_data: Path, tracker: Tracker
     with pytest.raises(SelectionError, match="pattern beats rank 1's twin"):
         finalize("toy_ship", toy_data, tracker)
     finalize("toy_ship", toy_data, tracker, override="investigated: the noise hides the rule")
+
+
+def test_the_report_says_when_no_candidate_has_a_twin(toy_data: Path, tracker: Tracker) -> None:
+    """Runs from before twins sink on tie-breaks; the report says the order isn't the rule's."""
+    baseline(toy_data, tracker)
+    run_experiment(config("memory"), toy_data, tracker)
+
+    assert "No candidate has a shipping twin" in comparison_report("toy_ship", toy_data, tracker)

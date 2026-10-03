@@ -32,6 +32,7 @@ from smart_financial_coach.evaluation.promote import (
 from smart_financial_coach.evaluation.publish import GitHubReleases, PublishError
 from smart_financial_coach.evaluation.report import comparison_report
 from smart_financial_coach.evaluation.runner import LeakError, run_experiment, run_with_twin
+from smart_financial_coach.evaluation.tasks.base import get_task
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.categorization.batch import (
     DEFAULT_BATCH_ROWS,
@@ -82,6 +83,11 @@ def _leaderboard(args: argparse.Namespace) -> int:
     if not standings:
         print("no candidate runs")
         return 0
+    if get_task(args.task).shipping_params and not any(s.twin_id for s in standings):
+        print(
+            "warning: no candidate has a shipping twin, so tie-breaks (read from twins) can't "
+            "apply; the tie set below is ordered by point estimate, not the decision rule"
+        )
     if len(versions := {s.code for s in standings}) > 1:
         print(f"warning: runs come from {len(versions)} code versions; finalize will refuse a mix")
     for i, s in enumerate(standings, start=1):

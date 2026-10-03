@@ -56,6 +56,7 @@ def comparison_report(
     selection = f"val_{task.selection_metric}"
     keys = task.report_metrics
     shipping = bool(task.shipping_params)  # comparison runs ranked; twins break ties and ship
+    no_twins = shipping and not any(s.twin_id for s in standings)
     twin_breaker = task.tiebreak_metrics[0] if task.tiebreak_metrics else selection
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -120,6 +121,16 @@ def comparison_report(
                 "`finalize`.",
             ]
             if shipping
+            else []
+        ),
+        *(
+            [
+                "- **No candidate has a shipping twin,** so tie-breaks can't be read (they come "
+                "from twins) and the tie set is ordered by point estimate. This is not the "
+                "decision rule's order; runs from before twins (e.g. FR-3's launch round) were "
+                "ranked under the rule of their time.",
+            ]
+            if no_twins
             else []
         ),
         "",
