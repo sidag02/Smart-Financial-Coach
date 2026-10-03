@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Connect an assistant · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head"><div>
+  <h1 class="page-title">Connect an assistant</h1>
+  <div class="page-sub">Ask Claude, or any assistant that supports MCP, about your money. It uses the same tools as {{ coach_name }}, so you get the same numbers.</div>
+</div></div>
+
+<div class="coming">
+  <section class="card stack">
+    <div class="card-title">Your access token</div>
+    <p class="muted" style="margin:0">It lets an assistant read your data, and only yours, until {{ expires.strftime('%b %-d, %Y') }}. Treat it like a password. Opening this page again makes a new one; earlier tokens keep working until they expire.</p>
+    <div class="code-row"><code id="token">{{ token }}</code><button class="btn-ghost" type="button" data-copy="token">Copy</button></div>
+    <div class="card-title" style="margin-top:6px">Server address</div>
+    <div class="code-row"><code id="mcp-url">{{ mcp_url }}</code><button class="btn-ghost" type="button" data-copy="mcp-url">Copy</button></div>
+  </section>
+
+  <section class="card stack">
+    <div class="card-title">Claude Code</div>
+    <div class="code-row"><code id="claude-code">claude mcp add --transport http smart-financial-coach {{ mcp_url }} --header "Authorization: Bearer {{ token }}"</code><button class="btn-ghost" type="button" data-copy="claude-code">Copy</button></div>
+    <div class="card-title" style="margin-top:6px">Claude Desktop</div>
+    <p class="muted" style="margin:0">Add this to <code>claude_desktop_config.json</code> (Settings › Developer › Edit config), then restart Claude. It needs Node.js for <code>mcp-remote</code>.</p>
+    <pre class="code-block" id="desktop">{{ {"mcpServers": {"smart-financial-coach": {"command": "npx", "args": ["-y", "mcp-remote", mcp_url, "--header", "Authorization: Bearer " ~ token]}}} | tojson(indent=2) }}</pre>
+    <button class="btn-ghost" type="button" data-copy="desktop" style="align-self:flex-start">Copy</button>
+    <p class="muted" style="margin:0;font-size:13px">Then ask, for example: "Using Smart Financial Coach, where did most of my money go in September?"</p>
+  </section>
+</div>
+{% endblock %}

@@ -12,6 +12,8 @@ import logging
 import re
 import secrets
 from collections import OrderedDict
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -26,6 +28,10 @@ from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
 from smart_financial_coach.access.ledger import INCOME, REVIEW_BELOW, DataSources, Ledger
+from smart_financial_coach.access.mcp_client import McpTools
+from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
+from smart_financial_coach.access.mcp_server import build_mcp_server
+from smart_financial_coach.access.tokens import AccessTokens
 from smart_financial_coach.access.tools import Source, Tools, span_label
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
@@ -43,6 +49,7 @@ SESSION_HOURS = 12
 MAX_QUESTION = 500
 MAX_CONVERSATIONS = 1_000
 MINUS = "\u2212"  # a real minus sign for amounts
+COACH_TOKEN_LIFETIME = timedelta(minutes=5)  # one question's worth of tool calls
 HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year"}
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -202,7 +209,24 @@ def create_app(
             return forwarded[-hops]
         return request.client.host if request.client else "unknown"
 
-    app = FastAPI(title="Smart Financial Coach", docs_url=None, redoc_url=None, openapi_url=None)
+    # The MCP server (FR-19): the coach and outside assistants call the same tools, as the user
+    # their bearer token names
+    public_url = settings.public_url.rstrip("/")
+    tokens = AccessTokens(settings.session_secret.get_secret_value(), by_user)
+    mcp_server, mcp_asgi = build_mcp_server(sources, tokens, public_url=public_url)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        async with mcp_server.session_manager.run():
+            yield
+
+    app = FastAPI(
+        title="Smart Financial Coach",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+        lifespan=lifespan,
+    )
     app.add_middleware(
         SessionMiddleware,
         secret_key=settings.session_secret.get_secret_value(),
@@ -485,7 +509,9 @@ def create_app(
                 )
             else:
                 try:
-                    reply = coach.answer(tools_for(account), convo, question)
+                    token = tokens.issue(account.user_id, COACH_TOKEN_LIFETIME, client="coach")
+                    tools = McpTools(app, token, as_of=as_of)
+                    reply = coach.answer(tools, convo, question)
                     context["reply"] = reply
                     context["answer"] = render_answer(reply.text, reply.cited)
                     log.info("coach answered in %.1f s", reply.seconds)
@@ -525,4 +551,21 @@ def create_app(
         listed = tools_for(account).list_goals().data["goals"]
         return page(request, "coming.html", account, active="goals", feature="goals", goals=listed)
 
+    # Connect an assistant (FR-19): a personal access token for this user's MCP access
+
+    @app.get("/connect")
+    def connect(request: Request) -> Response:
+        account = signed_in(request)
+        lifetime = timedelta(days=settings.mcp_token_days)
+        return page(
+            request,
+            "connect.html",
+            account,
+            active="connect",
+            token=tokens.issue(account.user_id, lifetime),
+            expires=(datetime.now() + lifetime).date(),
+            mcp_url=f"{public_url}{MCP_PATH}",
+        )
+
+    app.mount("/", mcp_asgi)  # last, so the app's own routes win: it serves only /mcp
     return app

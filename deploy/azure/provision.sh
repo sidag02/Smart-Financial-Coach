@@ -90,4 +90,7 @@ done
 
 FQDN="$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn -o tsv)"
+# The app's own address: the MCP server's URL and auth metadata ("Connect an assistant")
+az containerapp update --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+  --set-env-vars "SFC_PUBLIC_URL=https://$FQDN" -o none
 echo "== Up: https://$FQDN"

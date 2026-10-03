@@ -17,7 +17,7 @@ the same functions over HTTP and MCP.
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any
+from typing import Any, Protocol
 
 import pandas as pd
 
@@ -102,6 +102,10 @@ class ToolError(ValueError):
     """A tool call the caller can fix (bad dates, unknown category): reported, not raised on."""
 
 
+class ToolsUnavailableError(RuntimeError):
+    """The tools can't be reached at all (the MCP server refused or failed): no answer possible."""
+
+
 def _check_type(tool: str, key: str, value: Any, prop: dict[str, Any]) -> None:
     """Arguments come from the model, so check their JSON types before any code uses them."""
     kind = prop["type"]
@@ -145,6 +149,18 @@ def span_label(start: date, end: date) -> str:
     return f"{start:%b} {start.day}, {start.year} {DASH} {end:%b} {end.day}, {end.year}"
 
 
+class ToolGateway(Protocol):
+    """What the coach needs from its tools: `Tools` in-process, or `McpTools` over MCP."""
+
+    @property
+    def specs(self) -> list[ToolSpec]: ...
+
+    @property
+    def as_of(self) -> date: ...
+
+    def call(self, name: str, arguments: dict[str, Any]) -> ToolResult: ...
+
+
 class Tools:
     def __init__(self, ledger: Ledger) -> None:
         self.ledger = ledger
@@ -156,6 +172,14 @@ class Tools:
             "detect_anomalies": self.detect_anomalies,
             "forecast_goal": self.forecast_goal,
         }
+
+    @property
+    def specs(self) -> list[ToolSpec]:
+        return TOOL_SPECS
+
+    @property
+    def as_of(self) -> date:
+        return self.ledger.as_of
 
     def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         """Run a tool by name with arguments checked against its schema."""

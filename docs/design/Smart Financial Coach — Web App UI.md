@@ -30,6 +30,7 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 | 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | When FR-7/8 promote |
 | 1g, 1l Goal detail; 1h Goal setup | FR-10–12 | `forecast_goal`, `list_goals`, a goal-write tool | When FR-10–12 land |
 | 1b Coach-first summary, 1c Mosaic | — | — | Not built (see decision 2) |
+| Connect an assistant (no mockup) | FR-19 | All read tools, over MCP | Demo |
 
 ## Decisions
 
@@ -48,6 +49,11 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 5. **Coach name** is a setting, defaulting to "Wren"; tests don't depend on it. Check the name doesn't collide with a financial product before a public launch.
 6. **Coach LLM: Anthropic** (Technical Design open question). The key comes from the environment, never the image (NFR-3).
 7. **Web framework:** FastAPI with server-rendered templates and htmx (Delivery Plan recommendation). Charts are server-rendered SVG.
+8. **One MCP server for Wren and outside assistants** (owner, Oct 3, 2026; FR-19, key scenario 6). The tools are served over MCP (Streamable HTTP) at `/mcp`, so the same question gets the same numbers from Wren and from, say, Claude Desktop.
+   - **Identity comes only from a bearer token,** never from a tool argument. Tokens are signed with `SFC_SESSION_SECRET`, name one demo user and expire. Rotating the secret revokes them all.
+   - **Outside assistants** use a personal access token from the "Connect an assistant" page, valid for `SFC_MCP_TOKEN_DAYS` (default 7). The page gives ready-made setup for Claude Code and Claude Desktop (through `mcp-remote`).
+   - **Wren** calls the same endpoint in-process, through the full HTTP stack, with a 5-minute token for the session's user, and takes its tool list from the server.
+   - stdio isn't built: desktop assistants connect over HTTP.
 
 ## Demo build (Oct 6, 2026)
 
@@ -56,7 +62,7 @@ A short-lived deployment for a presentation, up from Oct 3 and torn down on Oct 
 - **Hosting:** Azure Container Apps, one replica, HTTPS on the platform address, in its own resource group. Deleting the resource group removes everything. A short-lived shortcut, outside the Delivery Plan's option D, which stays open for staging.
 - **Read-only data in the image.** The dataset, categorization predictions and demo accounts are built into a read-only SQLite file at image build time; no ingestion worker, no volume. Nothing a visitor does changes shared data.
 - **Chat is per session, not per user.** Several visitors can sign in as the same demo user, and a question can contain anything, so conversation history is kept in memory by the session's random id: never keyed by `user_id`, never in the database. Two sessions as the same user don't see each other's chat (NFR-2), and a test checks it.
-- **Tools in-process.** The tool functions run inside the web app rather than a separate tool server, but identity still comes only from the session, every query is scoped at the data-access layer, and the isolation tests run. Splitting the tool server out is milestone P1.
+- **The MCP server runs in the web app's process** (decision 8). Wren and outside assistants call the tools through it; the dashboard calls the same functions directly. Identity comes only from a bearer token, every query is scoped at the data-access layer, and the isolation tests run. Moving the tool server into its own workload is milestone P1.
 - **Chat cost:** a spending cap on the API key and a per-visitor rate limit.
 
 ## Gaps the mockups need that nothing provides yet

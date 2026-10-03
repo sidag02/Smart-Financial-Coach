@@ -231,7 +231,7 @@ One PR per milestone, interleaved with the model track.
 - [ ] CD in four stages; models (and their embedding file) baked into the image and verified at build time.
 - [ ] Kubernetes as the deploy target, with `kind` in CI.
 - [x] Web framework: server-rendered Python (FastAPI, templates, htmx) (owner, Oct 2, 2026).
-- [ ] Tool server transport: HTTP plus stdio.
+- [x] Tool server transport: MCP over Streamable HTTP, served at `/mcp` by the web app for the demo, with bearer tokens for identity (owner, Oct 3, 2026; Web App UI, decision 8). stdio isn't built: desktop assistants connect over HTTP.
 - [ ] Hosted staging and demo target: option D (owner). Still open for staging. The Oct 6, 2026 demo runs on Azure Container Apps as a short-lived shortcut outside option D, torn down after the demo (owner, Oct 2, 2026; Web App UI, "Demo build").
 
 **Open questions**
