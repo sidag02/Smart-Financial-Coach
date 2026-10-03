@@ -39,7 +39,11 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
    - **CSRF:** `SameSite=Lax` keeps the cookie off cross-site posts (sign-in, chat, and later corrections), so no form token is needed while every state change is a same-site post.
    - **Rate limits:** sign-in attempts per client address, since everyone shares one password; chat messages per session.
 2. **Dashboard layout: 1a.** 1b leads with an LLM-written summary, which would break the dashboard when the LLM is unavailable (NFR-6) and slow it past 2 s (NFR-5). 1b's summary can come later as a precomputed card.
-3. **Essentials grouping** for the money-flow chart: Housing, Utilities, Groceries, Insurance & Fees, Childcare & Education. Everything else is "Everything else", including Transportation and Health & Fitness (owner confirmed, Oct 2, 2026). This is a display grouping, not a taxonomy change.
+3. **Essentials: the bare minimum to live on,** shown apart from everything else in the money-flow chart (owner, Oct 2, 2026).
+   - **Default:** Housing, Utilities, Groceries, Insurance & Fees, Childcare & Education. Transportation and Health & Fitness fall under "Everything else".
+   - **A setting, not a constant:** `SFC_ESSENTIALS` (a JSON list) changes the set without a code change.
+   - **Checked at startup:** every name must be a category in the dataset's taxonomy, and Income can't be one; otherwise the app doesn't start.
+   - **Display only:** no change to the taxonomy, the models or the tools.
 4. **Responsive and dark mode from the start.** The mockups' palette becomes CSS tokens with a dark set; layouts hold down to 390 px. The PRD rules out a mobile app, not a responsive web app.
 5. **Coach name** is a setting, defaulting to "Wren"; tests don't depend on it. Check the name doesn't collide with a financial product before a public launch.
 6. **Coach LLM: Anthropic** (Technical Design open question). The key comes from the environment, never the image (NFR-3).
