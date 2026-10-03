@@ -198,12 +198,15 @@ A correction means one of two things: the model was wrong, or the user sees it d
   The simulator models accept-the-suggestion behavior (§7), and the replay reports how often a model error becomes a global label.
 - **Privacy:** the threshold counts distinct users, never corrections. A string seen by fewer than N users in total (a person-to-person payment, a landlord's name) can never become a global label; it stays that user's override (user story 5).
 - **Preferences stay personal:** a merchant where users split (some say Groceries, some Shopping) fails the two-thirds rule and doesn't move the model; each user keeps their override.
+- **Agreement is re-evaluated as votes accumulate** (owner, Oct 2, 2026). With N = 3 and two candidate categories, one side always holds at least two of the first three votes, so the two-thirds rule is always met at that point. A preference held by 30% of users wins two or three of the first three votes about one time in five (50%: one in two; 70%: about four in five). So a global label is provisional: every new vote re-evaluates the string, and a string whose agreement falls below two thirds **loses its global label**. The next retraining drops it, through the same gates as any change. The replay reports, per remap, how often a minority or split preference became a global label and after how many votes it was revoked, and N is tuned against that.
 - **Robustness:** a label needs several independent users, and a correction from a user whose corrections disagree with consensus unusually often is down-weighted (tuned in the replay). A single user, however active, can't create a global label.
 - **Product signal:** strings that repeatedly fail agreement between the same two categories are reported, as taxonomy questions rather than model fixes.
 
 ### 5. Retraining
 
-- **Training data:** the original synthetic training rows, plus the **contributing users' own transactions** at globally labelled strings, **from before the training cutoff**, with the agreed category. Non-contributors' transactions never enter training, even at a labelled string: the evaluation below scores non-contributors in later months, and their rows in training would leak into it. A leak check, like FR-3's, stops a retraining whose training rows include any evaluation user's transaction or any transaction after the cutoff. The model's `fit` already takes labels as an argument.
+- **Training data:** the original synthetic training rows, plus the **contributing users' own transactions** at globally labelled strings, **from before the training cutoff**, with the agreed category.
+- **A global label supersedes the original label at that string** (owner, Oct 2, 2026). Original training rows at a globally labelled string are relabelled to the agreed category. Otherwise a majority preference at a known merchant could never move the model: at a streaming string, every train user's Subscriptions rows would outnumber the few contributors' Entertainment rows, and the replay would report a training-data artifact as a property of the agreement rule. When a label is revoked (§4), the original labels return at the next retraining.
+- **Leak check:** non-contributors' transactions never enter training, even at a labelled string: the evaluation below scores non-contributors in later months, and their rows in training would leak into it. A leak check, like FR-3's, stops a retraining whose training rows include any evaluation user's transaction or any transaction after the cutoff. The model's `fit` already takes labels as an argument.
 - **Clean labels** (decision, Oct 2, 2026; [open question 3](#open-questions)): the shipped model and every model retrained from feedback train **without injected label noise**. Injected noise stays for experiments that compare candidates. The two differ only in that setting, so it is written explicitly in the configuration that is finalized and promoted (`label_noise: 0`), promotion refuses a configuration that leaves it implicit, and the promotion log records it.
 - **Cadence:** scheduled (proposed monthly), and skipped when fewer than a minimum number of new global labels arrived. The replay sets both numbers.
 - **Evaluation without reusing a test set:** each retraining is scored on data its training never saw:
@@ -227,23 +230,28 @@ A correction means one of two things: the model was wrong, or the user sees it d
 
 The loop is measured on synthetic users before any real user sees it.
 
-- **Preferences (generator, FR-1/FR-2 extension):** each test user gets a preference profile. With a per-remap probability, they see some merchant subtypes in another category. The remaps are drawn from the catalog's subtypes:
+- **Preferences (generator, FR-1/FR-2 extension):** each test user gets a preference profile: they see some merchant subtypes in another category. Each remap's adoption rate is chosen to test one outcome of the agreement rule (§4):
 
-  | Subtype | Default category | Some users call it |
-  | --- | --- | --- |
-  | warehouse | Groceries | Shopping |
-  | gym | Health & Fitness | Subscriptions |
-  | streaming | Subscriptions | Entertainment |
-  | pharmacy | Health & Fitness | Shopping |
-  | rideshare | Transportation | Travel |
-  | books | Shopping | Entertainment |
+  | Subtype | Default category | Some users call it | Adopted by | Tests |
+  | --- | --- | --- | --- | --- |
+  | warehouse | Groceries | Shopping | 30% of test users | A minority preference stays personal |
+  | gym | Health & Fitness | Subscriptions | 30% | Minority stays personal (in the weakest category) |
+  | pharmacy | Health & Fitness | Shopping | 30% | Minority stays personal |
+  | rideshare | Transportation | Travel | 30% | Minority stays personal (the old fallback category) |
+  | books | Shopping | Entertainment | **50%** | Split: early labels flip and are revoked as votes accumulate |
+  | streaming | Subscriptions | Entertainment | **70%** | A majority preference becomes a global label |
 
-  A new truth table, `truth_preferences(user_id, merchant_id, category)`, holds each user's view (schema version 4; default datasets regenerate). The label contract gains a "user's category": the preference where there is one, otherwise the true category.
+  - Each test user adopts each remap independently, for every merchant of that subtype.
+  - Only test users get preferences; train users keep the default categories, so the cold model's training labels don't change.
+  - Preferences are drawn from their own random seed, so adding them changes no other generated row: transactions, merchants and the holdout are identical to a dataset without preferences.
 
-  > **Accepted (owner, Oct 2, 2026): this data contract**, the `truth_preferences` table (schema 4) and the preference-aware label contract, is accepted ahead of the rest of this design. FR-4's milestone 1 implements it in its single regeneration. Any later change to it needs a new regeneration, so changes go through review like an accepted design. **Open before milestone 1:** filling the table needs the preference profiles, i.e. the remap table above and a per-remap probability, which this section doesn't yet give a value. Both are generated into the dataset, so they belong with the accepted contract and need settling before the regeneration.
+  A new truth table, `truth_preferences(user_id, merchant_id, category)`, holds each user's view (schema version 4; default datasets regenerate). The label contract gains a "user's category": the preference where there is one, otherwise the true category. **FR-4's gates and evaluation stay on the true category;** the user's category is used only by FR-5/FR-6 measures.
+
+  > **Accepted (owner, Oct 2, 2026): this data contract**, the `truth_preferences` table (schema 4) and the preference-aware label contract, is accepted ahead of the rest of this design. FR-4's milestone 1 implements it in its single regeneration. Any later change to it needs a new regeneration, so changes go through review like an accepted design. The preference profiles above (remaps, adoption rates, independence, test users only, their own seed) are part of the accepted contract (owner, Oct 2, 2026), so the contract is complete for FR-4's milestone 1.
 
 - **Behavior:** each month, each simulated user opens the review queue with some probability (engagement). For each item they resolve, they confirm if the suggestion matches their view and correct otherwise, slipping to a wrong category with a small probability. Some users **accept the suggestion without checking** at a set rate (automation bias), confirming wrong suggestions too. Some users also correct unflagged errors they notice, more often for large amounts. A small share of users correct at random (adversarial).
 - **Replay:** month by month over the test users' history: ingest, categorize, flag, simulate responses, update overrides, and retrain on the schedule when the agreement rule produces enough labels.
+- **A stress setting:** with five remaps at 30% and more, nearly every test user holds at least one preference (76% from the four 30% remaps alone, 1 − 0.7⁴; 96% overall, 1 − 0.7⁴ × 0.5 × 0.3). The replay's burden and corrections-needed are therefore pessimistic, and its report says so.
 - **Measures** (Technical Design, "What good will mean"):
 
   | Measure | Definition |
@@ -256,6 +264,7 @@ The loop is measured on synthetic users before any real user sees it.
   | Robustness | Global gain with 5% and 20% adversarial users; no global label from a single user |
   | Calibration after retraining | Unfamiliar Brier and the review policy's catch rate keep their meaning |
   | Burden | Review items per user per month; share of items resolved |
+  | Preference outcomes, per remap | Share of non-contributors whose effective category at that subtype matches their view; how often a minority or split preference became a global label, and after how many votes it was revoked |
 
 ## Metrics and why
 
@@ -344,6 +353,8 @@ One PR per milestone.
 - [x] The shipped model and retrained models train on clean labels; injected noise only for comparing candidates (owner, Oct 2, 2026).
 - [x] The replay runs after FR-4, on its promoted twin and the dataset regenerated once with schema 4 (owner, Oct 2, 2026).
 - [x] The data contract in §7 (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted now; the rest stays in draft until the replay (owner, Oct 2, 2026). This breaks the loop where FR-4's milestone 1 would build a schema from an unaccepted design.
+- [x] The preference profiles: four remaps at 30%, books at 50%, streaming at 70%; independent per user, test users only, their own seed; FR-4 stays on the true category (owner, Oct 2, 2026).
+- [x] A global label supersedes the original label at that string; agreement is re-evaluated as votes accumulate and labels can be revoked; the replay reports per-remap preference outcomes (owner, Oct 2, 2026).
 
 **Open questions**
 
