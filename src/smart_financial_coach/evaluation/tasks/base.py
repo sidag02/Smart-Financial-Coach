@@ -95,6 +95,11 @@ class Task(Protocol):
         """
         ...
 
+    def diagnostics(self, examples: Examples, pooled: pd.DataFrame) -> list[str]:
+        """Markdown lines describing where a run's validation errors go, for the report (FR-4,
+        "Metrics and why", point 3). Empty when the task has none."""
+        ...
+
     def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
         """95% interval of the selection metric on a run's pooled validation predictions."""
         ...
