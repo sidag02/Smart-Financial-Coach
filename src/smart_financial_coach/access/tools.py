@@ -474,14 +474,19 @@ class Tools:
         row = match.iloc[0]
         if scope not in ("merchant", "transaction"):
             raise ToolError(f"scope must be merchant or transaction, not {scope!r}")
+        if row.get("model_category", row["category"]) == INCOME:
+            # Merchant overrides leave Income rows alone (review on #35): change just this one
+            scope = "transaction"
         shown = str(row["category"])
-        if category == shown and scope == "merchant":
-            # An ambiguous merchant, whose transactions differ: moving the rest is still a change
+        if scope == "merchant":
+            # Record what the merchant's rows held, not the clicked row's own category (review
+            # on #35): the rows that will move, by their most common current category
             at = rows[rows["merchant_key"] == row["merchant_key"]]
-            others = at.loc[at["category"] != category, "category"]
-            if others.empty:
+            spending = at[at.get("model_category", at["category"]) != INCOME]
+            moving = spending.loc[spending["category"] != category, "category"]
+            if moving.empty:
                 raise ToolError(f"every transaction at {row['merchant']} is already {category}")
-            shown = str(others.mode().sort_values().iloc[0])
+            shown = str(moving.mode().sort_values().iloc[0])
         return self._apply(
             action="correct",
             scope=scope,

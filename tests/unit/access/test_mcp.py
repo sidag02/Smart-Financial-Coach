@@ -3,6 +3,7 @@ numbers as the in-process tools (FR-19, key scenarios 5 and 6)."""
 
 import re
 import threading
+import time
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 from functools import partial
@@ -234,3 +235,20 @@ def test_feedback_follows_the_tokens_feedback_subject(client: TestClient, users:
     assert item["item_id"] not in {i["item_id"] for i in my_items["items"]}
     assert my_items["open_items"] == their_items["open_items"] - 1
     assert item["item_id"] in {i["item_id"] for i in their_items["items"]}
+
+
+def test_a_token_from_before_feedback_gets_read_only_tools(
+    client: TestClient, users: list[str]
+) -> None:
+    """No `fb` claim: not the shared account's feedback, which every visitor would share."""
+    tokens = AccessTokens(SECRET, users)
+    expires = int(time.time()) + 300
+    old = "sfc_" + tokens._signer.dumps({"sub": users[0], "exp": expires, "client": "assistant"})
+    assert tokens.user(old) == users[0]
+    assert tokens.feedback_subject(old) is None
+    tools = McpTools(client.app, old, as_of=AS_OF, loop=app_loop(client))
+
+    listed = in_worker_thread(client, lambda: tools.call("list_review_items", {}).data)
+    assert listed["open_items"] > 0  # reading works
+    with pytest.raises(ToolError, match="isn't available"):
+        in_worker_thread(client, lambda: tools.call("list_corrections", {}))

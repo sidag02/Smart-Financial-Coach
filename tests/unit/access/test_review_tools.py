@@ -173,3 +173,26 @@ def test_one_users_feedback_never_reaches_another_users_ledger(
 
     assert theirs.call("list_corrections", {}).data["corrections"] == []
     assert set(theirs.ledger.transactions["category_source"]) == {"model"}
+
+
+def test_every_transaction_from_a_row_with_its_own_category_moves_it_too(
+    sources: DataSources, two_users: tuple[str, str], store: FeedbackStore
+) -> None:
+    tools = tools_for(sources, two_users[0], store)
+    t = tools.ledger.transactions
+    key = t.loc[t["category"] != "Income", "merchant_key"].value_counts().index[0]
+    row = t[t["merchant_key"] == key].iloc[0]
+    held = t.loc[t["merchant_key"] == key, "category"].mode().iloc[0]
+    tools.call(
+        "correct_category",
+        {"transaction_id": row["transaction_id"], "category": "Travel", "scope": "transaction"},
+    )
+
+    applied = tools.call(
+        "correct_category", {"transaction_id": row["transaction_id"], "category": "Entertainment"}
+    ).data
+
+    assert applied["correction"]["from_category"] == held  # what the merchant held, not Travel
+    seen = tools.ledger.transactions
+    at = seen[(seen["merchant_key"] == key) & (seen["model_category"] != "Income")]
+    assert set(at["category"]) == {"Entertainment"}

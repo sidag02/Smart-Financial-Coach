@@ -71,9 +71,12 @@ class AccessTokens:
         return str(claims["sub"]) if claims else None
 
     def feedback_subject(self, token: str) -> str | None:
-        """Whose category feedback the token's calls use; the user for older tokens."""
+        """Whose category feedback the token's calls use. None for a token issued before
+        feedback existed: falling back to the account would put every visitor's assistant on one
+        shared subject, so such a token gets read-only tools (review on #36)."""
         claims = self.claims(token)
-        return str(claims.get("fb") or claims["sub"]) if claims else None
+        fb = claims.get("fb") if claims else None
+        return str(fb) if fb else None
 
     async def verify_token(self, token: str) -> AccessToken | None:
         """The MCP SDK's `TokenVerifier`: a valid token's user becomes the token's subject."""

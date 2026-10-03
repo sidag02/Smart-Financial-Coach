@@ -27,8 +27,9 @@ RUN chmod -R a+rX build/demo
 
 RUN useradd --uid 10001 --no-create-home app
 # Category feedback (FR-5, FR-6) is the one thing the app writes: a SQLite file in the container's
-# writable layer, kept until the container restarts or redeploys (owner, Oct 3, 2026). Mounting
-# Azure Files on /var/lib/sfc would make it durable
+# writable layer, kept until the container restarts or redeploys (owner, Oct 3, 2026). For a
+# durable store, prefer Postgres (the v2 plan) to SQLite on an Azure Files (SMB) mount, whose file
+# locking SQLite doesn't trust
 RUN mkdir -p /var/lib/sfc && chown 10001 /var/lib/sfc
 ENV SFC_FEEDBACK_DB=/var/lib/sfc/feedback.sqlite
 USER 10001
