@@ -123,6 +123,7 @@ The write tools carry MCP's `destructiveHint: false` and `idempotentHint: false`
 
 - `edit`: the Goals page, FR-5's name for dashboard changes. It applies on submit.
 - `coach` and `assistant`: calls over MCP, told apart by the token's `client` claim. Wren's in-process tokens carry `client="coach"`; any other client is `assistant`. Both need `confirm: true` for every write, since a goal change is always one the user should see first.
+- `undo_goal_change` applies directly from every caller, as FR-5's `undo_correction` does: the user has just asked for it, and it only takes the goal back to the state they last saw. The coach prompt allows it only when the user asks to undo, and Wren says what changed afterwards. The undone event stays in the log.
 - A token without a subject gets no goal writes, as in #36: the write tools refuse with "not available for this sign-in".
 
 ## Design
@@ -188,7 +189,7 @@ The same function serves `check_goal`, the write tools and the form, so a messag
 | `name_missing`, `name_too_long` | 1–40 characters | "Give the goal a name." |
 | `name_in_use` | Unique among running goals (active or reached), ignoring case; checked on undo too | "You already have a goal called Vacation fund." |
 | `amount_range` | $50 to $1,000,000 | "Goals start at $50." |
-| `amount_cents` | Whole cents only, for the target and the saved amount | "Use dollars and cents." |
+| `amount_cents` | Whole cents only, for the target and the saved amount. Parsed through `Decimal(str(x))`, never `x * 100`, which turns 19.99 into 1998.999… | "Use dollars and cents." |
 | `date_too_soon` | The month after today's or later | "Pick October 2026 or later." |
 | `date_too_far` | At most 120 months after today's | "Pick a date within 10 years." |
 | `saved_range` | Never negative. When creating, below the target. When updating, the target or more is allowed and makes the goal `reached` | "That's already the whole amount." |
@@ -276,8 +277,8 @@ The limits are product choices, not model needs (decision 4).
 
 ## Testing
 
-- **Validation:** each rule at its boundary (40 and 41 characters, $49.99 and $50, $50.001 refused, the first allowed month, 120 and 121 months, a case-insensitive name clash with an active and with a reached goal, the 11th active goal with a reached one not counted). Moving dates to month ends (Jun 1 and Jun 30 give the same goal, February in a leap year). Status order: a goal both reached and past its date is `ended`. An update to saved ≥ target gives `reached`; a negative saved amount is refused.
-- **Store:** replay order; editing and archiving a generated goal; undoing a creation, an edit and an archive; undoing anything but the latest event is refused; concurrent creates with one name give one goal. Undo is refused when it would bring back a duplicate name (archive *Trip*, create *Trip*, undo the archive) or an 11th active goal. Generated balances convert to cents exactly.
+- **Validation:** each rule at its boundary (40 and 41 characters, $49.99 and $50, $50.001 refused while 19.99 and 0.29 are accepted, the first allowed month, 120 and 121 months, a case-insensitive name clash with an active and with a reached goal, the 11th active goal with a reached one not counted). Moving dates to month ends (Jun 1 and Jun 30 give the same goal, February in a leap year). Status order: a goal both reached and past its date is `ended`. An update to saved ≥ target gives `reached`; a negative saved amount is refused.
+- **Store:** replay order; editing and archiving a generated goal; undoing a creation, an edit and an archive; undoing anything but the latest event is refused; concurrent creates with one name give one goal. Undo is refused when it would bring back a duplicate name (archive *Trip*, create *Trip*, undo the archive) or an 11th active goal. Editing a reached goal back to active (a higher target or a lower saved amount) while 10 goals are active is refused too. Generated balances convert to cents exactly.
 - **Confirmation and source:** a Goals-page write applies at once with `source: edit`; a `coach` or `assistant` write without `confirm` writes nothing; the source follows the token's `client` claim; a token without a subject gets no writes.
 - **Isolation (adversarial):** another user's or another session's `goal_id` and `revision_id`, on every tool, give "no such goal"; `user_id` or `subject` as a tool argument is rejected; an MCP token for user A never sees B's goals; two sessions on one demo account see the seeded goals and only their own changes.
 - **Contract:** JSON shapes of the six tools, the same through `Tools` and through MCP. `needed_per_month` and `median_monthly_savings_12m` checked against hand-computed values for one demo user.
