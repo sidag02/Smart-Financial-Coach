@@ -111,3 +111,15 @@ def test_input_order_does_not_matter() -> None:
 def test_window_must_hold_a_spread() -> None:
     with pytest.raises(ValueError, match="window"):
         history_features(txns(ROWS), window=1)
+
+
+def test_a_same_minute_repeat_is_found_whichever_id_sorts_first() -> None:
+    rows = [
+        ("tb", "u1", "2025-01-05 09:00", -9.0, "LYFT"),
+        ("ta", "u1", "2025-01-05 09:00", -9.0, "LYFT"),  # sorts first within the minute
+    ]
+    f = by_id(history_features(txns(rows)))
+
+    assert f.loc["ta", "repeat_of"] == "tb"
+    assert f.loc["tb", "repeat_of"] == "ta"
+    assert f.loc["ta", "minutes_since_repeat"] == 0

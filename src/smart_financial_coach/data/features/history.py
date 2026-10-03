@@ -14,7 +14,8 @@ Columns:
     key_prior              the user's earlier outflows at this merchant key
     key_median             median log amount of the last `window` of them (NaN without any)
     key_spread             1.4826 x their median absolute deviation (NaN with fewer than 2)
-    repeat_of              the latest earlier outflow with the same raw text and amount
+    repeat_of              the latest earlier outflow with the same raw text and amount, or one
+                           in the same minute (whose order within the minute is unknowable)
     minutes_since_repeat   minutes since that charge (NaN without one)
 """
 
@@ -118,5 +119,11 @@ def history_features(transactions: pd.DataFrame, window: int = DEFAULT_WINDOW) -
     s["repeat_of"] = same["transaction_id"].shift()
     previous = pd.to_datetime(same["ts"].shift())
     s["minutes_since_repeat"] = (pd.to_datetime(s["ts"]) - previous).dt.total_seconds() / 60
+    # Within one minute the order is unknowable (ts has minute resolution, IDs are arbitrary), so
+    # the first of a same-minute pair repeats the next one too: both were known by then
+    later = same["transaction_id"].shift(-1)
+    same_minute = s["repeat_of"].isna() & later.notna() & (same["ts"].shift(-1) == s["ts"])
+    s.loc[same_minute, "repeat_of"] = later[same_minute]
+    s.loc[same_minute, "minutes_since_repeat"] = 0.0
 
     return s.loc[f.index, list(COLUMNS)].reset_index(drop=True)
