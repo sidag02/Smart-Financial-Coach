@@ -22,7 +22,7 @@ from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from anyio.lowlevel import EventLoopToken, current_token
-from fastapi import FastAPI, Form, Query, Request
+from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -138,6 +138,27 @@ def money(value: float, cents: bool = False, sign: bool = False) -> str:
     if value > 0 and sign:
         return "+" + text
     return text
+
+
+def goal_form_data(
+    name: Annotated[str, Form(max_length=200)] = "",
+    target_amount: Annotated[str, Form(max_length=40)] = "",
+    target_month: Annotated[str, Form(max_length=20)] = "",
+    saved: Annotated[str, Form(max_length=40)] = "",
+    # The edit form's hidden goal_id; named apart from the /goals/{goal_id} path parameter
+    editing: Annotated[str, Form(alias="goal_id", max_length=40)] = "",
+) -> dict[str, str]:
+    """The goal form as posted: the dependency every goal handler shares."""
+    return {
+        "name": name,
+        "target_amount": target_amount,
+        "target_month": target_month,
+        "saved": saved,
+        "goal_id": editing,
+    }
+
+
+GoalForm = Annotated[dict[str, str], Depends(goal_form_data)]
 
 
 _SOURCE_TAG = re.compile(r"\s?\[(S\d+)\]")
@@ -704,7 +725,8 @@ def create_app(
     # Goals (FR-10; mockups 1g, 1h). The page writes through the same tools as the coach, as
     # "edit", which applies on submit. Writes are plain posts that redirect back to the list with
     # an Undo toast, so the form works without JavaScript; htmx adds the live check and opens the
-    # form in the drawer
+    # form in the drawer. The handlers are plain `def`s, so their SQLite and pandas work runs in
+    # the thread pool, never on the event loop (review on #45)
 
     def featured_goal(tools: Tools) -> dict[str, Any] | None:
         """The overview's goal: the active one due soonest, else a reached one."""
@@ -712,16 +734,19 @@ def create_app(
         by_status = {s: [g for g in listed if g["status"] == s] for s in ("active", "reached")}
         return next(iter(by_status["active"] or by_status["reached"]), None)
 
-    def goal_fields(form: Any) -> dict[str, Any]:
+    def goal_fields(form: dict[str, str]) -> dict[str, Any]:
         """The form's fields as the tools take them: amounts without "$" or commas, and the month
         picker's "2027-06" as a day in that month. A blank name, amount or month stays blank, so
-        it's reported rather than left unchanged; a blank saved amount means 0, or unchanged."""
+        it's reported rather than left unchanged; a blank saved amount means 0, or unchanged. An
+        amount must be a plain decimal (no exponent: "1e999999" would be costly to read), and
+        anything else is reported as not an amount (review on #45)."""
 
         def text(key: str) -> str:
-            return str(form.get(key) or "").strip()
+            return form.get(key, "").strip()
 
         def amount(key: str) -> str:
-            return text(key).replace("$", "").replace(",", "")
+            value = text(key).replace("$", "").replace(",", "")
+            return value if not value or re.fullmatch(r"\d{1,16}(\.\d{1,16})?", value) else "?"
 
         month = text("target_month")
         return {
@@ -757,16 +782,21 @@ def create_app(
         """The tools' messages, except where the form's month picker reads better."""
         return "Pick a month." if code == "date_invalid" else message
 
-    def form_values(form: Any) -> dict[str, str]:
-        keys = ("name", "target_amount", "target_month", "saved")
-        return {k: str(form.get(k) or "") for k in keys}
+    def form_values(form: dict[str, str]) -> dict[str, str]:
+        return {k: form.get(k, "") for k in ("name", "target_amount", "target_month", "saved")}
+
+    def form_amount(dollars: float) -> str:
+        """An amount for the edit form, exactly: "12345.67", or "3000" for whole dollars. Never
+        `:g`, which keeps 6 significant digits (review on #45)."""
+        text = f"{dollars:.2f}"
+        return text.removesuffix(".00")
 
     def goal_values(g: dict[str, Any]) -> dict[str, str]:
         return {
             "name": g["name"],
-            "target_amount": f"{g['target_amount']:g}",
+            "target_amount": form_amount(g["target_amount"]),
             "target_month": g["target_date"][:7],
-            "saved": f"{g['saved']:g}",
+            "saved": form_amount(g["saved"]),
         }
 
     def toast(request: Request, text: str, revision_id: str | None = None) -> None:
@@ -814,13 +844,12 @@ def create_app(
         return goal_form(request, account, goal=goal, values=goal_values(goal))
 
     @app.post("/goals/check")
-    async def check_goal(request: Request) -> Response:
+    def check_goal(request: Request, form: GoalForm) -> Response:
         """The live "How it fits" box (FR-10 design, "The setup check"): facts from check_goal,
         and the problems for fields the person has filled in."""
         tools = tools_for(signed_in(request), request)
-        form = await request.form()
         fields = goal_fields(form)
-        goal_id = str(form.get("goal_id") or "") or None
+        goal_id = form["goal_id"] or None
         try:
             data = tools.check_goal(**fields, goal_id=goal_id).data
         except ToolError:
@@ -835,10 +864,9 @@ def create_app(
         return page(request, "_goal_fit.html", None, check=data, problems=shown)
 
     @app.post("/goals")
-    async def create_goal(request: Request) -> Response:
+    def create_goal(request: Request, form: GoalForm) -> Response:
         account = signed_in(request)
         tools = tools_for(account, request)
-        form = await request.form()
         try:
             data = tools.create_goal(**goal_fields(form)).data
         except GoalProblemsError as error:
@@ -859,13 +887,12 @@ def create_app(
         return back_to_goals(request)
 
     @app.post("/goals/{goal_id}")
-    async def update_goal(request: Request, goal_id: str) -> Response:
+    def update_goal(request: Request, goal_id: str, form: GoalForm) -> Response:
         account = signed_in(request)
         tools = tools_for(account, request)
         goal = editable_goal(tools, goal_id)
         if goal is None:
             return Response(status_code=404)
-        form = await request.form()
         try:
             data = tools.update_goal(goal_id, **goal_fields(form)).data
         except GoalProblemsError as error:
@@ -879,8 +906,9 @@ def create_app(
         tools = tools_for(signed_in(request), request)
         try:
             data = tools.archive_goal(goal_id).data
-        except ToolError:
-            return Response(status_code=404)
+        except ToolError:  # removed already (a double click, another tab), or not this session's
+            toast(request, "That goal isn't there any more.")
+            return back_to_goals(request)
         toast(request, f"Removed {data['goal']['name']}.", data["revision_id"])
         return back_to_goals(request)
 

@@ -1,6 +1,7 @@
 """FR-10 §1-3: the goal record, validation, the store's replay and undo, isolation."""
 
 import threading
+import time
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal
@@ -122,9 +123,24 @@ def test_to_cents_is_exact(amount: object, cents: int) -> None:
     assert to_cents(amount) == cents
 
 
-@pytest.mark.parametrize("amount", [50.001, "0.005", True, None, "abc", float("nan"), "inf"])
+@pytest.mark.parametrize(
+    "amount",
+    [
+        50.001,
+        "0.005",
+        True,
+        None,
+        "abc",
+        float("nan"),
+        "inf",
+        "1e999999",  # past any limit: refused before any arithmetic (review on #42)
+        "1e-999999999",
+        "1234567890123.12345678901234567",  # 31 digits: a fraction of a cent, not rounded away
+        "1" * 33,  # longer than anyone types
+    ],
+)
 def test_to_cents_refuses_what_isnt_whole_cents(amount: object) -> None:
-    with pytest.raises(ValueError, match=r"amount|cent"):
+    with pytest.raises(ValueError, match=r"amount|cent|large"):
         to_cents(amount)
 
 
@@ -418,3 +434,57 @@ def test_one_subjects_changes_stay_on_the_user_they_were_made_for(
         store.goal(other, "s1", trip.goal_id)
     with pytest.raises(GoalError, match="no change"):
         store.undo(other, "s1", trip.revision_id)
+
+
+def test_huge_amounts_are_out_of_range_not_errors() -> None:
+    assert codes(check_draft(draft(amount="1e999999"), TODAY, []).problems) == ["amount_range"]
+    huge = check_draft(draft(amount="1234567890123456789012345678.001"), TODAY, [])
+    assert codes(huge.problems) == ["amount_range"]
+    assert codes(check_draft(draft(saved="1e400"), TODAY, []).problems) == ["saved_range"]
+
+
+def test_saved_amounts_are_capped_on_updates_too(store: GoalStore, ledger: Ledger) -> None:
+    vacation = find(store.goals(ledger, "s1"), "Vacation fund")
+    for saved in (10**18, 1_000_000.01):
+        with pytest.raises(GoalError) as error:
+            store.update(ledger, "s1", vacation.goal_id, {"saved": saved}, source="edit")
+        assert codes(error.value.problems) == ["saved_range"]
+    store.update(ledger, "s1", vacation.goal_id, {"saved": 1_000_000}, source="edit")
+
+
+def test_two_edits_at_once_both_stick(store: GoalStore, ledger: Ledger) -> None:
+    """Tab B's edit waits for the lock while tab A's rename commits; B must build on the rename,
+    not on the goal it saw before waiting (review on #42)."""
+    trip = store.create(ledger, "s1", draft(), source="edit")
+    store._write.acquire()
+    tab_b = threading.Thread(
+        target=lambda: store.update(ledger, "s1", trip.goal_id, {"saved": 500}, source="edit")
+    )
+    tab_b.start()
+    time.sleep(0.2)  # tab B is now waiting for the lock
+    with store._connect() as conn:  # tab A's rename commits meanwhile
+        renamed = replace(store.goal(ledger, "s1", trip.goal_id), name="Lisbon")
+        store._insert(conn, "s1", ledger.user_id, "update", renamed, "edit")
+    store._write.release()
+    tab_b.join()
+
+    goal = store.goal(ledger, "s1", trip.goal_id)
+    assert (goal.name, goal.saved_cents) == ("Lisbon", 500_00)
+
+
+def test_an_edit_that_keeps_the_date_isnt_held_to_todays_window(
+    store: GoalStore, ledger: Ledger
+) -> None:
+    """Mid-month, a goal due at this month's end is still active and can be renamed, though a new
+    goal couldn't pick that month (review on #42)."""
+    mid_month = replace(
+        ledger, goals=generated(("Rent", 2000.0, "2026-09-30", 500.0)), as_of=date(2026, 9, 15)
+    )
+    rent = find(store.goals(mid_month, "s1"), "Rent")
+    assert rent.status(mid_month.as_of) == "active"
+    store.update(mid_month, "s1", rent.goal_id, {"name": "Rent buffer"}, source="edit")
+    # Sep 1 is the same month-end date, so it's unchanged too; moving it earlier isn't
+    store.update(mid_month, "s1", rent.goal_id, {"target_date": "2026-09-01"}, source="edit")
+    with pytest.raises(GoalError) as error:
+        store.update(mid_month, "s1", rent.goal_id, {"target_date": "2026-08-15"}, source="edit")
+    assert codes(error.value.problems) == ["date_too_soon"]

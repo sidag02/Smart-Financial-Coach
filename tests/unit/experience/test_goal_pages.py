@@ -1,6 +1,7 @@
 """FR-10 pages: the Goals page, setup and edit with the live check, remove and undo, overview."""
 
 import re
+import time
 from collections.abc import Iterator
 
 import pytest
@@ -193,7 +194,8 @@ def test_another_session_on_the_same_account_sees_none_of_it(
         assert "<b>Trip</b>" not in other.get("/goals").text
         assert other.get(f"/goals/{gid}/edit").status_code == 404
         assert other.post(f"/goals/{gid}", data=TRIP).status_code == 404
-        assert other.post(f"/goals/{gid}/archive").status_code == 404
+        removed = other.post(f"/goals/{gid}/archive")  # a neutral toast, nothing removed
+        assert "That goal isn&#39;t there any more." in removed.text
     assert "<b>Trip</b>" in client.get("/goals").text
 
 
@@ -223,3 +225,69 @@ def test_the_overview_card_shows_the_goal_due_soonest(
     card = client.get("/").text
     assert '<div class="card-label">Trip</div>' in card  # active beats reached
     assert "$334 a month" in card
+
+
+def test_saving_an_edit_unchanged_keeps_the_amounts_exactly(client: TestClient) -> None:
+    """The edit form is filled with exact amounts, not 6 significant digits (review on #45)."""
+    page = create(client, name="House", target_amount="123,456.78", saved="12,345.67")
+    gid = goal_id(page, "House")
+    form = client.get(f"/goals/{gid}/edit").text
+    assert 'value="123456.78"' in form
+    assert 'value="12345.67"' in form
+
+    values = dict(re.findall(r'name="(\w+)"[^>]*?value="([^"]*)"', form))
+    keep = {k: values[k] for k in ("name", "target_amount", "target_month", "saved")}
+    after = client.post(f"/goals/{gid}", data=keep).text
+    assert '<span class="mid">$12,346</span> <span class="muted">of $123,457' in after
+    reopened = client.get(f"/goals/{gid}/edit").text
+    assert 'value="123456.78"' in reopened
+    assert 'value="12345.67"' in reopened
+    assert "Saved as of Sep 30, 2026" in after
+
+
+def test_amounts_must_be_plain_decimals(client: TestClient) -> None:
+    started = time.perf_counter()
+    for amount in ("1e100000000", "1e999990", "3e3", "0x10", "12.5.1"):
+        fit = client.post("/goals/check", data={**TRIP, "target_amount": amount}).text
+        assert "Enter an amount in dollars." in fit, amount
+        refused = client.post("/goals", data={**TRIP, "target_amount": amount})
+        assert refused.status_code == 200
+        assert "Enter an amount in dollars." in refused.text
+    assert time.perf_counter() - started < 5  # none of them is costly to read
+
+
+def test_the_overview_card_picks_the_active_goal_due_soonest(
+    client: TestClient, generated: list[dict[str, object]]
+) -> None:
+    for g in generated:
+        if g["status"] != "ended":
+            client.post(f"/goals/{g['goal_id']}/archive")
+    create(client, name="Later", target_month="2028-01")
+    create(client, name="Sooner", target_month="2027-02")
+    card = client.get("/").text
+    assert '<div class="card-label">Sooner</div>' in card
+    assert "Later" not in card
+
+
+def test_goal_names_are_escaped(client: TestClient) -> None:
+    page = create(client, name="<script>alert(1)</script>")
+    assert "<script>alert(1)</script>" not in page
+    assert "&lt;script&gt;alert(1)&lt;/script&gt;" in page  # the card and the toast
+    assert "<script>alert(1)</script>" not in client.get("/").text
+
+
+def test_removing_twice_says_its_gone(client: TestClient) -> None:
+    gid = goal_id(create(client), "Trip")
+    client.post(f"/goals/{gid}/archive")
+    again = client.post(f"/goals/{gid}/archive", follow_redirects=False)
+    assert again.status_code == 303
+    assert "That goal isn&#39;t there any more." in client.get("/goals").text
+
+
+def test_the_live_check_on_an_edit_leaves_the_goal_out_of_other_goals(client: TestClient) -> None:
+    gid = goal_id(create(client), "Trip")
+    fit = client.post("/goals/check", data={**TRIP, "target_amount": "3600", "goal_id": gid}).text
+    assert "$400" in fit  # $3,600 over 9 months
+    assert "You already have a goal called Trip." not in fit  # not clashing with itself
+    unknown = client.post("/goals/check", data={**TRIP, "goal_id": "gu_nobody"})
+    assert unknown.status_code == 404
