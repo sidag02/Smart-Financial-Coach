@@ -215,6 +215,7 @@ A correction means one of two things: the model was wrong, or the user sees it d
 
   New data arrives every cycle, so no test set is scored twice.
 - **Gates** (the FR-3 order): primary metric on that held-out data, scored against the non-contributors' own view (no regression on familiar strings; improvement on the strings that gained labels), above the incumbent, and calibration preserved (unfamiliar Brier no worse). Promotion is the FR-3 command with a recorded note.
+- **Which gates govern a retrained promotion** (owner, Oct 2, 2026): §5's gates above, scored against the non-contributors' own view, **decide** promotion. FR-3's and FR-4's truth-based numbers (known- and unseen-merchant macro F1 against the true category) are **reported alongside** every retrained candidate, so a shift toward an agreed preference is visible, but they don't block it. A model that correctly learns a majority preference (streaming → Entertainment at 70%) is, by construction, wrong against the truth on those strings, so truth-based gates would block exactly the outcome the loop exists to produce. FR-4's own candidates are unchanged: they are gated on the true category.
 - **After promotion:** the review policy is re-derived (§1), predictions are recomputed in the next batch, and overrides persist untouched.
 - **Rollback** is promoting the previous version, as in FR-3.
 
@@ -251,7 +252,7 @@ The loop is measured on synthetic users before any real user sees it.
 
 - **Behavior:** each month, each simulated user opens the review queue with some probability (engagement). For each item they resolve, they confirm if the suggestion matches their view and correct otherwise, slipping to a wrong category with a small probability. Some users **accept the suggestion without checking** at a set rate (automation bias), confirming wrong suggestions too. Some users also correct unflagged errors they notice, more often for large amounts. A small share of users correct at random (adversarial).
 - **Replay:** month by month over the test users' history: ingest, categorize, flag, simulate responses, update overrides, and retrain on the schedule when the agreement rule produces enough labels.
-- **A stress setting:** with five remaps at 30% and more, nearly every test user holds at least one preference (76% from the four 30% remaps alone, 1 − 0.7⁴; 96% overall, 1 − 0.7⁴ × 0.5 × 0.3). The replay's burden and corrections-needed are therefore pessimistic, and its report says so.
+- **A stress setting:** with six remaps at 30% and more, nearly every test user holds at least one preference (76% from the four 30% remaps alone, 1 − 0.7⁴; 96% overall, 1 − 0.7⁴ × 0.5 × 0.3). The replay's burden and corrections-needed are therefore pessimistic, and its report says so.
 - **Measures** (Technical Design, "What good will mean"):
 
   | Measure | Definition |
@@ -355,6 +356,7 @@ One PR per milestone.
 - [x] The data contract in §7 (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted now; the rest stays in draft until the replay (owner, Oct 2, 2026). This breaks the loop where FR-4's milestone 1 would build a schema from an unaccepted design.
 - [x] The preference profiles: four remaps at 30%, books at 50%, streaming at 70%; independent per user, test users only, their own seed; FR-4 stays on the true category (owner, Oct 2, 2026).
 - [x] A global label supersedes the original label at that string; agreement is re-evaluated as votes accumulate and labels can be revoked; the replay reports per-remap preference outcomes (owner, Oct 2, 2026).
+- [x] Retrained models are promoted on §5's gates (non-contributors' own view); FR-3's and FR-4's truth-based numbers are reported alongside, not gated. FR-4's own candidates stay gated on the true category (owner, Oct 2, 2026).
 
 **Open questions**
 
