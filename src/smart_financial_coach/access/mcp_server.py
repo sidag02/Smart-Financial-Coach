@@ -10,6 +10,7 @@ source chip (FR-16).
     app.mount("/", asgi)  # serves /mcp; run `server.session_manager.run()` in the lifespan
 """
 
+from collections.abc import Sequence
 from typing import Annotated, Any, Literal
 from urllib.parse import urlsplit
 
@@ -39,8 +40,13 @@ Day = Annotated[str, Field(description="YYYY-MM-DD, inclusive")]
 
 
 def build_mcp_server(
-    sources: DataSources, tokens: AccessTokens, *, public_url: str
+    sources: DataSources,
+    tokens: AccessTokens,
+    *,
+    public_url: str,
+    extra_hosts: Sequence[str] = (),
 ) -> tuple[MCPServer, Starlette]:
+    """`extra_hosts` adds Host headers to accept beyond the public and in-process ones (tests)."""
     server = MCPServer(
         "smart-financial-coach",
         title="Smart Financial Coach",
@@ -103,7 +109,7 @@ def build_mcp_server(
         return run("forecast_goal", goal_name=goal_name)
 
     public = urlsplit(public_url)
-    hosts = [public.netloc, INTERNAL_HOST, "127.0.0.1:*", "localhost:*", "testserver"]
+    hosts = [public.netloc, INTERNAL_HOST, "127.0.0.1:*", "localhost:*", *extra_hosts]
     origins = [f"{public.scheme}://{public.netloc}", "http://127.0.0.1:*", "http://localhost:*"]
     asgi = server.streamable_http_app(
         streamable_http_path=PATH,

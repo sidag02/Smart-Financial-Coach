@@ -9,7 +9,7 @@
 <div class="coming">
   <section class="card stack">
     <div class="card-title">Your access token</div>
-    <p class="muted" style="margin:0">It lets an assistant read your data, and only yours, until {{ expires.strftime('%b %-d, %Y') }}. Treat it like a password. Opening this page again makes a new one; earlier tokens keep working until they expire.</p>
+    <p class="muted" style="margin:0">It lets an assistant read your data, and only yours, until {{ expires.strftime('%b %-d, %Y') }}. Treat it like a password. Opening this page again makes a new one. A token can't be cancelled on its own: it keeps working until it expires, even after you sign out.</p>
     <div class="code-row"><code id="token">{{ token }}</code><button class="btn-ghost" type="button" data-copy="token">Copy</button></div>
     <div class="card-title" style="margin-top:6px">Server address</div>
     <div class="code-row"><code id="mcp-url">{{ mcp_url }}</code><button class="btn-ghost" type="button" data-copy="mcp-url">Copy</button></div>

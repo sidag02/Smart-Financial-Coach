@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import Annotated, Any
 from zoneinfo import ZoneInfo
 
+from anyio.lowlevel import EventLoopToken, current_token
 from fastapi import FastAPI, Form, Query, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -215,8 +216,11 @@ def create_app(
     tokens = AccessTokens(settings.session_secret.get_secret_value(), by_user)
     mcp_server, mcp_asgi = build_mcp_server(sources, tokens, public_url=public_url)
 
+    loop: dict[str, EventLoopToken] = {}  # the app's event loop, for the coach's MCP calls
+
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        loop["token"] = current_token()
         async with mcp_server.session_manager.run():
             yield
 
@@ -510,7 +514,7 @@ def create_app(
             else:
                 try:
                     token = tokens.issue(account.user_id, COACH_TOKEN_LIFETIME, client="coach")
-                    tools = McpTools(app, token, as_of=as_of)
+                    tools = McpTools(app, token, as_of=as_of, loop=loop["token"])
                     reply = coach.answer(tools, convo, question)
                     context["reply"] = reply
                     context["answer"] = render_answer(reply.text, reply.cited)
@@ -557,7 +561,7 @@ def create_app(
     def connect(request: Request) -> Response:
         account = signed_in(request)
         lifetime = timedelta(days=settings.mcp_token_days)
-        return page(
+        response = page(
             request,
             "connect.html",
             account,
@@ -566,6 +570,8 @@ def create_app(
             expires=(datetime.now() + lifetime).date(),
             mcp_url=f"{public_url}{MCP_PATH}",
         )
+        response.headers["Cache-Control"] = "no-store"  # the page renders a credential
+        return response
 
     app.mount("/", mcp_asgi)  # last, so the app's own routes win: it serves only /mcp
     return app

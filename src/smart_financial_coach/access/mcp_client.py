@@ -17,6 +17,7 @@ from typing import Any, TypeVar
 import anyio
 import anyio.from_thread
 import httpx2
+from anyio.lowlevel import EventLoopToken
 from mcp import Client
 from mcp.client.streamable_http import streamable_http_client
 from starlette.types import ASGIApp
@@ -34,20 +35,23 @@ T = TypeVar("T")
 TIMEOUT_SECONDS = 20.0
 
 
-def _blocking(fn: Callable[[], Coroutine[Any, Any, T]]) -> T:
-    """Run async MCP calls from the coach's synchronous code."""
-    try:  # in a request handler's worker thread: use the app's event loop
-        return anyio.from_thread.run(fn)
-    except RuntimeError:  # a script or a test with no event loop
-        return anyio.run(fn)
-
-
 class McpTools:
-    def __init__(self, app: ASGIApp, token: str, *, as_of: date) -> None:
+    def __init__(
+        self, app: ASGIApp, token: str, *, as_of: date, loop: EventLoopToken | None = None
+    ) -> None:
+        """`loop` is the app's event loop, which serves the ASGI app; None runs a private loop
+        (a script). The caller decides, so a failed call is never retried on another loop."""
         self._app = app
         self._token = token
         self.as_of = as_of
+        self._loop = loop
         self._specs: list[ToolSpec] | None = None
+
+    def _blocking(self, fn: Callable[[], Coroutine[Any, Any, T]]) -> T:
+        """Run an async MCP call from the coach's synchronous code, exactly once."""
+        if self._loop is not None:
+            return anyio.from_thread.run(fn, token=self._loop)
+        return anyio.run(fn)
 
     async def _session(self, use: Callable[[Client], Awaitable[T]]) -> T:
         http = httpx2.AsyncClient(
@@ -82,14 +86,14 @@ class McpTools:
                     for t in tools
                 ]
 
-            self._specs = _blocking(lambda: self._session(listed))
+            self._specs = self._blocking(lambda: self._session(listed))
         return self._specs
 
     def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         async def called(client: Client) -> Any:
             return await client.call_tool(name, arguments)
 
-        result = _blocking(lambda: self._session(called))
+        result = self._blocking(lambda: self._session(called))
         if result.is_error:
             text = " ".join(getattr(part, "text", "") for part in result.content)
             raise ToolError(text.removeprefix(f"Error executing tool {name}: ") or f"{name} failed")

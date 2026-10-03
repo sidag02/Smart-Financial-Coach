@@ -2,6 +2,7 @@
 numbers as the in-process tools (FR-19, key scenarios 5 and 6)."""
 
 import re
+import threading
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 from functools import partial
@@ -9,8 +10,10 @@ from typing import Any, TypeVar
 
 import anyio.to_thread
 import pytest
+from anyio.lowlevel import EventLoopToken, current_token
 from fastapi.testclient import TestClient
 from pydantic import SecretStr
+from starlette.types import ASGIApp
 
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
@@ -47,18 +50,25 @@ def client(sources: DataSources, users: list[str]) -> Iterator[TestClient]:
         yield c
 
 
-def in_app(client: TestClient, fn: Callable[[], T]) -> T:
-    """Run blocking MCP client code in a worker thread of the app's event loop, as a request
-    handler would."""
+def in_worker_thread(client: TestClient, fn: Callable[[], T]) -> T:
+    """Run blocking code in a worker thread of the app's event loop, as a request handler does."""
     assert client.portal is not None, "use the client inside its with-block"
     return client.portal.call(anyio.to_thread.run_sync, fn)
 
 
+def app_loop(client: TestClient) -> EventLoopToken:
+    assert client.portal is not None, "use the client inside its with-block"
+    return client.portal.call(current_token)
+
+
 def mcp_tools(
-    client: TestClient, user: str, lifetime: timedelta = timedelta(minutes=5)
+    client: TestClient,
+    user: str,
+    lifetime: timedelta = timedelta(minutes=5),
+    app: ASGIApp | None = None,
 ) -> McpTools:
     token = AccessTokens(SECRET, [user]).issue(user, lifetime)
-    return McpTools(client.app, token, as_of=AS_OF)
+    return McpTools(app or client.app, token, as_of=AS_OF, loop=app_loop(client))
 
 
 def test_tokens_name_a_known_user_until_they_expire(users: list[str]) -> None:
@@ -84,13 +94,33 @@ def test_the_mcp_endpoint_needs_a_valid_token(client: TestClient, users: list[st
     assert client.post("/mcp", json=request, headers=forged).status_code == 401
     expired = mcp_tools(client, users[0], lifetime=timedelta(seconds=-1))
     with pytest.raises(ToolsUnavailableError):
-        in_app(client, lambda: expired.specs)
+        in_worker_thread(client, lambda: expired.specs)
+
+
+def test_a_failed_call_from_a_request_thread_runs_once(
+    client: TestClient, users: list[str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failure is raised, not retried on another loop: a retried write would apply twice."""
+    sessions: list[int] = []
+    session = McpTools._session
+
+    async def counted(self: McpTools, use: Any) -> Any:
+        sessions.append(threading.get_ident())
+        return await session(self, use)
+
+    monkeypatch.setattr(McpTools, "_session", counted)
+    expired = mcp_tools(client, users[0], lifetime=timedelta(seconds=-1))
+
+    with pytest.raises(ToolsUnavailableError):
+        in_worker_thread(client, lambda: expired.call("list_goals", {}))
+    assert len(sessions) == 1
+    assert sessions[0] == client.portal.call(threading.get_ident)  # type: ignore[union-attr]
 
 
 def test_the_server_lists_the_tools_with_no_user_argument(
     client: TestClient, users: list[str]
 ) -> None:
-    specs = in_app(client, lambda: mcp_tools(client, users[0]).specs)
+    specs = in_worker_thread(client, lambda: mcp_tools(client, users[0]).specs)
 
     assert {s["name"] for s in specs} == {
         "get_spending_summary",
@@ -110,7 +140,7 @@ def test_mcp_returns_the_same_numbers_as_the_in_process_tools(
     for user in users:
         direct = Tools(Ledger.load(sources, user)).call("get_spending_summary", SEPTEMBER)
         call = partial(mcp_tools(client, user).call, "get_spending_summary", SEPTEMBER)
-        over_mcp = in_app(client, call)
+        over_mcp = in_worker_thread(client, call)
         assert over_mcp.data == direct.data
         assert over_mcp.source == direct.source
 
@@ -121,7 +151,9 @@ def test_the_token_not_an_argument_decides_whose_data(
     mine, theirs = (Ledger.load(sources, u).transactions for u in users)
     span = {"start_date": "2023-01-01", "end_date": "2026-09-30", "limit": 50, "user_id": users[1]}
 
-    result = in_app(client, lambda: mcp_tools(client, users[0]).call("get_transactions", span))
+    result = in_worker_thread(
+        client, lambda: mcp_tools(client, users[0]).call("get_transactions", span)
+    )
 
     ids = {t["transaction_id"] for t in result.data["transactions"]}
     assert ids
@@ -133,10 +165,16 @@ def test_tool_errors_come_back_as_tool_errors(client: TestClient, users: list[st
     tools = mcp_tools(client, users[0])
 
     with pytest.raises(ToolError, match="unknown category 'Crypto'"):
-        in_app(client, lambda: tools.call("get_transactions", {**SEPTEMBER, "category": "Crypto"}))
+        in_worker_thread(
+            client, lambda: tools.call("get_transactions", {**SEPTEMBER, "category": "Crypto"})
+        )
     with pytest.raises(ToolError, match="limit"):
-        in_app(client, lambda: tools.call("get_transactions", {**SEPTEMBER, "limit": "ten"}))
-    not_available = in_app(client, lambda: tools.call("forecast_goal", {"goal_name": "x"}))
+        in_worker_thread(
+            client, lambda: tools.call("get_transactions", {**SEPTEMBER, "limit": "ten"})
+        )
+    not_available = in_worker_thread(
+        client, lambda: tools.call("forecast_goal", {"goal_name": "x"})
+    )
     assert not_available.data["status"] == "not_available"
 
 
@@ -144,7 +182,9 @@ def test_the_connect_page_hands_out_a_working_token_for_the_signed_in_user(
     client: TestClient, users: list[str]
 ) -> None:
     client.post("/signin", data={"email": "maya@x.com", "password": "correct horse"})
-    page = client.get("/connect").text
+    reply = client.get("/connect")
+    assert reply.headers["Cache-Control"] == "no-store"  # it shows a credential
+    page = reply.text
 
     match = re.search(r'<code id="token">(sfc_[^<]+)</code>', page)
     assert match
@@ -152,8 +192,8 @@ def test_the_connect_page_hands_out_a_working_token_for_the_signed_in_user(
     assert AccessTokens(SECRET, users).user(token) == users[0]
     assert "http://127.0.0.1:8000/mcp" in page
     assert "claude mcp add --transport http" in page
-    tools = McpTools(client.app, token, as_of=AS_OF)
-    summary: Any = in_app(client, lambda: tools.call("list_goals", {}))
+    tools = McpTools(client.app, token, as_of=AS_OF, loop=app_loop(client))
+    summary: Any = in_worker_thread(client, lambda: tools.call("list_goals", {}))
     assert summary.source.title == "Savings goals"
 
 

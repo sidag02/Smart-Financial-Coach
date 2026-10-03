@@ -49,11 +49,12 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 5. **Coach name** is a setting, defaulting to "Wren"; tests don't depend on it. Check the name doesn't collide with a financial product before a public launch.
 6. **Coach LLM: Anthropic** (Technical Design open question). The key comes from the environment, never the image (NFR-3).
 7. **Web framework:** FastAPI with server-rendered templates and htmx (Delivery Plan recommendation). Charts are server-rendered SVG.
-8. **One MCP server for Wren and outside assistants** (owner, Oct 3, 2026; FR-19, key scenario 6). The tools are served over MCP (Streamable HTTP) at `/mcp`, so the same question gets the same numbers from Wren and from, say, Claude Desktop.
-   - **Identity comes only from a bearer token,** never from a tool argument. Tokens are signed with `SFC_SESSION_SECRET`, name one demo user and expire. Rotating the secret revokes them all.
+8. **One MCP server for Wren and outside assistants, over HTTP only** (owner, Oct 2, 2026; FR-19, key scenario 6). The tools are served over MCP (Streamable HTTP) at `/mcp`, so the same question gets the same numbers from Wren and from, say, Claude Desktop.
+   - **Identity comes only from a bearer token,** never from a tool argument. Tokens are signed with `SFC_SESSION_SECRET`, name one demo user and expire.
+   - **Revocation is all or nothing.** A single token can't be revoked: it works until it expires, even after sign-out or a change of the demo password. Rotating `SFC_SESSION_SECRET` revokes every token and signs everyone out. Acceptable for a short demo on synthetic data; real sign-in (v2) needs per-token revocation. The Connect page is sent with `Cache-Control: no-store`, since it shows a token.
    - **Outside assistants** use a personal access token from the "Connect an assistant" page, valid for `SFC_MCP_TOKEN_DAYS` (default 7). The page gives ready-made setup for Claude Code and Claude Desktop (through `mcp-remote`).
    - **Wren** calls the same endpoint in-process, through the full HTTP stack, with a 5-minute token for the session's user, and takes its tool list from the server.
-   - stdio isn't built: desktop assistants connect over HTTP.
+   - stdio isn't part of v1: desktop assistants connect over HTTP. It can be revisited if a concrete need comes up.
 
 ## Demo build (Oct 6, 2026)
 

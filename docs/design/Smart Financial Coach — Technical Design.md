@@ -234,5 +234,5 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 
 - [x] LLM provider: Anthropic (owner, Oct 2, 2026).
 - [x] Web framework for v1: server-rendered Python, FastAPI with templates and htmx (owner, Oct 2, 2026; Delivery Plan).
-- [x] Tool server transport for v1: MCP over Streamable HTTP, with bearer tokens carrying the user (owner, Oct 3, 2026; Web App UI, decision 8). stdio isn't built.
+- [x] Tool server transport for v1: HTTP only, MCP over Streamable HTTP with bearer tokens carrying the user (owner, Oct 2, 2026; Web App UI, decision 8). stdio isn't part of v1.
 - [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria, and whether the shipped model trains on injected label noise at all (the promoted categorizer's Travel fallback for unfamiliar merchants is its likely effect; FR-3 Categorization Model Selection). Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).

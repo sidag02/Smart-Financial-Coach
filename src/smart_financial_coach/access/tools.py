@@ -102,7 +102,7 @@ class ToolError(ValueError):
     """A tool call the caller can fix (bad dates, unknown category): reported, not raised on."""
 
 
-class ToolsUnavailableError(RuntimeError):
+class ToolsUnavailableError(Exception):
     """The tools can't be reached at all (the MCP server refused or failed): no answer possible."""
 
 
