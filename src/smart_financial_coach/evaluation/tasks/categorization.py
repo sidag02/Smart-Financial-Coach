@@ -427,7 +427,11 @@ class CategorizationTask:
         wrong = rows[rows["category"] != rows["predicted"]]
 
         def top(counts: pd.Series, total: int) -> str:
-            shares = [f"{name} {n / total:.0%}" for name, n in counts.head(2).items() if n]
+            shares = [
+                f"{name} {n / total:.0%}" if n / total >= 0.005 else f"{name} <1%"
+                for name, n in counts.head(2).items()
+                if n
+            ]
             return ", ".join(shares) or "\u2013"
 
         lines = [
