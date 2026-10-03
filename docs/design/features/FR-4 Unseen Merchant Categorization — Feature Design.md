@@ -242,62 +242,52 @@ One PR per milestone.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
 5. **Docs:** the PRD's FR-4 success metric (0.66 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
 
-## Status and handoff (Oct 3, 2026; updated after milestone 3)
+## Status and handoff (Oct 3, 2026)
 
-Written for whoever continues FR-4, human or agent. It records where the work stands, what remains with the exact commands, the owner's decisions, and how the work has been done. Read it together with §1–§5 above, which define the rules being implemented.
+Written for whoever continues FR-4, human or agent. It records where the work stands, what remains, the owner's decisions, and how the work has been done. Read it together with §1–§5 above, which define the rules implemented.
 
 ### Done
 
 | Milestone | PR | What landed |
 | --- | --- | --- |
 | Design | #17 | This design, accepted by the owner; feasibility on POC branch `poc/fr-4-unseen-merchants` (pinned `2541dc6`) |
-| 1. Dataset | #20 | Default spec: holdout share 0.4, seed 8, `test_user_bias` 0.45 (115 holdout merchants). Schema 4: `truth_preferences` and label contract 2 (`Truth.user_categories()`), from #15's accepted data contract. Regenerated default dataset: data hash **`44781bc4e4a5`**, 23.5% of test spending at holdout merchants, all checks pass |
-| 2. Framework | #21 | Shipping twins (`ship:` in configs, `run_with_twin`, tag `sfc.twin_of`); `Task.shipping_params` (categorization: `label_noise`); tie-breaks on twins with the Brier tie test against the Brier leader; the reversal stop in `finalize`; `promote` requires explicit shipping params and logs them; twin columns in the report; `class_weight` in `linear_text` |
-| 3. The round | #27 | The FR-4 gate (`UNSEEN_GATE`, unseen ≥ 0.66 and above keyword); `Task.diagnostics` (per-category unseen confusions in the report); the round's configs (`configs/experiments/categorization/fr4/`); the round's report (`docs/reports/FR-4 Categorization — Round Results.md`). **Rank 1: `21_small_unweighted`** (bge-small, no class weights), twin `21_small_unweighted.ship` at 0.712 validation unseen; no reversal. The v1 gate was set to **0.66** (owner, Oct 3, 2026) on those validation results, before any test scoring (§4) |
+| 1. Dataset | #20 | Default spec: holdout share 0.4, seed 8, `test_user_bias` 0.45 (115 holdout merchants). Schema 4: `truth_preferences` and label contract 2 (`Truth.user_categories()`), from #15's accepted data contract. Data hash `44781bc4e4a5`. The tag `data/fr3-default` reproduces FR-3's dataset |
+| 2. Framework | #21 | Shipping twins (`ship:`, `run_with_twin`, tag `sfc.twin_of`); `Task.shipping_params`; tie-breaks on twins with the Brier tie test; the reversal stop; explicit shipping params at promotion; `class_weight` |
+| 3. The round | #27 | The FR-4 gate (`UNSEEN_GATE` = 0.66, set by the owner on the round's validation results before any test scoring, §4); `Task.diagnostics`; the round's configs and report (`docs/reports/FR-4 Categorization — Round Results.md`). Rank 1: bge-small without class weights |
+| 4. Finalize and promote | #28 | `finalize` once on the fresh test set; promoted **`20eea4fb-44781bc4-c0274576`** (test: known 0.983, all test users 0.943, unseen **0.735**, 0.67–0.81), release `categorization-20eea4fb-44781bc4-c0274576` at the training commit `f53643f` (tag `runs/fr4-round`); FR-3 Categorization Model Selection updated |
 
-If #27 isn't merged when you read this, check it first: milestone 4 builds on it.
-
-**Also in place:** the git tag `data/fr3-default` (on `bfc07ac`) reproduces FR-3's dataset (data hash `2f0e60a6`). The promoted model is still FR-3's bge-base `3f0ccc82-2f0e60a6`, trained on that old dataset; it keeps serving until milestone 4 promotes a replacement.
+If #28 isn't merged when you read this, it's the open item: see "After #28 merges" below.
 
 ### Remaining
 
-**Milestone 3: done** (#27). The round's facts that milestone 4 needs:
-
-- Data hash `44781bc4e4a5`, split hash `7c63ab9af542`, one code version.
-- Every run was trained at commit `f53643f`, with a clean tree. The git tag **`runs/fr4-round`** keeps that commit on GitHub (the milestone 3 branch was rebased after the runs), so a promotion tags its release at the training code.
-- Run IDs: comparison `21_small_unweighted` `f0215572…`, its twin `6bc58706…`; `11_base_unweighted` `7d2f2cfe…`, twin `204755f9…`; `10_base_balanced` `349c4a7a…`, twin `906658b4…`; `20_small_balanced` `41e821ea…`, twin `a128c3d5…`; baselines `keyword` `6228528b…`, `lookup` `aec58497…`, `majority` `3fe785fb…`.
-- **Where the runs are:** a local MLflow store (`mlruns/` with `mlflow.db`) in the worktree that ran them, `/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3`. MLflow records absolute artifact paths, so the store can't be moved. That path is a session scratchpad, so it may not survive.
-- **If the store is gone:** check out the tag `runs/fr4-round` in a worktree, regenerate the dataset (data hash `44781bc4e4a5`), and rerun `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour). The test set is still untouched, so a rerun loses nothing but time.
-
-**Milestone 4: finalize and promote.** After milestone 3 merges, on a new branch.
-
-1. From the worktree that has the round's MLflow store (above), `uv run sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite` scores the twins of the top three, and the baselines, on the fresh test set, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
-2. If rank 1's twin passes every gate (FR-3's, and FR-4's: unseen ≥ 0.66 and above keyword): `uv run sfc-model promote --task categorization --run <rank-1 twin run ID> --note "<explainability, operations, retraining cost, known issues>"`. It publishes the model file to a GitHub Release (`gh` with write access), writes `PROMOTED`, the manifest and `promotions.jsonl` (with `"task_params": {"label_noise": 0.0}`), and the release is tagged at the training commit only if the run was trained from a clean tree. **If rank 1 fails a gate, investigate; don't promote #2 without an override reason and the owner.**
-3. `uv run sfc-model predict --task categorization --data data/synthetic/default.sqlite --out data/predictions/default.sqlite`, and record rows per second and peak memory.
-4. Update FR-3 Categorization Model Selection (what's selected now, why, what lost) and the round's report (the test table from `sfc-experiment report`).
-5. **If the promotion PR is rejected, delete its release:** `gh release delete categorization-<version> --cleanup-tag`.
+**After #28 merges: check the demo deploy.** The `Deploy demo` workflow runs on merges that touch `artifacts/**`, so #28's merge rebuilds the demo (for the Oct 6, 2026 demo) with the new categorizer.
+- Confirm the workflow run succeeded. Its smoke test checks that `/healthz` returns `"status":"ok"`, and since #26 that loads every demo account's data.
+- Sign in to the demo and check a page shows categories, and that Travel isn't over-used.
+- A local run of `sfc-web build-demo` with the new model before the merge (Oct 3) built the bundle cleanly: 3 users, 9,185 transactions, Travel 22.
 
 **Milestone 5: docs.**
-
-- **PRD:** FR-4's success metric becomes ≥ 0.66 on new merchants for v1 (set after the round, §4), with 0.80 for v1.1 through feedback (owner decisions, open question 1 below).
+- **PRD:** FR-4's success metric becomes ≥ 0.66 on new merchants for v1 (set after the round, §4), with 0.80 for v1.1 through feedback.
 - **Technical Design:** shipping twins, the FR-4 gate, and the decision-rule changes (tie-breaks on twins, the Brier tie test, the reversal stop).
-- **This section:** update it to "complete".
+- **The gate's scope:** `UNSEEN_GATE` gates FR-4's own candidates. Models retrained from feedback are promoted on FR-5/FR-6 §5's gates, with the truth-based numbers reported, not gated (owner, on #15). The gate should sit where the retraining path can use different gates. A code comment pointing to that decision is enough until FR-5/FR-6 builds the retraining path.
+- **This section:** set to complete.
 
 ### What depends on FR-4
 
-**FR-5/FR-6 (draft #15).** Its simulated replay runs on the model milestone 4 promotes, and its Feasibility section is re-measured on that model (owner decision on #15). Its data contract is already in the dataset (#20).
+**FR-5/FR-6 (draft #15).** Its simulated replay runs on the model #28 promotes, and its Feasibility section is re-measured on that model (owner decision on #15). Its data contract is already in the dataset (#20).
 
 ### Practical notes
 
-- **The POC's runs** are in a local MLflow store on the machine that ran them (`mlruns/poc-fr4.db`), not in the repo. The POC branch has the configs, scripts and results, so they can be rerun anywhere.
+- **The round's MLflow runs** are in a local store in the worktree that ran them (`/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3/mlruns`). MLflow records absolute artifact paths, so the store can't be moved, and that path is a session scratchpad. Nothing remaining needs the store; the test set has been used. To rebuild the round: check out the tag `runs/fr4-round`, regenerate the dataset (data hash `44781bc4e4a5`), and run `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour).
+- **A round needs a quiet machine.** Batch cost (`latency_batch_ms`) is measured during the run, and it now decides between runs tied on F1 and Brier (§5). Other heavy jobs on the same CPU skew it. Run a round alone, or on its own machine. In FR-4's round the gap (1.34 s against 3.73 s) was too large to flip.
 - **Embedding model files** download to `data/models/fastembed` on first use (git-ignored; about 67 MB for bge-small, 130 MB for bge-base).
-- **Another session may be working in the repository's main checkout** (the web app track). Do branch work in a separate git worktree (`git worktree add <path> -b <branch> origin/main`), and never check out, reset or stash in the main checkout.
-- **Install the git hooks** in a fresh checkout (`uv run pre-commit install`). They run ruff, mypy and the 5 MB file check; CI fails on what they'd catch.
+- **Another session may be working in the repository's main checkout** (the web app and MCP tracks). Do branch work in a separate git worktree (`git worktree add <path> -b <branch> origin/main`), and never check out, reset or stash in the main checkout.
+- **Install the git hooks** in a fresh checkout (`uv run pre-commit install`). They run ruff, mypy and the 5 MB file check.
 - **How the work has been done** (keep it):
   - one PR per milestone, from a branch on the latest `main`; `main` requires a PR, a green `check` and an up-to-date branch, so rebase onto `main` when it moves and rerun the tests;
   - before every push, check the open PR for review comments and address them first, replying on each thread;
   - rule or design changes are proposed to the owner before they're made, recorded in the design with their reason, and labelled when they come after seeing results;
-  - test sets are touched only by `finalize`.
+  - test sets are touched only by `finalize`;
+  - if a promotion PR is rejected, delete its release (`gh release delete categorization-<version> --cleanup-tag`).
 
 ## Decisions and open questions
 
