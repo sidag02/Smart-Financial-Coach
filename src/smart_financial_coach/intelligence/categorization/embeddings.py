@@ -56,17 +56,29 @@ class HashEmbedder:
         return out
 
 
+def _default_cache_dir() -> Path:
+    return get_settings().data_dir / "models" / "fastembed"
+
+
 class FastEmbedder:
     """A fastembed model, loaded on first use. The ONNX session isn't pickled with the model."""
 
     def __init__(self, name: str, cache_dir: Path | None = None) -> None:
         self.name = name
-        self.cache_dir = cache_dir or get_settings().data_dir / "models" / "fastembed"
+        self.cache_dir = cache_dir or _default_cache_dir()
         self._model: Any = None
         self.dim = 0
 
     def __getstate__(self) -> dict[str, Any]:
-        return {**self.__dict__, "_model": None}
+        # The cache folder belongs to the machine, not the model: a path pickled at training time
+        # (a laptop's absolute path) doesn't exist where the model is loaded, e.g. in CI
+        return {**self.__dict__, "_model": None, "cache_dir": None}
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        # Resolved where the model is loaded, which also fixes models pickled with a path. `verify`
+        # still checks the cached file's checksum against the manifest
+        self.__dict__.update(state)
+        self.cache_dir = _default_cache_dir()
 
     def _load(self) -> Any:
         if self._model is None:

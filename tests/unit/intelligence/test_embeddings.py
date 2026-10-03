@@ -2,10 +2,12 @@
 
 import pickle
 from collections import OrderedDict
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+from smart_financial_coach.config import Settings
 from smart_financial_coach.intelligence.categorization import embeddings
 from smart_financial_coach.intelligence.categorization.embeddings import (
     EmbeddingError,
@@ -66,6 +68,36 @@ def test_fast_embedder_pickles_without_its_session() -> None:
 
     assert restored._model is None
     assert restored.name == embedder.name
+
+
+def test_fast_embedder_uses_the_loading_machines_cache(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Trained on a laptop: the pickle must not carry its absolute cache path to CI or a server
+    embedder = FastEmbedder("BAAI/bge-small-en-v1.5", cache_dir=Path("/Volumes/laptop/data"))
+    pickled = pickle.dumps(embedder)
+    here = Settings(_env_file=None, data_dir=tmp_path)
+    monkeypatch.setattr(embeddings, "get_settings", lambda: here)
+
+    restored = pickle.loads(pickled)
+
+    assert b"/Volumes/laptop" not in pickled
+    assert restored.cache_dir == tmp_path / "models" / "fastembed"
+
+
+def test_fast_embedder_pickled_with_a_path_loads_with_this_machines(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Models promoted before the fix carry the training machine's path in their state
+    embedder = FastEmbedder("BAAI/bge-small-en-v1.5")
+    state = {**embedder.__dict__, "cache_dir": Path("/Volumes/laptop/data")}
+    here = Settings(_env_file=None, data_dir=tmp_path)
+    monkeypatch.setattr(embeddings, "get_settings", lambda: here)
+
+    restored = FastEmbedder.__new__(FastEmbedder)
+    restored.__setstate__(state)
+
+    assert restored.cache_dir == tmp_path / "models" / "fastembed"
 
 
 def test_verify_refuses_a_different_file() -> None:
