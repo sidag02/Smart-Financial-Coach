@@ -1,122 +1,124 @@
 # FR-7 Unusual Transactions — Round Results
 
-Oct 3, 2026 · @Sidd · Milestone 3 of FR-7 Unusual Transactions — Feature Design (validation only; test results are added in milestone 4)
+Oct 3, 2026 · @Sidd · Milestone 3 of FR-7 Unusual Transactions — Feature Design (validation; test results are in milestone 4)
 
 ## Summary
 
-- **The round ran as the design fixed it** (#30, §3–§6): the Technical Design's baseline and three candidates, ranked on out-of-fold recall at the common flag rate of **0.11 flags per post-warm-up user-month**, with user-bootstrap ties. Validation used train users only, with merchant profiles built from train users only. **No test user was scored.**
-- **Rank 1: `isolation_forest`, at 0.708** (0.68–0.74). It beats `rules` (0.659) and `probabilistic` (0.610), with paired intervals that exclude a tie with either: −0.069 to −0.031 and −0.125 to −0.071. The design required the forest, the weakest on explainability, to win on recall to be chosen, and it does. Its reasons are as accurate as the rules' (0.973 against 0.972).
-- **Its lead is unusual amounts.** Recall on `amount_outlier` is 0.53 against the rules' 0.32. The kinds are otherwise level: every candidate finds every duplicate, and new merchants sit at 0.72–0.73.
-- **Every candidate holds its tuned cutoff out of fold:** own-cutoff precision is 0.791–0.801 against the 0.80 tuning target. That is well clear of the 0.70 gate, which is the margin the owner chose the 0.80 target for. At its own cutoff the forest flags 0.125 charges per user-month, about 1.5 a year, with recall 0.743.
-- **The baseline finds 4.4%** of planted charges at the same flag rate, as the POC measured (4.5%).
-- **A known limit** ([below](#small-merchant-profiles)): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed (0.21 recall). The two profile-rule fixes considered didn't help on validation, so the accepted design stands.
-- **This round replaces a first one, discarded before any test scoring.** A correctness review of the evaluation code found two issues, fixed on #33 and #34:
-  - flag rates counted the 90-day warm-up, so the operating point was about 0.12, not 0.11;
-  - a duplicate in the same minute as its original was missed when its ID sorted first.
-
-  The first round's order was the same.
+- **This is the round as rerun after review,** on the same data and splits as the first round (data hash `8b9632e6c935`, split hash `8c4aef332cdb`), from commit `0c6f857` (code version `2e03360620a6`).
+  - **Six configs:** the baseline; a report-only "baseline plus the duplicate rule" (owner decision on #30, never gated); the three §3 candidates; and `isolation_forest_one_sided`, the forest with a one-sided history rank.
+  - **The one-sided forest was added after the first test scoring** (owner decision on #39, Oct 3, 2026), as a design-conformance fix found in serving review. [History](#round-history) has the first round and why it was rerun.
+- **Rank 1: `isolation_forest_one_sided`, at 0.697** (0.67–0.73) recall at **0.11 flags per post-warm-up user-month**.
+  - It is tied with the two-sided forest (0.698; paired difference −0.008 to +0.012) and ahead of `rules` (0.653) and `probabilistic` (0.607). Both of those paired intervals exclude a tie.
+  - Within the tie, reason accuracy is tied too (0.974 against 0.973). The next tie-break, own-cutoff precision shortfall, puts the one-sided forest first: 0.2081 against 0.2093.
+  - The two forests are equivalent on validation, and the rule fixed in advance picks between them.
+- **Every candidate holds its 0.80 tuning target out of fold** (own-cutoff precision 0.791–0.804), well clear of the 0.70 gate.
+- **Against the other candidates, the forests' lead differs by kind.** Against `rules`, it's unusual amounts (0.55 against 0.29). Against `probabilistic`, it's new merchants (0.74 against 0.22), since the probabilistic model is as good on amounts (0.53). Every candidate finds every duplicate.
+- **The baseline finds 4.4%** of planted charges at the common rate. The report-only baseline with the duplicate rule finds 35.6%: all duplicates and almost nothing else.
+- **No test user was scored by this milestone.** Test results, both scorings, are in milestone 4 (#39).
 
 ## Setup
 
-- **Data:** the default dataset from `main` (360 users, schema 4), data hash `8b9632e6c935`. 240 train users in 5 user-grouped folds, stratified by persona; split hash `8c4aef332cdb`. There are 1,058 planted unusual charges among train users.
-- **Candidates** (`configs/experiments/unusual_transactions/`), each wrapped in `Thresholded(precision=0.80)`:
-  - **`rules`:** duplicate, merchant z and new-merchant profile-ratio rules on one scale. `ratio_scale` and `min_amount` are searched within each fold.
-  - **`probabilistic`:** a Student-t per (user, merchant), shrunk from the profile. `prior_weight` and `min_amount` are searched within each fold.
-  - **`isolation_forest`:** one forest across users on one-sided relative features. Nothing is tuned beyond the cutoff.
-  - **`user_zscore`:** the baseline.
-- **Code:** one code version for every run, `b5c5488fc9b5` (the branch at `afeed9c`).
-- **Time:** 10.4 minutes for all four runs on a laptop CPU, 3.8 GB peak. The forest took 2.6 minutes, rules 2.2 and probabilistic 2.3, the baseline 15 s; the rest is loading the data for each run.
+- **Data:** the default dataset from `main` (360 users, schema 4). There are 240 train users in 5 user-grouped folds, stratified by persona, with 1,058 planted unusual charges. Validation profiles come from train users only, and the leak check rebuilds them from the data to confirm it.
+- **The common operating point:** in each held-out fold, a run flags its top 0.11 charges per user-month, counted after the 90-day warm-up. The warm-up is left out by date only. Duplicate originals, which the label contract ignores but a deployed cutoff can't know, stay in the budget (review on #34).
+- **Candidates** (`configs/experiments/unusual_transactions/`), each in `Thresholded(precision=0.80)`. Label-tuned parameters are searched within each fold on its training users (`fit.chosen.*` in each run gives the final model's choice):
+  - `rules`: `ratio_scale` and `min_amount` searched; the final fit chose 3.0 and $250.
+  - `probabilistic`: `prior_weight` and `min_amount` searched; the final fit chose 10.0 and $0.
+  - `isolation_forest` and `isolation_forest_one_sided`: nothing tuned beyond the cutoff.
+- **Design constants, not tuned:** the 90-minute duplicate window and the $250 point in the rules' grid mirror FR-1's planting rules (copies 1–89 minutes later; a $250 floor on new-merchant charges). They are design constants in the model code, not values learned from labels.
+- **Time:** 16.6 minutes for all six runs on a laptop CPU, at 4.0 GB peak.
+  - Forests 2.6 minutes each, `rules` and `probabilistic` 2.2–2.3, the duplicate baseline 1.3, the baseline 16 s.
+  - The rest is loading the data and the leak check for each run.
 
 ## Results
 
 Generated by `uv run sfc-experiment report --task unusual_transactions --data data/synthetic/default.sqlite` from the round's MLflow runs.
 
-- Data hash `8b9632e6c935`, split hash `8c4aef332cdb`, code versions: `b5c5488fc9b5`
+- Data hash `8b9632e6c935`, split hash `8c4aef332cdb`, code versions: `2e03360620a6`
 - Ranked by `val_recall_at_rate` (95% user-bootstrap interval); the difference column is the paired interval against the leader. *(tied)* marks runs in the leader's tie set, which are ordered by `val_reason_error`, then `val_cutoff_shortfall`, then `latency_batch_ms`, then `complexity`.
 
 | Rank | Run | `val_recall_at_rate` (95% CI) | vs leader | `val_precision_at_rate` | `val_precision` | `val_recall` | `val_flag_rate` | `val_reason_accuracy` | `val_recall_clear` | `val_recall.duplicate` | `val_recall.amount_outlier` | `val_recall.new_merchant_large` | `val_average_precision` | `latency_batch_ms` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `isolation_forest` (tied) | 0.708 (0.68–0.74) | – | 0.861 | 0.791 | 0.743 | 0.125 | 0.973 | 0.747 | 1.000 | 0.528 | 0.722 | 0.806 | 246.77 |
-| 2 | `rules` | 0.659 (0.63–0.69) | -0.069 to -0.031 | 0.801 | 0.800 | 0.673 | 0.112 | 0.972 | 0.677 | 1.000 | 0.317 | 0.734 | 0.754 | 160.66 |
-| 3 | `probabilistic` | 0.610 (0.58–0.64) | -0.125 to -0.071 | 0.741 | 0.801 | 0.577 | 0.096 | 0.989 | 0.580 | 1.000 | 0.531 | 0.221 | 0.697 | 156.45 |
+| 1 | `isolation_forest_one_sided` (tied) | 0.697 (0.67–0.73) | – | 0.862 | 0.792 | 0.755 | 0.129 | 0.974 | 0.760 | 1.000 | 0.547 | 0.739 | 0.809 | 244.95 |
+| 2 | `isolation_forest` (tied) | 0.698 (0.67–0.73) | -0.008 to +0.012 | 0.864 | 0.791 | 0.743 | 0.127 | 0.973 | 0.747 | 1.000 | 0.528 | 0.722 | 0.806 | 242.68 |
+| 3 | `rules` | 0.653 (0.62–0.68) | -0.064 to -0.024 | 0.808 | 0.804 | 0.670 | 0.113 | 0.972 | 0.674 | 1.000 | 0.290 | 0.754 | 0.759 | 158.20 |
+| 4 | `probabilistic` | 0.607 (0.58–0.64) | -0.117 to -0.061 | 0.752 | 0.801 | 0.577 | 0.098 | 0.989 | 0.580 | 1.000 | 0.531 | 0.221 | 0.697 | 157.04 |
 
 **Baselines** (the floor, not candidates):
 
 | Run | `val_recall_at_rate` | `val_precision_at_rate` | `val_precision` | `val_recall` | `val_flag_rate` | `val_reason_accuracy` | `val_recall_clear` | `val_recall.duplicate` | `val_recall.amount_outlier` | `val_recall.new_merchant_large` | `val_average_precision` | `latency_batch_ms` |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `user_zscore` | 0.044 | 0.054 | 0.786 | 0.010 | 0.002 | 0.000 | 0.010 | 0.000 | 0.000 | 0.031 | 0.040 | 14.04 |
+| `user_zscore` | 0.044 | 0.054 | 0.786 | 0.010 | 0.002 | 0.000 | 0.010 | 0.000 | 0.000 | 0.031 | 0.040 | 14.60 |
+| `user_zscore_duplicate` | 0.356 | 0.441 | 0.791 | 0.348 | 0.061 | 0.913 | 0.350 | 1.000 | 0.000 | 0.091 | 0.374 | 164.95 |
 
-**Where rank 1's validation errors go** (`isolation_forest`, at its own cutoff; diagnosis, not a gate):
+**Where rank 1's validation errors go** (`isolation_forest_one_sided`, at its own cutoff; diagnosis, not a gate):
 
 | Most frequent false-positive merchants | Flags |
 | --- | --- |
-| overdraft item fee | 26 |
-| monthly service fee | 20 |
+| monthly service fee | 18 |
+| overdraft item fee | 13 |
+| kaiser permanente | 8 |
 | amzn mktp us | 8 |
-| kaiser permanente | 7 |
-| ebay | 5 |
-| clearview optometry | 5 |
-| united airlines | 5 |
-| amazon | 5 |
+| amazon | 7 |
+| ebay | 7 |
+| stubhub | 6 |
+| parkmobile | 4 |
 
-| Recall by kind and merchant-profile size | none | 1-5 users | 6+ users |
+| Recall by kind and merchant-profile size | none (under 3 users) | 3-5 users | 6+ users |
 | --- | --- | --- | --- |
-| duplicate | 1.00 of 2 | 1.00 of 38 | 1.00 of 296 |
-| amount_outlier | 0.17 of 6 | 0.53 of 43 | 0.53 of 320 |
-| new_merchant_large | 0.00 of 14 | 0.21 of 42 | 0.83 of 297 |
+| duplicate | 1.00 of 11 | 1.00 of 29 | 1.00 of 296 |
+| amount_outlier | 0.30 of 20 | 0.69 of 29 | 0.55 of 320 |
+| new_merchant_large | 0.00 of 37 | 0.47 of 19 | 0.85 of 297 |
 
 | Recall by kind and the user's history length | < 30 earlier | 30-199 | 200+ |
 | --- | --- | --- | --- |
 | duplicate | - | 1.00 of 7 | 1.00 of 329 |
-| amount_outlier | - | 0.80 of 15 | 0.52 of 354 |
-| new_merchant_large | - | 1.00 of 7 | 0.72 of 346 |
+| amount_outlier | - | 0.80 of 15 | 0.54 of 354 |
+| new_merchant_large | - | 1.00 of 7 | 0.73 of 346 |
 
-
-Counts at each run's own cutoff (out of fold): `isolation_forest` 786 true and 208 false positives, 272 missed; `rules` 712, 178 and 346; `probabilistic` 610, 152 and 448; `user_zscore` 11, 3 and 1,047.
 
 ## What the round shows
 
-- **The forest's advantage is amounts at merchants with a spread.** The rules' merchant z needs a fixed scale against the profile ratio, chosen per fold. The forest learns, from every user, how unusual a combination of z, profile ratio and rank is, which lets it go deeper into amount outliers at the same flag budget.
-- **The probabilistic model is strongest on amounts and weakest on new merchants** (0.53 and 0.22). It judges a first visit against the profile's spread, which for most merchants is wide enough that a 6–15× charge isn't surprising. The rules and the forest judge the profile ratio directly.
-- **False positives** are mostly bank fees (overdraft and monthly service fees, 46 of the forest's 208), marketplaces (Amazon, eBay) and medical, optical and travel charges. These are the hard negatives #30 expected. Fees stay as measured for v1 (owner decision on #30), and a fees insight is a v1.1-or-later idea.
-- **Duplicates** are all found by every candidate (336 of 336), with the same-minute fix.
+- **The forests' advantage is unusual amounts at merchants with a spread,** against the rules. The rules' merchant z needs a fixed scale against the profile ratio, chosen per fold. The forest learns from every user how unusual a combination is, which takes it deeper into amount outliers at the same budget.
+- **Reasons come from the kind of row, not from the model** (a departure from §3, raised on #37). Every candidate names its reason by row type:
+  - a repeat is a duplicate;
+  - a first visit is a new merchant;
+  - anything else is an unusual amount.
+
+  So reason accuracy, 0.97 for all three, is about the same for any candidate that flags the same rows. **It isn't evidence that the forest explains itself as well as the rules.** §3's explainability argument changes accordingly: none of the candidates attributes a flag to a feature. The design's Implementation notes record this.
+- **The forest's features differ from §3's list.** There's no amount-ratio feature at the merchant (the merchant z carries it), and a 0/1 repeat flag replaces minutes since the repeat. Recorded with the departure above.
+- **False positives** are mostly bank fees (31 of the one-sided forest's 210), marketplaces (Amazon, eBay), medical, and event tickets. These are the hard negatives #30 expected, and fees stay as measured for v1 (owner decision on #30).
 
 ## Small merchant profiles
 
-**A design question, not changed here.** New-merchant recall by the number of other users with a profile at the merchant:
+New-merchant recall by the number of *other* users with charges at the merchant (rank 1):
 
-| Profile | Planted new-merchant charges | Rank 1's recall |
+| Profile | Planted new-merchant charges | Recall |
 | --- | --- | --- |
-| None (fewer than 3 other users) | 14 | 0.00 |
-| 3–5 users | 42 | 0.21 |
-| 6+ users | 297 | 0.83 |
+| None (fewer than 3 users) | 37 | 0.00 |
+| 3–5 users | 19 | 0.47 |
+| 6+ users | 297 | 0.85 |
 
-- **Likely cause** (raised in #33's review): planted new-merchant charges land at merchants the user hasn't visited, which are often rarely visited ones. Their profile is the median of a few users' medians, and some of those users' only charge there is itself a planted 6–15× charge. The typical price is inflated, so the next planted charge looks ordinary.
-- **Serving can't exclude planted charges,** and real data has the same effect: a rare merchant's few charges include its unusual ones.
-- **Options for the owner:**
-  - require 2+ charges per user for the typical price, as the spread already does;
-  - raise `min_users` for new-merchant judgments;
-  - accept it for v1 and report it.
+- **Without a profile,** a new-merchant charge can't be judged against what the merchant usually costs, so it's missed. With 3–5 users, about half are found.
+- **Two profile-rule options were measured on validation before any test scoring** (first round, rank 1, the same splits). Neither helped, so the accepted design stands. A category-level price prior for thin profiles is the v1.1 idea.
 
-  Any of these is a rule change made after seeing validation results, and should be labelled as one.
+  | Rank 1 (first round), validation | Recall at 0.11/user-month | New-merchant recall | Amount recall | Own-cutoff precision |
+  | --- | --- | --- | --- | --- |
+  | As accepted (#30) | 0.708 | 0.722 | 0.528 | 0.791 |
+  | A: typical price only from users with 2+ charges | 0.715 | 0.700 | 0.556 | 0.804 |
+  | B: profiles need 6+ other users | 0.698 | 0.714 | 0.512 | 0.801 |
 
-**Measured before any test scoring** (rank 1 on the same splits, validation only, in a scratch store off the leaderboard):
+- **To reproduce:** the variant scripts are on the POC branch, `experiments/fr7_unusual/round_options/` at `dcfb8f5`. They run against the first round's commit, `afeed9c`.
 
-| Rank 1, validation | Recall at 0.11/user-month | New-merchant recall | Amount recall | Own-cutoff precision |
-| --- | --- | --- | --- | --- |
-| As accepted (#30) | 0.708 | 0.722 | 0.528 | 0.791 |
-| A: typical price only from users with 2+ charges | 0.715 | 0.700 | 0.556 | 0.804 |
-| B: profiles need 6+ other users | 0.698 | 0.714 | 0.512 | 0.801 |
+## Round history
 
-- **Neither option helps.** Both move overall recall by about ±0.01, inside the noise, and neither lifts new-merchant recall.
-- **So inflated small profiles aren't the main cause:** a rare merchant's few users don't pin its price down.
-- **No rule change; the accepted design stands.** A category-level price prior for thin profiles is the follow-up to try in a later round (v1.1).
+1. **First attempt** (Oct 3, discarded before any test scoring). A pre-round correctness review found two issues, and the round was rerun:
+   - flag rates counted each user's warm-up, so 0.11 was really about 0.12 (#34);
+   - same-minute duplicates were missed when the copy's ID sorted first (#33).
+2. **First round** (commit `afeed9c`, code `b5c5488fc9b5`). `isolation_forest` ranked first at 0.708. Test users were **scored once** by `finalize`, and the forest was promoted (`fb6dab21-8b9632e6-b5c5488f`).
+3. **Found in serving review:** 57 of its 1,597 flags called a cheap first visit "a large new-merchant charge". The history rank was two-sided, contrary to §3. The owner chose to fix it now (option (b) on #39).
+4. **This round** (commit `0c6f857`). It adds the one-sided forest and the report-only baseline, plus three review fixes:
+   - the budget leaves out the warm-up only (#34);
+   - the leak check works from the data (#34);
+   - search choices are recorded (#37).
 
-## Next (milestone 4)
-
-`finalize` scores the top three and the baseline on test users, once. Rank 1 is promoted if it passes the gates:
-1. test precision ≥ 0.70;
-2. test recall above the baseline's at the common rate;
-3. every flag has a reason.
-
-The nightly flag job, `detect_anomalies`, "Worth a look" and the demo bundle then serve its flags.
+   All six configs ran on the same splits. **Test users were scored a second time** by `finalize --override`, with the reason recorded on every run it scored (milestone 4, #39). The superseded promotion was never merged; its release is deleted.
