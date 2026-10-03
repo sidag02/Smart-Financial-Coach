@@ -121,6 +121,8 @@ class UnusualTransactionsTask:
         "test_recall_clear",
     )
     required_baselines: tuple[str, ...] = (BASELINE,)
+    bootstrap_unit = "user"  # the report's wording: intervals resample users
+    diagnostics_scope = "at its own cutoff"
 
     def __init__(self, reps: int = BOOTSTRAP_REPS) -> None:
         self.reps = reps
