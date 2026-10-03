@@ -385,7 +385,7 @@ Written for the session that continues FR-5 and FR-6, human or agent. Read it fi
 
 1. **`familiar` in the categorizer's output.** `Calibrated` already gets it from `base.scores`. Add it to the contract's output columns, the predictions file and the demo bundle. No retraining: the promoted model's pickle already holds its vocabulary.
 2. **The review policy for the promoted model.** Since `20eea4fb` is already promoted, derive its per-group thresholds from its twin's validation predictions with the owner's rule (decision 2). Store them next to the manifest, e.g. `artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding them to the manifest would change its checksum fields. Future promotions derive the policy at `promote`.
-   - The twin's predictions are in the FR-4 round's MLflow store at `/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3/mlruns` (run `6bc58706…`), a session scratchpad that may be gone.
+   - The twin's predictions (run `6bc58706…`) were in the FR-4 round's MLflow store, a temporary, session-local store on the machine that ran the round: treat it as gone.
    - If it is, rerun the twin: `configs/experiments/categorization/fr4/21_small_unweighted.yaml` runs the comparison run and its twin (about 9 minutes). The twin's pooled predictions are what you need. Don't `finalize` it.
 3. **`needs_review` and `review_reason`** computed in the batch (`batch.py`), written to predictions and the demo bundle.
 4. **Overrides and effective categories:**
