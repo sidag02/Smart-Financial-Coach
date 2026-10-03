@@ -86,6 +86,7 @@ class UnusualTransactionsTask:
         "latency_batch_ms",
     )
     shipping_params: tuple[str, ...] = ()  # scorers don't train on labels: no shipping twins
+    serving_files_required: tuple[str, ...] = ()  # no review policy or other serving files
     report_metrics: tuple[str, ...] = (
         "val_precision_at_rate",
         "val_precision",
@@ -439,6 +440,15 @@ class UnusualTransactionsTask:
             ),
             Gate("every_flag_has_a_reason", unexplained == 0, f"{unexplained:.0f} without one"),
         ]
+
+    def serving_files(
+        self,
+        examples: Examples,
+        pooled: pd.DataFrame,
+        model_version: str,
+        source: Mapping[str, str],
+    ) -> dict[str, str]:
+        return {}  # the cutoff travels inside the model (`Thresholded`); nothing else to serve
 
     def reproduction_configs(self) -> set[str]:
         return set()  # no published POC configurations to reproduce through the runner
