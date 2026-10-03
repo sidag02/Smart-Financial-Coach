@@ -209,3 +209,33 @@ def test_short_histories_ignore_the_category() -> None:
     assert "one of your first charges" in reason(
         "new_merchant", evidence | {"category_largest_since": None}
     )
+
+
+CHEAP = {**NEW, "amount": 9.56, "rank_in_history": 0.28, "largest_since": "2026-09-01 12:00"}
+
+
+def test_a_cheap_first_visit_above_the_merchants_price_names_no_number() -> None:
+    text = reason("new_merchant", {**CHEAP, "above_merchant_usual": True})
+
+    assert text == "First charge here, and more than this merchant usually charges."
+    assert not any(ch.isdigit() for ch in text)
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        {**CHEAP, "above_merchant_usual": False},
+        {**CHEAP, "above_merchant_usual": None},
+        CHEAP,  # flags written before the key existed
+        {**CHEAP, "rank_in_history": 0.6, "above_merchant_usual": True},  # not below the median
+    ],
+)
+def test_other_new_merchant_charges_keep_their_wording(evidence: dict[str, Any]) -> None:
+    assert "more than this merchant usually charges" not in reason("new_merchant", evidence)
+
+
+def test_above_merchant_usual_must_be_a_yes_or_no() -> None:
+    from smart_financial_coach.intelligence.anomaly.contract import evidence_errors
+
+    assert evidence_errors("new_merchant", json.dumps({**CHEAP, "above_merchant_usual": 3.1}))
+    assert not evidence_errors("new_merchant", json.dumps({**CHEAP, "above_merchant_usual": True}))

@@ -25,6 +25,7 @@ KIND_LABELS = {
 # says little, so a new-merchant reason says the history is short instead (FR-7 §8).
 SHORT_HISTORY = 30
 LARGEST = 0.99  # rank in history from which a charge reads as "your largest since …"
+BELOW_USUAL = 0.5  # below the user's median charge, "larger than N% of your charges" misleads
 # Per-category wording (FR-7 §7) when the serving side adds the charge's predicted `category`,
 # its `date` and `category_largest_since` (the latest earlier charge in that category at least as
 # large; None: the largest yet) to the evidence. Used when it says more than a recent date would.
@@ -70,6 +71,10 @@ def reason(reason_code: str, evidence: Mapping[str, Any] | str) -> str:
         )
     if e["prior_charges"] < SHORT_HISTORY or e["rank_in_history"] is None:
         return "First charge here, and one of your first charges, so there's little to compare."
+    if e["rank_in_history"] < BELOW_USUAL and e.get("above_merchant_usual") is True:
+        # Smaller than most of the user's charges, but above what the merchant usually
+        # charges: flagged on the merchant's price, said without a number (NFR-2; owner, #40)
+        return "First charge here, and more than this merchant usually charges."
     if (category := e.get("category")) and "category_largest_since" in e and e.get("date"):
         since = e["category_largest_since"]
         if since is None:
