@@ -252,6 +252,24 @@ def span_label(start: date, end: date) -> str:
     return f"{start:%b} {start.day}, {start.year} {DASH} {end:%b} {end.day}, {end.year}"
 
 
+def _one_per_pair(flags: pd.DataFrame) -> pd.DataFrame:
+    """Flags with each same-minute duplicate pair shown once (FR-7 §8, review on #33).
+
+    Two identical charges in one minute are each other's repeat, since their order is unknowable,
+    so both can be flagged. The user sees one "Possible duplicate", on the charge with the later
+    ID; the stored flags keep both."""
+    duplicates = flags[flags["reason_code"] == "duplicate"]
+    evidence = duplicates["evidence"].map(json.loads)
+    original = evidence.map(lambda e: e["original_transaction_id"])
+    same_minute = evidence.map(lambda e: e["minutes_apart"] == 0)
+    flagged = set(duplicates["transaction_id"])
+    hidden = duplicates.loc[
+        same_minute & original.isin(flagged) & (duplicates["transaction_id"] < original),
+        "transaction_id",
+    ]
+    return flags[~flags["transaction_id"].isin(set(hidden))]
+
+
 class ToolGateway(Protocol):
     """What the coach needs from its tools: `Tools` in-process, or `McpTools` over MCP."""
 
@@ -689,7 +707,9 @@ class Tools:
                 "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
             )
         rows = self.ledger.between(start, end)
-        rows = rows.merge(flags[["transaction_id", "reason_code", "evidence"]], on="transaction_id")
+        rows = rows.merge(
+            _one_per_pair(flags)[["transaction_id", "reason_code", "evidence"]], on="transaction_id"
+        )
         rows = rows.assign(evidence=[self._with_category(r) for r in rows.to_dict("records")])
         data = {
             "currency": CURRENCY,

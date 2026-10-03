@@ -1,5 +1,6 @@
 """The ledger and tools read one user's data only, and their numbers add up."""
 
+import json
 from datetime import date
 
 import pytest
@@ -188,3 +189,30 @@ def test_new_merchant_reasons_name_the_category_from_the_users_ledger(
             assert f["evidence"]["date"] == f["date"]
             since = f["evidence"]["category_largest_since"]
             assert since is None or since < f["date"]
+
+
+def test_a_same_minute_duplicate_pair_is_shown_once(
+    sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    from dataclasses import replace
+
+    import pandas as pd
+
+    ledger = Ledger.load(sources, two_users[0])
+    a, b, c = sorted(ledger.transactions["transaction_id"].head(3))
+    evidence = {"minutes_apart": 0.0, "amount": 5.0}
+    flags = pd.DataFrame(
+        {
+            "transaction_id": [a, b, c],
+            "reason_code": "duplicate",
+            "evidence": [
+                json.dumps({**evidence, "original_transaction_id": b}),
+                json.dumps({**evidence, "original_transaction_id": a}),
+                json.dumps({**evidence, "minutes_apart": 6.0, "original_transaction_id": a}),
+            ],
+        }
+    )
+    tools = Tools(replace(ledger, flags=flags))
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+
+    assert {f["transaction_id"] for f in found["unusual_transactions"]} == {b, c}
