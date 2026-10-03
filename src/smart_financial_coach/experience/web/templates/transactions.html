@@ -1,5 +1,21 @@
 {% extends "base.html" %}
 {% from "_macros.html" import month_picker, cat_chip %}
+
+{% macro edit_category(t, unsure, why) -%}
+<details class="edit-cat">
+  <summary title="{% if unsure %}{{ why }} · confidence {{ (t.confidence * 100) | round | int }}% · {% endif %}Change category">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure">Not sure?</span>{% elif t.category_source == "you" %}<span class="yours">Yours</span>{% endif %}</summary>
+  <form method="post" action="/transactions/{{ t.transaction_id }}/category" class="edit-form">
+    <input type="hidden" name="back" value="{{ back }}">
+    <select name="category" aria-label="Category for {{ t.merchant }}">
+      {% for c in categories %}<option{% if c == t.category %} selected{% endif %}>{{ c }}</option>{% endfor %}
+    </select>
+    <label><input type="radio" name="scope" value="merchant" checked> Every {{ t.merchant }} transaction</label>
+    <label><input type="radio" name="scope" value="transaction"> Just this one</label>
+    <button class="btn-ghost small" type="submit">Save</button>
+  </form>
+</details>
+{%- endmacro %}
+
 {% block title %}Transactions · Smart Financial Coach{% endblock %}
 {% block main %}
 <div class="page-head">
@@ -23,6 +39,9 @@
   {% endfor %}
 </form>
 
+{% if flash %}<div class="flash" role="status">{{ flash }}</div>{% endif %}
+
+<div class="txn-layout">
 <section class="card" style="padding:6px 8px">
   {% if rows %}
   <table class="txns">
@@ -36,9 +55,9 @@
         <td>
           <div class="merchant">{{ t.merchant }}</div>
           <div class="raw">{{ t.merchant_raw }}</div>
-          <div class="m-only">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure">Not sure?</span>{% endif %}</div>
+          <div class="m-only">{{ edit_category(t, unsure, why) }}</div>
         </td>
-        <td class="cat">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure" title="{{ why }} · confidence {{ (t.confidence * 100) | round | int }}%">Not sure?</span>{% endif %}</td>
+        <td class="cat">{{ edit_category(t, unsure, why) }}</td>
         <td class="amount num{% if t.amount > 0 %} in{% endif %}">{{ t.amount | money(cents=True, sign=True) }}</td>
       </tr>
     {% endfor %}
@@ -48,5 +67,72 @@
   <div class="empty">No transactions match.</div>
   {% endif %}
 </section>
-<p class="disclaimer">"Not sure?" marks categories the model is unsure about: below {{ (review_below.unfamiliar * 100) | round | int }}% confidence for a merchant it hasn't seen before, below {{ (review_below.familiar * 100) | round | int }}% for one it has. Reviewing and correcting them is coming next.</p>
+
+<aside class="review-panel">
+  <section class="card review-card" aria-labelledby="review-title">
+    <div>
+      <h2 class="card-title" id="review-title">Help us get these right</h2>
+      {% if queue.open_items %}
+      <p class="review-intro">We weren't confident about {{ queue.open_items }} merchant{{ "s" if queue.open_items != 1 }} ({{ queue.unreviewed_spend | money }} of spending). One answer covers every transaction there.</p>
+      {% else %}
+      <p class="review-intro">Nothing to check: every category the model was unsure about is settled.</p>
+      {% endif %}
+    </div>
+    {% for item in queue["items"] %}
+    <div class="review-item">
+      <div class="review-head"><span>{{ item.merchant }}</span><span class="num">{{ item.unreviewed_spend | money }}</span></div>
+      <div class="raw">{{ item.sample_description }}</div>
+      <div class="review-meta">{{ "New merchant" if item.reason == "new_merchant" else "Not sure" }} · {{ item.transaction_count }} transaction{{ "s" if item.transaction_count != 1 }}</div>
+      <div class="review-picks">
+        <form method="post" action="/review/{{ item.item_id }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          <button class="pick yes" name="action" value="confirm" title="Keep {{ item.suggested_category }}">✓ {{ item.suggested_category }}</button>
+        </form>
+        {% for c in picks[item.item_id] %}
+        <form method="post" action="/review/{{ item.item_id }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          <input type="hidden" name="category" value="{{ c }}">
+          <button class="pick" name="action" value="correct">{{ c }}</button>
+        </form>
+        {% endfor %}
+      </div>
+      <details class="other">
+        <summary>Something else</summary>
+        <form method="post" action="/review/{{ item.item_id }}">
+          <input type="hidden" name="back" value="{{ back }}">
+          <input type="hidden" name="action" value="correct">
+          <label class="visually-hidden" for="other-{{ item.item_id }}">Category for {{ item.merchant }}</label>
+          <select id="other-{{ item.item_id }}" name="category">
+            {% for c in categories if c != item.suggested_category %}<option>{{ c }}</option>{% endfor %}
+          </select>
+          <button class="btn-ghost small" type="submit">Save</button>
+        </form>
+      </details>
+    </div>
+    {% endfor %}
+  </section>
+
+  {% if changes %}
+  <section class="card review-card" aria-labelledby="changes-title">
+    <h2 class="card-title" id="changes-title">Your recent changes</h2>
+    {% for c in changes %}
+    <div class="change{% if not c.undoable %} undone{% endif %}">
+      <div>
+        <div class="change-what">{{ c.merchant }} → {{ c.to_category }}</div>
+        <div class="review-meta">{{ "Confirmed" if c.action == "confirm" else "Corrected" }}{{ ", just one transaction" if c.scope == "transaction" }}{{ " · undone" if not c.undoable }}</div>
+      </div>
+      {% if c.undoable %}
+      <form method="post" action="/corrections/{{ c.correction_id }}/undo">
+        <input type="hidden" name="back" value="{{ back }}">
+        <button class="link-btn" type="submit">Undo</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  <p class="disclaimer">Changing a category updates your totals and anything {{ coach_name }} tells you, right away. Your changes are yours alone: they stay with this browser session.</p>
+</aside>
+</div>
+<p class="disclaimer">"Not sure?" marks categories the model is unsure about: below {{ (review_below.unfamiliar * 100) | round | int }}% confidence for a merchant it hasn't seen before, below {{ (review_below.familiar * 100) | round | int }}% for one it has. Click any category to change it.</p>
 {% endblock %}

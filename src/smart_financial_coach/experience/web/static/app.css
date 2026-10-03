@@ -270,3 +270,34 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   .composer { bottom: 58px; }
   .q { max-width: 90%; }
 }
+
+/* Review and corrections (FR-5, FR-6; mockup 1e) */
+.txn-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+.txn-layout > * { min-width: 0; }
+.review-panel { display: flex; flex-direction: column; gap: 12px; position: sticky; top: 16px; }
+.review-card { display: flex; flex-direction: column; gap: 12px; padding: 18px; }
+.review-card .card-title { margin: 0; }
+.review-intro { font-size: 13px; color: var(--muted); margin: 3px 0 0; line-height: 1.4; }
+.review-item { background: var(--bg); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 6px; }
+.review-head { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; font-weight: 600; }
+.review-meta { font-size: 12px; color: var(--muted); }
+.review-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.review-picks form { display: contents; }
+.pick { background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 99px; padding: 5px 10px; font-size: 12.5px; cursor: pointer; }
+.pick:hover { background: var(--hover); }
+.pick.yes { background: var(--ink-btn); color: var(--ink-btn-text); border-color: var(--ink-btn); font-weight: 600; }
+details.other summary { font-size: 12.5px; color: var(--accent-strong); font-weight: 600; cursor: pointer; }
+details.other form, .edit-form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 6px; font-size: 12.5px; }
+.btn-ghost.small { padding: 5px 10px; font-size: 12.5px; border-radius: 10px; }
+.change { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.change-what { font-size: 13.5px; font-weight: 600; }
+.change.undone .change-what { color: var(--muted); text-decoration: line-through; }
+details.edit-cat > summary { list-style: none; cursor: pointer; display: inline-flex; align-items: center; }
+details.edit-cat > summary::-webkit-details-marker { display: none; }
+details.edit-cat[open] .edit-form { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 8px; flex-direction: column; align-items: flex-start; }
+.yours { font-size: 11.5px; font-weight: 700; color: var(--good); margin-left: 6px; }
+.flash { background: var(--good-soft); color: var(--good); border-radius: 12px; padding: 10px 14px; font-weight: 600; font-size: 14px; }
+@media (max-width: 1080px) {
+  .txn-layout { grid-template-columns: minmax(0, 1fr); }
+  .review-panel { position: static; order: -1; }
+}

@@ -13,7 +13,7 @@ from smart_financial_coach.access.feedback import (
     effective_categories,
 )
 from smart_financial_coach.access.ledger import DataSources, Ledger
-from smart_financial_coach.access.review_items import open_review_items
+from smart_financial_coach.access.review_items import alternatives, open_review_items
 
 
 @pytest.fixture
@@ -230,3 +230,19 @@ def test_every_transaction_means_every_one_including_a_row_set_on_its_own() -> N
 
     assert later_merchant["category"].tolist()[:2] == ["Dining", "Dining"]
     assert later_row["category"].tolist()[:2] == ["Travel", "Dining"]
+
+
+def test_quick_picks_come_from_the_merchant_then_the_users_frequent_categories() -> None:
+    t = pd.DataFrame(
+        {
+            "merchant_key": ["club", "club", "club", "cafe", "cafe", "cafe", "rent", "pay"],
+            "model_category": [
+                "Groceries", "Groceries", "Shopping", "Dining", "Dining", "Dining", "Housing",
+                "Income",
+            ],
+        }
+    )  # fmt: skip
+
+    assert alternatives(t, "club", "Groceries", 2) == ["Shopping", "Dining"]
+    assert alternatives(t, "cafe", "Dining", 2) == ["Groceries", "Shopping"]  # by count, not spend
+    assert "Income" not in alternatives(t, "pay", "Housing", 5)

@@ -109,11 +109,14 @@ def comparison_report(
             )
 
     first_run = next(iter(runs.values()))
+    # The task's wording: categorization resamples merchants and diagnoses unseen-merchant rows
+    unit = getattr(task, "bootstrap_unit", "merchant")
+    scope = getattr(task, "diagnostics_scope", "unseen-merchant rows")
     lines = [
         f"- Data hash `{first_run.tags['sfc.data_hash'][:12]}`, split hash "
         f"`{first_run.tags['sfc.split_hash'][:12]}`, code versions: "
         + ", ".join(f"`{v[:12]}`" for v in sorted(code_versions(list(runs.values())))),
-        f"- Ranked by `{selection}` (95% merchant-bootstrap interval); the difference column is "
+        f"- Ranked by `{selection}` (95% {unit}-bootstrap interval); the difference column is "
         "the paired interval against the leader. *(tied)* marks runs in the leader's tie set, "
         "which are ordered by "
         + ", then ".join(f"`{k}`" for k in (*task.tiebreak_metrics, "complexity"))
@@ -165,7 +168,7 @@ def comparison_report(
     if diagnostics and diagnosed:
         lines += [
             "",
-            f"**Where rank 1's validation errors go** ({diagnosed[1]}, unseen-merchant rows; "
+            f"**Where rank 1's validation errors go** ({diagnosed[1]}, {scope}; "
             "diagnosis, not a gate):",
             "",
             *diagnostics,
@@ -181,7 +184,7 @@ def comparison_report(
         lines += [
             "",
             "**Finalists and baselines on the test sets** (scored once, by `finalize`; "
-            "intervals are 95% merchant-bootstrap):",
+            f"intervals are 95% {unit}-bootstrap):",
             "",
             "| Rank | Run | " + " | ".join(f"`{k}`" for k in tests) + " |",
             "| --- | --- | " + " | ".join("---" for _ in tests) + " |",
