@@ -189,7 +189,9 @@ The same function serves `check_goal`, the write tools and the form, so a messag
 | `name_missing`, `name_too_long` | 1–40 characters | "Give the goal a name." |
 | `name_in_use` | Unique among running goals (active or reached), ignoring case; checked on undo too | "You already have a goal called Vacation fund." |
 | `amount_range` | $50 to $1,000,000 | "Goals start at $50." |
+| `amount_invalid` | The amount (or saved amount) is a number | "Enter an amount in dollars." |
 | `amount_cents` | Whole cents only, for the target and the saved amount. Parsed through `Decimal(str(x))`, never `x * 100`, which turns 19.99 into 1998.999… | "Use dollars and cents." |
+| `date_invalid` | The date reads as `YYYY-MM-DD` (the Goals page's month picker shows "Pick a month.") | "Use a date like 2027-06-30." |
 | `date_too_soon` | The month after today's or later | "Pick October 2026 or later." |
 | `date_too_far` | At most 120 months after today's | "Pick a date within 10 years." |
 | `saved_range` | Never negative. When creating, below the target. When updating, the target or more is allowed and makes the goal `reached` | "That's already the whole amount." |
@@ -289,10 +291,20 @@ The limits are product choices, not model needs (decision 4).
 
 One PR each, small, since the demo deploys on every merge.
 
-1. **Store and validation:** `access/goals.py` (events, replay, undo, effective goals), the validation table, month counting, `SFC_GOALS_DB`; unit and isolation tests.
-2. **Tools:** extended `list_goals`, `check_goal`, the write tools, `undo_goal_change`, `forecast_goal` by `goal_id`; MCP registration with hints; coach prompt rules; contract tests. Builds on #36's session subject in tokens.
-3. **Web:** the Goals page, the setup and edit form with the live check, archive and undo, the overview card; the Dockerfile's `SFC_GOALS_DB`; a click-through on the deployed demo.
-4. **Docs:** the Technical Design's Goal schema and tools table; the Web App UI's gap 4 (closed except the badge) and screen table.
+1. **Store and validation** (#42): `access/goals.py` (events, replay, undo, effective goals), the validation table, month counting, `SFC_GOALS_DB`; unit and isolation tests.
+2. **Tools** (#43): extended `list_goals`, `check_goal`, the write tools, `undo_goal_change`, `forecast_goal` by `goal_id`; MCP registration with hints; coach prompt rules; contract tests; the Dockerfile's `SFC_GOALS_DB`. Builds on #36's session subject in tokens.
+3. **Web** (#45): the Goals page, the setup and edit form with the live check, archive and undo, the overview card; a click-through on the deployed demo.
+4. **Docs** (this milestone): the Technical Design's Goal schema and tools table; the Web App UI's gap 4 (closed except the badge), screen table and open question on mutable demo data.
+
+## Implementation notes
+
+Where the build departs from the design above, or settles what it left open:
+
+- **Two more validation codes,** `amount_invalid` and `date_invalid`, for input that isn't a number or a date. The table assumed well-formed input; the form and the coach can both send otherwise.
+- **The Dockerfile's `SFC_GOALS_DB` moved from milestone 3 to milestone 2.** Milestone 2 makes the app open the goal store at startup, and the image's `/app` isn't writable by the app user, so without it the deployed app wouldn't start.
+- **Median monthly savings:** the first month of data counts as partial, so a history from Oct 1, 2024 to Sep 30, 2026 has 23 full months. The median is in cents, over the last 12 full months; a month with no transactions counts as zero.
+- **Blank form fields stay blank** when the Goals page sends them, so a cleared name or amount is reported rather than silently left unchanged. A blank saved amount means $0 for a new goal and "unchanged" for an edit.
+- **The coach suite's goal questions** (Testing) wait for the coach suite itself: the repo has only the `llm` marker so far. The prompt rules are in `experience/coach.py`.
 
 ## Decisions and open questions
 

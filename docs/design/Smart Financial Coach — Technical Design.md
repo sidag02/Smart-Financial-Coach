@@ -59,7 +59,7 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 | --- | --- |
 | Transaction | transaction\_id, user\_id, timestamp, amount, currency, merchant\_raw, channel |
 | User | user\_id, persona, monthly\_income\_estimate |
-| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date, as\_of\_date, current\_balance (as of as\_of\_date) |
+| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date (a month end), as\_of\_date, current\_balance (as of as\_of\_date). The dataset holds the generated goals; users' own goals and changes are events in a separate goal store, replayed over them per user and session (FR-10 Savings Goals — Feature Design, §1–2) |
 | Anomaly flag | flag\_id, user\_id, level (transaction or period), ref (transaction\_id or period + category), score, reason |
 
 **Ground truth** (eval only, in separate `truth_*` tables that models never read)
@@ -87,8 +87,11 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 | get\_spending\_summary | Totals by category and month for a date range |
 | get\_transactions | Filtered, categorized transactions |
 | detect\_anomalies | Unusual transactions and spending spikes for a period |
-| forecast\_goal | On-track status and gap for a goal |
-| list\_goals | The user's goals |
+| forecast\_goal | On-track status and gap for a goal, by `goal_id` |
+| list\_goals | The user's goals: status (active, reached, ended), months left and the amount needed per month, and the user's median monthly savings |
+| check\_goal | Validates a new goal or an edit and states the facts for the setup screen; writes nothing (FR-10) |
+| create\_goal, update\_goal, archive\_goal | Change the user's goals. The Goals page applies on submit; the coach and outside assistants get a preview until the user agrees (`confirm`) |
+| undo\_goal\_change | Undo a goal's latest change |
 
 All tool outputs are structured JSON with units and currency, so the assistant can quote numbers without doing arithmetic.
 
