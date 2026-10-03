@@ -12,6 +12,7 @@ import hashlib
 
 import pandas as pd
 
+INCOME = "Income"
 REASON_ORDER = ("new_merchant", "low_confidence")  # an item is "new" if any of its rows is
 
 
@@ -80,3 +81,20 @@ def open_review_items(transactions: pd.DataFrame, user_id: str) -> pd.DataFrame:
         ["unreviewed_spend", "last_seen", "merchant_key"], ascending=[False, False, True]
     )
     return items[columns].reset_index(drop=True)
+
+
+def alternatives(
+    transactions: pd.DataFrame, merchant_key: str, suggested: str, n: int
+) -> list[str]:
+    """Quick picks next to an item's suggestion (Web App UI, gap 2: the predictions keep only the
+    top category). First the other categories the model gave this merchant's transactions (an
+    ambiguous merchant such as a warehouse club), then the user's most frequent spending
+    categories by transaction count: fixed bills are rarely the right alternative for a shop."""
+    spending = transactions[transactions["model_category"] != INCOME]
+    here = spending.loc[spending["merchant_key"] == merchant_key, "model_category"]
+    ranked = list(here.value_counts().index) + list(spending["model_category"].value_counts().index)
+    picks: list[str] = []
+    for c in ranked:
+        if c != suggested and c not in picks:
+            picks.append(str(c))
+    return picks[:n]

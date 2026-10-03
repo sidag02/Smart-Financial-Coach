@@ -1,0 +1,12 @@
+# FR-7 round, added after the first test scoring (owner decision on #39, Oct 3, 2026): the
+# isolation forest with a one-sided history rank, as design §3's one-sided features specify. A
+# design-conformance fix found in serving review; it runs on the same splits under the same rule.
+name: isolation_forest_one_sided
+task: unusual_transactions
+model:
+  type: unusual_transactions/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: unusual_transactions/isolation_forest, params: {seed: 0, one_sided_rank: true}}}
+complexity: 3
+tags: {plan: fr7-round, added: after-test-scoring}

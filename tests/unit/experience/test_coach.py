@@ -190,3 +190,5 @@ def test_system_prompt_states_the_rules() -> None:
     assert "investment" in prompt
     assert "[S2]" in prompt
     assert "not_available" in prompt
+    assert "needs_confirmation" in prompt  # bulk category changes are asked about first
+    assert "only when the person asks" in prompt

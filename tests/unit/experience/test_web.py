@@ -266,7 +266,8 @@ def test_not_sure_follows_the_review_flags_from_the_batch(
 
     assert f"Not sure · {flagged}" in page
     assert "below 95% confidence for a merchant it hasn't seen before, below 50%" in page
-    assert only_flagged.count('class="raw"') == flagged
+    table = only_flagged.split("<tbody>")[1].split("</tbody>")[0]
+    assert table.count('class="raw"') == flagged
 
 
 def test_a_user_never_sees_another_users_transactions(
