@@ -1,6 +1,6 @@
 # FR-5 and FR-6 Review, Corrections and Retraining — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Proposed**; the data contract in §7 is **Accepted** (owner, Oct 2, 2026) · Branch: `docs/fr-5-design`
+Oct 2, 2026 · @Sidd · Status: **Proposed**; the data contract in §7 is **Accepted** (owner, Oct 2, 2026) · Branch: `docs/fr-5-design` · **Start with [Status and handoff](#status-and-handoff-oct-3-2026)**
 
 ## Summary
 
@@ -335,6 +335,103 @@ One PR per milestone.
 4. **The simulator:** preference profiles and simulated review and correction behavior. The data contract they write into (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted and lands with FR-4's milestone 1, in the same regeneration as FR-4's new holdout.
 5. **Global labels and retraining:** the agreement rule (with the correction requirement), a feedback-aware training task, time-forward evaluation on non-contributing users scored against their own view, a leak check on training rows (no evaluation user, nothing after the cutoff), gates, policy re-derivation, and an explicit `label_noise` required at promotion.
 6. **Replay and decisions:** the replay on FR-4's promoted twin and the regenerated dataset; the Feasibility section re-measured on that model; settle N and the cadence; Technical Design updates.
+
+## Status and handoff (Oct 3, 2026)
+
+Written for the session that continues FR-5 and FR-6, human or agent. Read it first: parts of this design above were written before FR-4 shipped a new model and before the web app existed, and this section says which.
+
+### Where it stands
+
+- **This design is a draft** (PR #15). The parts already accepted by the owner:
+  - **the data contract** (§7): `truth_preferences`, schema 4, the preference-aware label contract (`Truth.user_categories()`), and the preference profiles (six remaps: four at 30% of test users, books at 50%, streaming at 70%). It's built and in the default dataset (#20; data hash `44781bc4e4a5`);
+  - **clean labels:** the shipped model and models retrained from feedback train with `label_noise: 0`; injected noise is only for comparing candidates;
+  - **retrained promotions** use §5's gates against users' own view; FR-3's and FR-4's truth-based numbers are reported, not gated;
+  - **a global label needs at least one independent correction**; labels are re-evaluated as votes accumulate and can be revoked; a global label supersedes the original training label at its string;
+  - **the replay runs on FR-4's promoted model**, after FR-4 (done).
+- **FR-4 is complete:** its model **`20eea4fb-44781bc4-c0274576`** (bge-small, no class weights, clean labels) is promoted (#28) and live in the demo. Its FR-4 docs (#29) may still be open. The FR-4 design's "Status: complete" section and `docs/reports/FR-4 Categorization — Round Results.md` have the details.
+
+### What changed since this design was written
+
+1. **The model, and so the evidence in Feasibility.** Feasibility above was measured on the old model (`3f0ccc82`, trained under injected noise). Re-measured on the promoted model's twin (POC branch `poc/fr-5-review`, commit `54bc286`, `experiments/fr5_review/`):
+   - error rates are **2.8%** on familiar strings and **18.6%** on unfamiliar ones (previously 2.0% and 41.9%); known-merchant confidence is now calibrated;
+   - **§1's threshold rule can't be met:** no threshold catches 80% of unfamiliar errors (71% at 0.95), because the new model's remaining unfamiliar errors are often confident. For familiar strings, flags are at least 25% errors at every threshold, so the rule's "highest" goes to 0.95 or more (about 6% of familiar rows, catching nearly all familiar errors);
+   - **burden:** in a user's first month, 27.4 familiar and 8.7 unfamiliar strings; from month 4, 1.6 and 0.8 new strings a month. At familiar < 0.95 and unfamiliar < 0.8, that's roughly 4–5 review items in the first month, then under 0.4 a month;
+   - **automation bias:** at unfamiliar < 0.8, 34% of unfamiliar flags are real errors (previously about half).
+
+   Replace the Feasibility section's numbers with these once the owner has re-decided the rule (decision 2 below).
+2. **The product exists.** When this design was written, the tool server and web app were stubs. Now:
+   - **the web app** (#19): `src/smart_financial_coach/experience/web/` (`app.py`, Jinja templates, htmx), designed in `docs/design/Smart Financial Coach — Web App UI.md`;
+   - **the tools and MCP server** (#23): `src/smart_financial_coach/access/tools.py` (`Tools`: `get_spending_summary`, `get_transactions`, `list_goals`, …), `access/ledger.py` (a user's data and categories), `access/mcp_server.py`;
+   - **the demo:** deployed to Azure for **Oct 6, 2026** by `.github/workflows/deploy.yml` on merges to `main`. Its bundle (`experience/demo.py`, `sfc-web build-demo`) is a read-only copy of a few users' data and predictions, **built so serving needs no model, no network and no writable disk**. Visitors share a few demo accounts.
+
+   This design's "Tools" and "Flows" sections were written against stubs: check them against these files before building.
+3. **The owner's direction (Oct 3, 2026): FR-5 and FR-6 belong in the Oct 6 demo.** The project exists to show how the whole system is built, and the review-and-correct loop is one of the strongest things to show.
+
+### Decisions needed from the owner before building
+
+1. **Accept this design now, without the replay?** The review queue and corrections don't depend on the replay's numbers: thresholds are chosen per model, and only N, the majority and the retraining cadence wait on it. A reviewer suggested this split on #15. Without it, the user-facing loop can't be built in time for Oct 6 under the current process. *Recommended: yes, with N = 3, two thirds and the cadence marked provisional until the replay.*
+2. **The review policy for the new model** (§1's rule can't be met; numbers above). Options, all per familiarity group:
+   - (a) lower the unfamiliar target, e.g. catch at least 60% of unfamiliar errors (threshold 0.8: 33% of unfamiliar rows flagged), and cap the familiar threshold (e.g. 0.95);
+   - (b) flag every unfamiliar string on first sight ("new merchant: is this right?"): catches every unfamiliar error, about 8.7 items in the first month and 0.8 a month after;
+   - (c) a per-user review budget (top-k by spend and uncertainty) instead of thresholds.
+
+   *No recommendation is recorded yet. Ask the owner, with the table in `experiments/fr5_review/results.md`.*
+3. **Corrections in the shared demo.** Visitors share demo accounts, and the demo has no writable disk. *Recommended: per browser session, in memory, reset on sign-out*, so each visitor gets a sandbox and the demo stays clean. The production design (a feedback store per deployment, §3) stays as written.
+4. **Who builds the web pages.** Another session owns the web app (#19) and the MCP server (#23). Either this session builds the backend and the pages in their style, or the backend here and the pages there, against the tool shapes. *Agree this with the owner, and with whoever works on the web app, before touching it.*
+
+### Plan for the Oct 6 demo
+
+**Must-have: the user-facing loop.** It's this design's milestones 1–3, adapted to the real app. One PR per step; keep each small, since the demo deploys on every merge.
+
+1. **`familiar` in the categorizer's output.** `Calibrated` already gets it from `base.scores`. Add it to the contract's output columns, the predictions file and the demo bundle. No retraining: the promoted model's pickle already holds its vocabulary.
+2. **The review policy for the promoted model.** Since `20eea4fb` is already promoted, derive its per-group thresholds from its twin's validation predictions with the owner's rule (decision 2). Store them next to the manifest, e.g. `artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding them to the manifest would change its checksum fields. Future promotions derive the policy at `promote`.
+   - The twin's predictions are in the FR-4 round's MLflow store at `/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3/mlruns` (run `6bc58706…`), a session scratchpad that may be gone.
+   - If it is, rerun the twin: `configs/experiments/categorization/fr4/21_small_unweighted.yaml` runs the comparison run and its twin (about 9 minutes). The twin's pooled predictions are what you need. Don't `finalize` it.
+3. **`needs_review` and `review_reason`** computed in the batch (`batch.py`), written to predictions and the demo bundle.
+4. **Overrides and effective categories:**
+   - the precedence and undo of §3, applied per user **after** the shared predictions;
+   - `access/ledger.py` is the natural place;
+   - for the demo, the store is in memory per session (decision 3).
+5. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections` in `access/tools.py` (and the MCP server). `get_transactions` and `get_spending_summary` return effective categories, `category_source` and `needs_review`.
+6. **Web pages:**
+   - a review badge and queue;
+   - correct from the transaction list, with scope "this merchant" or "just this one";
+   - "recent changes" with undo;
+   - totals and coach answers updating at once.
+7. **Tests:**
+   - two sessions on the same demo account never see each other's corrections;
+   - precedence;
+   - undo;
+   - unknown categories are rejected;
+   - tool schemas;
+   - a correction alone never raises a spending spike (§3).
+8. **After each merge,** confirm the demo deploy succeeded (its smoke test checks `/healthz`) and click through the review flow.
+
+**Stretch: the learning story.** A static results page, or a section in the demo, from the replay: "after N users corrected these merchants, new-merchant accuracy rose for users who never corrected anything", with the per-remap outcomes. It needs the replay below (about a day of building and an hour of compute). **Out of scope for the demo:** live retraining or promotion from the demo.
+
+### The replay (needed to accept the rest of this design)
+
+Build it on the POC branch `poc/fr-5-review`, as FR-4 did:
+- **the simulator** (§7 Behavior): engagement, slips, an accept-the-suggestion rate, unflagged corrections weighted by amount, adversarial users;
+- **the agreement rule** (§4): N distinct users, a two-thirds majority, at least one independent correction, re-evaluation and revocation;
+- **overrides** (§3);
+- **retraining** (§5): the FR-4 framework's `linear_text` + `calibrated`, `label_noise: 0`, original rows relabelled at globally labelled strings, contributors' rows from before the cutoff, a leak check. Evaluate time-forward on non-contributors against their own view, with truth alongside;
+- **the measures** (§7), per-remap outcomes with user-level bootstrap intervals, and burden;
+- **compute:** a clean bge-small fit takes about 3 minutes, so monthly replays with quarterly retraining are about an hour.
+
+Then fold the replay's numbers and the re-measured Feasibility into this design, settle N and the cadence with the owner, and take the PR out of draft.
+
+### Practical notes
+
+- **Data:** `uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite --force` (about 40 s); confirm data hash `44781bc4e4a5`. Embedding models download to `data/models/fastembed` on first use.
+- **Other sessions use the main checkout** (web app and MCP work). Do branch work in a separate git worktree (`git worktree add <path> -b <branch> origin/main`), and never check out, reset or stash in the main checkout.
+- **Install the git hooks** (`uv run pre-commit install`). They run ruff, mypy and the 5 MB file check.
+- **Working practice:**
+  - one PR per milestone from the latest `main` (`main` requires a PR, a green `check` and an up-to-date branch: rebase and rerun the tests when it moves);
+  - before every push, check the open PR for review comments and address them first, replying on each thread;
+  - rule or design changes go to the owner first, are recorded here with their reason, and are labelled when made after seeing results;
+  - test sets are touched only by `finalize`;
+  - a rejected promotion's release is deleted.
 
 ## Decisions and open questions
 
