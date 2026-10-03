@@ -1,0 +1,7 @@
+# FR-4 round: round 0 baseline on 3 folds, the floor every candidate must beat (no shipping twin).
+name: lookup
+task: categorization
+model: {type: categorization/lookup}
+task_params: {k: 3}
+baseline: true
+tags: {plan: fr4-round}

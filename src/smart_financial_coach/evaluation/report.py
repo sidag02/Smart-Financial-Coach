@@ -56,6 +56,7 @@ def comparison_report(
     selection = f"val_{task.selection_metric}"
     keys = task.report_metrics
     shipping = bool(task.shipping_params)  # comparison runs ranked; twins break ties and ship
+    no_twins = shipping and not any(s.twin_id for s in standings)
     twin_breaker = task.tiebreak_metrics[0] if task.tiebreak_metrics else selection
 
     with tempfile.TemporaryDirectory() as tmp_dir:
@@ -70,6 +71,12 @@ def comparison_report(
         # The leader is the first *eligible* run; with none, there is nothing to compare against
         eligible = [s for s in standings if s.eligible]
         leader = pooled(eligible[0].run_id) if eligible else None
+        # Where rank 1's errors go: its twin's when the task ships twins (what would ship)
+        diagnosed: tuple[str, str] | None = None
+        if eligible and (top_id := eligible[0].twin_id if shipping else eligible[0].run_id):
+            name = f"`{eligible[0].name}`"
+            diagnosed = (top_id, f"{name}'s shipping twin" if shipping else name)
+        diagnostics = task.diagnostics(examples, pooled(diagnosed[0])) if diagnosed else []
         rows = []
         for place, s in enumerate(standings, start=1):
             run = runs[s.run_id]
@@ -122,6 +129,16 @@ def comparison_report(
             if shipping
             else []
         ),
+        *(
+            [
+                "- **No candidate has a shipping twin,** so tie-breaks can't be read (they come "
+                "from twins) and the tie set is ordered by point estimate. This is not the "
+                "decision rule's order; runs from before twins (e.g. FR-3's launch round) were "
+                "ranked under the rule of their time.",
+            ]
+            if no_twins
+            else []
+        ),
         "",
         "| Rank | Run | "
         + f"`{selection}` (95% CI) | vs leader | "
@@ -145,6 +162,14 @@ def comparison_report(
             for b in baselines
         ),
     ]
+    if diagnostics and diagnosed:
+        lines += [
+            "",
+            f"**Where rank 1's validation errors go** ({diagnosed[1]}, unseen-merchant rows; "
+            "diagnosis, not a gate):",
+            "",
+            *diagnostics,
+        ]
     finalists = [r for r in runs.values() if r.tags.get(FINALIST_TAG) == "true"]
     if finalists:
         # Baselines are scored with the finalists, so "beats the baseline" is visible here

@@ -1,0 +1,16 @@
+# FR-4 round (design §2, fixed before the round): the POC's validation leader (0.745 clean).
+# Comparison run under the task's injected label noise (2%); its shipping twin (`ship`) trains on
+# clean labels and is what gets finalized and promoted. C fixed at 1.0 and 3 folds, as in the
+# launch round and the FR-4 POC.
+name: 11_base_unweighted
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-base-en-v1.5, class_weight: none}}}
+task_params: {k: 3}
+ship: {task_params: {label_noise: 0}}
+complexity: 2
+tags: {plan: fr4-round}

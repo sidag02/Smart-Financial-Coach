@@ -225,6 +225,9 @@ class ToyTask:
     def tiebreak_tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         return False  # strict first tie-break
 
+    def diagnostics(self, examples: Examples, pooled: pd.DataFrame) -> list[str]:
+        return []
+
     def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
         value = accuracy(pooled[pooled["held_out"] == UNSEEN], examples)
         return value - 0.05, value + 0.05

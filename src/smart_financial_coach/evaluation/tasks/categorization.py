@@ -61,6 +61,11 @@ POC_RESULTS = {
     "poc_both": (0.988, 0.929, 0.638),
 }
 KNOWN_GATE = 0.90
+# FR-4's v1 gate. Accepted at 0.70 (Oct 2, 2026) when the POC's leader stood at 0.745; set to 0.66
+# (owner, Oct 3, 2026) after the FR-4 round's validation results, before any test scoring: the
+# round's leader scores 0.712, and 0.66 keeps the design's pass rate of about 85-90% for a model
+# that good. 0.80 stays the goal for v1.1, through feedback (FR-5/FR-6)
+UNSEEN_GATE = 0.66
 KEYWORD_BASELINE = "keyword"  # the run name the "beats the baseline" rule compares against
 BOOTSTRAP_REPS = 1000
 AMBIGUOUS_CLASSES = ("Groceries", "Shopping")
@@ -410,6 +415,46 @@ class CategorizationTask:
             majority.map(codes).to_numpy(dtype=np.int64),
         )
 
+    def diagnostics(self, examples: Examples, pooled: pd.DataFrame) -> list[str]:
+        """Per spending category, on validation unseen-merchant rows: its F1, where its errors go
+        (the categories its true rows are wrongly given), and what lands in it (the true
+        categories of rows wrongly given it). Diagnosis for later fixes, not a gate (FR-4,
+        "Metrics and why", point 3)."""
+        rows = self._join(examples, pooled[pooled["held_out"] == UNSEEN].reset_index(drop=True))
+        rows = rows[rows["category"] != INCOME]
+        if rows.empty:
+            return []
+        f1 = per_class_f1(rows["category"], rows["predicted"], self.spending)
+        merchants = (
+            rows.groupby("merchant_id")["category"].agg(lambda c: c.mode().iloc[0]).value_counts()
+        )
+        wrong = rows[rows["category"] != rows["predicted"]]
+
+        def top(counts: pd.Series, total: int) -> str:
+            shares = [
+                f"{name} {n / total:.0%}" if n / total >= 0.005 else f"{name} <1%"
+                for name, n in counts.head(2).items()
+                if n
+            ]
+            return ", ".join(shares) or "\u2013"
+
+        lines = [
+            "| Category | Merchants | F1 | True rows | Predicted rows | Its errors go to "
+            "(share of its rows) | Wrongly given it (share of rows given it) |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ]
+        for label in sorted(self.spending, key=lambda c: f1.get(c, 0.0)):
+            true_rows = int((rows["category"] == label).sum())
+            given = int((rows["predicted"] == label).sum())
+            out = wrong.loc[wrong["category"] == label, "predicted"].value_counts()
+            into = wrong.loc[wrong["predicted"] == label, "category"].value_counts()
+            lines.append(
+                f"| {label} | {int(merchants.get(label, 0))} | {f1.get(label, 0.0):.3f} | "
+                f"{true_rows:,} | {given:,} | {top(out, max(true_rows, 1))} | "
+                f"{top(into, max(given, 1))} |"
+            )
+        return lines
+
     def tiebreak_tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         """Paired merchant bootstrap of the unseen Brier difference: tied if its CI holds 0."""
         names_a, a, majority = self._unseen_brier_stack(examples, leader)
@@ -427,18 +472,29 @@ class CategorizationTask:
     ) -> list[Gate]:
         """Quality gates only. Latency is reported, not gated: categorization runs in batches on
         ingestion, so serving time is a cluster-sizing cost, not a property to reject a model on
-        (decision Oct 2, 2026; FR-3 "Metrics and why", point 7)."""
+        (decision Oct 2, 2026; FR-3 "Metrics and why", point 7).
+
+        FR-3: known-merchant macro F1 at least 0.90 and above the keyword baseline's. FR-4: unseen-
+        merchant macro F1 at least `UNSEEN_GATE` (0.66) and above the keyword baseline's unseen
+        score.
+        """
+        keyword = baselines.get(KEYWORD_BASELINE, {})
+
+        def above_keyword(name: str, metric: str) -> Gate:
+            mine, theirs = metrics.get(metric, float("nan")), keyword.get(metric)
+            return Gate(
+                name,
+                theirs is not None and mine > theirs,
+                f"{mine:.3f} vs {theirs:.3f}" if theirs is not None else "no keyword baseline run",
+            )
+
         known = metrics.get("test_known_macro_f1", float("nan"))
-        keyword = baselines.get(KEYWORD_BASELINE, {}).get("test_known_macro_f1")
+        unseen = metrics.get("test_unseen_macro_f1", float("nan"))
         return [
             Gate("known_macro_f1", known >= KNOWN_GATE, f"{known:.3f} vs {KNOWN_GATE}"),
-            Gate(
-                "beats_keyword_baseline",
-                keyword is not None and known > keyword,
-                f"{known:.3f} vs {keyword:.3f}"
-                if keyword is not None
-                else "no keyword baseline run",
-            ),
+            above_keyword("beats_keyword_baseline", "test_known_macro_f1"),
+            Gate("unseen_macro_f1", unseen >= UNSEEN_GATE, f"{unseen:.3f} vs {UNSEEN_GATE}"),
+            above_keyword("beats_keyword_unseen", "test_unseen_macro_f1"),
         ]
 
     def reproduction_configs(self) -> set[str]:

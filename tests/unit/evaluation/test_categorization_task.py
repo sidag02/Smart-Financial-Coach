@@ -114,11 +114,46 @@ def test_brier_ties(task: CategorizationTask, examples: Examples) -> None:
     assert not task.tiebreak_tied(examples, lookup, certain)
 
 
-def test_gates_and_eligibility(task: CategorizationTask) -> None:
-    baselines = {"keyword": {"val_known_macro_f1": 0.5, "test_known_macro_f1": 0.5}}
-    good = {"test_known_macro_f1": 0.95, "latency_p95_ms": 1.0, "val_known_macro_f1": 0.95}
+def test_diagnostics_show_where_each_categorys_unseen_errors_go(
+    task: CategorizationTask, examples: Examples
+) -> None:
+    splits = task.split(examples, {}, 0)
+    keyword = next(c for c in baselines() if c.name == "keyword")
+    pooled = cross_fit(task, examples, splits, keyword, {}).predictions
 
-    assert all(g.passed for g in task.gates(good, baselines))
+    lines = task.diagnostics(examples, pooled)
+
+    assert lines[0].startswith("| Category | Merchants | F1 |")
+    assert len(lines) == 2 + len(task.spending)  # header, rule, one row per spending category
+    assert all(line.count("|") == 8 for line in lines)
+    assert task.diagnostics(examples, pooled.iloc[0:0]) == []
+
+
+def test_gates_and_eligibility(task: CategorizationTask) -> None:
+    baselines = {
+        "keyword": {
+            "val_known_macro_f1": 0.5,
+            "test_known_macro_f1": 0.5,
+            "test_unseen_macro_f1": 0.70,
+        }
+    }
+    good = {
+        "test_known_macro_f1": 0.95,
+        "test_unseen_macro_f1": 0.75,
+        "latency_p95_ms": 1.0,
+        "val_known_macro_f1": 0.95,
+    }
+
+    def failed(metrics: dict[str, float]) -> list[str]:
+        return [g.name for g in task.gates(metrics, baselines) if not g.passed]
+
+    assert failed(good) == []
+    # FR-4: unseen-merchant macro F1 at least 0.66, and above keyword's unseen score
+    assert failed(good | {"test_unseen_macro_f1": 0.65}) == [
+        "unseen_macro_f1",
+        "beats_keyword_unseen",
+    ]
+    assert failed(good | {"test_unseen_macro_f1": 0.67}) == ["beats_keyword_unseen"]
     assert task.eligible(good, baselines)
     assert not task.eligible({"val_known_macro_f1": 0.89}, baselines)
     assert not task.gates(good, {})[1].passed  # no keyword baseline: the gate can't pass
@@ -199,8 +234,19 @@ def test_grid_keys_must_reach_a_nested_model() -> None:
 
 def test_latency_is_not_a_gate(task: CategorizationTask) -> None:
     """Batched on ingestion: a slow model is a sizing cost, not a reason to refuse it."""
-    metrics = {"test_known_macro_f1": 0.95, "latency_p95_ms": 500.0, "latency_batch_ms": 9e5}
-    gates = task.gates(metrics, {"keyword": {"test_known_macro_f1": 0.5}})
+    metrics = {
+        "test_known_macro_f1": 0.95,
+        "test_unseen_macro_f1": 0.75,
+        "latency_p95_ms": 500.0,
+        "latency_batch_ms": 9e5,
+    }
+    keyword = {"test_known_macro_f1": 0.5, "test_unseen_macro_f1": 0.5}
+    gates = task.gates(metrics, {"keyword": keyword})
 
-    assert [g.name for g in gates] == ["known_macro_f1", "beats_keyword_baseline"]
+    assert [g.name for g in gates] == [
+        "known_macro_f1",
+        "beats_keyword_baseline",
+        "unseen_macro_f1",
+        "beats_keyword_unseen",
+    ]
     assert all(g.passed for g in gates)

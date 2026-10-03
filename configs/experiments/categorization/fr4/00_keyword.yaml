@@ -1,0 +1,10 @@
+# FR-4 round: round 0 baseline on 3 folds, the floor every candidate must beat (no shipping twin).
+# keywords_sha256 pins the keyword file's content (see ../00_keyword.yaml).
+name: keyword
+task: categorization
+model:
+  type: categorization/keyword
+  params: {keywords_sha256: 1528760cf9956cbb4f68c1d4909328daeb6f5d038a4586e81daf09dd3a7fce38}
+task_params: {k: 3}
+baseline: true
+tags: {plan: fr4-round}

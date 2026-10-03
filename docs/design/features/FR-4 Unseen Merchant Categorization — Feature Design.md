@@ -16,7 +16,7 @@ This feature makes the categorizer usable on merchants it has never seen, measur
   1. **Ship a clean-label model.** The owner decided on PR #15 that shipped and retrained models train on clean labels, while injected noise stays for comparing candidates. FR-4 makes that mechanical: every compared configuration has a **shipping twin** with `label_noise: 0`, and the twins are what get finalized and promoted.
   2. **Add the class-weight choice to the candidates**, since unweighted training led on validation.
   3. **Measure on a bigger, fresh holdout:** the default dataset gets a 40% holdout with a new seed. This doubles the unseen merchants to 115, and gives a test set nothing has been scored on.
-  4. **The v1 target is 0.70** (owner decision), with 0.80 as the v1.1 goal reached through feedback (FR-5/FR-6), as FR-2 did for weekly spikes. The PRD changes in milestone 5.
+  4. **The v1 gate is 0.66** (owner decision, Oct 3, 2026; first accepted at 0.70 and lowered on the FR-4 round's validation results, before any test scoring; §4), with 0.80 as the v1.1 goal reached through feedback (FR-5/FR-6), as FR-2 did for weekly spikes. The PRD changes in milestone 5.
 - **Excluded by owner decision:** an LLM fallback for unfamiliar strings. Categorization stays LLM-free; the LLM stays in the coach.
 - **Principle (carried from FR-3):** models are chosen on validation data; test sets are scored once, for finalists.
 
@@ -47,7 +47,7 @@ Where the shipped model loses unseen-merchant macro F1 (validation, per category
 
 | | FR-3 (accepted) | FR-4 (this design) | FR-5/FR-6 (PR #15) |
 | --- | --- | --- | --- |
-| Gates on | Known merchants ≥ 0.90, beats the keyword baseline | Unseen merchants ≥ the v1 target (proposed 0.70), beats the keyword baseline on unseen merchants; FR-3's gates still apply | Personal accuracy, global gain after feedback |
+| Gates on | Known merchants ≥ 0.90, beats the keyword baseline | Unseen merchants ≥ the v1 target (0.66), beats the keyword baseline on unseen merchants; FR-3's gates still apply | Personal accuracy, global gain after feedback |
 | Changes | Framework, first model | Training labels, candidates, the holdout, the target | Review, corrections, retraining |
 
 ## Feasibility
@@ -169,6 +169,7 @@ The FR-4 round runs, on the new dataset (§3), each as a comparison run with a s
 
 - **v1 target (accepted, owner, Oct 2, 2026): unseen-merchant macro F1 ≥ 0.70** on the 115-merchant test holdout, with its merchant-bootstrap interval reported, and above the keyword baseline's unseen score.
   - The validation leader scores 0.745 (0.68–0.80). With a bootstrap SD of about 0.038 at 115 merchants, a model that good passes 0.70 on roughly eight to nine draws in ten (88%; 78% if its true score is 0.73, allowing for its being the best of nine runs). So the gate mostly tests the model, not the draw. The SD was measured on the shipped model's predictions; the FR-4 round re-measures it with the merchant bootstrap on the leader's twin before the gate is used.
+- **Revised to 0.66 (owner, Oct 3, 2026), after the FR-4 round's validation results and before any test scoring.** This is a rule change made after seeing results, so it's labelled as one. The round (FR-4 Categorization — Round Results) put its leader, bge-small without class weights, at **0.712** on validation unseen merchants, not the POC's 0.745. Re-measured as above (bootstrap SD 0.038 at 115 merchants), that leader would pass 0.70 on only about 53–63% of fresh holdouts. 0.66 restores the pass rate the target was set for (about 85–90% at 0.712; 0.66–0.67 for those rates, 0.65–0.66 allowing for best-of-four). What it rejects: a model like the old noisy configuration (about 0.45 on this holdout). The round's balanced-weights twins (0.67–0.69) would sit just above it, so the gate separates the clean-label families from the noisy one, not clean candidates from each other; the decision rule does that. No test data was involved; the test set is first scored in milestone 4.
   - A 0.80 gate would fail most draws of today's best model, and its interval's upper end only touches 0.80.
 - **0.80 stays as the goal for v1.1**, reached through feedback (FR-5/FR-6) and measured by that design's replay as global gain on users who supplied no corrections. The Technical Design already names feedback as "a realistic route to FR-4's target".
 - **This changes the PRD** (success metrics, FR-4), as FR-2 changed FR-8 for weekly spikes. The change lands in milestone 5.
@@ -221,7 +222,7 @@ FR-3's metrics carry over unchanged ("Metrics and why", FR-3 design). What FR-4 
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Keep 0.80 as a v1 gate | The PRD as written | Today's best model fails most draws; the gate would test luck |
-| **(b) 0.70 for v1, 0.80 for v1.1 after feedback (recommended)** | Passes on roughly eight to nine draws in ten for a model as good as the leader; keeps 0.80 as the goal, with a route to it | A PRD change |
+| **(b) 0.70 for v1 (revised to 0.66 after the round, see §4), 0.80 for v1.1 after feedback (recommended)** | Passes on roughly eight to nine draws in ten for a model as good as the leader; keeps 0.80 as the goal, with a route to it | A PRD change |
 | (c) A gate on the interval's lower bound | Conservative | With 3–6 merchants per category, the lower bound is far below the point estimate; it would gate on sample size |
 
 ## Testing
@@ -239,7 +240,7 @@ One PR per milestone.
 2. **Framework:** shipping twins in run, finalize and promote; explicit `label_noise` required at promotion; tie-breaks on twins with the Brier tie test; the reversal stop; `class_weight` in `linear_text`.
 3. **FR-4 round:** baselines and the four candidates, each with its twin, on the new dataset; the comparison report, with per-category confusions on unseen merchants.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
-5. **Docs:** the PRD's FR-4 success metric (0.70 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
+5. **Docs:** the PRD's FR-4 success metric (0.66 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
 
 ## Decisions and open questions
 
@@ -257,6 +258,6 @@ One PR per milestone.
 
 **Open questions**
 
-1. [x] **The v1 target. Decided (owner, Oct 2, 2026): ≥ 0.70 for v1,** above keyword's unseen score, with the merchant-bootstrap interval reported; **0.80 for v1.1** through feedback, measured by the FR-5/FR-6 replay as global gain. Basis: today's best model (0.745 on validation) would fail a 0.80 gate on most draws, while 0.70 passes for a model that good on roughly eight to nine draws in ten. Follows FR-2's precedent for weekly spikes. The PRD change lands in milestone 5.
+1. [x] **The v1 target. Decided (owner, Oct 2, 2026): ≥ 0.70 for v1,** above keyword's unseen score, with the merchant-bootstrap interval reported; **0.80 for v1.1** through feedback, measured by the FR-5/FR-6 replay as global gain. Basis: today's best model (0.745 on validation) would fail a 0.80 gate on most draws, while 0.70 passes for a model that good on roughly eight to nine draws in ten. Follows FR-2's precedent for weekly spikes. The PRD change lands in milestone 5. **Revised (owner, Oct 3, 2026): 0.66**, on the FR-4 round's validation results and before any test scoring (§4).
 2. [x] **Health & Fitness and Entertainment** stay weakest (0.16 and 0.46 on validation). **Decided (owner, Oct 2, 2026): diagnose now, fix after launch.** The round's report shows where their errors go (milestone 3; "Metrics and why", point 3). No targeted change before launch: tuning toward two known-weak categories on validation data risks fitting the evaluation, and these are the gaps feedback is meant to close. Revisit if the FR-5/FR-6 replay shows corrections don't lift them.
 3. [x] **bge-small as the default if it ties again.** Answered by the decision-rule change in §5 (from review): with a Brier tie test, cost decides among runs tied on F1 and calibration. Under a strict Brier tie-break it never could.
