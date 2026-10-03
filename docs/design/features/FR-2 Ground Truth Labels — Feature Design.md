@@ -339,6 +339,7 @@ New checks in `validate`, all failing loudly:
 - **Spike integrity:** periods inside the calendar and after the warm-up; Monday or month-first starts; no overlap within a category (including the ±7-day buffer); no month above `peak_threshold`; `base_spend + extra_spend` matches the ledger to the cent.
 - **Tiers:** `weak` share within a spec range for monthly labels (default ≤ 15%; the audit measured about 8%).
 - **Ceiling:** count-oracle precision at recall 0.5 ≥ 0.70 for monthly spikes and for unusual charges.
+- **Preferences (schema 4, added for FR-5/FR-6):** only test users hold preferences; a user holds all of a subtype's merchants or none; each preference is its remap's category and never the merchant's own; with at least 30 test users, each remap's adoption rate is within three binomial standard deviations of its share.
 
 ## Testing
 
@@ -395,4 +396,4 @@ What the implementation settled or changed relative to the design above.
 - **Weekly tiers:** 23% of weekly labels are `weak` against the exact expected spend (the audit's 18% used a median baseline). They aren't scored in v1.
 - **FR-1 seasonality check:** moving spikes out of the normal draw changed the random draws of later streams. One small-spec profile (family Entertainment, about 45 purchases per month) then failed FR-1's spend-correlation check by chance at z = 3.1. Discretionary seasonality is now checked two ways that hold at any volume. The generator's exact expected counts must follow the spec's profile (structural), and realized counts must fit them (Poisson χ² over the 12 months, p ≥ 1e-4, spike months left out). Recurring bills keep FR-1's correlation check. The small spec tests 35 profiles; injected bugs that drop seasonality from the rates, or from the draws alone, both fail it.
 - **Isolation test** scans `intelligence/` for `truth_` and imports of the label module.
-
+- **Label contract 2 (FR-5/FR-6, schema 4):** `Truth.user_categories()` gives each transaction's category as its user sees it: the user's preference for that merchant (`truth_preferences`) where there is one, otherwise the true category. It is for FR-5/FR-6 measures only (personal accuracy, global gain against users' own view); FR-4 and every other gate score against the true category. On the default dataset, adoption is 28–36% for the four 30% remaps, 52.5% for books (50%) and 75% for streaming (70%), and 119 of 120 test users hold at least one preference.

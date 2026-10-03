@@ -6,6 +6,7 @@ This module reads `truth_*` tables. Model code under `intelligence/` must never 
     truth = load_truth("data/synthetic/default.sqlite")
     truth.score_periods(flags)  # one row per flag or missed label: tp / fp / fn / ignored
     truth.score_transactions(flags)
+    truth.user_categories()  # label contract 2: each transaction's category as its user sees it
 """
 
 import json
@@ -114,6 +115,7 @@ class Truth:
     expected: pd.DataFrame
     merchants: pd.DataFrame
     users: pd.DataFrame
+    preferences: pd.DataFrame  # truth_preferences (schema 4): user, merchant, the user's category
     contract: Contract
     calendar_start: date
 
@@ -129,9 +131,26 @@ class Truth:
             expected=ds["truth_expected"],
             merchants=ds["truth_merchants"],
             users=ds["users"],
+            preferences=ds["truth_preferences"],
             contract=Contract.from_meta(ds.meta),
             calendar_start=date.fromisoformat(ds.meta["calendar_start"]),
         )
+
+    # --- The user's category (label contract 2) -------------------------------------------
+
+    def user_categories(self) -> pd.Series:
+        """Each transaction's category as its user sees it: the user's preference for that
+        merchant where there is one, otherwise the true category. Aligned with `transactions`.
+
+        For FR-5/FR-6 measures only (personal accuracy, global gain against users' own view).
+        FR-4 and every other gate score against the true category.
+        """
+        tx = self.transactions
+        preferred = self.preferences.set_index(["user_id", "merchant_id"])["category"]
+        keys = pd.MultiIndex.from_frame(tx[["user_id", "merchant_id"]])
+        mine = preferred.reindex(keys).to_numpy()
+        values = np.where(pd.isna(mine), tx["category"].to_numpy(), mine)
+        return pd.Series(values, index=tx.index, name="user_category")
 
     # --- Warm-up -------------------------------------------------------------------------------
 

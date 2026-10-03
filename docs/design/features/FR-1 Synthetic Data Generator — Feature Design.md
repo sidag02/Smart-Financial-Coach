@@ -102,7 +102,7 @@ populations:                       # one seed per population; train and test nev
 personas: personas/                # one YAML per persona: parameter distributions
 catalog:
   merchants: merchants.csv
-  holdout: {share: 0.2, exclude_top_n_per_category: 3, test_user_bias: 1.25, seed: 7}
+  holdout: {share: 0.4, exclude_top_n_per_category: 3, test_user_bias: 0.45, seed: 8}  # FR-4; was 0.2, 1.25, 7
 rendering:
   distortion: realistic            # none | light | realistic | heavy
 events:
@@ -521,3 +521,5 @@ What the implementation settled or changed relative to the draft above.
 - **Unusual charges** fall back to another kind when the drawn kind is impossible for a user (e.g. no merchants left that are new to them). Any that still can't be produced are counted in `meta.unusual_charges_dropped` (0 on the default spec).
 - **Changed by FR-2:** spike extras are a separate `spike_extra` process (written as `discretionary`), calibration uses normal purchases only, the test population doubled to 40 per persona, and `validate` gained label and oracle checks. Discretionary seasonality is now checked against the exact expected counts in `truth_expected` (structural and Poisson goodness of fit), which holds at any volume; recurring bills keep the correlation check. FR-2 Ground Truth Labels — Feature Design has the details.
 - **Not built yet:** parallel generation (users are independent, so it can be added without changing output) and the realism notebook.
+- **Changed by FR-4 (Oct 2026):** the default holdout is 40% with seed 8 (`test_user_bias` 0.45 keeps test users' share at holdout merchants inside 15–25%): 115 holdout merchants instead of 58, and a test set FR-3 never scored. Train users see 176 spending merchants instead of 233. FR-3's dataset (share 0.2, seed 7, bias 1.25, schema 3, data hash `2f0e60a6`) is reproducible from the git tag `data/fr3-default`. FR-4 Unseen Merchant Categorization — Feature Design has the reasons.
+- **Changed by FR-5/FR-6 (schema 4):** a last stage writes `truth_preferences(user_id, merchant_id, category)`: test users who see a merchant subtype in another category, per the spec's new `preferences:` section. It draws from its own seed, per user, after every other stage, so it changes no other row: the default dataset's other tables are identical to a 40%-holdout dataset generated without it. Train users never get preferences. Reading a file with another schema version fails with a message naming the tag to use.

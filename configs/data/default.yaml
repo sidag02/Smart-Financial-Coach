@@ -15,13 +15,16 @@ personas: personas/
 
 catalog:
   merchants: merchants.csv
+  # FR-4: a 40% holdout (115 merchants, against 58 at 20%) narrows the unseen-merchant interval
+  # and, with a new seed, gives a test set nothing has been scored on. FR-3's dataset (share 0.2,
+  # seed 7, bias 1.25, schema 3) is reproducible from the git tag `data/fr3-default`.
   holdout:
-    share: 0.2
+    share: 0.4
     exclude_top_n_per_category: 3
     exclude_categories: [Income]
-    test_user_bias: 1.25   # tuned so ~15-25% of test users' spending is at holdout merchants
+    test_user_bias: 0.45   # tuned so ~15-25% of test users' spending is at holdout merchants
     test_share_range: [0.15, 0.25]   # validation fails outside this (with 30+ test users)
-    seed: 7
+    seed: 8
 
 rendering:
   distortion: realistic   # none | light | realistic | heavy
@@ -56,3 +59,16 @@ labels:
   duplicate_window_minutes: 90
   oracle_recall: 0.5             # oracle precision is measured at this recall...
   oracle_min_precision: 0.70     # ...and validate fails below this (PRD target)
+
+# FR-5/FR-6 data contract (schema 4, accepted on PR #15): some test users see a merchant subtype
+# in another category. Each remap's rate tests one outcome of the feedback agreement rule. Train
+# users never get preferences; FR-4's gates stay on the true category.
+preferences:
+  seed: 13
+  remaps:
+    - {subtype: warehouse, category: Shopping, share: 0.3}         # minority stays personal
+    - {subtype: gym, category: Subscriptions, share: 0.3}          # minority, weakest category
+    - {subtype: pharmacy, category: Shopping, share: 0.3}          # minority stays personal
+    - {subtype: rideshare, category: Travel, share: 0.3}           # minority, old fallback category
+    - {subtype: books, category: Entertainment, share: 0.5}        # split: labels flip, get revoked
+    - {subtype: streaming, category: Entertainment, share: 0.7}    # majority becomes a global label

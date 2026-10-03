@@ -91,6 +91,7 @@ def _truth(tx: list[dict[str, object]], spikes: list[dict[str, object]]) -> Trut
             {"merchant_id": ["m_cafe"], "price_median": [5.0], "price_sigma": [0.3]}
         ).assign(is_ambiguous=0),
         users=pd.DataFrame({"user_id": ["u1"], "split": ["test"]}),
+        preferences=pd.DataFrame(columns=["user_id", "merchant_id", "category"]),
         contract=CONTRACT,
         calendar_start=date(2025, 1, 1),
     )

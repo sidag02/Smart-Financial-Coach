@@ -30,7 +30,8 @@ EVENT_COUNT_TOLERANCE = 0.4
 MIN_EVENTS_FOR_RATE_CHECK = 30
 MIN_SPIKES_FOR_LIFT_CHECK = 10
 # The holdout share varies a lot between users; below this many test users it is only reported
-MIN_TEST_USERS_FOR_HOLDOUT_CHECK = 30
+MIN_TEST_USERS_FOR_HOLDOUT_CHECK = 30  # also the floor for the preference adoption-rate check
+PREFERENCE_SIGMAS = 3.0  # adoption rate tolerance, in binomial standard deviations
 # About 3% of amount outliers land inside the user's normal range at high-variance marketplaces;
 # the small spec has few enough outliers that a stricter floor fails by chance
 MIN_OUTLIER_ABOVE_NORMAL_SHARE = 0.85
@@ -324,6 +325,50 @@ def _splits(tx: pd.DataFrame, ds: Dataset, spec: Spec, report: Report) -> None:
         )
 
 
+def _preferences(ds: Dataset, spec: Spec, report: Report) -> None:
+    """Schema 4: only test users, whole subtypes, the remap's category, adoption near its share."""
+    prefs = ds["truth_preferences"]
+    users = ds["users"].set_index("user_id")["split"]
+    test_users = users.index[users == "test"]
+    split = prefs["user_id"].map(users)
+    report.check(
+        bool((split == "test").all()),
+        f"preferences: {int((split != 'test').sum())} rows not for test users",
+    )
+    merchants = ds["truth_merchants"].set_index("merchant_id")
+    rows = prefs.join(merchants[["category", "subtype"]], on="merchant_id", rsuffix="_true")
+    remaps = {r.subtype: r for r in spec.preferences.remaps}
+    expected = rows["subtype"].map({k: r.category for k, r in remaps.items()})
+    report.check(
+        bool((rows["category"] == expected).all()),
+        "preferences: rows outside the spec's remaps, or with another category",
+    )
+    report.check(
+        bool((rows["category"] != rows["category_true"]).all()),
+        "preferences: a preference equal to the merchant's own category",
+    )
+    n = len(test_users)
+    for subtype, remap in remaps.items():
+        size = int((merchants["subtype"] == subtype).sum())
+        held = rows[rows["subtype"] == subtype].groupby("user_id").size()
+        report.check(
+            bool((held == size).all()),
+            f"preferences: users with only part of subtype {subtype}'s {size} merchants",
+        )
+        if n:
+            share = len(held) / n
+            report.stats[f"preference_share.{subtype}"] = share
+            tolerance = PREFERENCE_SIGMAS * float(np.sqrt(remap.share * (1 - remap.share) / n))
+            if n >= MIN_TEST_USERS_FOR_HOLDOUT_CHECK:
+                report.check(
+                    abs(share - remap.share) <= tolerance,
+                    f"preferences: {share:.0%} of test users adopted {subtype}, "
+                    f"expected {remap.share:.0%} ± {tolerance:.0%}",
+                )
+    if n:
+        report.stats["test_users_with_preferences"] = prefs["user_id"].nunique() / n
+
+
 def _goals(ds: Dataset, spec: Spec, report: Report) -> None:
     goals = ds["goals"]
     end = str(spec.calendar.end)
@@ -515,6 +560,7 @@ def validate(ds: Dataset, spec: Spec) -> Report:
     _mess(tx, ds, spec, report)
     _events(tx, ds, spec, report)
     _splits(tx, ds, spec, report)
+    _preferences(ds, spec, report)
     _goals(ds, spec, report)
     truth = Truth.from_dataset(ds)
     _label_consistency(truth, report)

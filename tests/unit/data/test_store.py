@@ -19,7 +19,7 @@ def test_reads_model_tables_scoped_to_a_user(small_sqlite: Path) -> None:
     assert len(mine) == (everyone["user_id"] == user).sum()
     assert mine["transaction_id"].is_monotonic_increasing
     assert set(store.load_users(small_sqlite, user_id=user)["user_id"]) == {user}
-    assert store.load_meta(small_sqlite)["schema_version"] == "3"
+    assert store.load_meta(small_sqlite)["schema_version"] == "4"
 
 
 def test_refuses_truth_tables_and_missing_files(small_sqlite: Path, tmp_path: Path) -> None:
