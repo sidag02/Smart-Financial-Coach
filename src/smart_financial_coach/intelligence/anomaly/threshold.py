@@ -186,7 +186,7 @@ class Thresholded(AnomalyModel):
         features = base.features(x) if shared else None
         kept = labels != IGNORED
         positives = max(int((labels[kept] == ANOMALY).sum()), 1)
-        k = round(self.search_rate * user_months(x))
+        k = round(self.search_rate * user_months(x[kept]))  # per post-warm-up user-month
         ids = x["transaction_id"].to_numpy()
         best: tuple[float, ScorerModel, dict[str, Any]] | None = None
         for point in self._points():
