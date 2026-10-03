@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"{% if theme %} data-theme="{{ theme }}"{% endif %}>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Smart Financial Coach{% endblock %}</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='10' fill='%23F2A36B'/%3E%3Ctext x='16' y='22' font-family='sans-serif' font-weight='700' font-size='17' text-anchor='middle' fill='%232D2622'%3ES%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+</head>
+<body>
+{% block body %}
+{% set nav = [
+  ("overview", "/", "Overview"),
+  ("transactions", "/transactions", "Transactions"),
+  ("flags", "/worth-a-look", "Worth a look"),
+  ("goals", "/goals", "Goals"),
+  ("chat", "/chat", "Ask " ~ coach_name),
+] %}
+<div class="shell">
+  <aside class="sidebar">
+    <a class="brand" href="/"><span class="brand-mark">S</span><span class="brand-name">Smart Financial Coach</span></a>
+    <nav class="nav" aria-label="Main">
+      {% for key, href, label in nav %}
+      <a href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}{% if key in ("flags", "goals") %}<span class="soon">Soon</span>{% endif %}</a>
+      {% endfor %}
+    </nav>
+    <div class="spacer"></div>
+    <div class="me">
+      <div class="avatar">{{ account.initials }}</div>
+      <div style="min-width:0">
+        <div class="me-name">{{ account.name }}</div>
+        <div class="me-email">{{ account.email }}</div>
+      </div>
+    </div>
+    <div class="side-actions">
+      <form method="post" action="/signout"><button class="link-btn" type="submit">Sign out</button></form>
+      <button class="theme-btn" type="button" data-theme-toggle>Theme</button>
+    </div>
+  </aside>
+  <div>
+    <header class="topbar">
+      <a class="brand" href="/"><span class="brand-mark">S</span></a>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="theme-btn" type="button" data-theme-toggle>Theme</button>
+        <form method="post" action="/signout"><button class="link-btn" type="submit">Sign out</button></form>
+        <div class="avatar">{{ account.initials }}</div>
+      </div>
+    </header>
+    <main>
+      {% block main %}{% endblock %}
+    </main>
+  </div>
+  <nav class="tabbar" aria-label="Main">
+    {% for key, href, label in nav %}
+    <a href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ "Ask" if key == "chat" else label }}</a>
+    {% endfor %}
+  </nav>
+</div>
+{% endblock %}
+</body>
+</html>

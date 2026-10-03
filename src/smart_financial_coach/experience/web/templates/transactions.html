@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% from "_macros.html" import month_picker, cat_chip %}
+{% block title %}Transactions · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">Transactions</h1>
+    <div class="page-sub">{{ month.start.strftime('%B %Y') }} · {{ count }} transactions, sorted into 13 categories</div>
+  </div>
+  {{ month_picker("/transactions", month, month_options, {"category": category, "q": q}) }}
+</div>
+
+{% set base = "/transactions?month=" ~ month.start.strftime('%Y-%m') %}
+<form class="filters" method="get" action="/transactions">
+  <input type="hidden" name="month" value="{{ month.start.strftime('%Y-%m') }}">
+  {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
+  <label class="visually-hidden" for="q">Search merchants</label>
+  <input class="search" id="q" name="q" value="{{ q }}" placeholder="Search merchants" maxlength="80">
+  <a class="filter-chip" href="{{ base }}"{% if not category and not review and not q %} aria-current="true"{% endif %}>All</a>
+  <a class="filter-chip review" href="{{ base }}&review=1"{% if review %} aria-current="true"{% endif %}>Not sure · {{ not_sure }}</a>
+  {% for c in categories %}
+  <a class="filter-chip" href="{{ base }}&category={{ c | urlencode }}"{% if c == category %} aria-current="true"{% endif %}>{{ c }}</a>
+  {% endfor %}
+</form>
+
+<section class="card" style="padding:6px 8px">
+  {% if rows %}
+  <table class="txns">
+    <thead><tr><th>Date</th><th>Merchant</th><th class="cat">Category</th><th class="amount">Amount</th></tr></thead>
+    <tbody>
+    {% for t in rows %}
+      {% set unsure = t.confidence < 0.6 %}
+      <tr>
+        <td class="muted num" style="white-space:nowrap">{{ t.ts.strftime('%b') }} {{ t.ts.day }}</td>
+        <td>
+          <div class="merchant">{{ t.merchant }}</div>
+          <div class="raw">{{ t.merchant_raw }}</div>
+          <div class="m-only">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure">Not sure?</span>{% endif %}</div>
+        </td>
+        <td class="cat">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure" title="Confidence {{ (t.confidence * 100) | round | int }}%">Not sure?</span>{% endif %}</td>
+        <td class="amount num{% if t.amount > 0 %} in{% endif %}">{{ t.amount | money(cents=True, sign=True) }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty">No transactions match.</div>
+  {% endif %}
+</section>
+<p class="disclaimer">"Not sure?" marks categories the model is less than 60% confident about. Reviewing and correcting them is coming next.</p>
+{% endblock %}

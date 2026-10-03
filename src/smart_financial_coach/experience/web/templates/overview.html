@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% from "_macros.html" import month_picker %}
+{% block title %}Overview · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">{{ greeting }}, {{ account.first_name }}</h1>
+    <div class="page-sub">Here's {{ month.start.strftime('%B %Y') }} at a glance.</div>
+  </div>
+  {{ month_picker("/", month, month_options) }}
+</div>
+
+<div class="stack">
+  <form class="ask" method="get" action="/chat">
+    <span class="coach-dot">{{ coach_name[0] }}</span>
+    <label class="visually-hidden" for="ask-q">Ask {{ coach_name }}</label>
+    <input id="ask-q" name="q" maxlength="500" placeholder="Ask {{ coach_name }} anything about your money…" autocomplete="off">
+    <button class="btn" type="submit">Ask</button>
+  </form>
+  <div class="chips">
+    {% set m = month.start.strftime('%B') %}
+    {% for q in ["Where did most of my money go in " ~ m ~ "?", "What were my biggest purchases in " ~ m ~ "?", "How does " ~ m ~ " compare to the month before?"] %}
+    <a class="chip" href="/chat?q={{ q | urlencode }}">{{ q }}</a>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="grid-3">
+  <section class="card stack" style="gap:6px">
+    <div class="card-label">Spent in {{ month.start.strftime('%B') }}{% if month.end.day < 28 %} so far{% endif %}</div>
+    <div class="big">{{ summary.spending | money }}</div>
+    <div class="muted" style="font-size:13.5px">{{ summary.transactions }} transactions · {{ essentials | money }} on essentials</div>
+    <div class="spacer"></div>
+    <div class="row-split"><span>Income this month</span><b class="num">{{ summary.income | money }}</b></div>
+  </section>
+
+  <section class="card stack">
+    {% if active_goals %}{% set g = active_goals[0] %}
+    <div class="card-head"><div class="card-label">{{ g.name }}</div><span class="badge soon">Forecast soon</span></div>
+    <div><span class="mid">{{ g.saved | money }}</span> <span class="muted" style="font-size:14px">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
+    <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
+    <div style="font-size:13.5px" class="muted">Saved as of {{ g.saved_as_of | day }}. Whether you're on track arrives with goal forecasting.</div>
+    {% else %}
+    <div class="card-label">Savings goal</div>
+    <div class="soon-box">No savings goals yet. Goal setup is coming next.</div>
+    {% endif %}
+  </section>
+
+  <section class="card stack">
+    <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">Preview</a></div>
+    <div class="soon-box"><span>Unusual charges and spending spikes will show here, each with a reason, once the alert models are released.</span></div>
+  </section>
+</div>
+
+{% include "_flow.html" %}
+
+<section class="card">
+  <div class="card-head">
+    <div class="card-title">Last 12 months</div>
+    <div class="muted" style="font-size:13px">Monthly spending, {{ trend[0].month | month_name(long=True) }} to {{ trend[-1].month | month_name(long=True) }}</div>
+  </div>
+  <div class="trend" role="img" aria-label="Monthly spending for the last 12 months">
+    {% for b in trend %}
+    <div class="col" title="{{ b.month | month_name(long=True) }}: {{ b.value | money }}">
+      <div class="plot">
+        {% if b.label %}<div class="val num" style="bottom:calc({{ b.height }} + 4px)">${{ '%.1f' % (b.value / 1000) }}k</div>{% endif %}
+        <div class="bar {{ b.kind }}" style="height:{{ b.height }}"></div>
+      </div>
+      <div class="mon">{{ b.month | month_name }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<div id="drawer"></div>
+{% endblock %}

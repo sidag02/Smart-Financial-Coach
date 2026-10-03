@@ -1,0 +1,10 @@
+<aside class="card sources" id="sources"{% if oob %} hx-swap-oob="true"{% endif %}>
+  <div class="card-title">Where these numbers come from</div>
+  {% if sources %}
+  <ol>
+    {% for i, s in sources %}<li><span class="src-chip">{{ i }}</span><span><b>{{ s.title }}</b><span class="muted">{{ s.detail }}</span></span></li>{% endfor %}
+  </ol>
+  {% else %}
+  <p class="muted" style="font-size:13px;margin:8px 0 0">Each answer's sources appear here.</p>
+  {% endif %}
+</aside>

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Sign in · Smart Financial Coach{% endblock %}
+{% block body %}
+<div class="signin">
+  <div class="signin-card">
+    <div class="brand"><span class="brand-mark">S</span><span class="brand-name">Smart Financial Coach</span></div>
+    <div>
+      <h1 class="page-title" style="font-size:28px">Welcome back</h1>
+      <div class="page-sub">Sign in to see your money, in plain English.</div>
+    </div>
+    {% if error %}<div class="error" role="alert">{{ error }}</div>{% endif %}
+    <form method="post" action="/signin" class="stack" style="gap:14px">
+      <label class="field">Email
+        <input type="email" name="email" value="{{ email }}" autocomplete="username" required autofocus>
+      </label>
+      <label class="field">Password
+        <input type="password" name="password" autocomplete="current-password" required>
+      </label>
+      <button class="btn" type="submit" style="padding:13px">Sign in</button>
+    </form>
+    {% if quick_signin %}
+    <div class="quick">
+      <div class="card-label">Demo accounts (local only)</div>
+      {% for a in accounts %}
+      <form method="post" action="/signin/quick">
+        <input type="hidden" name="user_id" value="{{ a.user_id }}">
+        <button class="quick-btn" type="submit">
+          <span class="avatar">{{ a.initials }}</span>
+          <span><b>Continue as {{ a.first_name }}</b><br><span class="muted" style="font-size:13px">{{ a.email }}</span></span>
+        </button>
+      </form>
+      {% endfor %}
+    </div>
+    {% endif %}
+    <div class="fine">Your data is private to your account. This demo runs on synthetic data.</div>
+  </div>
+</div>
+{% endblock %}

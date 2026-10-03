@@ -1,0 +1,5 @@
+<div class="q">{{ turn.question }}</div>
+<div class="a">
+  <span class="coach-dot">{{ coach_name[0] }}</span>
+  {% if turn.error %}<div class="a-body error">{{ turn.error }}</div>{% else %}<div class="a-body">{{ turn.answer }}</div>{% endif %}
+</div>
