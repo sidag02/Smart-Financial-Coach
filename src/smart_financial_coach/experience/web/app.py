@@ -282,9 +282,9 @@ def create_app(
 
     @app.middleware("http")
     async def same_origin_posts(request: Request, call_next: Any) -> Response:
-        if request.method not in ("GET", "HEAD", "OPTIONS") and not request.url.path.startswith(
-            MCP_PATH
-        ):
+        path = request.url.path
+        mcp = path == MCP_PATH or path.startswith(f"{MCP_PATH}/")  # not /mcp-anything (#38)
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not mcp:
             origin = request.headers.get("origin")
             if origin is None and (referer := request.headers.get("referer")):
                 parts = urlsplit(referer)
