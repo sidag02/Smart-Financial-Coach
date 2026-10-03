@@ -11,7 +11,7 @@ This feature makes the categorizer usable on merchants it has never seen, measur
 - **Feasibility, measured on validation data only** ([evidence](#feasibility)):
   - **Clean labels are the lever.** Training without the injected 2% label noise lifts unseen-merchant macro F1 from 0.512 to **0.714**. Dropping balanced class weights as well gives **0.745** (0.68–0.80). Known merchants rise from 0.969 to 0.988, the Travel fallback disappears (Travel F1 0.025 to 0.886), and misallocated unseen spend falls from 27% to 11%.
   - **Nothing else measured helps.** Routing unfamiliar strings to an embeddings-only model ties (0.704); nearest neighbours over embeddings is worse than the shipped model (0.468); bge-small ties bge-base (0.715) at a third of the batch cost.
-  - **Today's test holdout is too small to judge 0.80.** With 58 holdout merchants, the same model scores anywhere from 0.43 to 0.62 depending on which merchants are drawn. A 40% holdout gives 115 merchants and halves that spread, and the generator's data checks pass with it.
+  - **Today's test holdout is too small to judge 0.80.** With 58 holdout merchants, the same model scores anywhere from 0.43 to 0.62 depending on which merchants are drawn. A 40% holdout gives 115 merchants, narrows the interval by about a fifth and gives a fresh test set; the generator's data checks pass with it.
 - **Approach:**
   1. **Ship a clean-label model.** The owner decided on PR #15 that shipped and retrained models train on clean labels, while injected noise stays for comparing candidates. FR-4 makes that mechanical: every compared configuration has a **shipping twin** with `label_noise: 0`, and the twins are what get finalized and promoted.
   2. **Add the class-weight choice to the candidates**, since unweighted training led on validation.
@@ -31,8 +31,8 @@ Where the shipped model loses unseen-merchant macro F1 (validation, per category
 | Entertainment | 8 | 0.289 | 0.358 | **0.463** |
 | Insurance & Fees | 8 | 0.342 | 0.770 | 0.760 |
 | Childcare & Education | 10 | 0.396 | 0.652 | 0.706 |
-| Shopping | 28 | 0.580 | 0.758 | 0.801 |
-| Groceries | 18 | 0.588 | 0.815 | 0.801 |
+| Shopping | 26 | 0.580 | 0.758 | 0.801 |
+| Groceries | 17 | 0.588 | 0.815 | 0.801 |
 | Dining | 33 | 0.670 | 0.893 | 0.886 |
 | Housing | 8 | 0.689 | 0.985 | 0.981 |
 | Transportation | 14 | 0.696 | 0.731 | 0.719 |
@@ -52,7 +52,7 @@ Where the shipped model loses unseen-merchant macro F1 (validation, per category
 
 ## Feasibility
 
-**Evidence:** POC branch `poc/fr-4-unseen-merchants`, pinned to commit [`108e5aa`](https://github.com/sidag02/Smart-Financial-Coach/tree/108e5aafc758a8f2831723b34029ccaba469f519/experiments/fr4_unseen). Every number below is in its [results](https://github.com/sidag02/Smart-Financial-Coach/blob/108e5aafc758a8f2831723b34029ccaba469f519/experiments/fr4_unseen/results/feasibility.md), with the commands that reproduce them.
+**Evidence:** POC branch `poc/fr-4-unseen-merchants`, pinned to commit [`2541dc6`](https://github.com/sidag02/Smart-Financial-Coach/tree/2541dc654043c591afca906c543f6bf4240fc538/experiments/fr4_unseen). Every number below is in its [results](https://github.com/sidag02/Smart-Financial-Coach/blob/2541dc654043c591afca906c543f6bf4240fc538/experiments/fr4_unseen/results/feasibility.md), with the commands that reproduce them.
 
 Setup: the launch round's 3 merchant-grouped validation folds (169 held-out merchants of train users, split hash `ce93ef87`), default dataset, one code version. All candidates are calibrated per familiarity group with C = 1.0. The runs went into a separate MLflow store, so nothing joined the FR-3 leaderboard. **No test set was scored.**
 
@@ -82,16 +82,18 @@ What the runs show:
 
 ### How precise is the unseen-merchant measurement?
 
-Category-stratified subsets of the 169 validation merchants, scored with the shipped model's validation predictions:
+Category-stratified subsets of the 169 validation merchants, scored with the shipped model's validation predictions. The merchant bootstrap resamples with replacement, so it treats merchants as independent draws, as a fresh holdout's are:
 
-| Holdout merchants | Same model, 95% of holdout draws | Draw-to-draw SD | Bootstrap interval width |
-| --- | --- | --- | --- |
-| **58** (today's test holdout) | 0.425–0.624 | 0.051 | 0.186 |
-| 87 | 0.447–0.599 | 0.035 | 0.163 |
-| **115** | 0.461–0.570 | 0.029 | 0.148 |
+| Holdout merchants | Bootstrap SD | 95% interval width | P(≥ 0.70) if the true score is 0.745 | … if 0.73 |
+| --- | --- | --- | --- | --- |
+| **58** (today's test holdout) | 0.048 | 0.186 | 83% | 73% |
+| 87 | 0.042 | 0.163 | 86% | 76% |
+| **115** | 0.038 | 0.148 | 88% | 78% |
 
-- **With 58 merchants, one holdout draw swings the score by about ±0.10.** FR-3's 0.462 on test against 0.512 on validation is within that luck. A 0.80 pass or fail on this holdout would say little about the model.
-- **115 merchants halve the spread** (SD 0.029). Three to six merchants per category is still few, so intervals stay wide; the target below is set with that in mind.
+- **With 58 merchants, one holdout draw swings the score by about ±0.10:** subsets of the 169 put the same model anywhere from 0.43 to 0.62. FR-3's 0.462 on test against 0.512 on validation is within that luck. A 0.80 pass or fail on this holdout would say little about the model.
+- **115 merchants narrow the interval by about a fifth** (SD 0.048 to 0.038; √(58/115) predicts about 29% for independent merchants). Three to six merchants per category is still few, so intervals stay wide; the target below is set with that in mind.
+- 0.73 allows for 0.745 being the best of nine runs on the same folds. The pass rates use a normal approximation and the SD of this model (unseen F1 0.51), not the leader's.
+- *Corrected in review:* the first version used the spread of subsets drawn without replacement, which share most merchants as N grows and so understate a fresh holdout's spread (SD 0.029 at 115, against 0.038). It said 115 merchants "halve" the spread.
 
 ### A larger holdout
 
@@ -135,7 +137,11 @@ How the framework carries it:
 - `sfc-model promote` accepts only a twin whose config sets `label_noise` explicitly, and records the value in `promotions.jsonl`. A config that leaves it to the task default is refused, so a promotion can't silently train with or without noise.
 - The comparison run and its twin share a split hash, so validation numbers for both are on one leaderboard for reporting. Ranking ignores twins.
 
-**Does ranking under noise pick the right clean model?** It did here: without class weights wins under noise (0.666 against 0.512) and without noise (0.745 against 0.714). It isn't guaranteed. The report shows each finalist's twin on validation next to its comparison run, so a reversal would be visible before the test sets are touched.
+**Does ranking under noise pick the right clean model?** It did here: without class weights wins under noise (0.666 against 0.512) and without noise (0.745 against 0.714). It isn't guaranteed, so the rule says in advance what each kind of run decides (§5):
+
+- **Eligibility, ranking and the tie set** come from the comparison runs, as the owner's decision requires.
+- **Tie-breaks come from the twins' validation metrics.** Noise roughly doubles unseen Brier (0.216 against 0.130 for the same bge-base configuration), so ordering tied runs by noisy Brier would choose on the calibration of models that don't ship. The twins' validation numbers are on the same splits and use no test data.
+- **A reversal on F1 is a stop.** If a lower-ranked finalist's twin beats rank 1's twin on validation unseen F1 by a paired interval excluding 0, nothing is finalized until it's investigated, like a failed gate. It is not resolved by quietly promoting the other twin.
 
 ### 2. Candidates
 
@@ -156,19 +162,26 @@ The FR-4 round runs, on the new dataset (§3), each as a comparison run with a s
 - **The default spec changes:** holdout share 0.2 to **0.4**, holdout seed 7 to **8**, test-user bias 1.25 to **0.45**. The default dataset is regenerated.
 - **Why change the default** rather than add a second dataset: every model and report reads one dataset. Two datasets would double every run and leave FR-3's and FR-4's numbers on different data.
 - **Fresh test set:** the new seed holds out different merchants, and the split hash changes, so FR-4's finalists are scored on test data nothing has seen. FR-3's numbers on the old dataset remain as recorded; the FR-4 report re-states FR-3's gates on the new data.
-- **Coordination with FR-5/FR-6:** that design adds `truth_preferences` (schema 4). If both land close together, regenerate once with both changes.
+- **One regeneration, with FR-5/FR-6's schema 4** (owner decision on #15, Oct 2, 2026): milestone 1 also adds that design's `truth_preferences`, so the default dataset is regenerated once. The FR-5/FR-6 replay then runs on FR-4's promoted twin and this dataset.
+- **FR-3's runs stay reproducible.** `rebuild_splits` refuses a dataset whose hash differs from a run's, so after the regeneration no FR-3 run can be re-finalized, re-reported or re-scored against the new file. Before milestone 1, the last commit with the old default spec and generator is tagged `data/fr3-default` (data hash `2f0e60a6`); generating from that tag reproduces FR-3's dataset. Serving the currently promoted model doesn't depend on it: `load_service` and `predict` read only the artifact.
 
 ### 4. Target
 
 - **Proposed v1 target: unseen-merchant macro F1 ≥ 0.70** on the 115-merchant test holdout, with its merchant-bootstrap interval reported, and above the keyword baseline's unseen score.
-  - The validation leader scores 0.745 (0.68–0.80). With a draw-to-draw SD of about 0.03 at 115 merchants, a model that good passes 0.70 on about nine draws in ten, so the gate tests the model, not the draw. (The SD was measured on the shipped model's predictions; the FR-4 round re-measures it for the leader before the gate is used.)
+  - The validation leader scores 0.745 (0.68–0.80). With a bootstrap SD of about 0.038 at 115 merchants, a model that good passes 0.70 on roughly eight to nine draws in ten (88%; 78% if its true score is 0.73, allowing for its being the best of nine runs). So the gate mostly tests the model, not the draw. The SD was measured on the shipped model's predictions; the FR-4 round re-measures it with the merchant bootstrap on the leader's twin before the gate is used.
   - A 0.80 gate would fail most draws of today's best model, and its interval's upper end only touches 0.80.
 - **0.80 stays as the goal for v1.1**, reached through feedback (FR-5/FR-6) and measured by that design's replay as global gain on users who supplied no corrections. The Technical Design already names feedback as "a realistic route to FR-4's target".
 - **This changes the PRD** (success metrics, FR-4), as FR-2 changed FR-8 for weekly spikes. It is the owner's decision, listed below.
 
 ### 5. Gates and selection
 
-- **Decision rule:** unchanged from FR-3: eligibility and ranking on validation comparison runs, ties against the leader by paired merchant bootstrap, then unseen Brier, then batch cost.
+- **Decision rule,** fixed before the FR-4 round runs:
+  - eligibility, ranking and the tie set on validation comparison runs (unseen macro F1, ties against the leader by paired merchant bootstrap), as in FR-3;
+  - within the tie set, order by the twins' validation unseen Brier **with its own tie test**: a paired merchant bootstrap of the Brier difference, so runs whose interval contains 0 are tied on Brier too;
+  - among runs tied on both, the lower batch cost wins, then explainability, then operational simplicity;
+  - a twin-level F1 reversal stops the round (§1).
+- **Why a Brier tie test:** with Brier as a strict tie-break, cost is never consulted. FR-3 found Brier "separated every tied run", and here bge-small's clean Brier (0.134) trails bge-base's (0.130, unweighted 0.126) by only 0.004–0.008, at a third of the batch cost. Whether such a gap is real is exactly what a tie test answers. Serving is batched (FR-3's latency decision), so cost should decide between models that are tied on both F1 and calibration.
+- **Made knowing the feasibility numbers.** They suggest this change would favour bge-small if it ties again. It uses no test data, it is fixed before the FR-4 round, and it applies from FR-4 on; FR-3's selection stands.
 - **Promotion gates** (on the twin's test scores): known-merchant macro F1 ≥ 0.90 and above keyword (FR-3); unseen-merchant macro F1 ≥ the v1 target and above keyword's unseen score (FR-4).
 - **If the rank-1 twin fails the FR-4 gate,** that is investigated, not resolved by promoting #2 (FR-3's rule).
 
@@ -199,7 +212,7 @@ FR-3's metrics carry over unchanged ("Metrics and why", FR-3 design). What FR-4 
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Keep the 58-merchant holdout | No regeneration | ±0.10 luck; test set already used by FR-3 |
-| **(b) 40% holdout, new seed, in the default dataset (recommended)** | 115 merchants; half the spread; a fresh test set | Training sees 176 instead of 233 spending merchants; all data regenerates |
+| **(b) 40% holdout, new seed, in the default dataset (recommended)** | 115 merchants; an interval about a fifth narrower; a fresh test set | Training sees 176 instead of 233 spending merchants; all data regenerates |
 | (c) Several holdout seeds, scores averaged | Least luck | A full dataset and training per seed |
 | (d) Validation only, no test gate | Already 169 merchants | Validation merchants are train users' merchants; no untouched final check |
 
@@ -208,7 +221,7 @@ FR-3's metrics carry over unchanged ("Metrics and why", FR-3 design). What FR-4 
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Keep 0.80 as a v1 gate | The PRD as written | Today's best model fails most draws; the gate would test luck |
-| **(b) 0.70 for v1, 0.80 for v1.1 after feedback (recommended)** | Passes reliably for a model as good as the leader; keeps 0.80 as the goal, with a route to it | A PRD change |
+| **(b) 0.70 for v1, 0.80 for v1.1 after feedback (recommended)** | Passes on roughly eight to nine draws in ten for a model as good as the leader; keeps 0.80 as the goal, with a route to it | A PRD change |
 | (c) A gate on the interval's lower bound | Conservative | With 3–6 merchants per category, the lower bound is far below the point estimate; it would gate on sample size |
 
 ## Testing
@@ -222,8 +235,8 @@ FR-3's metrics carry over unchanged ("Metrics and why", FR-3 design). What FR-4 
 
 One PR per milestone.
 
-1. **Dataset:** the default spec's new holdout (share, seed, bias), regenerated and validated; FR-1 and FR-2 docs note the change (coordinated with FR-5/FR-6's schema 4 if close).
-2. **Framework:** shipping twins in run, finalize and promote; explicit `label_noise` required at promotion; `class_weight` in `linear_text`.
+1. **Dataset:** tag `data/fr3-default` first; then the default spec's new holdout (share, seed, bias) together with FR-5/FR-6's `truth_preferences` (schema 4), regenerated once and validated; FR-1 and FR-2 docs note the change.
+2. **Framework:** shipping twins in run, finalize and promote; explicit `label_noise` required at promotion; tie-breaks on twins with the Brier tie test; the reversal stop; `class_weight` in `linear_text`.
 3. **FR-4 round:** baselines and the four candidates, each with its twin, on the new dataset; the comparison report.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
 5. **Docs:** PRD target (if accepted), Technical Design (twins, the gate), this design accepted.
@@ -236,10 +249,13 @@ One PR per milestone.
 - [ ] `class_weight` as a candidate dimension; routing and nearest neighbours not carried forward.
 - [ ] The default dataset's holdout becomes 40% with a new seed (115 merchants, fresh test set).
 - [ ] FR-4 gate: unseen macro F1 ≥ the v1 target and above keyword, alongside FR-3's gates.
+- [ ] Tie-breaks on the twins' validation metrics, a paired-bootstrap tie test on Brier so cost can decide, and a twin-level F1 reversal as a stop (from review).
+- [ ] Tag `data/fr3-default` before regenerating, so FR-3's dataset stays reproducible (from review).
+- [x] Regenerate the dataset once, with FR-5/FR-6's schema 4; the replay runs on FR-4's promoted twin (owner, Oct 2, 2026, on #15).
 - [x] No LLM fallback in categorization (owner, Oct 2, 2026).
 
 **Open questions**
 
 1. [ ] **The v1 target.** Proposed 0.70 for v1, 0.80 for v1.1 through feedback. Needs the owner's decision and a PRD change.
 2. [ ] **Health & Fitness and Entertainment** stay weakest (0.16 and 0.46 on validation). Worth a targeted look (subtype confusions, side features) before or after launch?
-3. [ ] **bge-small as the default** if it ties again: about a third of the batch cost and memory. The decision rule's tie-breaks (Brier, then cost) decide; worth confirming that's the intended order now that serving is batched.
+3. [x] **bge-small as the default if it ties again.** Answered by the decision-rule change in §5 (from review): with a Brier tie test, cost decides among runs tied on F1 and calibration. Under a strict Brier tie-break it never could.
