@@ -16,8 +16,8 @@ This feature closes the loop that FR-3's cold-start categorizer was built for. U
   1. **Review policy with the model.** The categorizer reports whether each string is familiar, and the promoted artifact carries per-group review thresholds chosen on validation. Flags are computed in the ingestion batch.
   2. **One review item per user and merchant string**, ranked by spend, with a reason the user can read.
   3. **Corrections are events; overrides are state.** A correction or confirmation applies to that user at once, by merchant (default) or for one transaction. Precedence: transaction override, then merchant override, then the model. Every correction can be undone.
-  4. **Global labels only by agreement:** a merchant string's category becomes a training label when at least 3 distinct users agree (to be tuned by the replay). A string only one user ever sees never leaves that user.
-  5. **Scheduled retraining through the FR-3 framework**, gated and promoted the same way, evaluated on data that arrived after its training cutoff from users who supplied no labels. Review thresholds are re-derived with every promotion.
+  4. **Global labels only by agreement:** a merchant string's category becomes a training label when at least 3 distinct users agree (to be tuned by the replay), including at least one who corrected rather than accepted a suggestion. A string only one user ever sees never leaves that user.
+  5. **Scheduled retraining through the FR-3 framework**, on clean labels, gated and promoted the same way, evaluated on data that arrived after its training cutoff from users who supplied no labels. Review thresholds are re-derived with every promotion.
   6. **Use-case ready:** tools on the tool server and their JSON shapes, which the stub web app and coach call, so the flows work end to end when the UI lands.
   7. **A simulator** of synthetic users with their own category preferences, who review, correct, slip and occasionally misbehave, replayed month by month to measure the loop.
 - **Principle (carried from FR-3):** models are compared on data they didn't train on. For retraining, that means data from later months and from users who supplied no labels.
@@ -179,12 +179,18 @@ flowchart LR
 - **Effective categories are computed per user, after the shared inference.** The data-access layer joins that user's predictions to that user's overrides, scoped by the session's `user_id`. Overrides never enter the batch's shared work, so one user's override can't reach another user's rows (Technical Design, feedback constraints).
 - **Undo** marks the event undone and rebuilds that user's affected overrides. Nothing is deleted, so the log stays an audit trail.
 - **Coach-initiated bulk changes** (more than one transaction) are confirmed in the chat before the tool applies them; the tool takes a `confirm` flag the coach sets only after the user agrees.
+- **Aggregates and spike detection use one categorization at a time.** Two things change a user's per-category totals without any change in spending: a promotion recomputes predictions across the user's whole history, and a merchant-scope correction moves a merchant's spend between categories. Spending spikes (FR-8) compare a period with a baseline, so both are always computed from the **current** effective categories, never from a cached baseline under an earlier categorization. Otherwise a relabelling would be flagged as a spike. A test checks that a correction or a promotion alone never produces a spike alert.
 
 ### 4. From corrections to global labels
 
 A correction means one of two things: the model was wrong, or the user sees it differently (Technical Design). The rule separates them by agreement across users.
 
-- **Agreement rule:** a merchant string's category becomes a global training label when at least **N distinct users** (default 3) have confirmed or corrected it, and at least **two thirds** of them agree on the category. Confirmations count as agreeing with the category they confirmed.
+- **Agreement rule:** a merchant string's category becomes a global training label when at least **N distinct users** (default 3) have confirmed or corrected it, and at least **two thirds** of them agree on the category.
+- **Confirmations are weaker evidence than corrections (automation bias).** A confirmation accepts the model's own suggestion, and users often accept suggestions without checking. About half of unfamiliar flags are wrong (Feasibility), many of them the Travel fallback, so three habitual confirmations could turn a model error into a global label, and retraining would entrench it. So:
+  - a global label needs **at least one independent correction** to that category, a choice the user made rather than accepted; confirmations alone never create one;
+  - confirmations still count toward N and the majority once a correction exists, and still pin the category for the user who confirmed (§3).
+
+  The simulator models accept-the-suggestion behavior (§7), and the replay reports how often a model error becomes a global label.
 - **Privacy:** the threshold counts distinct users, never corrections. A string seen by fewer than N users in total (a person-to-person payment, a landlord's name) can never become a global label; it stays that user's override (user story 5).
 - **Preferences stay personal:** a merchant where users split (some say Groceries, some Shopping) fails the two-thirds rule and doesn't move the model; each user keeps their override.
 - **Robustness:** a label needs several independent users, and a correction from a user whose corrections disagree with consensus unusually often is down-weighted (tuned in the replay). A single user, however active, can't create a global label.
@@ -192,14 +198,15 @@ A correction means one of two things: the model was wrong, or the user sees it d
 
 ### 5. Retraining
 
-- **Training data:** the original synthetic training rows plus the transactions at globally labelled strings, with the agreed category. The model's `fit` already takes labels as an argument.
+- **Training data:** the original synthetic training rows, plus the **contributing users' own transactions** at globally labelled strings, **from before the training cutoff**, with the agreed category. Non-contributors' transactions never enter training, even at a labelled string: the evaluation below scores non-contributors in later months, and their rows in training would leak into it. A leak check, like FR-3's, stops a retraining whose training rows include any evaluation user's transaction or any transaction after the cutoff. The model's `fit` already takes labels as an argument.
+- **Clean labels** (decision, Oct 2, 2026; [open question 3](#open-questions)): the shipped model and every model retrained from feedback train **without injected label noise**. Injected noise stays for experiments that compare candidates. The two differ only in that setting, so it is written explicitly in the configuration that is finalized and promoted (`label_noise: 0`), promotion refuses a configuration that leaves it implicit, and the promotion log records it.
 - **Cadence:** scheduled (proposed monthly), and skipped when fewer than a minimum number of new global labels arrived. The replay sets both numbers.
 - **Evaluation without reusing a test set:** each retraining is scored on data its training never saw:
   - **later months** than its training cutoff;
   - from **users who supplied no labels** used in that training, as FR-2 separates train and test users.
 
   New data arrives every cycle, so no test set is scored twice.
-- **Gates** (the FR-3 order): primary metric on that held-out data (no regression on familiar strings; improvement on the strings that gained labels), above the incumbent, and calibration preserved (unfamiliar Brier no worse). Promotion is the FR-3 command with a recorded note.
+- **Gates** (the FR-3 order): primary metric on that held-out data, scored against the non-contributors' own view (no regression on familiar strings; improvement on the strings that gained labels), above the incumbent, and calibration preserved (unfamiliar Brier no worse). Promotion is the FR-3 command with a recorded note.
 - **After promotion:** the review policy is re-derived (§1), predictions are recomputed in the next batch, and overrides persist untouched.
 - **Rollback** is promoting the previous version, as in FR-3.
 
@@ -228,7 +235,7 @@ The loop is measured on synthetic users before any real user sees it.
 
   A new truth table, `truth_preferences(user_id, merchant_id, category)`, holds each user's view (schema version 4; default datasets regenerate). The label contract gains a "user's category": the preference where there is one, otherwise the true category.
 
-- **Behavior:** each month, each simulated user opens the review queue with some probability (engagement). For each item they resolve, they confirm if the suggestion matches their view and correct otherwise, slipping to a wrong category with a small probability. Some users also correct unflagged errors they notice, more often for large amounts. A small share of users correct at random (adversarial).
+- **Behavior:** each month, each simulated user opens the review queue with some probability (engagement). For each item they resolve, they confirm if the suggestion matches their view and correct otherwise, slipping to a wrong category with a small probability. Some users **accept the suggestion without checking** at a set rate (automation bias), confirming wrong suggestions too. Some users also correct unflagged errors they notice, more often for large amounts. A small share of users correct at random (adversarial).
 - **Replay:** month by month over the test users' history: ingest, categorize, flag, simulate responses, update overrides, and retrain on the schedule when the agreement rule produces enough labels.
 - **Measures** (Technical Design, "What good will mean"):
 
@@ -236,7 +243,8 @@ The loop is measured on synthetic users before any real user sees it.
   | --- | --- |
   | Personal accuracy | Share of a user's spending transactions whose effective category matches their view, over time |
   | Corrections needed | Corrections per user until their categories match their view; repeat corrections of the same string |
-  | Global gain | Unseen-merchant macro F1 of each retrained model, on users who supplied none of its labels and on months after its cutoff |
+  | Global gain | Unseen-merchant macro F1 of each retrained model, on users who supplied none of its labels and on months after its cutoff, **scored against those users' own view** (their "user's category"). Truth-based F1 is reported alongside, so a shift toward an agreed preference shows as a preference, not as a regression |
+  | Entrenched errors | Global labels whose category differs from the contributing users' views (e.g. confirmed Travel fallbacks) |
   | Isolation | Effective categories of users who never corrected don't change except through promoted models |
   | Robustness | Global gain with 5% and 20% adversarial users; no global label from a single user |
   | Calibration after retraining | Unfamiliar Brier and the review policy's catch rate keep their meaning |
@@ -308,7 +316,7 @@ One PR per milestone.
 2. **Feedback store and effective categories:** tables, precedence, undo, per-user effective categories in the data-access layer, isolation tests.
 3. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections`; effective categories in `get_transactions` and `get_spending_summary`; JSON schemas and contract tests against the web app and coach stubs.
 4. **Preferences and the simulator:** `truth_preferences` (schema 4), preference-aware label contract, simulated review and correction behavior.
-5. **Global labels and retraining:** the agreement rule, a feedback-aware training task, time-forward evaluation on non-contributing users, gates, policy re-derivation.
+5. **Global labels and retraining:** the agreement rule (with the correction requirement), a feedback-aware training task, time-forward evaluation on non-contributing users scored against their own view, a leak check on training rows (no evaluation user, nothing after the cutoff), gates, policy re-derivation, and an explicit `label_noise` required at promotion.
 6. **Replay and decisions:** the replay report; settle N, the cadence and the noise question; Technical Design updates.
 
 ## Decisions and open questions
@@ -322,11 +330,16 @@ One PR per milestone.
 - [ ] Global labels by distinct-user agreement (N = 3, two-thirds majority, both tuned by the replay).
 - [ ] Retraining scheduled, evaluated on later months from non-contributing users, promoted through the FR-3 gates.
 - [ ] The web app and the coach use the same tools; bulk coach changes need confirmation.
+- [ ] A global label needs at least one independent correction; confirmations alone never create one (from review).
+- [ ] Retraining uses only contributing users' transactions from before the cutoff, with a leak check (from review).
+- [ ] Global gain is scored against non-contributors' own view, with truth-based F1 alongside (from review).
+- [ ] Spike baselines and periods always use the current effective categories (from review).
+- [x] The shipped model and retrained models train on clean labels; injected noise only for comparing candidates (owner, Oct 2, 2026).
 
 **Open questions**
 
 1. [ ] **N and the majority** for global labels: the replay measures how fast global gain arrives against how often a personal preference or an adversarial user leaks.
 2. [ ] **Retraining cadence** and the minimum number of new labels per retraining.
-3. [ ] **Should retraining (and the shipped model) train on injected label noise?** It is a control against flattering results when comparing candidates, but a shipped model trained on corrupted labels is measurably worse: 0.714 against 0.512 on validation unseen merchants without it (FR-4 feasibility). Feedback labels will carry their own natural noise. Proposal: keep injected noise for experiments that compare candidates, train the shipped model on clean labels, and measure robustness to the natural noise in the replay.
+3. [x] **Should retraining (and the shipped model) train on injected label noise?** **Decided (owner, Oct 2, 2026): no.** Injected noise stays for experiments that compare candidates, the Technical Design's control against flattering results. The shipped model and models retrained from feedback train on clean labels, with `label_noise: 0` explicit in the promoted configuration (§5). Robustness to the natural noise in feedback labels is measured in the replay instead. Basis: without the injected noise, validation unseen-merchant macro F1 is 0.714 against 0.512 (known 0.988 against 0.969; FR-4 feasibility), and the Travel fallback is the noise's most visible cost in the shipped model. This refines the Oct 1 decision to keep noise, which was about comparing candidates; that discipline is unchanged.
 4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): the replay measures retraining time per cycle.
 5. [ ] **Coach answers during review:** should the coach mention open review items when they affect an answer ("$120 of this is still unconfirmed")? Proposed yes, using `unreviewed_spend`.

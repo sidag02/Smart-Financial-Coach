@@ -116,7 +116,7 @@ Each trigger is checked on the same splits and metrics, and the result recorded 
 
 | Trigger | What it means | Options to evaluate | Decided by |
 | --- | --- | --- | --- |
-| **Travel fallback persists after the first feedback** | New merchants keep inflating Travel | Train the shipped model without injected noise; frequency-proportional noise; no class weights; `Lookup` plus a calibrated abstain | Travel precision on unseen merchants; misallocated spend |
+| **Travel fallback persists after the first feedback** | New merchants keep inflating Travel | Training without injected noise (decided for the next shipped model in the FR-5 and FR-6 design); no class weights; `Lookup` plus a calibrated abstain | Travel precision on unseen merchants; misallocated spend |
 | **FR-4 gate not met** (expected; 0.462 on test against 0.80) | The model can't categorize new merchants well enough | Routing by familiarity; larger embedding models; one row per unique string; nearest neighbours; cached LLM fallback | Unseen-merchant macro F1 on validation, then on test with its merchant-bootstrap interval |
 | **The 0.80 gate itself changes** | With 3–10 holdout merchants per class, the interval is about 0.2 wide | Same as above, judged against the revised gate | FR-4 design |
 | **FR-5 can't find a useful threshold** | Confidence too flat on known merchants or too sharp on unseen ones | Recalibrate familiar strings; ensembles; abstention | Accuracy and coverage along the reliability curve |
@@ -131,4 +131,4 @@ Each trigger is checked on the same splits and metrics, and the result recorded 
 
 - [ ] Whether FR-4 routes by familiarity, which would make the model a small ensemble, or keeps a single model with better features.
 - [ ] Whether the LLM fallback is acceptable under NFR-6, given that new merchants would wait during an outage.
-- [ ] Whether the shipped model should train on injected label noise at all, or only the experiments that compare candidates (the Travel issue). For the retraining design.
+- [x] Whether the shipped model should train on injected label noise at all, or only the experiments that compare candidates (the Travel issue). **Decided Oct 2, 2026** in the FR-5 and FR-6 design: shipped and retrained models train on clean labels; injected noise stays for comparing candidates.
