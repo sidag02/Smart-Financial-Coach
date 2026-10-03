@@ -4,6 +4,7 @@ import os
 import shutil
 import time
 from collections.abc import Iterator
+from datetime import timedelta
 from pathlib import Path
 from typing import Any
 
@@ -405,3 +406,32 @@ def test_the_shared_password_is_checked_not_stored() -> None:
     assert PASSWORD not in repr(vars(check))
     with pytest.raises(ValueError, match="8 characters"):
         SharedPassword("short")
+
+
+def test_worth_a_look_is_coming_until_a_model_is_promoted(client: TestClient) -> None:
+    sign_in(client)
+
+    page = client.get("/worth-a-look").text
+    assert "Coming next" in page
+    assert "once the alert models are released" in client.get("/").text
+
+
+def test_worth_a_look_lists_the_users_flags(
+    flagged_sources: DataSources, accounts: list[Account]
+) -> None:
+    ledger = Ledger.load(flagged_sources, accounts[0].user_id)
+    assert ledger.flags is not None
+    start = ledger.as_of - timedelta(days=59)
+    recent = ledger.transactions[ledger.transactions["day"] >= start]
+    shown = set(recent["transaction_id"]) & set(ledger.flags["transaction_id"])
+
+    with make_client(flagged_sources, accounts) as c:
+        sign_in(c)
+        page = c.get("/worth-a-look").text
+        overview = c.get("/").text
+
+    assert "Unusual charges" in page
+    assert page.count('class="flag"') == len(shown)
+    assert ("Nothing unusual" in page) == (not shown)
+    assert "once the alert models are released" not in overview
+    assert overview.count('class="flag"') == min(len(shown), 3)

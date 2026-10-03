@@ -75,3 +75,37 @@ def two_users(small_sqlite: Path) -> tuple[str, str]:
     users = store.load_users(small_sqlite)
     test = users[users["split"] == "test"]["user_id"].tolist()
     return test[0], test[1]
+
+
+@pytest.fixture(scope="session")
+def flag_artifacts(small_sqlite: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """An artifacts folder with a promoted FR-7 model: Rules, cut at precision 0.8 on the small
+    data's own labels (a test fixture, not a measurement)."""
+    from smart_financial_coach.data.labels import load_truth
+    from smart_financial_coach.evaluation.tasks.unusual import labels_for
+    from smart_financial_coach.intelligence.anomaly.contract import scoring_rows
+    from smart_financial_coach.intelligence.anomaly.rules import Rules
+    from smart_financial_coach.intelligence.anomaly.threshold import Thresholded
+    from smart_financial_coach.intelligence.models.artifact import record_promotion, save_artifact
+
+    txns = store.load_transactions(small_sqlite)
+    rows = scoring_rows(txns, pool=txns)
+    model = Thresholded(Rules(), precision=0.8)
+    model.fit(rows, labels_for(load_truth(small_sqlite), rows["transaction_id"]))
+    model.version = "fr7-test"
+    root = tmp_path_factory.mktemp("artifacts")
+    save_artifact(model, root / "unusual_transactions" / model.version, {})
+    record_promotion(root / "unusual_transactions", {"version": model.version})
+    return root
+
+
+@pytest.fixture(scope="session")
+def flagged_sources(
+    sources: DataSources, flag_artifacts: Path, tmp_path_factory: pytest.TempPathFactory
+) -> DataSources:
+    """`sources` with the promoted FR-7 model's flags for the small dataset."""
+    from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
+
+    flags = tmp_path_factory.mktemp("flags") / "flags.sqlite"
+    flag_dataset(sources.dataset, flags, artifacts_dir=flag_artifacts)
+    return DataSources(sources.dataset, sources.predictions, flags)

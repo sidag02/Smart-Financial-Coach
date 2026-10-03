@@ -3,8 +3,9 @@
 No tool takes a `user_id`: a `Tools` is built around one user's `Ledger`, which the caller makes
 from the signed-in session, so a tool argument can't name whose data is read. Every result is
 JSON with amounts in the user's currency, so the coach quotes numbers without doing arithmetic.
-Services that aren't built yet (anomalies, forecasts) return a typed "not available yet", never a
-number (FR-14, Delivery Plan sync rule).
+Services that aren't released yet (spending spikes, forecasts, and unusual charges until an FR-7
+model is promoted) return a typed "not available yet", never a number (FR-14, Delivery Plan sync
+rule).
 
 For the Oct 6 demo the tools run inside the web app; the tool server (Delivery Plan P1) will serve
 the same functions over HTTP and MCP.
@@ -20,6 +21,7 @@ and `list_corrections` read and write their feedback. A change the coach makes t
 transaction is previewed, not applied, until the call says `confirm` (#15 \u00a73).
 """
 
+import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -30,6 +32,7 @@ import pandas as pd
 from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
 from smart_financial_coach.access.ledger import INCOME, Ledger
 from smart_financial_coach.access.review_items import item_id, open_review_items
+from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
 
 CURRENCY = "USD"
 DASH = "\u2013"  # en dash, for date ranges
@@ -170,7 +173,10 @@ TOOL_SPECS: list[ToolSpec] = [
     },
     {
         "name": "detect_anomalies",
-        "description": "Unusual transactions and spending spikes in a date range.",
+        "description": (
+            "Unusual charges in a date range, each with its kind, a plain-language reason and the "
+            "numbers behind it, and spending spikes (not available yet)."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {"start_date": _DATE, "end_date": _DATE},
@@ -677,9 +683,39 @@ class Tools:
 
     def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
         start, end = self._range(start_date, end_date)
-        return self._not_available(
-            "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
-        )
+        flags = self.ledger.flags
+        if flags is None:
+            return self._not_available(
+                "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
+            )
+        rows = self.ledger.between(start, end)
+        rows = rows.merge(flags[["transaction_id", "reason_code", "evidence"]], on="transaction_id")
+        data = {
+            "currency": CURRENCY,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "count": len(rows),
+            "unusual_transactions": [
+                {
+                    "transaction_id": r["transaction_id"],
+                    "date": r["day"].isoformat(),
+                    "merchant": r["merchant"],
+                    "description": r["merchant_raw"],
+                    "amount": money(r["amount"]),
+                    "category": r["category"],
+                    "kind": KIND_LABELS[r["reason_code"]],
+                    "reason_code": r["reason_code"],
+                    "reason": reason(r["reason_code"], r["evidence"]),
+                    "evidence": json.loads(r["evidence"]),
+                }
+                for r in rows.to_dict("records")
+            ],
+            "spending_spikes": self._not_available(
+                "Spending spikes", span_label(start, end), "FR-8"
+            ).data,
+        }
+        title = f"Unusual charges · {span_label(start, end)}"
+        return ToolResult(data, Source(title, f"{len(rows)} flagged"))
 
     def forecast_goal(self, goal_name: str) -> ToolResult:
         return self._not_available("Goal forecast", goal_name, "FR-10 to FR-12")

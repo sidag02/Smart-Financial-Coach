@@ -145,3 +145,31 @@ def test_span_labels() -> None:
     assert span_label(date(2026, 9, 24), date(2026, 9, 30)) == f"Sep 24{DASH}30, 2026"
     assert span_label(date(2026, 7, 1), date(2026, 9, 30)) == f"Jul 1 {DASH} Sep 30, 2026"
     assert span_label(date(2025, 10, 1), date(2026, 9, 30)) == f"Oct 1, 2025 {DASH} Sep 30, 2026"
+
+
+def test_detect_anomalies_returns_only_the_users_flags_with_reasons(
+    flagged_sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    assert flagged_sources.flags is not None
+    from smart_financial_coach.data.flags import load_flags
+
+    every = load_flags(flagged_sources.flags)
+    mine, theirs = (Tools(Ledger.load(flagged_sources, u)) for u in two_users)
+    start = date(2023, 1, 1).isoformat()
+    end = mine.as_of.isoformat()
+
+    found = mine.call("detect_anomalies", {"start_date": start, "end_date": end}).data
+    ids = {f["transaction_id"] for f in found["unusual_transactions"]}
+    assert ids == set(every.loc[every["user_id"] == two_users[0], "transaction_id"])
+    assert found["count"] == len(ids)
+    other = theirs.call("detect_anomalies", {"start_date": start, "end_date": end}).data
+    assert ids.isdisjoint(f["transaction_id"] for f in other["unusual_transactions"])
+    for f in found["unusual_transactions"]:
+        assert f["reason"]
+        assert f["kind"] in {
+            "Possible duplicate",
+            "Larger than usual",
+            "New merchant, large amount",
+        }
+        assert f["amount"] < 0
+    assert found["spending_spikes"]["status"] == "not_available"

@@ -54,6 +54,8 @@ MAX_QUESTION = 500
 MAX_CONVERSATIONS = 1_000
 MINUS = "\u2212"  # a real minus sign for amounts
 COACH_TOKEN_LIFETIME = timedelta(minutes=5)  # one question's worth of tool calls
+FLAG_WINDOW_DAYS = 60  # "Worth a look" shows a fixed window in v1 (owner, Oct 3, 2026, on #30)
+OVERVIEW_FLAGS = 3  # the newest flags shown on the overview
 HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year"}
 REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
 ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
@@ -192,6 +194,7 @@ def create_app(
     by_user = {a.user_id: a for a in accounts}
     password = SharedPassword(settings.demo_password.get_secret_value())
     as_of = sources.as_of()
+    flags_live = sources.flags is not None  # an FR-7 model is promoted and its flags are here
     essentials = frozenset(settings.essentials)
     unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
     if unknown:
@@ -330,6 +333,7 @@ def create_app(
                 "theme": theme if theme in ("light", "dark") else None,
                 "mockups": mockups,
                 "mockup_page": MOCKUP_PAGE,
+                "flags_live": flags_live,
                 **context,
             },
         )
@@ -443,6 +447,9 @@ def create_app(
                 g for g in tools.list_goals().data["goals"] if g["target_date"] >= as_of.isoformat()
             ],
             trend=charts.trend(months, month_key(period.start)),
+            flags=recent_flags(tools) if flags_live else [],
+            overview_flags=OVERVIEW_FLAGS,
+            window_days=FLAG_WINDOW_DAYS,
             **flow_context(tools, period, horizon),
         )
 
@@ -684,10 +691,28 @@ def create_app(
 
     # Coming next (Delivery Plan sync rule): real data where it exists, mockups for the rest
 
+    def recent_flags(tools: Tools) -> list[dict[str, Any]]:
+        """The last `FLAG_WINDOW_DAYS` days' unusual charges, newest first (FR-7 §8)."""
+        start = as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)
+        found = tools.detect_anomalies(start.isoformat(), as_of.isoformat()).data
+        flags: list[dict[str, Any]] = found.get("unusual_transactions", [])
+        return sorted(flags, key=lambda f: (f["date"], f["transaction_id"]), reverse=True)
+
     @app.get("/worth-a-look")
     def worth_a_look(request: Request) -> Response:
         account = signed_in(request)
-        return page(request, "coming.html", account, active="flags", feature="flags", goals=[])
+        if not flags_live:
+            return page(request, "coming.html", account, active="flags", feature="flags", goals=[])
+        return page(
+            request,
+            "worth_a_look.html",
+            account,
+            active="flags",
+            flags=recent_flags(tools_for(account)),
+            start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
+            end=as_of.isoformat(),
+            window_days=FLAG_WINDOW_DAYS,
+        )
 
     @app.get("/goals")
     def goals(request: Request) -> Response:
