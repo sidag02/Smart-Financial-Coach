@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # Category feedback (FR-5, FR-6): corrections and confirmations, durable user state kept apart
     # from the read-only bundle. The demo image points it at a writable folder in the container
     feedback_db: Path = PROJECT_ROOT / "data" / "feedback.sqlite"
+    # Savings goals (FR-10): the users' goal changes, kept apart from the read-only bundle like
+    # category feedback; in the demo it belongs in the same writable folder
+    goals_db: Path = PROJECT_ROOT / "data" / "goals.sqlite"
     # The shared demo password and the session-cookie signing key. Both are required to serve;
     # `sfc-web serve --dev` makes throwaway ones for a local run
     demo_password: SecretStr | None = Field(default=None, repr=False)
