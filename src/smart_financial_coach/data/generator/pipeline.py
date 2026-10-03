@@ -13,7 +13,7 @@ from smart_financial_coach.data.generator.calibration import (
     starting_balance,
 )
 from smart_financial_coach.data.generator.catalog import Catalog, load_catalog
-from smart_financial_coach.data.generator.dataset import TABLES, Dataset
+from smart_financial_coach.data.generator.dataset import SCHEMA_VERSION, TABLES, Dataset
 from smart_financial_coach.data.generator.events import (
     generate_refunds,
     generate_unusual_charges,
@@ -26,6 +26,7 @@ from smart_financial_coach.data.generator.goals import generate_goals
 from smart_financial_coach.data.generator.income import generate_income
 from smart_financial_coach.data.generator.ledger import Ledger
 from smart_financial_coach.data.generator.population import User, iter_users
+from smart_financial_coach.data.generator.preferences import preferences_table
 from smart_financial_coach.data.generator.rendering import Renderer
 from smart_financial_coach.data.generator.spec import Spec, spec_hash
 from smart_financial_coach.data.generator.spending import (
@@ -37,8 +38,7 @@ from smart_financial_coach.data.generator.spending import (
 )
 from smart_financial_coach.data.generator.timeline import Timeline
 
-SCHEMA_VERSION = "3"  # 3: truth_merchants.holdout_eligible
-LABEL_CONTRACT_VERSION = "1"
+LABEL_CONTRACT_VERSION = "2"  # 2: the user's category (preference, else the true category)
 
 
 def _timestamps(tl: Timeline, day: pd.Series, minute: pd.Series) -> list[str]:
@@ -177,7 +177,7 @@ def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) 
 
     tables: dict[str, pd.DataFrame] = {"truth_merchants": _merchants_table(catalog)}
     for name, table in TABLES.items():
-        if name == "truth_merchants":
+        if name in ("truth_merchants", "truth_preferences"):
             continue
         frames = [f for f in parts[name] if not f.empty]
         df = (
@@ -188,10 +188,16 @@ def generate(spec: Spec, *, progress: Callable[[int, int], None] | None = None) 
         tables[name] = df[table.column_names].sort_values(
             list(table.primary_key), kind="mergesort", ignore_index=True
         )
+    # Last, and from its own seed, so preferences change no other row
+    preferences = preferences_table(tables["users"], catalog, spec.preferences)
+    tables["truth_preferences"] = preferences.sort_values(
+        list(TABLES["truth_preferences"].primary_key), kind="mergesort", ignore_index=True
+    )
     seeds = {
         "populations": {p.name: p.seed for p in spec.populations},
         "holdout": spec.catalog.holdout.seed,
         "rendering": spec.rendering.seed,
+        "preferences": spec.preferences.seed,
     }
     meta = {
         "generator_version": __version__,

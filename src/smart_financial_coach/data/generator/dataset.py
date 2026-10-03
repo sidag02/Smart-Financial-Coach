@@ -13,6 +13,8 @@ import pandas as pd
 
 SqlType = Literal["TEXT", "REAL", "INTEGER"]
 
+SCHEMA_VERSION = "4"  # 3: truth_merchants.holdout_eligible; 4: truth_preferences
+
 
 @dataclass(frozen=True)
 class Column:
@@ -134,6 +136,16 @@ TABLES: dict[str, Table] = {
             # The holdout may pick it: not protected (FR-3 validation folds use the same set)
             C("holdout_eligible", "INTEGER"),
         ),
+        # Schema 4 (FR-5/FR-6): a test user's own category for a merchant, where it differs from
+        # the true one. The user's category is this, or else the true category; FR-4's gates and
+        # evaluation stay on the true category
+        _t(
+            "truth_preferences",
+            ("user_id", "merchant_id"),
+            C("user_id", "TEXT"),
+            C("merchant_id", "TEXT"),
+            C("category", "TEXT"),
+        ),
     )
 }
 MODEL_TABLES = ("users", "transactions", "goals")
@@ -143,6 +155,7 @@ TRUTH_TABLES = (
     "truth_expected",
     "truth_goals",
     "truth_merchants",
+    "truth_preferences",
 )
 
 

@@ -8,7 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from smart_financial_coach.data.generator.dataset import TABLES, Dataset, Table
+from smart_financial_coach.data.generator.dataset import SCHEMA_VERSION, TABLES, Dataset, Table
 
 INDEXES = (
     "CREATE INDEX idx_transactions_user_ts ON transactions (user_id, ts)",
@@ -78,6 +78,13 @@ def read_sqlite(path: str | Path) -> Dataset:
         raise FileNotFoundError(path)
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
+        meta = dict(conn.execute("SELECT key, value FROM meta ORDER BY key").fetchall())
+        if (version := meta.get("schema_version")) != SCHEMA_VERSION:
+            raise ValueError(
+                f"{path} has schema {version}, this generator writes {SCHEMA_VERSION}: regenerate "
+                "it (`sfc-data generate`), or check out the tag that matches it (schema 3: "
+                "`data/fr3-default`)"
+            )
         tables = {
             name: pd.read_sql_query(
                 f"SELECT {', '.join(t.column_names)} FROM {name}"
@@ -86,7 +93,6 @@ def read_sqlite(path: str | Path) -> Dataset:
             )
             for name, t in TABLES.items()
         }
-        meta = dict(conn.execute("SELECT key, value FROM meta ORDER BY key").fetchall())
     finally:
         conn.close()
     return Dataset(tables=tables, meta=meta)

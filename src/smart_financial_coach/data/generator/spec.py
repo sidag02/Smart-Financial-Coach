@@ -254,6 +254,25 @@ class LabelsSpec(_Model):
     min_labels_for_oracle_check: int = Field(default=20, ge=1)
 
 
+class RemapSpec(_Model):
+    """Test users who adopt it see every merchant of `subtype` in `category` instead."""
+
+    subtype: str
+    category: str
+    share: Probability  # of test users who adopt it, each independently
+
+
+class PreferencesSpec(_Model):
+    """FR-5/FR-6 data contract (schema 4): how some test users see merchants differently.
+
+    Drawn from its own seed, per user, after everything else is generated, so preferences never
+    change another generated row. Train users never get preferences.
+    """
+
+    remaps: list[RemapSpec] = []
+    seed: int = 13
+
+
 OutcomeClass = Literal["on_track", "borderline", "off_track"]
 
 
@@ -281,6 +300,7 @@ class Spec(_Model):
     events: EventsSpec = EventsSpec()
     goals: GoalsSpec = GoalsSpec()
     labels: LabelsSpec = LabelsSpec()
+    preferences: PreferencesSpec = PreferencesSpec()
 
     @model_validator(mode="after")
     def _consistent(self) -> "Spec":
@@ -308,6 +328,14 @@ class Spec(_Model):
         events = self.events
         referenced = {*events.unusual_charge.new_merchant_categories, *events.refunds.categories}
         errors += [f"events: unknown category {c!r}" for c in sorted(referenced - known)]
+        remaps = self.preferences.remaps
+        errors += [
+            f"preferences: unknown category {r.category!r} for subtype {r.subtype}"
+            for r in remaps
+            if r.category not in known
+        ]
+        if len({r.subtype for r in remaps}) != len(remaps):
+            errors.append("preferences: each subtype can be remapped once")
         if sum(self.goals.outcome_mix.values()) <= 0:
             errors.append("goals.outcome_mix must have a positive weight")
         if errors:
