@@ -1,0 +1,93 @@
+name: Deploy demo
+
+# Builds the demo bundle and image, and rolls it out to the Azure Container App for the Oct 6, 2026
+# demo (Web App UI, "Demo build"). Runs on merges to main and on demand. Azure access is through
+# GitHub OIDC and the `demo` environment's variables, set by deploy/azure/provision.sh; no Azure
+# secret is stored in GitHub. The `demo` environment only accepts deployments from main.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "configs/**"
+      - "artifacts/**"
+      - "docs/design/mockups/**"
+      - "Dockerfile"
+      - ".dockerignore"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/deploy.yml"
+  workflow_dispatch:
+
+permissions:
+  id-token: write # OIDC sign-in to Azure
+  contents: read
+
+concurrency:
+  group: deploy-demo
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: demo
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --locked --no-default-groups
+
+      # The dataset is a pure function of its spec and the generator, so cache it on both
+      - name: Cache the default dataset
+        id: dataset
+        uses: actions/cache@v4
+        with:
+          path: data/synthetic/default.sqlite
+          key: dataset-${{ hashFiles('configs/data/**', 'src/smart_financial_coach/data/generator/**') }}
+      - name: Generate the default dataset
+        if: steps.dataset.outputs.cache-hit != 'true'
+        run: uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite --no-validate
+      - name: Cache the embedding model
+        uses: actions/cache@v4
+        with:
+          path: data/models
+          key: models-${{ hashFiles('artifacts/categorization/PROMOTED') }}
+
+      - name: Build the demo bundle
+        run: uv run sfc-web build-demo --data data/synthetic/default.sqlite
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Build the image in Azure
+        run: |
+          az acr build --registry "${{ vars.ACR_NAME }}" --platform linux/amd64 \
+            --image "sfc-web:${GITHUB_SHA::7}" --image sfc-web:latest . -o none
+      - name: Roll out
+        run: |
+          az extension add --name containerapp --upgrade --yes --only-show-errors
+          az containerapp update --name "${{ vars.CONTAINER_APP }}" \
+            --resource-group "${{ vars.RESOURCE_GROUP }}" \
+            --image "${{ vars.ACR_NAME }}.azurecr.io/sfc-web:${GITHUB_SHA::7}" -o none
+      - name: Smoke test
+        run: |
+          fqdn=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
+            --resource-group "${{ vars.RESOURCE_GROUP }}" \
+            --query properties.configuration.ingress.fqdn -o tsv)
+          image=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
+            --resource-group "${{ vars.RESOURCE_GROUP }}" \
+            --query "properties.template.containers[0].image" -o tsv)
+          test "$image" = "${{ vars.ACR_NAME }}.azurecr.io/sfc-web:${GITHUB_SHA::7}"
+          for attempt in $(seq 1 30); do
+            if curl -fsS "https://$fqdn/healthz" | grep -q '"as_of":"2026-09-30"'; then break; fi
+            sleep 10
+          done
+          curl -fsS "https://$fqdn/healthz"
+          curl -fsS -o /dev/null "https://$fqdn/signin"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "https://$fqdn/")" = 303
+          echo "Deployed https://$fqdn" >> "$GITHUB_STEP_SUMMARY"

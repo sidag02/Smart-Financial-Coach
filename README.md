@@ -82,3 +82,7 @@ uv run sfc-web serve --dev        # http://127.0.0.1:8000, password demo-passwor
 ```
 
 `--dev` makes throwaway secrets for plain http. A hosted run needs `SFC_DEMO_PASSWORD` and `SFC_SESSION_SECRET`, and `SFC_LLM_API_KEY` (or `ANTHROPIC_API_KEY`) for chat; without a key, chat says it's unavailable and the rest works. The `Dockerfile` packages the app with `build/demo`. Design: [Smart Financial Coach — Web App UI.md](<docs/design/Smart Financial Coach — Web App UI.md>) and the mockups in `docs/design/mockups/`.
+
+### Demo deployment (Azure)
+
+`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/set-llm-key.sh` passes the Anthropic key from `.env` to the app as a secret; `deploy/azure/teardown.sh` deletes everything.
