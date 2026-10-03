@@ -76,7 +76,8 @@ _CONFIRM = {"type": "boolean", "description": "the user agreed to the preview"}
 _ASK_FIRST = (
     "Only when the user asked. From an assistant, returns a preview (status "
     "`needs_confirmation`) and changes nothing until called again with `confirm: true` after the "
-    "user agrees."
+    "user agrees. A change that breaks a rule returns status `invalid` with the problems; tell "
+    "the user their messages."
 )
 TOOL_SPECS: list[ToolSpec] = [
     {
@@ -279,7 +280,8 @@ TOOL_SPECS: list[ToolSpec] = [
         "description": (
             "Undo the latest change to a savings goal (creating, editing or removing it), by the "
             "`revision_id` a change returned or a goal's `undo_revision_id` from list_goals. Only "
-            "when the user asks to undo."
+            "when the user asks to undo. Returns the goal as it is now, or `removed: true` when "
+            "undoing its creation; an undo that would break a rule returns status `invalid`."
         ),
         "input_schema": {
             "type": "object",

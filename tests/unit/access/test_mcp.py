@@ -317,12 +317,20 @@ def test_a_token_from_before_feedback_reads_goals_but_cant_change_them(
         in_worker_thread(client, lambda: tools.call("create_goal", {**TRIP, "confirm": True}))
 
 
-def test_goal_problems_come_back_as_their_messages(client: TestClient, users: list[str]) -> None:
+def test_goal_problems_come_back_with_their_fields_and_codes(
+    client: TestClient, users: list[str]
+) -> None:
     tools = mcp_tools(client, users[0], feedback_subject="session-a")
-    with pytest.raises(ToolError, match=r"Goals start at \$50\."):
-        in_worker_thread(
-            client, lambda: tools.call("create_goal", {**TRIP, "target_amount": 5, "confirm": True})
-        )
+    args = {**TRIP, "name": "", "target_amount": 5, "confirm": True}
+    result = in_worker_thread(client, lambda: tools.call("create_goal", args))
+
+    assert result.data["status"] == "invalid"
+    assert {(p["field"], p["code"]) for p in result.data["problems"]} == {
+        ("name", "name_missing"),
+        ("target_amount", "amount_range"),
+    }
+    assert "Goals start at $50." in result.data["message"]
+    assert result.source.title == "Goal not changed"
 
 
 def test_reads_are_marked_read_only_and_writes_not(sources: DataSources, users: list[str]) -> None:

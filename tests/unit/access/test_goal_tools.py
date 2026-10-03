@@ -8,7 +8,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
-from smart_financial_coach.access.goals import GoalStore
+from smart_financial_coach.access.goals import GoalStore, median_monthly_savings
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.tools import (
     GoalAccess,
@@ -70,12 +70,17 @@ def goals_by_name(tools: Tools, **args: Any) -> dict[str, dict[str, Any]]:
     return {g["name"]: g for g in tools.call("list_goals", args).data["goals"]}
 
 
-def expected_median(ledger: Ledger) -> float:
-    """An independent median: net per month, the first month dropped, the last 12 kept."""
+def full_months(ledger: Ledger) -> pd.Series:
+    """An independent count: net per month, from the first month (if it starts on the 1st) or
+    the one after, to Sep 2026."""
     t = ledger.transactions
     net = t.groupby(t["ts"].dt.to_period("M"))["amount"].sum()
-    full = net.reindex(pd.period_range(net.index.min() + 1, "2026-09", freq="M"), fill_value=0)
-    return round(float(full.tail(12).median()), 2)
+    first = net.index.min() + (0 if t["ts"].min().day == 1 else 1)
+    return net.reindex(pd.period_range(first, "2026-09", freq="M"), fill_value=0)
+
+
+def expected_median(ledger: Ledger) -> float:
+    return round(float(full_months(ledger).tail(12).median()), 2)
 
 
 # Listing
@@ -98,7 +103,7 @@ def test_goals_are_listed_with_status_and_what_they_need(page: Tools, ledger: Le
     assert vacation["undo_revision_id"] is None
     assert listed["New laptop"]["needed_per_month"] is None
     assert data["median_monthly_savings_12m"] == pytest.approx(expected_median(ledger), abs=0.01)
-    assert data["months_of_history"] == 23  # Oct 2024 is partial
+    assert data["months_of_history"] == len(full_months(ledger))
     assert data["forecast"] == "not_available"
 
 
@@ -300,3 +305,15 @@ def test_forecasts_are_not_available_yet_for_any_goal(page: Tools) -> None:
     result = page.call("forecast_goal", {"goal_id": created["goal"]["goal_id"]})
     assert result.data["status"] == "not_available"
     assert result.source.detail == "Trip"
+
+
+def test_the_first_month_counts_when_it_starts_on_the_first() -> None:
+    """Three full months of history give a median; a first month that starts late doesn't count
+    (review on #43)."""
+
+    def ledger_from(first_day: str) -> pd.DataFrame:
+        days = [first_day, "2026-08-10", "2026-09-10"]
+        return pd.DataFrame({"ts": pd.to_datetime(days), "amount": [100.0, 200.0, 300.0]})
+
+    assert median_monthly_savings(ledger_from("2026-07-01"), TODAY) == (200_00, 3)
+    assert median_monthly_savings(ledger_from("2026-07-02"), TODAY) == (None, 2)
