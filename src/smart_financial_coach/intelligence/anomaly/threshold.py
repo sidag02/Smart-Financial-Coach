@@ -184,9 +184,10 @@ class Thresholded(AnomalyModel):
         assert isinstance(base, ScorerModel)
         shared = not set(self.search) & base.FEATURE_PARAMS
         features = base.features(x) if shared else None
-        kept = labels != IGNORED
-        positives = max(int((labels[kept] == ANOMALY).sum()), 1)
-        k = round(self.search_rate * user_months(x[kept]))  # per post-warm-up user-month
+        # The budget leaves out only the warm-up (a date rule), as the task's common rate does
+        budget = labels != WARMUP
+        positives = max(int((labels == ANOMALY).sum()), 1)
+        k = round(self.search_rate * user_months(x[budget]))  # per post-warm-up user-month
         ids = x["transaction_id"].to_numpy()
         best: tuple[float, ScorerModel, dict[str, Any]] | None = None
         for point in self._points():
@@ -194,13 +195,17 @@ class Thresholded(AnomalyModel):
             f = features if features is not None else candidate.features(x)
             candidate.fit_features(f)  # never the labels
             score = candidate.scores_from(f)["score"].to_numpy(dtype=np.float64)
-            chosen = top_k(np.where(kept, score, -np.inf), ids, k)
+            chosen = top_k(np.where(budget, score, -np.inf), ids, k)
             recall = float((chosen & (labels == ANOMALY)).sum() / positives)
-            self.report[f"search.{point}"] = recall
+            key = ".".join(f"{name}_{value}" for name, value in sorted(point.items()))
+            self.report[f"search_recall.{key}"] = recall
             if best is None or recall > best[0]:
                 best = (recall, candidate, point)
         assert best is not None
         _, self.base, self.chosen = best
+        # The params now describe the scorer in use, so the manifest records what it runs with
+        self._params["base"] = self.base
+        self.report |= {f"chosen.{name}": float(value) for name, value in self.chosen.items()}
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self:
         if self.rate is not None and self.search:

@@ -125,3 +125,29 @@ def test_search_refuses_a_rate_cutoff() -> None:
 def test_rules_validates_its_scales() -> None:
     with pytest.raises(ValueError, match="ratio_scale"):
         Rules(ratio_scale=1.0)
+
+
+def test_a_one_sided_rank_does_not_flag_cheap_first_visits() -> None:
+    x = ledger()
+    cheap = x.iloc[[0]].assign(
+        transaction_id="cheap", ts="2025-02-18 12:00", amount=-0.5, merchant_raw="KIOSK"
+    )
+    x = pd.concat([x, cheap], ignore_index=True)
+    two = by_id(Forest(n_estimators=100).fit(x).scores(x))
+    one = by_id(Forest(n_estimators=100, one_sided_rank=True).fit(x).scores(x))
+
+    # The cheapest charge yet is no more unusual than a typical coffee once the rank is one-sided
+    assert one["score"].to_dict()["cheap"] < two["score"].to_dict()["cheap"]
+    assert Forest().params["one_sided_rank"] is False
+
+
+def test_search_records_the_params_in_use() -> None:
+    x = ledger()
+    model = Thresholded(
+        Rules(), precision=1.0, search={"min_amount": [1000.0, 0.0]}, search_rate=3.0
+    )
+    model.fit(x, labels(x))
+
+    assert model.params["base"].params["min_amount"] == 0.0
+    assert model.report["chosen.min_amount"] == 0.0
+    assert "search_recall.min_amount_1000.0" in model.report

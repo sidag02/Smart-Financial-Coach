@@ -11,7 +11,8 @@ with k0 = `prior_weight` and n the user's earlier charges there. Without a profi
 the user's own history alone (no first-visit score). The score is the upper-tail surprise,
 -log10 P(T > t), so every kind shares one scale and one cutoff (the FR-9 sensitivity is one
 knob). An exact repeat within the window scores +inf. The reason is `new_merchant` on a first
-visit of at least `min_amount`, `amount_unusual` otherwise.
+visit of at least `min_amount`, `amount_unusual` otherwise: the kind of row, not §3's "term that
+contributed most" (a departure recorded in the design's Implementation notes, review on #37).
 """
 
 import numpy as np

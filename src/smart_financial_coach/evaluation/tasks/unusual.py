@@ -63,7 +63,8 @@ BASELINE = "user_zscore"  # the run name every candidate must beat at FLAG_RATE
 BOOTSTRAP_REPS = 1000
 KINDS = ("duplicate", "amount_outlier", "new_merchant_large")
 DEFAULTS: dict[str, Any] = {"k": 5}
-PROFILE_BANDS = ((0, 0, "none"), (1, 5, "1-5 users"), (6, 10**9, "6+ users"))
+# A merchant gets a profile from 3 other users (`profile_features`' min_users)
+PROFILE_BANDS = ((0, 2, "none (under 3 users)"), (3, 5, "3-5 users"), (6, 10**9, "6+ users"))
 HISTORY_BANDS = ((0, 29, "< 30 earlier"), (30, 199, "30-199"), (200, 10**9, "200+"))
 
 
