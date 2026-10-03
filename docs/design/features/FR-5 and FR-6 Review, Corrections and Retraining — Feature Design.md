@@ -9,8 +9,9 @@ This feature closes the loop that FR-3's cold-start categorizer was built for. U
 - **Requirements:** FR-5 (P1), *"Mark low-confidence categories for user review"*, and FR-6 (P1), *"Let users correct a category"*. They are designed together, as the Technical Design's "Learning from user feedback" asks: a review queue only matters if corrections flow back.
 - **Starting point:** the promoted categorizer (FR-4: bge-small, clean labels, `20eea4fb-44781bc4-c0274576`) is wrong on about 3% of transactions at merchant strings it knows and about 19% at strings it doesn't (validation). It is a good cold model, so review flags only what it is unsure about; its confident errors are left to corrections and retraining.
 - **Feasibility, measured on validation data** ([evidence](#feasibility)):
-  - One threshold **per familiarity group**: familiar below 0.95 and unfamiliar below 0.8 flag about 13% of a realistic mix of transactions and catch about 74% of its errors.
-  - Reviewing per **merchant string**, not per transaction, keeps the burden small: about 4–5 review items in a user's first month, then fewer than 0.4 a month.
+  - One threshold **per familiarity group**: familiar below 0.95 and unfamiliar below 0.65 flag 5.7% and 22% of their groups, and catch 62% of unfamiliar-string errors, with 42% of unfamiliar flags real errors.
+  - Reviewing per **merchant string**, not per transaction, keeps the burden small: about 3–4 review items in a user's first month, then about 0.3 a month.
+  - Known issue: Uber and Uber Eats share the normalized string `uber`; fixed with the first retrained model ([Feasibility](#feasibility)).
   - The simulated feedback replay runs on FR-4's promoted model and regenerated dataset (owner decision, Oct 2, 2026).
 - **Approach:**
   1. **Review policy with the model.** The categorizer reports whether each string is familiar, and the promoted artifact carries per-group review thresholds chosen on validation. Flags are computed in the ingestion batch.
@@ -39,30 +40,37 @@ What the user sees today, without this feature: a category on every transaction,
 
 ## Feasibility
 
-**Evidence:** the promoted model's twin's out-of-fold **calibrated** confidences from the FR-4 round (`21_small_unweighted.ship`, run `6bc58706`, validation only), for model `20eea4fb-44781bc4-c0274576` on data hash `44781bc4e4a5`. For the review burden: test users' model-visible transactions and the promoted model's vocabulary. No test labels are used. The script and its results are on the POC branch `poc/fr-5-review` (`54bc286`, `experiments/fr5_review/`). These replace the first version's numbers, measured on the old model `3f0ccc82` (bge-base trained under injected noise: 2.0% and 41.9% error rates).
+**Evidence:** the promoted model's out-of-fold **calibrated** validation confidences, from a rerun of its configuration (`21_small_unweighted.ship`, run `29bcc4ff`, reproducing every validation metric of `20eea4fb-44781bc4-c0274576` on data hash `44781bc4e4a5`), spending rows only, no test labels. Rows are grouped by the model's own `familiar` flag, as production groups them; the policy file the model serves carries this table (`artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`). For the review burden: test users' model-visible transactions and the promoted model's vocabulary.
 
-Rows at held-out merchants stand in for unfamiliar strings; the seen-merchant sample stands in for familiar ones. The "mix" columns weight them to production at 23.7% unfamiliar rows, the share among test users. Error rates: **2.8%** familiar, **18.6%** unfamiliar.
+| Threshold (flag if confidence below) | Familiar: flagged | Familiar: errors caught | Familiar: flags that are errors | Unfamiliar: flagged | Unfamiliar: errors caught | Unfamiliar: flags that are errors |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.50 | 0.1% | 0% | 52% | 7.6% | 29% | 57% |
+| 0.60 | 3.0% | 13% | 50% | 16.5% | 51% | 46% |
+| 0.65 | 3.6% | 16% | 50% | 21.9% | 62% | 42% |
+| 0.70 | 4.1% | 18% | 49% | 26.9% | 70% | 38% |
+| 0.80 | 5.3% | 22% | 48% | 34.6% | 79% | 34% |
+| 0.90 | 5.5% | 23% | 47% | 45.0% | 87% | 29% |
+| 0.95 | 5.7% | 23% | 46% | 55.9% | 93% | 25% |
 
-| Threshold (flag if confidence below) | Familiar: flagged | Familiar: errors caught | Familiar: flags that are errors | Unfamiliar: flagged | Unfamiliar: errors caught | Unfamiliar: flags that are errors | Mix: flagged | Mix: errors caught |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0.50 | 0.1% | 1% | 45% | 7.2% | 22% | 57% | 1.8% | 15% |
-| 0.60 | 3.3% | 58% | 50% | 15.8% | 39% | 46% | 6.2% | 45% |
-| 0.70 | 4.4% | 77% | 49% | 25.8% | 53% | 38% | 9.5% | 61% |
-| 0.80 | 5.8% | 98% | 48% | 33.1% | 61% | 34% | 12.3% | 73% |
-| 0.90 | 6.0% | 100% | 47% | 43.1% | 67% | 29% | 14.8% | 78% |
-| 0.95 | 6.2% | 100% | 46% | 53.5% | 71% | 25% | 17.4% | 81% |
+- **Error rates:** 11.4% familiar (150k rows), 14.8% unfamiliar (289k rows). The familiar figure is inflated by one string, `uber` (below): 13k rows of a held-out merchant, 99.9% wrong at 0.99 confidence. Without it, familiar rows are 2.8% wrong.
+- **Familiar strings:** flags are nearly half errors at every threshold, so the rule's cap applies: below 0.95 flags 5.7% of familiar rows. The familiar errors it misses are almost all the `uber` rows, which no threshold catches.
+- **Unfamiliar strings:** the rule's 60% is first reached at 0.65, which flags 22% of unfamiliar rows; 42% of flags are real errors, so a flagged item is worth a user's glance.
+- **The chosen thresholds** (§1's rule; owner, Oct 3, 2026): familiar below 0.95, unfamiliar below 0.65.
+- **Why the first re-measurement said 0.8:** the POC (`poc/fr-5-review`, `54bc286`) grouped rows by validation set (seen-merchant sample against held-out merchants) rather than by the model's `familiar` flag. That put the `uber` rows in the unfamiliar group, where their confident errors pushed the 60% threshold up to 0.8. Production can only group by `familiar`, so the policy does too. The rule was kept as decided rather than re-targeted after seeing the result (owner, Oct 3, 2026); targeting 80% of unfamiliar errors would give 0.85.
+- **Rejected: flag every unfamiliar string on first sight.** It catches every unfamiliar error but asks about strings the model mostly gets right, which says the cold model can't be trusted. FR-3 and FR-4 exist to make it trustworthy; review flags what it is unsure about, and the confident errors are what corrections and retraining are for (owner, Oct 3, 2026).
 
-- **Familiar strings:** almost every error sits below 0.8, and flags are nearly half errors at every threshold. Below 0.95 flags 6.2% of familiar rows and catches all their errors.
-- **Unfamiliar strings:** no threshold catches 80% of their errors (71% at 0.95), because many of the clean model's remaining unfamiliar errors are confident. Raising the threshold mostly adds correct items: at 0.95, three in four flags are right.
-- **The chosen thresholds** (§1; owner, Oct 3, 2026): familiar below 0.95 and unfamiliar below 0.8 flag 6.2% and 33.1% of their groups (about 13% of the mix), catching all familiar errors and 61% of unfamiliar ones (about 74% of the mix's). A third of unfamiliar flags are real errors, so a flagged item is worth a user's glance.
-- **Rejected: flag every unfamiliar string on first sight.** It catches every error but asks about strings the model gets right four times in five, which says the cold model can't be trusted. FR-3 and FR-4 exist to make it trustworthy; review flags what it is unsure about, and the confident errors are what corrections and retraining are for (owner, Oct 3, 2026).
+**Known issue: Uber and Uber Eats share a normalized string.** `normalize_merchant` drops what follows `*`, so `UBER *EATS` (Uber Eats, Dining) and `UBER *TRIP` (Uber, Transportation) both become `uber`. It is the only string two merchants share in the default dataset (the other 87 strings with two categories are the deliberately ambiguous merchants, such as Target). Effects:
+- the model calls a new merchant behind a known string familiar, and can be confidently wrong on it (the validation figures above);
+- review items and merchant-scope corrections are keyed by the normalized string, so a user with both merchants would see one "Uber" item, and a merchant-scope correction would move both. No demo account has both (Ada Okafor has Uber Eats; Maya Chen and Jordan Reyes have Uber), but across visitors the `uber` string would see split votes in the agreement rule.
+
+Fixing the normalizer changes the promoted model's behavior, so it needs a retrained, re-promoted categorizer. **Decided (owner, Oct 3, 2026):** not before the Oct 6 demo; the fix goes into the first model retrained from feedback, which is a new promotion anyway.
 
 **Review burden**, counted per distinct normalized merchant string per user, since one review settles every transaction at that string:
 
-| Period | Familiar strings met | Unfamiliar strings met | Review items at (0.95, 0.8) |
+| Period | Familiar strings met | Unfamiliar strings met | Review items at (0.95, 0.65) |
 | --- | --- | --- | --- |
-| First month | 27.4 | 8.7 | about 4.6 |
-| Each month from month 4 (new strings) | 1.6 | 0.8 | about 0.4 |
+| First month | 27.4 | 8.7 | about 3.5 |
+| Each month from month 4 (new strings) | 1.6 | 0.8 | about 0.3 |
 
 Items are estimated by applying the per-group flag rates, measured on transactions, to strings. That is an approximation: a string's transactions differ only in amount, channel and hour, so they are usually flagged together, but this wasn't measured.
 
@@ -158,7 +166,7 @@ flowchart LR
   - unfamiliar threshold: the lowest that catches at least **60%** of unfamiliar-string errors on validation;
   - familiar threshold: the highest at which at least **25%** of familiar flags are real errors, **capped at 0.95**.
 
-  On the promoted model's validation predictions, the rule gives 0.8 and 0.95 (Feasibility). The first version asked for 80% of unfamiliar errors, which the clean FR-4 model can't meet at any threshold; the owner lowered it to 60% rather than flag every new merchant (Oct 3, 2026). The cap is needed because this model's familiar flags are at least 25% errors at every threshold measured, so without it the rule's "highest" would run to 1.0 and flag nearly every familiar row.
+  On the promoted model's validation predictions, grouped by its `familiar` flag, the rule gives 0.65 and 0.95 (Feasibility). The first version asked for 80% of unfamiliar errors, which the clean FR-4 model can't meet at any threshold; the owner lowered it to 60% rather than flag every new merchant (Oct 3, 2026). The cap is needed because this model's familiar flags are at least 25% errors at every threshold measured, so without it the rule's "highest" would run to 1.0 and flag nearly every familiar row.
 - **Flags are computed in the ingestion batch** and written to the predictions file (`needs_review`, `review_reason`), so the dashboard reads them without calling the model.
 - **Reason:** `new_merchant` for an unfamiliar string below its threshold, `low_confidence` for a familiar one.
 - **Why not one threshold:** see Feasibility. **Why not a fixed review budget per user** (top-k by uncertainty): it hides how uncertain the model really is, and makes the queue's meaning change with the user's volume. The budget is applied at display time instead (goal 2), and items are ranked by spend.
@@ -283,14 +291,14 @@ The loop is measured on synthetic users before any real user sees it.
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Per transaction | Simple | 85 transactions a month per user; the same merchant asked about again and again |
-| **(b) Per user and merchant string (recommended)** | One answer fixes every transaction at that merchant; about 0.4 items a month after onboarding | Ambiguous merchants need a per-transaction exception, which the scope choice provides |
+| **(b) Per user and merchant string (recommended)** | One answer fixes every transaction at that merchant; about 0.3 items a month after onboarding | Ambiguous merchants need a per-transaction exception, which the scope choice provides |
 | (c) Per merchant across users | Least burden | Mixes users; breaks isolation |
 
 ### B. Review threshold
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| (a) One fixed threshold | Easy to explain | At 0.8 it catches only 61% of unfamiliar errors; at 0.95, three in four unfamiliar flags are right (on the old model, 0.9 flagged 66% of familiar rows) |
+| (a) One fixed threshold | Easy to explain | The groups need different numbers: familiar flags stay about half errors up to 0.95, unfamiliar flags fall to a quarter (on the old model, 0.9 flagged 66% of familiar rows) |
 | **(b) Per familiarity group, chosen at promotion by a written rule (recommended)** | Matches how the model's confidence behaves; moves with each model version | Two numbers to explain; needs `familiar` in the contract |
 | (c) Top-k most uncertain per user | Fixed burden | Hides real uncertainty; meaning varies with volume |
 
@@ -356,7 +364,7 @@ Written for the session that continues FR-5 and FR-6, human or agent. Read it fi
 1. **FR-5, FR-6 and the retraining pipeline are in the Oct 6 demo.** The project exists to show how the whole system is built, and the feedback loop is one of the strongest things to show.
 2. **Retraining is shown as the precomputed replay, walked step by step:** a "Learning" page goes from corrections, to agreement across users, to training data, to retraining, to the gates, to promoted or rejected, with the replay's numbers at each step. No live retraining in the container.
 3. **Accept the design now;** N, the majority and the cadence are provisional until the replay.
-4. **The review rule** (§1): unfamiliar strings below the lowest threshold catching at least 60% of their errors, familiar strings below the highest threshold whose flags are at least 25% errors, capped at 0.95. On the promoted model: 0.8 and 0.95. Flagging every new merchant was rejected: the point of FR-3 and FR-4 was a cold model good enough to trust, so review flags only what it is unsure about.
+4. **The review rule** (§1): unfamiliar strings below the lowest threshold catching at least 60% of their errors, familiar strings below the highest threshold whose flags are at least 25% errors, capped at 0.95. On the promoted model, grouped by its `familiar` flag as production groups rows: **0.65 and 0.95**. (A first re-measurement grouped by validation set and gave 0.8; the rule was kept rather than re-targeted after seeing the result; Feasibility.) Flagging every new merchant was rejected: the point of FR-3 and FR-4 was a cold model good enough to trust, so review flags only what it is unsure about.
 5. **The replay runs on test users** (only they hold preferences), **once, with N = 3 and the default settings; nothing is chosen from its results.** Their data was scored once at FR-4's `finalize`, and the replay answers a different question, so that is acceptable; tuning on it would not be. When N or the cadence is tuned later, split the test users into a tuning half and a reporting half.
 6. **A retrained model that passes §5's gates is promoted,** with the normal `promote` command. Two consequences, recorded in the promotion log:
    - for the demo: a promotion **by the end of Oct 5** is rebuilt into the demo and clicked through; after that, the demo keeps `20eea4fb`;
@@ -366,13 +374,14 @@ Written for the session that continues FR-5 and FR-6, human or agent. Read it fi
 9. **Web app ownership:** this work touches the web app and the MCP server only where FR-5 and FR-6 need it.
 10. **The coach mentions unconfirmed spend** when it affects an answer (open question 5).
 11. **The PRD and the Technical Design are updated** in a small docs PR after #29 lands: FR-5 and FR-6 move into the v1 demo, the feedback section is no longer "not yet designed", and the tools table gains the new tools.
+12. **The Uber / Uber Eats normalizer collision** (Feasibility, known issue) is left until the first model retrained from feedback; it is not fixed before the demo.
 
 ### Plan for the Oct 6 demo
 
 One PR per step, each small, since the demo deploys on every merge. After each merge, confirm the deploy succeeded (its smoke test checks `/healthz`) and click through what changed.
 
-1. **`familiar` and the review policy.** `Calibrated` already knows familiarity from `base.scores`; add `familiar` to the contract's output columns and the predictions file. Derive the promoted model's policy with §1's rule and store it next to its manifest (`artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding it to the manifest would change its checksum fields). Future promotions derive it at `promote`.
-   - The twin's predictions (run `6bc58706…`) were in the FR-4 round's session-local MLflow store: treat it as gone. Rerun the twin with `configs/experiments/categorization/fr4/21_small_unweighted.yaml` (about 9 minutes) and use its pooled predictions. Don't `finalize` it.
+1. **`familiar` and the review policy.** `Calibrated` already knows familiarity from `base.scores`; add `familiar` to the contract's output columns and the predictions file. Derive the promoted model's policy with §1's rule and store it next to its manifest (`artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding it to the manifest would change its checksum fields). Every run now derives its policy, and `promote` copies it next to the model.
+   - Done in milestone 1: the twin was rerun (run `29bcc4ff`, reproducing every validation metric) and `sfc-model attach-serving-files` derived the policy for `20eea4fb` from it.
 2. **`needs_review` and `review_reason`** computed in the batch (`batch.py`), written to predictions and the demo bundle.
 3. **The feedback store and effective categories:** §3's tables in `feedback.sqlite`, keyed by session in the demo; precedence and undo; effective categories applied per user **after** the shared predictions, in `access/ledger.py`.
 4. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections` in `access/tools.py` and the MCP server; `get_transactions` and `get_spending_summary` return effective categories, `category_source`, `needs_review` and `unreviewed_spend`.
@@ -427,6 +436,8 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 - [x] The replay runs once on test users with N = 3 and default settings; nothing is chosen from it; later tuning splits test users in half (owner, Oct 3, 2026).
 - [x] A retrained model that passes §5's gates is promoted; for the demo, by the end of Oct 5 (owner, Oct 3, 2026).
 - [x] In the demo, feedback lives in a `feedback.sqlite` in the container, keyed by browser session, and feeds the agreement rule (owner, Oct 3, 2026).
+- [x] The review rule is kept as decided; on the promoted model, grouped by `familiar`, it gives 0.65 and 0.95 (owner, Oct 3, 2026).
+- [x] The Uber / Uber Eats normalizer collision is fixed with the first model retrained from feedback, not before the demo (owner, Oct 3, 2026).
 
 **Open questions**
 
