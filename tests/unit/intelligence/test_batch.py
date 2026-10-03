@@ -14,6 +14,11 @@ from smart_financial_coach.data.store import iter_transactions, load_meta, load_
 from smart_financial_coach.evaluation.cli import model_main
 from smart_financial_coach.intelligence.categorization.baseline import Majority
 from smart_financial_coach.intelligence.categorization.batch import categorize_dataset
+from smart_financial_coach.intelligence.categorization.review import (
+    PolicyError,
+    ReviewPolicy,
+    save_review_policy,
+)
 from smart_financial_coach.intelligence.models.artifact import (
     record_promotion,
     save_artifact,
@@ -27,8 +32,69 @@ def artifacts(small_sqlite: Path, tmp_path: Path) -> Path:
     model = Majority().fit(transactions, pd.Series(["Dining"] * len(transactions)))
     root = tmp_path / "artifacts"
     save_artifact(model, root / "categorization" / model.version, {})
+    save_review_policy(
+        ReviewPolicy(model.version, 0.5, 0.8), root / "categorization" / model.version
+    )
     record_promotion(root / "categorization", {"version": model.version})
     return root
+
+
+def test_rows_are_flagged_by_the_promoted_models_review_policy(
+    small_sqlite: Path, tmp_path: Path
+) -> None:
+    """A model fitted on half the rows, 75% confident everywhere: with thresholds 0.5 (familiar)
+    and 0.8 (unfamiliar), exactly the rows at strings it never saw are flagged, as new."""
+    transactions = load_transactions(small_sqlite)
+    half = transactions.iloc[: len(transactions) // 2]
+    labels = (["Dining"] * 3 + ["Shopping"]) * (len(half) // 4 + 1)
+    model = Majority().fit(half, pd.Series(labels[: len(half)]))
+    root = tmp_path / "artifacts" / "categorization"
+    save_artifact(model, root / model.version, {})
+    save_review_policy(ReviewPolicy(model.version, 0.5, 0.8), root / model.version)
+    record_promotion(root, {"version": model.version})
+    out = tmp_path / "predictions.sqlite"
+
+    categorize_dataset(small_sqlite, out, artifacts_dir=tmp_path / "artifacts")
+
+    cats = load_categories(out)
+    assert cats["familiar"].any()
+    assert not cats["familiar"].all()
+    assert cats["needs_review"].equals(~cats["familiar"])
+    assert set(cats.loc[cats["needs_review"], "review_reason"]) == {"new_merchant"}
+    assert (cats.loc[~cats["needs_review"], "review_reason"] == "").all()
+    meta = load_prediction_meta(out)
+    assert (meta["review_familiar_below"], meta["review_unfamiliar_below"]) == ("0.5", "0.8")
+
+
+def test_rows_predicted_income_are_never_flagged(small_sqlite: Path, tmp_path: Path) -> None:
+    """The policy's thresholds were chosen on spending rows only (owner, on #32)."""
+    transactions = load_transactions(small_sqlite)
+    half = transactions.iloc[: len(transactions) // 2]
+    labels = (["Income"] * 3 + ["Shopping"]) * (len(half) // 4 + 1)
+    model = Majority().fit(half, pd.Series(labels[: len(half)]))  # Income everywhere, at 0.75
+    root = tmp_path / "artifacts" / "categorization"
+    save_artifact(model, root / model.version, {})
+    save_review_policy(ReviewPolicy(model.version, 0.95, 0.95), root / model.version)
+    record_promotion(root, {"version": model.version})
+    out = tmp_path / "predictions.sqlite"
+
+    categorize_dataset(small_sqlite, out, artifacts_dir=tmp_path / "artifacts")
+
+    cats = load_categories(out)
+    assert set(cats["category"]) == {"Income"}
+    assert not cats["needs_review"].any()
+    assert (cats["review_reason"] == "").all()
+
+
+def test_a_model_without_a_review_policy_isnt_served(
+    artifacts: Path, small_sqlite: Path, tmp_path: Path
+) -> None:
+    version = (artifacts / "categorization" / "PROMOTED").read_text().strip()
+    (artifacts / "categorization" / version / "review_policy.json").unlink()
+
+    with pytest.raises(PolicyError, match=r"has no review_policy\.json"):
+        categorize_dataset(small_sqlite, tmp_path / "p.sqlite", artifacts_dir=artifacts)
+    assert not (tmp_path / "p.sqlite").exists()
 
 
 def test_every_transaction_is_categorized_once(
@@ -85,6 +151,8 @@ def test_a_failed_run_leaves_no_file(tmp_path: Path) -> None:
             "confidence": [0.9],
             "model_version": ["v1"],
             "familiar": [True],
+            "needs_review": [False],
+            "review_reason": [""],
         }
     )
 
@@ -111,6 +179,8 @@ def test_overlapping_runs_keep_their_own_partial_files(tmp_path: Path) -> None:
                 "confidence": [0.9],
                 "model_version": [version],
                 "familiar": [True],
+                "needs_review": [False],
+                "review_reason": [""],
             }
         )
 
