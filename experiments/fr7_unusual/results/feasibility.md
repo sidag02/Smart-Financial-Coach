@@ -12,9 +12,14 @@
 | Amount vs own history, population spread | 4 | 733 | 0.325 | {'amount_outlier': 238} |
 | Amount vs own history, population spread | 5 | 375 | 0.416 | {'amount_outlier': 156} |
 | Amount vs own history, population spread | 6 | 208 | 0.500 | {'amount_outlier': 104} |
+| New merchant: rank in the user's own history | 0.95 | 2681 | 0.124 | {'new_merchant_large': 311, 'amount_outlier': 21} |
+| New merchant: rank in the user's own history | 0.99 | 497 | 0.239 | {'new_merchant_large': 116, 'amount_outlier': 3} |
 | New merchant: population price ratio | 3 | 639 | 0.485 | {'new_merchant_large': 288, 'amount_outlier': 22} |
 | New merchant: population price ratio | 5 | 379 | 0.765 | {'new_merchant_large': 268, 'amount_outlier': 22} |
 | New merchant: population price ratio | 8 | 258 | 0.899 | {'new_merchant_large': 213, 'amount_outlier': 19} |
+
+- profile price ratio, median: planted new-merchant charges 9.8 (93% have a profile); normal first visits of $250 or more 1.2 (2040 of them)
+- charges per (user, merchant key): median 6, share with 5 or fewer 49%
 
 ## Combined rules: best recall at a precision target (grid on the same users)
 
@@ -39,3 +44,4 @@
 
 - Per-user z on amount (Technical Design baseline): 1091 flags, precision 0.044, recall 0.045
 - Baseline plus the duplicate rule: 1091 flags, precision 0.342, recall 0.353
+- the baseline's deepest cutoff with precision >= 0.70: 17 flags, recall 0.011

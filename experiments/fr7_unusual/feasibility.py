@@ -63,6 +63,13 @@ def features(path: str) -> pd.DataFrame:
         lambda s: (s - s.expanding().median()).abs().expanding().median().shift()
     )
     out["first"] = out["k_n"] == 0
+    # Rank of the amount among the user's earlier outflows (needs 30 of them)
+    out["u_rank"] = out.groupby("user_id")["x"].transform(
+        lambda s: pd.Series(
+            [np.mean(s.values[:i] < v) if i >= 30 else np.nan for i, v in enumerate(s.values)],
+            index=s.index,
+        )
+    )
 
     # Population priors per merchant key, from other train users
     per_user = out.groupby(["key", "user_id"])["x"].median().reset_index()
@@ -115,6 +122,9 @@ def main(path: str) -> None:
             for t in (5, 8)
         ],
         "Amount vs own history, population spread": [(t, f["z"] >= t) for t in (4, 5, 6)],
+        "New merchant: rank in the user's own history": [
+            (t, f["first"] & (f["u_rank"] >= t)) for t in (0.95, 0.99)
+        ],
         "New merchant: population price ratio": [
             (t, f["first"] & (f["pop_ratio"] >= t)) for t in (3, 5, 8)
         ],
@@ -124,6 +134,21 @@ def main(path: str) -> None:
             tp, fp, p, _ = pr(flag.fillna(False), y)
             kinds = kind[flag.fillna(False) & y].value_counts().to_dict()
             print(f"| {name} | {th if th is not None else '-'} | {tp + fp} | {p:.3f} | {kinds} |")
+
+    big_first = f["first"] & (-f["amount"] >= 250)
+    planted_new = f["anomaly_kind"] == "new_merchant_large"
+    print(
+        f"\n- profile price ratio, median: planted new-merchant charges "
+        f"{f.loc[planted_new, 'pop_ratio'].median():.1f} "
+        f"({f.loc[planted_new, 'pop_ratio'].notna().mean():.0%} have a profile); "
+        f"normal first visits of $250 or more {f.loc[big_first & ~y, 'pop_ratio'].median():.1f} "
+        f"({int((big_first & ~y).sum())} of them)"
+    )
+    counts = f.groupby(["user_id", "key"]).size()
+    print(
+        f"- charges per (user, merchant key): median {counts.median():.0f}, "
+        f"share with 5 or fewer {(counts <= 5).mean():.0%}"
+    )
 
     print("\n## Combined rules: best recall at a precision target (grid on the same users)\n")
     print(
@@ -199,6 +224,13 @@ def main(path: str) -> None:
             f"- {name}: {volume} flags, precision {top.mean():.3f}, "
             f"recall {top.sum() / y.sum():.3f}"
         )
+    ranked = y.to_numpy()[np.argsort(-f["baseline"].to_numpy(), kind="mergesort")]
+    precision = np.cumsum(ranked) / np.arange(1, len(ranked) + 1)
+    deepest = int(np.where(precision >= 0.70)[0].max()) + 1
+    print(
+        f"- the baseline's deepest cutoff with precision >= 0.70: {deepest} flags, "
+        f"recall {ranked[:deepest].sum() / y.sum():.3f}"
+    )
 
 
 if __name__ == "__main__":
