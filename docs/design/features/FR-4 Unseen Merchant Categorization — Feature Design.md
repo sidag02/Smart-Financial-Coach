@@ -1,6 +1,6 @@
 # FR-4 Unseen Merchant Categorization — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 2, 2026; PR #17)
+Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 2, 2026; PR #17) · **Implemented** (Oct 3, 2026: #20, #21, #27, #28 and milestone 5's docs)
 
 ## Summary
 
@@ -241,6 +241,40 @@ One PR per milestone.
 3. **FR-4 round:** baselines and the four candidates, each with its twin, on the new dataset; the comparison report, with per-category confusions on unseen merchants.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
 5. **Docs:** the PRD's FR-4 success metric (0.66 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
+
+## Status (Oct 3, 2026): complete
+
+FR-4 is implemented. This section records where things ended, and what someone continuing the work, or rerunning it, needs to know.
+
+| Milestone | PR | Outcome |
+| --- | --- | --- |
+| Design | #17 | Accepted; feasibility on POC branch `poc/fr-4-unseen-merchants` (pinned `2541dc6`) |
+| 1. Dataset | #20 | 40% holdout (seed 8, 115 merchants) and schema 4 preferences; data hash `44781bc4e4a5`. The tag `data/fr3-default` reproduces FR-3's dataset |
+| 2. Framework | #21 | Shipping twins, tie-breaks on twins with the Brier tie test, the reversal stop, explicit `label_noise` at promotion, `class_weight` |
+| 3. The round | #27 | The FR-4 gate (0.66, §4), per-category diagnostics, the round (`docs/reports/FR-4 Categorization — Round Results.md`) |
+| 4. Finalize and promote | #28 | Promoted `20eea4fb-44781bc4-c0274576` (bge-small, no class weights, clean labels): test known 0.983, all test users 0.943, unseen **0.735** (0.67–0.81) |
+| 5. Docs | #29 | PRD target (0.66 in v1, 0.80 in v1.1), Technical Design, the gate's scope |
+
+**The demo deploy after #28: done.** #28's merge rebuilt the Oct 6, 2026 demo with the new categorizer.
+- The `Deploy demo` run (37108889864) succeeded. Its bundle step logged "3 users, 9185 transactions, categorized by 20eea4fb-44781bc4-c0274576", and its smoke test passed.
+- The demo runs `sfc-web:7e7b3fc`, and `/healthz` returns `"status":"ok"` with 3 users.
+- **Still open:** sign in and check a page's categories (it needs the demo password).
+
+**What depends on FR-4:** FR-5/FR-6 (draft #15). Its simulated replay runs on the promoted model, and its Feasibility section is re-measured on it (owner decision on #15).
+
+**Notes for reruns and later rounds:**
+- **The round's MLflow runs** were in a temporary, session-local store on the machine that ran them: treat it as gone. Nothing remaining needs it.
+  - To rebuild: check out the tag `runs/fr4-round` (the clean-tree training commit `f53643f`), regenerate the dataset (data hash `44781bc4e4a5`), and run `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour).
+  - Don't rerun `finalize` on that split without an override reason: its test set is used.
+- **Run a round on a quiet machine.** Batch cost is measured during the run, and it decides between runs tied on F1 and Brier (§5). In this round the gap (1.34 s against 3.73 s) was too large to flip.
+- **Retraining from feedback uses FR-5/FR-6's gates,** not this design's 0.66 (owner, on #15; see the comment on `UNSEEN_GATE`).
+- **Working practice:**
+  - one PR per milestone from the latest `main`;
+  - review comments are addressed before each push;
+  - rule changes go through the owner and are labelled when made after seeing results;
+  - test sets only through `finalize`;
+  - a rejected promotion's release is deleted (`gh release delete categorization-<version> --cleanup-tag`);
+  - branch work happens in a separate git worktree, since other sessions use the main checkout.
 
 ## Decisions and open questions
 

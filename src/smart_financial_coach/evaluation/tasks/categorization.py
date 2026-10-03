@@ -64,7 +64,10 @@ KNOWN_GATE = 0.90
 # FR-4's v1 gate. Accepted at 0.70 (Oct 2, 2026) when the POC's leader stood at 0.745; set to 0.66
 # (owner, Oct 3, 2026) after the FR-4 round's validation results, before any test scoring: the
 # round's leader scores 0.712, and 0.66 keeps the design's pass rate of about 85-90% for a model
-# that good. 0.80 stays the goal for v1.1, through feedback (FR-5/FR-6)
+# that good. 0.80 stays the goal for v1.1, through feedback (FR-5/FR-6).
+# Scope: these gates promote FR-4's own candidates. Models retrained from feedback are promoted on
+# FR-5/FR-6 §5's gates, scored against users' own view, with these truth-based numbers reported,
+# not gated (owner, on PR #15); the retraining path chooses its gates when it's built
 UNSEEN_GATE = 0.66
 KEYWORD_BASELINE = "keyword"  # the run name the "beats the baseline" rule compares against
 BOOTSTRAP_REPS = 1000
