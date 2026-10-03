@@ -114,6 +114,59 @@ def test_an_api_failure_leaves_the_conversation_reusable(tools: Tools) -> None:
     assert wren.answer(tools, conversation, "How much?").text == "OK."
 
 
+@pytest.mark.parametrize(
+    "bad_turn",
+    [
+        [response(stop_reason="refusal")],
+        [response(tool_use("list_goals", {}), stop_reason="max_tokens")],
+        [response(text(""))],
+        [response(tool_use("list_goals", {})) for _ in range(6)],
+    ],
+    ids=["refusal", "truncated", "empty", "too-many-steps"],
+)
+def test_a_turn_that_doesnt_end_cleanly_is_rolled_back(tools: Tools, bad_turn: list[Any]) -> None:
+    client = FakeClient(*bad_turn, response(text("Fine.")))
+    conversation = Conversation()
+    wren = coach(client)
+
+    first = wren.answer(tools, conversation, "first")
+    second = wren.answer(tools, conversation, "second")
+
+    assert first.text != "Fine."
+    assert second.text == "Fine."
+    roles = [m["role"] for m in client.requests[-1]["messages"]]
+    assert roles == ["user"]  # the bad turn left nothing behind
+    assert conversation.sources == []
+
+
+def test_bad_tool_arguments_and_tool_crashes_become_error_results(
+    tools: Tools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    client = FakeClient(
+        response(tool_use("get_transactions", {**SEPTEMBER, "search": 5})),
+        response(tool_use("list_goals", {}, call_id="t2")),
+        response(text("Sorry, I couldn't look that up.")),
+    )
+
+    def crash() -> None:
+        raise KeyError("boom")
+
+    monkeypatch.setattr(tools, "_handlers", {**tools._handlers, "list_goals": crash})
+    reply = coach(client).answer(tools, Conversation(), "x")
+
+    (typed,) = tool_results(client.requests[1])
+    (crashed,) = tool_results(client.requests[2])
+    assert typed["is_error"] is True
+    assert "search must be a string" in typed["content"]
+    assert crashed == {
+        "type": "tool_result",
+        "tool_use_id": "t2",
+        "content": "list_goals failed",
+        "is_error": True,
+    }
+    assert reply.text == "Sorry, I couldn't look that up."
+
+
 def test_refusals_and_runaway_tool_loops_end_politely(tools: Tools) -> None:
     refused = FakeClient(response(stop_reason="refusal"))
     assert "can't help" in coach(refused).answer(tools, Conversation(), "x").text

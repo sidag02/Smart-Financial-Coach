@@ -2,6 +2,7 @@
 
 import time
 from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -124,6 +125,86 @@ def test_sign_in_attempts_are_rate_limited(sources: DataSources, accounts: list[
             c.post("/signin", data={"email": "maya@example.com", "password": "wrong"})
         reply = c.post("/signin", data={"email": "maya@example.com", "password": PASSWORD})
         assert "Too many attempts" in reply.text
+
+
+def test_a_forged_forwarded_address_does_not_escape_the_sign_in_limit(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    """Behind the ingress, only the X-Forwarded-For entry it appended is the visitor's."""
+    with make_client(sources, accounts, signin_attempts_per_minute=2, trusted_proxy_hops=1) as c:
+        for forged in ("6.6.6.1", "6.6.6.2", "6.6.6.3"):
+            reply = c.post(
+                "/signin",
+                data={"email": "maya@example.com", "password": "wrong"},
+                headers={"X-Forwarded-For": f"{forged}, 203.0.113.7"},
+            )
+        assert "Too many attempts" in reply.text
+        other = c.post(
+            "/signin",
+            data={"email": "maya@example.com", "password": "wrong"},
+            headers={"X-Forwarded-For": "203.0.113.8"},
+        )
+        assert "Too many attempts" not in other.text
+
+
+def test_sign_in_has_a_cap_across_all_addresses(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    with make_client(
+        sources, accounts, signin_attempts_per_minute_total=2, trusted_proxy_hops=1
+    ) as c:
+        for n in range(3):
+            reply = c.post(
+                "/signin",
+                data={"email": "maya@example.com", "password": "wrong"},
+                headers={"X-Forwarded-For": f"203.0.113.{n}"},
+            )
+        assert "Too many attempts" in reply.text
+
+
+def test_new_chat_does_not_reset_the_chat_limit(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    fake = FakeClient(response(text("One.")), response(text("Two.")))
+    wren = Coach(fake, coach_name="Wren", model="m")
+    with make_client(sources, accounts, coach=wren, chat_messages_per_hour=1) as c:
+        sign_in(c)
+        assert "One." in c.post("/chat", data={"question": "1"}).text
+        c.post("/chat/new")
+        assert "a lot of questions" in c.post("/chat", data={"question": "2"}).text
+
+
+def test_a_question_while_one_is_answered_is_turned_away(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    import threading
+
+    started, finish = threading.Event(), threading.Event()
+
+    def slow() -> Any:
+        started.set()
+        finish.wait(5)
+        return response(text("Done."))
+
+    class SlowClient(FakeClient):
+        def _create(self, **request: Any) -> Any:
+            reply = super()._create(**request)
+            return reply() if callable(reply) else reply
+
+    wren = Coach(SlowClient(slow), coach_name="Wren", model="m")
+    with make_client(sources, accounts, coach=wren) as c:
+        sign_in(c)
+        results: dict[str, str] = {}
+        first = threading.Thread(
+            target=lambda: results.update(a=c.post("/chat", data={"question": "1"}).text)
+        )
+        first.start()
+        assert started.wait(5)
+        busy = c.post("/chat", data={"question": "2"}).text
+        finish.set()
+        first.join(5)
+    assert "Still answering your last question" in busy
+    assert "Done." in results["a"]
 
 
 def test_pages_render_quickly(client: TestClient) -> None:

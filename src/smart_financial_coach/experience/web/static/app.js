@@ -19,20 +19,18 @@
       document.getElementById("drawer")?.replaceChildren();
     }
   });
-  // Chat: clear the box as soon as a question is sent, and keep the newest answer in view
-  document.addEventListener("htmx:beforeRequest", (event) => {
-    const form = event.detail.elt;
-    if (form.id === "ask-form") {
-      const pending = document.getElementById("pending-q");
-      if (pending) pending.textContent = form.question.value;
-      form.querySelector("button[type=submit]").disabled = true;
-    }
+  // Chat: show the question being answered (hx-disabled-elt disables the buttons meanwhile),
+  // clear the box once it's sent, and keep the newest answer in view
+  document.addEventListener("htmx:configRequest", (event) => {
+    const params = event.detail.parameters;
+    const question = params?.get ? params.get("question") : params?.question;
+    const pending = document.getElementById("pending-q");
+    if (pending && question) pending.textContent = question;
   });
   document.addEventListener("htmx:afterRequest", (event) => {
     const form = event.detail.elt;
     if (form.id === "ask-form") {
       form.reset();
-      form.querySelector("button[type=submit]").disabled = false;
       form.question.focus();
     }
   });

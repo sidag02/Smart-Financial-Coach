@@ -1,2 +1,2 @@
 {% include "_turn.html" %}
-{% with oob = True %}{% include "_sources.html" %}{% endwith %}
+{% if sources is not none %}{% with oob = True %}{% include "_sources.html" %}{% endwith %}{% endif %}

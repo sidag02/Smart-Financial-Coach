@@ -54,8 +54,15 @@ class Settings(BaseSettings):
         "Insurance & Fees",
         "Childcare & Education",
     )
-    chat_messages_per_hour: int = 30  # per signed-in session; caps LLM spend (NFR-9)
-    signin_attempts_per_minute: int = 10  # per client address
+    # Rate limits per client address, and across all visitors as a backstop. The chat total is the
+    # bound on LLM spend (NFR-9): size it to the API key's spending cap
+    chat_messages_per_hour: int = 30
+    chat_messages_per_hour_total: int = 200
+    signin_attempts_per_minute: int = 10
+    signin_attempts_per_minute_total: int = 60
+    # Proxies in front of the app that append to X-Forwarded-For: 1 behind Azure Container Apps'
+    # ingress, 0 when serving directly (the header is then ignored)
+    trusted_proxy_hops: int = 0
 
     log_level: str = "INFO"
 

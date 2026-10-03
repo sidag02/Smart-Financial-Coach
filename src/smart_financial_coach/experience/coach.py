@@ -14,6 +14,7 @@ and the dashboard is unaffected (NFR-6).
 import json
 import logging
 import os
+import threading
 from dataclasses import dataclass, field
 from datetime import date
 from time import perf_counter
@@ -27,6 +28,10 @@ from smart_financial_coach.config import Settings
 log = logging.getLogger(__name__)
 
 MAX_TOOL_ROUNDS = 6
+REFUSED = "I can't help with that one. I can answer questions about your own spending."
+TOO_LONG = "That answer ran long. Could you ask about something narrower?"
+TOO_MANY_STEPS = "That needed more steps than I can take in one answer. Could you narrow it down?"
+EMPTY = "I couldn't put an answer together. Could you ask that another way?"
 MAX_TOKENS = 4096
 # Server-side fallback when the model's safeguards decline a request
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -66,6 +71,8 @@ class Conversation:
     messages: list[dict[str, Any]] = field(default_factory=list)
     sources: list[Source] = field(default_factory=list)
     turns: list[dict[str, Any]] = field(default_factory=list)  # as shown, for reloading the page
+    # Held while a question is answered: two at once would interleave their messages
+    lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
 
     def source_id(self, source: Source) -> str:
         self.sources.append(source)
@@ -115,20 +122,31 @@ class Coach:
         started = perf_counter()
         turn_start, first_source = len(conversation.messages), len(conversation.sources)
         conversation.messages.append({"role": "user", "content": question})
-        try:
-            text = self._loop(tools, conversation)
-        except anthropic.APIError as error:
-            log.warning("coach unavailable: %s", type(error).__name__)
-            # Drop the failed turn, so the next question starts from a valid conversation
+
+        def roll_back() -> None:
+            # Only a turn that ended cleanly stays in the history: anything else (a refusal, a
+            # truncated answer, an error) would make the API reject every later question
             del conversation.messages[turn_start:]
             del conversation.sources[first_source:]
+
+        try:
+            text, complete = self._loop(tools, conversation)
+        except anthropic.APIError as error:
+            log.warning("coach unavailable: %s", type(error).__name__)
+            roll_back()
             raise CoachUnavailableError(str(error)) from error
+        except Exception:
+            roll_back()
+            raise
+        if not complete:
+            roll_back()
         cited = {
             f"S{i + 1}": s for i, s in enumerate(conversation.sources) if f"[S{i + 1}]" in text
         }
         return Reply(text, cited, perf_counter() - started)
 
-    def _loop(self, tools: Tools, conversation: Conversation) -> str:
+    def _loop(self, tools: Tools, conversation: Conversation) -> tuple[str, bool]:
+        """The answer, and whether the turn ended cleanly (kept in the history)."""
         system = [
             {
                 "type": "text",
@@ -150,24 +168,30 @@ class Coach:
             # Append the whole content (thinking and fallback blocks included), never edit it
             conversation.messages.append({"role": "assistant", "content": response.content})
             if response.stop_reason == "refusal":
-                return "I can't help with that one. I can answer questions about your own spending."
+                return REFUSED, False
+            if response.stop_reason == "max_tokens":
+                return TOO_LONG, False
             calls = [b for b in response.content if b.type == "tool_use"]
             if response.stop_reason != "tool_use" or not calls:
-                return "".join(b.text for b in response.content if b.type == "text").strip()
+                text = "".join(b.text for b in response.content if b.type == "text").strip()
+                return (text, True) if text else (EMPTY, False)
             conversation.messages.append(
                 {"role": "user", "content": [self._run(tools, conversation, c) for c in calls]}
             )
-        return "That needed more steps than I can take in one answer. Could you narrow it down?"
+        return TOO_MANY_STEPS, False
 
     @staticmethod
     def _run(tools: Tools, conversation: Conversation, call: Any) -> dict[str, Any]:
         try:
             result = tools.call(call.name, dict(call.input))
-        except ToolError as error:
+        except Exception as error:  # reported to the model, which can retry in the same turn
+            if not isinstance(error, ToolError):
+                log.exception("tool %s failed", call.name)
+            message = str(error) if isinstance(error, ToolError) else f"{call.name} failed"
             return {
                 "type": "tool_result",
                 "tool_use_id": call.id,
-                "content": str(error),
+                "content": message,
                 "is_error": True,
             }
         payload = {"source_id": conversation.source_id(result.source), **result.data}

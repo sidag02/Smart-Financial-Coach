@@ -102,6 +102,21 @@ class ToolError(ValueError):
     """A tool call the caller can fix (bad dates, unknown category): reported, not raised on."""
 
 
+def _check_type(tool: str, key: str, value: Any, prop: dict[str, Any]) -> None:
+    """Arguments come from the model, so check their JSON types before any code uses them."""
+    kind = prop["type"]
+    ok = (
+        isinstance(value, str)
+        if kind == "string"
+        else (isinstance(value, int) and not isinstance(value, bool) if kind == "integer" else True)
+    )
+    if not ok:
+        article = "an" if kind[0] in "aeiou" else "a"
+        raise ToolError(f"{tool}: {key} must be {article} {kind}, not {type(value).__name__}")
+    if "enum" in prop and value not in prop["enum"]:
+        raise ToolError(f"{tool}: {key} must be one of {prop['enum']}")
+
+
 @dataclass(frozen=True)
 class Source:
     """Where a result's numbers came from, shown next to coach answers (FR-16)."""
@@ -153,6 +168,8 @@ class Tools:
         missing = set(schema.get("required", [])) - set(arguments)
         if missing:
             raise ToolError(f"{name} needs {', '.join(sorted(missing))}")
+        for key, value in arguments.items():
+            _check_type(name, key, value, schema["properties"][key])
         return self._handlers[name](**arguments)
 
     # Tools

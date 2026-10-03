@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
-from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
+from smart_financial_coach.access.ledger import INCOME, REVIEW_BELOW, DataSources, Ledger
 from smart_financial_coach.access.tools import Source, Tools, span_label
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
@@ -183,8 +183,24 @@ def create_app(
     if unknown:
         raise ValueError(f"SFC_ESSENTIALS names categories that can't be essentials: {unknown}")
     conversations: OrderedDict[str, Conversation] = OrderedDict()
+    # Limits are keyed by client address, which a visitor can't reset the way they can a session,
+    # with a cap across everyone as the backstop: the real bound on guesses and on LLM spend
     chat_limit = RateLimit(settings.chat_messages_per_hour, 3600)
+    chat_total = RateLimit(settings.chat_messages_per_hour_total, 3600)
     signin_limit = RateLimit(settings.signin_attempts_per_minute, 60)
+    signin_total = RateLimit(settings.signin_attempts_per_minute_total, 60)
+
+    def client_address(request: Request) -> str:
+        """The visitor's address: behind a proxy, the X-Forwarded-For entry the proxy appended.
+
+        Entries further left are whatever the visitor sent, so they're never trusted.
+        """
+        hops = settings.trusted_proxy_hops
+        forwarded = [part.strip() for part in request.headers.get("x-forwarded-for", "").split(",")]
+        forwarded = [part for part in forwarded if part]
+        if hops > 0 and len(forwarded) >= hops:
+            return forwarded[-hops]
+        return request.client.host if request.client else "unknown"
 
     app = FastAPI(title="Smart Financial Coach", docs_url=None, redoc_url=None, openapi_url=None)
     app.add_middleware(
@@ -208,6 +224,7 @@ def create_app(
         horizons=HORIZONS,
         colors=charts.colors,
         as_of=as_of.isoformat(),
+        review_below=REVIEW_BELOW,
     )
 
     @app.middleware("http")
@@ -279,8 +296,7 @@ def create_app(
         email: Annotated[str, Form()] = "",
         password_: Annotated[str, Form(alias="password")] = "",
     ) -> Response:
-        client = request.client.host if request.client else "unknown"
-        if not signin_limit.allow(client):
+        if not (signin_limit.allow(client_address(request)) and signin_total.allow("all")):
             error = "Too many attempts. Wait a minute, then try again."
             return page(request, "signin.html", None, accounts=accounts, error=error, email=email)
         account = by_email.get(email.strip().lower())
@@ -391,7 +407,7 @@ def create_app(
         period = month_period(month, as_of)
         category = category if category in tools.categories else None
         rows = tools.ledger.between(period.start, period.end)
-        not_sure = int((rows["confidence"] < 0.6).sum())
+        not_sure = int((rows["confidence"] < REVIEW_BELOW).sum())
         if category:
             rows = rows[rows["category"] == category]
         if q.strip():
@@ -401,7 +417,7 @@ def create_app(
                 | rows["merchant_raw"].str.contains(text, case=False, regex=False)
             ]
         if review:
-            rows = rows[rows["confidence"] < 0.6]
+            rows = rows[rows["confidence"] < REVIEW_BELOW]
         return page(
             request,
             "transactions.html",
@@ -454,24 +470,33 @@ def create_app(
         if not question:
             return Response(status_code=204)
         context: dict[str, Any] = {"question": question, "reply": None, "error": None}
-        if coach is None:
-            context["error"] = (
-                f"{settings.coach_name} isn't available right now. Your overview and "
-                "transactions still work."
-            )
-        elif not chat_limit.allow(request.session.get("sid", "")):
-            context["error"] = "That's a lot of questions for one hour. Try again a little later."
-        else:
-            try:
-                reply = coach.answer(tools_for(account), convo, question)
-                context["reply"] = reply
-                context["answer"] = render_answer(reply.text, reply.cited)
-                log.info("coach answered in %.1f s", reply.seconds)
-            except CoachUnavailableError:
+        if not convo.lock.acquire(blocking=False):  # a chip or another tab, mid-answer
+            context["error"] = "Still answering your last question. Ask again in a moment."
+            return page(request, "_chat_turn.html", None, turn=context, sources=None)
+        try:
+            if coach is None:
                 context["error"] = (
-                    f"{settings.coach_name} couldn't be reached just now. Try again in a moment."
+                    f"{settings.coach_name} isn't available right now. Your overview and "
+                    "transactions still work."
                 )
-        convo.turns.append(context)
+            elif not (chat_limit.allow(client_address(request)) and chat_total.allow("all")):
+                context["error"] = (
+                    "That's a lot of questions for one hour. Try again a little later."
+                )
+            else:
+                try:
+                    reply = coach.answer(tools_for(account), convo, question)
+                    context["reply"] = reply
+                    context["answer"] = render_answer(reply.text, reply.cited)
+                    log.info("coach answered in %.1f s", reply.seconds)
+                except CoachUnavailableError:
+                    context["error"] = (
+                        f"{settings.coach_name} couldn't be reached just now. "
+                        "Try again in a moment."
+                    )
+            convo.turns.append(context)
+        finally:
+            convo.lock.release()
         return page(
             request,
             "_chat_turn.html",

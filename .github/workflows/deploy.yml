@@ -3,7 +3,8 @@ name: Deploy demo
 # Builds the demo bundle and image, and rolls it out to the Azure Container App for the Oct 6, 2026
 # demo (Web App UI, "Demo build"). Runs on merges to main and on demand. Azure access is through
 # GitHub OIDC and the `demo` environment's variables, set by deploy/azure/provision.sh; no Azure
-# secret is stored in GitHub. The `demo` environment only accepts deployments from main.
+# secret is stored in GitHub. The `demo` environment only accepts deployments from main, and the
+# repository variable DEMO_DEPLOY=on (set by provision.sh, removed by teardown.sh) enables the job.
 on:
   push:
     branches: [main]
@@ -29,6 +30,9 @@ concurrency:
 
 jobs:
   deploy:
+    # Off once the demo is torn down: running without the environment's variables would recreate
+    # an empty `demo` environment and fail on every merge
+    if: vars.DEMO_DEPLOY == 'on'
     runs-on: ubuntu-latest
     environment: demo
     timeout-minutes: 30

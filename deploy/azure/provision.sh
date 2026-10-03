@@ -51,7 +51,7 @@ else
     --cpu 1 --memory 2Gi \
     --secrets "demo-password=$SFC_DEMO_PASSWORD" "session-secret=$SESSION_SECRET" \
     --env-vars SFC_DEMO_PASSWORD=secretref:demo-password \
-      SFC_SESSION_SECRET=secretref:session-secret -o none
+      SFC_SESSION_SECRET=secretref:session-secret SFC_TRUSTED_PROXY_HOPS=1 -o none
 fi
 
 echo "== Pipeline identity $DEPLOY_IDENTITY (GitHub OIDC, no stored Azure secret)"
@@ -80,6 +80,8 @@ gh api "repos/$GITHUB_REPO/environments/$GITHUB_ENVIRONMENT/deployment-branch-po
   --jq '.branch_policies[].name' | grep -qx main ||
   gh api -X POST "repos/$GITHUB_REPO/environments/$GITHUB_ENVIRONMENT/deployment-branch-policies" \
     -f name=main -f type=branch >/dev/null
+# Repository variable that switches the deploy workflow on; teardown.sh removes it
+gh variable set DEMO_DEPLOY --repo "$GITHUB_REPO" --body on
 for pair in "AZURE_CLIENT_ID=$CLIENT_ID" "AZURE_TENANT_ID=$TENANT_ID" \
   "AZURE_SUBSCRIPTION_ID=$SUBSCRIPTION_ID" "ACR_NAME=$ACR_NAME" \
   "RESOURCE_GROUP=$RESOURCE_GROUP" "CONTAINER_APP=$CONTAINER_APP"; do

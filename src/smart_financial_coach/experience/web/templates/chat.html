@@ -22,9 +22,9 @@
     <div class="thinking" id="thinking"><span class="coach-dot" style="width:24px;height:24px;font-size:12px">{{ coach_name[0] }}</span><span>“<span id="pending-q"></span>” · {{ coach_name }} is looking at your numbers…</span></div>
     <div class="composer">
       <div class="chips">
-        {% for s in suggestions %}<button class="chip" type="button" hx-post="/chat" hx-vals='{"question": {{ s | tojson }}}' hx-target="#turns" hx-swap="beforeend" hx-indicator="#thinking">{{ s }}</button>{% endfor %}
+        {% for s in suggestions %}<button class="chip" type="button" hx-post="/chat" hx-vals='{"question": {{ s | tojson }}}' hx-target="#turns" hx-swap="beforeend" hx-indicator="#thinking" hx-disabled-elt=".composer button">{{ s }}</button>{% endfor %}
       </div>
-      <form class="ask" id="ask-form" hx-post="/chat" hx-target="#turns" hx-swap="beforeend" hx-indicator="#thinking">
+      <form class="ask" id="ask-form" hx-post="/chat" hx-target="#turns" hx-swap="beforeend" hx-indicator="#thinking" hx-disabled-elt=".composer button">
         <span class="coach-dot">{{ coach_name[0] }}</span>
         <label class="visually-hidden" for="question">Ask {{ coach_name }}</label>
         <input id="question" name="question" maxlength="500" placeholder="Ask a follow-up…" autocomplete="off" required>

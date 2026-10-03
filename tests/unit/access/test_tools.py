@@ -96,6 +96,14 @@ def test_bad_arguments_are_tool_errors(tools: Tools) -> None:
         tools.call("get_spending_summary", {"start_date": "2026-09-30", "end_date": "2026-09-01"})
     with pytest.raises(ToolError, match="no data after"):
         tools.call("get_spending_summary", {"start_date": "2027-01-01", "end_date": "2027-01-31"})
+    with pytest.raises(ToolError, match="search must be a string"):
+        tools.call("get_transactions", {**month(tools), "search": 5})
+    with pytest.raises(ToolError, match="limit must be an integer"):
+        tools.call("get_transactions", {**month(tools), "limit": "ten"})
+    with pytest.raises(ToolError, match="limit must be an integer"):
+        tools.call("get_transactions", {**month(tools), "limit": True})
+    with pytest.raises(ToolError, match="sort must be one of"):
+        tools.call("get_transactions", {**month(tools), "sort": "oldest"})
     with pytest.raises(ToolError, match="unknown category"):
         tools.call("get_transactions", {**month(tools), "category": "Crypto"})
 

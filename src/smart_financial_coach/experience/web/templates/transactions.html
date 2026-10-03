@@ -29,7 +29,7 @@
     <thead><tr><th>Date</th><th>Merchant</th><th class="cat">Category</th><th class="amount">Amount</th></tr></thead>
     <tbody>
     {% for t in rows %}
-      {% set unsure = t.confidence < 0.6 %}
+      {% set unsure = t.confidence < review_below %}
       <tr>
         <td class="muted num" style="white-space:nowrap">{{ t.ts.strftime('%b') }} {{ t.ts.day }}</td>
         <td>
@@ -47,5 +47,5 @@
   <div class="empty">No transactions match.</div>
   {% endif %}
 </section>
-<p class="disclaimer">"Not sure?" marks categories the model is less than 60% confident about. Reviewing and correcting them is coming next.</p>
+<p class="disclaimer">"Not sure?" marks categories the model is less than {{ (review_below * 100) | round | int }}% confident about. Reviewing and correcting them is coming next.</p>
 {% endblock %}

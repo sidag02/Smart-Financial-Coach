@@ -52,12 +52,13 @@ def _serve(args: argparse.Namespace) -> int:
     if coach is None:
         print("No Anthropic API key (SFC_LLM_API_KEY or ANTHROPIC_API_KEY): chat is unavailable")
     app = create_app(settings, coach=coach)
+    # The app reads the client address itself (SFC_TRUSTED_PROXY_HOPS): uvicorn's proxy headers
+    # would trust the left-most X-Forwarded-For entry, which the visitor writes
     uvicorn.run(
         app,
         host=args.host,
         port=args.port,
-        proxy_headers=True,
-        forwarded_allow_ips=args.forwarded_allow_ips,
+        proxy_headers=False,
         log_level=settings.log_level.lower(),
     )
     return 0
@@ -77,9 +78,6 @@ def main(argv: Sequence[str] | None = None) -> int:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--dev", action="store_true", help="local http with throwaway secrets")
-    serve.add_argument(
-        "--forwarded-allow-ips", default="127.0.0.1", help="proxies trusted for client addresses"
-    )
     serve.set_defaults(handler=_serve)
     args = parser.parse_args(argv)
     logging.basicConfig(level=get_settings().log_level, format="%(levelname)s %(name)s %(message)s")
