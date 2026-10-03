@@ -676,11 +676,13 @@ def create_app(
                 ),
                 "first_q": _mean(evaluation[:3]),
                 "last_q": _mean(evaluation[-3:]),
+                # New merchants against the true categories: model errors fixed, comparable with
+                # the PRD's 0.80 goal for v1.1, which feedback is meant to reach
                 "unseen_first": _mean(
-                    [m["evaluation_unseen"].get("macro_f1_view") for m in replay["months"][:3]]
+                    [m["evaluation_unseen"].get("macro_f1_truth") for m in replay["months"][:3]]
                 ),
                 "unseen_last": _mean(
-                    [m["evaluation_unseen"].get("macro_f1_view") for m in replay["months"][-3:]]
+                    [m["evaluation_unseen"].get("macro_f1_truth") for m in replay["months"][-3:]]
                 ),
                 "labels": sorted(replay["labels"], key=lambda x: -x["voters"])[:15],
             }

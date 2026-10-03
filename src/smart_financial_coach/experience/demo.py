@@ -29,7 +29,7 @@ from smart_financial_coach.intelligence.models.artifact import POINTER_FILE
 
 ACCOUNTS_FILE = "accounts.yaml"
 REPLAY_FILE = "replay.json"
-REPLAY = PROJECT_ROOT / "reports" / "fr5" / REPLAY_FILE  # sfc-experiment replay's output
+REPLAY = PROJECT_ROOT / "docs" / "reports" / "fr5-replay.json"  # sfc-experiment replay's output
 
 
 @dataclass(frozen=True)

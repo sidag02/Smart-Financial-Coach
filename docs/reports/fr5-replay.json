@@ -1,0 +1,3236 @@
+{
+  "config": {
+    "behavior": {
+      "engagement": 0.6,
+      "items_per_visit": 5,
+      "accept_rate": 0.15,
+      "slip": 0.03,
+      "notice": 0.05,
+      "adversarial": 0.05
+    },
+    "rule": {
+      "n": 3,
+      "majority": 0.6666666666666666,
+      "corrections": 1
+    },
+    "gates": {
+      "familiar_drop": 0.005,
+      "brier_rise": 0.005
+    },
+    "first_retrain": 6,
+    "every": 3,
+    "min_new_labels": 1,
+    "seed": 0,
+    "experiment": "21_small_unweighted.ship"
+  },
+  "users": {
+    "feedback": 69,
+    "evaluation": 51,
+    "adversarial": 3
+  },
+  "months": [
+    {
+      "month": "2023-10",
+      "model": "promoted",
+      "personal": {
+        "rows": 5448,
+        "accuracy_view": 0.9040014684287812,
+        "macro_f1_view": 0.8244182335995703,
+        "macro_f1_truth": 0.8879921978581798
+      },
+      "personal_model_only": {
+        "rows": 5448,
+        "accuracy_view": 0.8810572687224669,
+        "macro_f1_view": 0.7837493321177994,
+        "macro_f1_truth": 0.934129379668779
+      },
+      "evaluation": {
+        "rows": 4293,
+        "accuracy_view": 0.909853249475891,
+        "macro_f1_view": 0.8215257372642456,
+        "macro_f1_truth": 0.9537342720576792
+      },
+      "evaluation_unseen": {
+        "rows": 1010,
+        "accuracy_view": 0.80990099009901,
+        "macro_f1_view": 0.6024336459685563,
+        "macro_f1_truth": 0.7468957021569459
+      },
+      "items_shown_per_user": 2.028985507246377,
+      "votes": 147,
+      "global_labels": 6
+    },
+    {
+      "month": "2023-11",
+      "model": "promoted",
+      "personal": {
+        "rows": 5420,
+        "accuracy_view": 0.9062730627306274,
+        "macro_f1_view": 0.8410025236522826,
+        "macro_f1_truth": 0.8707593605263136
+      },
+      "personal_model_only": {
+        "rows": 5420,
+        "accuracy_view": 0.8791512915129152,
+        "macro_f1_view": 0.7900694972669848,
+        "macro_f1_truth": 0.9292624164158911
+      },
+      "evaluation": {
+        "rows": 4225,
+        "accuracy_view": 0.903905325443787,
+        "macro_f1_view": 0.8159739277500541,
+        "macro_f1_truth": 0.9455011540010593
+      },
+      "evaluation_unseen": {
+        "rows": 1027,
+        "accuracy_view": 0.7867575462512172,
+        "macro_f1_view": 0.6387910871319595,
+        "macro_f1_truth": 0.7751741028963385
+      },
+      "items_shown_per_user": 1.5942028985507246,
+      "votes": 265,
+      "global_labels": 14
+    },
+    {
+      "month": "2023-12",
+      "model": "promoted",
+      "personal": {
+        "rows": 6363,
+        "accuracy_view": 0.9145057362879145,
+        "macro_f1_view": 0.84425059797465,
+        "macro_f1_truth": 0.8752870591464327
+      },
+      "personal_model_only": {
+        "rows": 6363,
+        "accuracy_view": 0.8822882288228823,
+        "macro_f1_view": 0.79418966893728,
+        "macro_f1_truth": 0.9383231824615259
+      },
+      "evaluation": {
+        "rows": 5064,
+        "accuracy_view": 0.8990916271721959,
+        "macro_f1_view": 0.8008017582579026,
+        "macro_f1_truth": 0.9396388324356238
+      },
+      "evaluation_unseen": {
+        "rows": 1150,
+        "accuracy_view": 0.7904347826086957,
+        "macro_f1_view": 0.5945437009067521,
+        "macro_f1_truth": 0.7320252969806319
+      },
+      "items_shown_per_user": 1.5217391304347827,
+      "votes": 377,
+      "global_labels": 17
+    },
+    {
+      "month": "2024-01",
+      "model": "promoted",
+      "personal": {
+        "rows": 5671,
+        "accuracy_view": 0.9155351789807794,
+        "macro_f1_view": 0.8462943652655421,
+        "macro_f1_truth": 0.8774200958923597
+      },
+      "personal_model_only": {
+        "rows": 5671,
+        "accuracy_view": 0.8839710809381062,
+        "macro_f1_view": 0.7894803622422977,
+        "macro_f1_truth": 0.9369207087169653
+      },
+      "evaluation": {
+        "rows": 4375,
+        "accuracy_view": 0.9081142857142858,
+        "macro_f1_view": 0.8185576030625551,
+        "macro_f1_truth": 0.9427956240453929
+      },
+      "evaluation_unseen": {
+        "rows": 1014,
+        "accuracy_view": 0.8017751479289941,
+        "macro_f1_view": 0.6074773953849651,
+        "macro_f1_truth": 0.7223552571823367
+      },
+      "items_shown_per_user": 1.5217391304347827,
+      "votes": 490,
+      "global_labels": 24
+    },
+    {
+      "month": "2024-02",
+      "model": "promoted",
+      "personal": {
+        "rows": 5092,
+        "accuracy_view": 0.9118224666142969,
+        "macro_f1_view": 0.8503737262952034,
+        "macro_f1_truth": 0.8685411267347657
+      },
+      "personal_model_only": {
+        "rows": 5092,
+        "accuracy_view": 0.8770620581304006,
+        "macro_f1_view": 0.7877496387994816,
+        "macro_f1_truth": 0.9273924602763537
+      },
+      "evaluation": {
+        "rows": 4081,
+        "accuracy_view": 0.9090909090909091,
+        "macro_f1_view": 0.8158619870121934,
+        "macro_f1_truth": 0.9448363822451897
+      },
+      "evaluation_unseen": {
+        "rows": 958,
+        "accuracy_view": 0.8162839248434238,
+        "macro_f1_view": 0.5744978733270326,
+        "macro_f1_truth": 0.7187625014024753
+      },
+      "items_shown_per_user": 1.1304347826086956,
+      "votes": 581,
+      "global_labels": 28
+    },
+    {
+      "month": "2024-03",
+      "model": "promoted",
+      "personal": {
+        "rows": 5430,
+        "accuracy_view": 0.9167587476979742,
+        "macro_f1_view": 0.8545663678145715,
+        "macro_f1_truth": 0.8612006829887037
+      },
+      "personal_model_only": {
+        "rows": 5430,
+        "accuracy_view": 0.8828729281767956,
+        "macro_f1_view": 0.7894835572981007,
+        "macro_f1_truth": 0.9365759607661922
+      },
+      "evaluation": {
+        "rows": 4465,
+        "accuracy_view": 0.9072788353863381,
+        "macro_f1_view": 0.8265386251276476,
+        "macro_f1_truth": 0.939869493649453
+      },
+      "evaluation_unseen": {
+        "rows": 1075,
+        "accuracy_view": 0.7916279069767442,
+        "macro_f1_view": 0.6275140454081135,
+        "macro_f1_truth": 0.7145296159950724
+      },
+      "items_shown_per_user": 0.9855072463768116,
+      "votes": 656,
+      "global_labels": 29
+    },
+    {
+      "month": "2024-04",
+      "model": "promoted",
+      "personal": {
+        "rows": 5442,
+        "accuracy_view": 0.9246600514516722,
+        "macro_f1_view": 0.8693662455752408,
+        "macro_f1_truth": 0.8809404005989435
+      },
+      "personal_model_only": {
+        "rows": 5442,
+        "accuracy_view": 0.8893789048144065,
+        "macro_f1_view": 0.80158313344222,
+        "macro_f1_truth": 0.9435497008585397
+      },
+      "evaluation": {
+        "rows": 4313,
+        "accuracy_view": 0.9081845583120798,
+        "macro_f1_view": 0.8185986394942355,
+        "macro_f1_truth": 0.9524345799534224
+      },
+      "evaluation_unseen": {
+        "rows": 1040,
+        "accuracy_view": 0.8096153846153846,
+        "macro_f1_view": 0.5835505568164383,
+        "macro_f1_truth": 0.7458962896656575
+      },
+      "items_shown_per_user": 0.855072463768116,
+      "votes": 718,
+      "global_labels": 32
+    },
+    {
+      "month": "2024-05",
+      "model": "promoted",
+      "personal": {
+        "rows": 5587,
+        "accuracy_view": 0.9224986575979953,
+        "macro_f1_view": 0.8723752900622675,
+        "macro_f1_truth": 0.8626576323497868
+      },
+      "personal_model_only": {
+        "rows": 5587,
+        "accuracy_view": 0.8831215321281547,
+        "macro_f1_view": 0.7934606504301666,
+        "macro_f1_truth": 0.9431050259896462
+      },
+      "evaluation": {
+        "rows": 4324,
+        "accuracy_view": 0.9079555966697502,
+        "macro_f1_view": 0.812347644180186,
+        "macro_f1_truth": 0.9355221290051778
+      },
+      "evaluation_unseen": {
+        "rows": 1067,
+        "accuracy_view": 0.8163074039362699,
+        "macro_f1_view": 0.5923797132620995,
+        "macro_f1_truth": 0.7054094715143028
+      },
+      "items_shown_per_user": 0.6376811594202898,
+      "votes": 771,
+      "global_labels": 34
+    },
+    {
+      "month": "2024-06",
+      "model": "promoted",
+      "personal": {
+        "rows": 5696,
+        "accuracy_view": 0.9294241573033708,
+        "macro_f1_view": 0.8829510090063604,
+        "macro_f1_truth": 0.8648402956680433
+      },
+      "personal_model_only": {
+        "rows": 5696,
+        "accuracy_view": 0.8836025280898876,
+        "macro_f1_view": 0.8033823718123193,
+        "macro_f1_truth": 0.9436169671168883
+      },
+      "evaluation": {
+        "rows": 4250,
+        "accuracy_view": 0.908,
+        "macro_f1_view": 0.8213182011186883,
+        "macro_f1_truth": 0.942355059888944
+      },
+      "evaluation_unseen": {
+        "rows": 1004,
+        "accuracy_view": 0.7938247011952191,
+        "macro_f1_view": 0.6108231588397223,
+        "macro_f1_truth": 0.7356400326615568
+      },
+      "items_shown_per_user": 0.463768115942029,
+      "votes": 810,
+      "global_labels": 37
+    },
+    {
+      "month": "2024-07",
+      "model": "retrained 2024-06",
+      "personal": {
+        "rows": 5548,
+        "accuracy_view": 0.9316870944484499,
+        "macro_f1_view": 0.8814167078955228,
+        "macro_f1_truth": 0.8202913976621539
+      },
+      "personal_model_only": {
+        "rows": 5548,
+        "accuracy_view": 0.9174477289113194,
+        "macro_f1_view": 0.8392615506064351,
+        "macro_f1_truth": 0.912247385049275
+      },
+      "evaluation": {
+        "rows": 4556,
+        "accuracy_view": 0.926251097453907,
+        "macro_f1_view": 0.8285084060108119,
+        "macro_f1_truth": 0.9086090562383232
+      },
+      "evaluation_unseen": {
+        "rows": 1080,
+        "accuracy_view": 0.8888888888888888,
+        "macro_f1_view": 0.7916943117334476,
+        "macro_f1_truth": 0.8607480729169371
+      },
+      "items_shown_per_user": 1.7971014492753623,
+      "votes": 936,
+      "global_labels": 39
+    },
+    {
+      "month": "2024-08",
+      "model": "retrained 2024-06",
+      "personal": {
+        "rows": 6013,
+        "accuracy_view": 0.9353068351904208,
+        "macro_f1_view": 0.8913376386845188,
+        "macro_f1_truth": 0.814151224495407
+      },
+      "personal_model_only": {
+        "rows": 6013,
+        "accuracy_view": 0.9161816065192084,
+        "macro_f1_view": 0.823309328975002,
+        "macro_f1_truth": 0.8998560099983356
+      },
+      "evaluation": {
+        "rows": 4769,
+        "accuracy_view": 0.9203187250996016,
+        "macro_f1_view": 0.831454098689755,
+        "macro_f1_truth": 0.9180564301500321
+      },
+      "evaluation_unseen": {
+        "rows": 1139,
+        "accuracy_view": 0.8762071992976295,
+        "macro_f1_view": 0.7462730795749243,
+        "macro_f1_truth": 0.8488813835974082
+      },
+      "items_shown_per_user": 1.3333333333333333,
+      "votes": 1034,
+      "global_labels": 43
+    },
+    {
+      "month": "2024-09",
+      "model": "retrained 2024-06",
+      "personal": {
+        "rows": 5366,
+        "accuracy_view": 0.9392471114424152,
+        "macro_f1_view": 0.9006938121829329,
+        "macro_f1_truth": 0.8290396793855738
+      },
+      "personal_model_only": {
+        "rows": 5366,
+        "accuracy_view": 0.913715989563921,
+        "macro_f1_view": 0.8271145997586048,
+        "macro_f1_truth": 0.908197789267037
+      },
+      "evaluation": {
+        "rows": 4104,
+        "accuracy_view": 0.9266569200779727,
+        "macro_f1_view": 0.831294341163337,
+        "macro_f1_truth": 0.9164466290176314
+      },
+      "evaluation_unseen": {
+        "rows": 983,
+        "accuracy_view": 0.8880976602238047,
+        "macro_f1_view": 0.7814712455862808,
+        "macro_f1_truth": 0.8524310542757876
+      },
+      "items_shown_per_user": 0.8115942028985508,
+      "votes": 1096,
+      "global_labels": 43
+    },
+    {
+      "month": "2024-10",
+      "model": "retrained 2024-09",
+      "personal": {
+        "rows": 5488,
+        "accuracy_view": 0.9329446064139941,
+        "macro_f1_view": 0.8904928266391887,
+        "macro_f1_truth": 0.8192578892067605
+      },
+      "personal_model_only": {
+        "rows": 5488,
+        "accuracy_view": 0.9190962099125365,
+        "macro_f1_view": 0.8345112565493534,
+        "macro_f1_truth": 0.9302989611911169
+      },
+      "evaluation": {
+        "rows": 4539,
+        "accuracy_view": 0.9396342806785636,
+        "macro_f1_view": 0.8650580229240233,
+        "macro_f1_truth": 0.9392819801875256
+      },
+      "evaluation_unseen": {
+        "rows": 1084,
+        "accuracy_view": 0.9169741697416974,
+        "macro_f1_view": 0.801452604724085,
+        "macro_f1_truth": 0.8481502424801876
+      },
+      "items_shown_per_user": 1.144927536231884,
+      "votes": 1177,
+      "global_labels": 47
+    },
+    {
+      "month": "2024-11",
+      "model": "retrained 2024-09",
+      "personal": {
+        "rows": 5773,
+        "accuracy_view": 0.9350424389398926,
+        "macro_f1_view": 0.9045599414944326,
+        "macro_f1_truth": 0.8224162389881472
+      },
+      "personal_model_only": {
+        "rows": 5773,
+        "accuracy_view": 0.9172007621687165,
+        "macro_f1_view": 0.8393547498361412,
+        "macro_f1_truth": 0.9321637971885965
+      },
+      "evaluation": {
+        "rows": 4593,
+        "accuracy_view": 0.9407794469845417,
+        "macro_f1_view": 0.8615849433946772,
+        "macro_f1_truth": 0.9395667273788249
+      },
+      "evaluation_unseen": {
+        "rows": 1121,
+        "accuracy_view": 0.9268510258697591,
+        "macro_f1_view": 0.8013021477997427,
+        "macro_f1_truth": 0.8679627599330249
+      },
+      "items_shown_per_user": 0.5797101449275363,
+      "votes": 1222,
+      "global_labels": 48
+    },
+    {
+      "month": "2024-12",
+      "model": "retrained 2024-09",
+      "personal": {
+        "rows": 6503,
+        "accuracy_view": 0.93756727664155,
+        "macro_f1_view": 0.8973509594185217,
+        "macro_f1_truth": 0.8198506758081198
+      },
+      "personal_model_only": {
+        "rows": 6503,
+        "accuracy_view": 0.9266492388128557,
+        "macro_f1_view": 0.8458756403611108,
+        "macro_f1_truth": 0.9379045488510215
+      },
+      "evaluation": {
+        "rows": 5077,
+        "accuracy_view": 0.9324404175694307,
+        "macro_f1_view": 0.8508310675653038,
+        "macro_f1_truth": 0.9365689174880343
+      },
+      "evaluation_unseen": {
+        "rows": 1231,
+        "accuracy_view": 0.9130787977254264,
+        "macro_f1_view": 0.7987633735221369,
+        "macro_f1_truth": 0.8702891119282116
+      },
+      "items_shown_per_user": 0.5942028985507246,
+      "votes": 1265,
+      "global_labels": 48
+    },
+    {
+      "month": "2025-01",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5699,
+        "accuracy_view": 0.9327952272328479,
+        "macro_f1_view": 0.8966598854487099,
+        "macro_f1_truth": 0.8190533316866611
+      },
+      "personal_model_only": {
+        "rows": 5699,
+        "accuracy_view": 0.9226180031584489,
+        "macro_f1_view": 0.8333666852764091,
+        "macro_f1_truth": 0.934159447437762
+      },
+      "evaluation": {
+        "rows": 4532,
+        "accuracy_view": 0.9474845542806708,
+        "macro_f1_view": 0.8610659019192864,
+        "macro_f1_truth": 0.9479131097235207
+      },
+      "evaluation_unseen": {
+        "rows": 1020,
+        "accuracy_view": 0.9372549019607843,
+        "macro_f1_view": 0.8271463644566608,
+        "macro_f1_truth": 0.8512933655199695
+      },
+      "items_shown_per_user": 0.855072463768116,
+      "votes": 1327,
+      "global_labels": 50
+    },
+    {
+      "month": "2025-02",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5082,
+        "accuracy_view": 0.9393939393939394,
+        "macro_f1_view": 0.9122051861219651,
+        "macro_f1_truth": 0.8291495990665921
+      },
+      "personal_model_only": {
+        "rows": 5082,
+        "accuracy_view": 0.9207005116096025,
+        "macro_f1_view": 0.8418051917364919,
+        "macro_f1_truth": 0.9406748851365303
+      },
+      "evaluation": {
+        "rows": 3946,
+        "accuracy_view": 0.9328433857070451,
+        "macro_f1_view": 0.8522270917419742,
+        "macro_f1_truth": 0.9301772176762232
+      },
+      "evaluation_unseen": {
+        "rows": 980,
+        "accuracy_view": 0.923469387755102,
+        "macro_f1_view": 0.7818396933403067,
+        "macro_f1_truth": 0.8363070109923827
+      },
+      "items_shown_per_user": 0.6376811594202898,
+      "votes": 1373,
+      "global_labels": 53
+    },
+    {
+      "month": "2025-03",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5373,
+        "accuracy_view": 0.9387679136422855,
+        "macro_f1_view": 0.9063580194862779,
+        "macro_f1_truth": 0.8117035053436165
+      },
+      "personal_model_only": {
+        "rows": 5373,
+        "accuracy_view": 0.9205285687697748,
+        "macro_f1_view": 0.8376146887825312,
+        "macro_f1_truth": 0.926145484754873
+      },
+      "evaluation": {
+        "rows": 4465,
+        "accuracy_view": 0.9393057110862262,
+        "macro_f1_view": 0.8624969498293473,
+        "macro_f1_truth": 0.9319944914101489
+      },
+      "evaluation_unseen": {
+        "rows": 1073,
+        "accuracy_view": 0.9198508853681268,
+        "macro_f1_view": 0.7902262446284362,
+        "macro_f1_truth": 0.8524272282488757
+      },
+      "items_shown_per_user": 0.37681159420289856,
+      "votes": 1405,
+      "global_labels": 57
+    },
+    {
+      "month": "2025-04",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5207,
+        "accuracy_view": 0.9391204148261955,
+        "macro_f1_view": 0.9113199647317408,
+        "macro_f1_truth": 0.8279150219170653
+      },
+      "personal_model_only": {
+        "rows": 5207,
+        "accuracy_view": 0.9256769733051661,
+        "macro_f1_view": 0.8467098378382544,
+        "macro_f1_truth": 0.9397654992646755
+      },
+      "evaluation": {
+        "rows": 4128,
+        "accuracy_view": 0.937015503875969,
+        "macro_f1_view": 0.8572008289571209,
+        "macro_f1_truth": 0.9333711407101818
+      },
+      "evaluation_unseen": {
+        "rows": 977,
+        "accuracy_view": 0.9058341862845445,
+        "macro_f1_view": 0.8101668908306845,
+        "macro_f1_truth": 0.8559821110340547
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1425,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-05",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5587,
+        "accuracy_view": 0.9403973509933775,
+        "macro_f1_view": 0.9082030862623713,
+        "macro_f1_truth": 0.8222851363491775
+      },
+      "personal_model_only": {
+        "rows": 5587,
+        "accuracy_view": 0.9221406837300877,
+        "macro_f1_view": 0.8423764875052117,
+        "macro_f1_truth": 0.9344241466130905
+      },
+      "evaluation": {
+        "rows": 4685,
+        "accuracy_view": 0.9398078975453575,
+        "macro_f1_view": 0.8574107768094691,
+        "macro_f1_truth": 0.9352884281351455
+      },
+      "evaluation_unseen": {
+        "rows": 1114,
+        "accuracy_view": 0.9111310592459605,
+        "macro_f1_view": 0.7676321639142852,
+        "macro_f1_truth": 0.8206504101850814
+      },
+      "items_shown_per_user": 0.463768115942029,
+      "votes": 1458,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-06",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5619,
+        "accuracy_view": 0.9364655632674853,
+        "macro_f1_view": 0.9054693089567362,
+        "macro_f1_truth": 0.8285439604345414
+      },
+      "personal_model_only": {
+        "rows": 5619,
+        "accuracy_view": 0.9190247374977754,
+        "macro_f1_view": 0.847419511258184,
+        "macro_f1_truth": 0.9428578146232826
+      },
+      "evaluation": {
+        "rows": 4346,
+        "accuracy_view": 0.9385641969627243,
+        "macro_f1_view": 0.8534029405978246,
+        "macro_f1_truth": 0.9321867172942903
+      },
+      "evaluation_unseen": {
+        "rows": 1013,
+        "accuracy_view": 0.9170779861796644,
+        "macro_f1_view": 0.7686741738829949,
+        "macro_f1_truth": 0.7914381632833832
+      },
+      "items_shown_per_user": 0.4057971014492754,
+      "votes": 1490,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-07",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5613,
+        "accuracy_view": 0.93425975414217,
+        "macro_f1_view": 0.8999221833010571,
+        "macro_f1_truth": 0.8109454457952981
+      },
+      "personal_model_only": {
+        "rows": 5613,
+        "accuracy_view": 0.9246392303580973,
+        "macro_f1_view": 0.8485319211430569,
+        "macro_f1_truth": 0.9411184675536077
+      },
+      "evaluation": {
+        "rows": 4259,
+        "accuracy_view": 0.9431791500352196,
+        "macro_f1_view": 0.8670313118025198,
+        "macro_f1_truth": 0.9294758286503453
+      },
+      "evaluation_unseen": {
+        "rows": 1085,
+        "accuracy_view": 0.9235023041474655,
+        "macro_f1_view": 0.7893420776254111,
+        "macro_f1_truth": 0.8302168289378304
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1514,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-08",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 6154,
+        "accuracy_view": 0.9379265518362041,
+        "macro_f1_view": 0.910300852027507,
+        "macro_f1_truth": 0.8266358569284914
+      },
+      "personal_model_only": {
+        "rows": 6154,
+        "accuracy_view": 0.9197270068248293,
+        "macro_f1_view": 0.8443218137988704,
+        "macro_f1_truth": 0.9432537740546093
+      },
+      "evaluation": {
+        "rows": 4604,
+        "accuracy_view": 0.9394005212858384,
+        "macro_f1_view": 0.8627895897878047,
+        "macro_f1_truth": 0.9377980744836153
+      },
+      "evaluation_unseen": {
+        "rows": 1157,
+        "accuracy_view": 0.9144338807260155,
+        "macro_f1_view": 0.8260084046917903,
+        "macro_f1_truth": 0.8589227671704543
+      },
+      "items_shown_per_user": 0.391304347826087,
+      "votes": 1543,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-09",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5304,
+        "accuracy_view": 0.9421191553544495,
+        "macro_f1_view": 0.9144122084176153,
+        "macro_f1_truth": 0.8237254817220679
+      },
+      "personal_model_only": {
+        "rows": 5304,
+        "accuracy_view": 0.9259049773755657,
+        "macro_f1_view": 0.8490439597151681,
+        "macro_f1_truth": 0.9373389698280191
+      },
+      "evaluation": {
+        "rows": 4191,
+        "accuracy_view": 0.9401097590073968,
+        "macro_f1_view": 0.8474080034076419,
+        "macro_f1_truth": 0.930692035851345
+      },
+      "evaluation_unseen": {
+        "rows": 1028,
+        "accuracy_view": 0.9377431906614786,
+        "macro_f1_view": 0.8274004266273688,
+        "macro_f1_truth": 0.8579577636632606
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1563,
+      "global_labels": 59
+    },
+    {
+      "month": "2025-10",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5406,
+        "accuracy_view": 0.9382167961524233,
+        "macro_f1_view": 0.9108043815610364,
+        "macro_f1_truth": 0.8222165844182632
+      },
+      "personal_model_only": {
+        "rows": 5406,
+        "accuracy_view": 0.9261931187569368,
+        "macro_f1_view": 0.8497869550778453,
+        "macro_f1_truth": 0.9395402430985597
+      },
+      "evaluation": {
+        "rows": 4397,
+        "accuracy_view": 0.9385944962474414,
+        "macro_f1_view": 0.867743665398116,
+        "macro_f1_truth": 0.934933305155763
+      },
+      "evaluation_unseen": {
+        "rows": 1054,
+        "accuracy_view": 0.9165085388994307,
+        "macro_f1_view": 0.815250633697425,
+        "macro_f1_truth": 0.8903144035767613
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1583,
+      "global_labels": 58
+    },
+    {
+      "month": "2025-11",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5746,
+        "accuracy_view": 0.9392620953706926,
+        "macro_f1_view": 0.9058252761631408,
+        "macro_f1_truth": 0.8149558856919442
+      },
+      "personal_model_only": {
+        "rows": 5746,
+        "accuracy_view": 0.9211625478593805,
+        "macro_f1_view": 0.8397031738470595,
+        "macro_f1_truth": 0.9443230963042893
+      },
+      "evaluation": {
+        "rows": 4629,
+        "accuracy_view": 0.9371354504212573,
+        "macro_f1_view": 0.8606623433613826,
+        "macro_f1_truth": 0.9378623825842584
+      },
+      "evaluation_unseen": {
+        "rows": 1085,
+        "accuracy_view": 0.9096774193548387,
+        "macro_f1_view": 0.7503675788501658,
+        "macro_f1_truth": 0.8431819784233981
+      },
+      "items_shown_per_user": 0.30434782608695654,
+      "votes": 1608,
+      "global_labels": 60
+    },
+    {
+      "month": "2025-12",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 6551,
+        "accuracy_view": 0.930544954968707,
+        "macro_f1_view": 0.8927570704279763,
+        "macro_f1_truth": 0.8054094902280412
+      },
+      "personal_model_only": {
+        "rows": 6551,
+        "accuracy_view": 0.9201648603266677,
+        "macro_f1_view": 0.8355815015467646,
+        "macro_f1_truth": 0.9345584364926555
+      },
+      "evaluation": {
+        "rows": 5092,
+        "accuracy_view": 0.941476826394344,
+        "macro_f1_view": 0.8589896842346043,
+        "macro_f1_truth": 0.9464789091989202
+      },
+      "evaluation_unseen": {
+        "rows": 1185,
+        "accuracy_view": 0.919831223628692,
+        "macro_f1_view": 0.7883101801945148,
+        "macro_f1_truth": 0.8834719651293058
+      },
+      "items_shown_per_user": 0.2318840579710145,
+      "votes": 1625,
+      "global_labels": 60
+    },
+    {
+      "month": "2026-01",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5600,
+        "accuracy_view": 0.9394642857142858,
+        "macro_f1_view": 0.9117899672660007,
+        "macro_f1_truth": 0.8193473217034843
+      },
+      "personal_model_only": {
+        "rows": 5600,
+        "accuracy_view": 0.9216071428571428,
+        "macro_f1_view": 0.8426457028882518,
+        "macro_f1_truth": 0.938799924649332
+      },
+      "evaluation": {
+        "rows": 4512,
+        "accuracy_view": 0.9437056737588653,
+        "macro_f1_view": 0.8721787326987678,
+        "macro_f1_truth": 0.947308542615843
+      },
+      "evaluation_unseen": {
+        "rows": 1046,
+        "accuracy_view": 0.9225621414913958,
+        "macro_f1_view": 0.7914795059978165,
+        "macro_f1_truth": 0.8731624700380364
+      },
+      "items_shown_per_user": 0.37681159420289856,
+      "votes": 1656,
+      "global_labels": 60
+    },
+    {
+      "month": "2026-02",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5087,
+        "accuracy_view": 0.9420090426577551,
+        "macro_f1_view": 0.917141488758242,
+        "macro_f1_truth": 0.8185587143886873
+      },
+      "personal_model_only": {
+        "rows": 5087,
+        "accuracy_view": 0.923333988598388,
+        "macro_f1_view": 0.8392084220959687,
+        "macro_f1_truth": 0.932438731275627
+      },
+      "evaluation": {
+        "rows": 4058,
+        "accuracy_view": 0.9391325776244456,
+        "macro_f1_view": 0.860228375410064,
+        "macro_f1_truth": 0.9380413917040631
+      },
+      "evaluation_unseen": {
+        "rows": 926,
+        "accuracy_view": 0.9200863930885529,
+        "macro_f1_view": 0.80714539079758,
+        "macro_f1_truth": 0.8301502574712232
+      },
+      "items_shown_per_user": 0.2028985507246377,
+      "votes": 1673,
+      "global_labels": 60
+    },
+    {
+      "month": "2026-03",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5220,
+        "accuracy_view": 0.9436781609195403,
+        "macro_f1_view": 0.919495861163524,
+        "macro_f1_truth": 0.817328938096753
+      },
+      "personal_model_only": {
+        "rows": 5220,
+        "accuracy_view": 0.9241379310344827,
+        "macro_f1_view": 0.8416695425725934,
+        "macro_f1_truth": 0.9394063375414478
+      },
+      "evaluation": {
+        "rows": 4441,
+        "accuracy_view": 0.9349245665390677,
+        "macro_f1_view": 0.856109338726822,
+        "macro_f1_truth": 0.9414639583334261
+      },
+      "evaluation_unseen": {
+        "rows": 1076,
+        "accuracy_view": 0.912639405204461,
+        "macro_f1_view": 0.7916212634366514,
+        "macro_f1_truth": 0.8462196011946569
+      },
+      "items_shown_per_user": 0.36231884057971014,
+      "votes": 1701,
+      "global_labels": 63
+    },
+    {
+      "month": "2026-04",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5149,
+        "accuracy_view": 0.9423188968731793,
+        "macro_f1_view": 0.9204050604402191,
+        "macro_f1_truth": 0.8150849108154921
+      },
+      "personal_model_only": {
+        "rows": 5149,
+        "accuracy_view": 0.925810837055739,
+        "macro_f1_view": 0.8473719976699384,
+        "macro_f1_truth": 0.9374296978619109
+      },
+      "evaluation": {
+        "rows": 4287,
+        "accuracy_view": 0.9412176347095871,
+        "macro_f1_view": 0.8634990603666455,
+        "macro_f1_truth": 0.9342925343763713
+      },
+      "evaluation_unseen": {
+        "rows": 1064,
+        "accuracy_view": 0.9219924812030075,
+        "macro_f1_view": 0.8177503069227824,
+        "macro_f1_truth": 0.8501046528802195
+      },
+      "items_shown_per_user": 0.2318840579710145,
+      "votes": 1719,
+      "global_labels": 64
+    },
+    {
+      "month": "2026-05",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5608,
+        "accuracy_view": 0.9345577746077033,
+        "macro_f1_view": 0.9071283557357974,
+        "macro_f1_truth": 0.8025601093753171
+      },
+      "personal_model_only": {
+        "rows": 5608,
+        "accuracy_view": 0.918509272467903,
+        "macro_f1_view": 0.8333593254550653,
+        "macro_f1_truth": 0.9147643285403616
+      },
+      "evaluation": {
+        "rows": 4492,
+        "accuracy_view": 0.9327693677649154,
+        "macro_f1_view": 0.852363822965808,
+        "macro_f1_truth": 0.9409037330986236
+      },
+      "evaluation_unseen": {
+        "rows": 1070,
+        "accuracy_view": 0.9093457943925234,
+        "macro_f1_view": 0.7781736501418409,
+        "macro_f1_truth": 0.8703662385747406
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1738,
+      "global_labels": 65
+    },
+    {
+      "month": "2026-06",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5529,
+        "accuracy_view": 0.9415807560137457,
+        "macro_f1_view": 0.9173224933663643,
+        "macro_f1_truth": 0.8220844454896091
+      },
+      "personal_model_only": {
+        "rows": 5529,
+        "accuracy_view": 0.9215047929101103,
+        "macro_f1_view": 0.8443686330921588,
+        "macro_f1_truth": 0.9437199289233624
+      },
+      "evaluation": {
+        "rows": 4451,
+        "accuracy_view": 0.9395641428892384,
+        "macro_f1_view": 0.8558717116856615,
+        "macro_f1_truth": 0.9396648418555776
+      },
+      "evaluation_unseen": {
+        "rows": 1112,
+        "accuracy_view": 0.9235611510791367,
+        "macro_f1_view": 0.8124444339066131,
+        "macro_f1_truth": 0.8962651819584139
+      },
+      "items_shown_per_user": 0.2028985507246377,
+      "votes": 1753,
+      "global_labels": 65
+    },
+    {
+      "month": "2026-07",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5784,
+        "accuracy_view": 0.9413900414937759,
+        "macro_f1_view": 0.9148659764906634,
+        "macro_f1_truth": 0.8258706971230793
+      },
+      "personal_model_only": {
+        "rows": 5784,
+        "accuracy_view": 0.924792531120332,
+        "macro_f1_view": 0.8502088010749477,
+        "macro_f1_truth": 0.944201165372894
+      },
+      "evaluation": {
+        "rows": 4532,
+        "accuracy_view": 0.9388790820829656,
+        "macro_f1_view": 0.867793072560255,
+        "macro_f1_truth": 0.9383654205690332
+      },
+      "evaluation_unseen": {
+        "rows": 1081,
+        "accuracy_view": 0.9222941720629048,
+        "macro_f1_view": 0.8154856392071849,
+        "macro_f1_truth": 0.8831886865582751
+      },
+      "items_shown_per_user": 0.30434782608695654,
+      "votes": 1779,
+      "global_labels": 65
+    },
+    {
+      "month": "2026-08",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 6085,
+        "accuracy_view": 0.942810188989318,
+        "macro_f1_view": 0.92078298628936,
+        "macro_f1_truth": 0.8221960479370446
+      },
+      "personal_model_only": {
+        "rows": 6085,
+        "accuracy_view": 0.9219391947411668,
+        "macro_f1_view": 0.8420566194799001,
+        "macro_f1_truth": 0.9415288237030762
+      },
+      "evaluation": {
+        "rows": 4457,
+        "accuracy_view": 0.9353825443123177,
+        "macro_f1_view": 0.855762220549453,
+        "macro_f1_truth": 0.9358896415740983
+      },
+      "evaluation_unseen": {
+        "rows": 1086,
+        "accuracy_view": 0.9088397790055248,
+        "macro_f1_view": 0.8113120948544438,
+        "macro_f1_truth": 0.8809393028261168
+      },
+      "items_shown_per_user": 0.37681159420289856,
+      "votes": 1806,
+      "global_labels": 65
+    },
+    {
+      "month": "2026-09",
+      "model": "retrained 2024-12",
+      "personal": {
+        "rows": 5300,
+        "accuracy_view": 0.940566037735849,
+        "macro_f1_view": 0.92004240517159,
+        "macro_f1_truth": 0.8235483463408415
+      },
+      "personal_model_only": {
+        "rows": 5300,
+        "accuracy_view": 0.9216981132075471,
+        "macro_f1_view": 0.8454511008025886,
+        "macro_f1_truth": 0.943125612931683
+      },
+      "evaluation": {
+        "rows": 4245,
+        "accuracy_view": 0.9382803297997644,
+        "macro_f1_view": 0.8517720652065889,
+        "macro_f1_truth": 0.9368067690542868
+      },
+      "evaluation_unseen": {
+        "rows": 1038,
+        "accuracy_view": 0.9104046242774566,
+        "macro_f1_view": 0.7735694376809926,
+        "macro_f1_truth": 0.8505069268852218
+      },
+      "items_shown_per_user": 0.2608695652173913,
+      "votes": 1825,
+      "global_labels": 65
+    }
+  ],
+  "retrainings": [
+    {
+      "month": "2024-03",
+      "labels": 29,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple.com/bill",
+          "Entertainment"
+        ],
+        [
+          "arco",
+          "Transportation"
+        ],
+        [
+          "chick-fil-a",
+          "Dining"
+        ],
+        [
+          "fastrak",
+          "Transportation"
+        ],
+        [
+          "five below",
+          "Shopping"
+        ],
+        [
+          "hulu.com/bill",
+          "Entertainment"
+        ],
+        [
+          "in-n-out burger",
+          "Dining"
+        ],
+        [
+          "one medical",
+          "Health & Fitness"
+        ],
+        [
+          "panda express",
+          "Dining"
+        ],
+        [
+          "progressive",
+          "Insurance & Fees"
+        ],
+        [
+          "riverside mini go",
+          "Entertainment"
+        ],
+        [
+          "sam s club",
+          "Shopping"
+        ],
+        [
+          "scholastic book fair",
+          "Childcare & Education"
+        ],
+        [
+          "seatgeek",
+          "Entertainment"
+        ],
+        [
+          "sittercity",
+          "Childcare & Education"
+        ],
+        [
+          "spotify usa",
+          "Entertainment"
+        ],
+        [
+          "sprouts farmers market sto",
+          "Groceries"
+        ],
+        [
+          "subway",
+          "Dining"
+        ],
+        [
+          "sweetgreen",
+          "Dining"
+        ],
+        [
+          "target los angeles ca",
+          "Groceries"
+        ],
+        [
+          "target phoenix az",
+          "Shopping"
+        ],
+        [
+          "target seattle wa",
+          "Shopping"
+        ],
+        [
+          "temu",
+          "Shopping"
+        ],
+        [
+          "the children's place",
+          "Shopping"
+        ],
+        [
+          "tjmaxx",
+          "Shopping"
+        ],
+        [
+          "uber",
+          "Travel"
+        ],
+        [
+          "wayfair",
+          "Shopping"
+        ],
+        [
+          "zara",
+          "Shopping"
+        ]
+      ],
+      "revoked": [],
+      "relabelled_rows": 48804,
+      "added_rows": 1834,
+      "training_rows": 581205,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": true,
+          "detail": "0.848 vs 0.821"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": false,
+          "detail": "0.886 vs 0.940"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": false,
+          "detail": "0.522 vs 0.697 on 1626 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": false,
+          "detail": "0.137 vs 0.132"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.846 vs 0.943"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2024-06",
+      "labels": 37,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple.com/bill",
+          "Entertainment"
+        ],
+        [
+          "arco",
+          "Transportation"
+        ],
+        [
+          "chick-fil-a",
+          "Dining"
+        ],
+        [
+          "cvs/pharmacy",
+          "Shopping"
+        ],
+        [
+          "fastrak",
+          "Transportation"
+        ],
+        [
+          "five below",
+          "Shopping"
+        ],
+        [
+          "five below phoenix az",
+          "Shopping"
+        ],
+        [
+          "h-e-b",
+          "Groceries"
+        ],
+        [
+          "hulu.com/bill",
+          "Entertainment"
+        ],
+        [
+          "in-n-out burger",
+          "Dining"
+        ],
+        [
+          "lowe's",
+          "Shopping"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "one medical",
+          "Health & Fitness"
+        ],
+        [
+          "panda express",
+          "Dining"
+        ],
+        [
+          "peacock",
+          "Entertainment"
+        ],
+        [
+          "progressive",
+          "Insurance & Fees"
+        ],
+        [
+          "progressive web pmt",
+          "Insurance & Fees"
+        ],
+        [
+          "riverside mini",
+          "Entertainment"
+        ],
+        [
+          "riverside mini go",
+          "Entertainment"
+        ],
+        [
+          "scholastic book fair",
+          "Childcare & Education"
+        ],
+        [
+          "seatgeek",
+          "Entertainment"
+        ],
+        [
+          "sittercity",
+          "Childcare & Education"
+        ],
+        [
+          "spotify usa",
+          "Entertainment"
+        ],
+        [
+          "sprouts farmers market sto",
+          "Groceries"
+        ],
+        [
+          "starlight bowling",
+          "Entertainment"
+        ],
+        [
+          "subway",
+          "Dining"
+        ],
+        [
+          "sweetgreen",
+          "Dining"
+        ],
+        [
+          "target los angeles ca",
+          "Groceries"
+        ],
+        [
+          "target phoenix az",
+          "Shopping"
+        ],
+        [
+          "target seattle wa",
+          "Shopping"
+        ],
+        [
+          "temu",
+          "Shopping"
+        ],
+        [
+          "the children's place",
+          "Shopping"
+        ],
+        [
+          "tjmaxx",
+          "Shopping"
+        ],
+        [
+          "wayfair",
+          "Shopping"
+        ],
+        [
+          "wayfair dallas tx",
+          "Shopping"
+        ],
+        [
+          "zara",
+          "Shopping"
+        ]
+      ],
+      "revoked": [],
+      "relabelled_rows": 15623,
+      "added_rows": 2695,
+      "training_rows": 582066,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.55
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": true,
+          "detail": "0.840 vs 0.818"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.937 vs 0.939"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.838 vs 0.563 on 914 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.092 vs 0.127"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.910 vs 0.944"
+        }
+      ],
+      "decision": "promoted"
+    },
+    {
+      "month": "2024-09",
+      "labels": 43,
+      "new_labels": [
+        [
+          "bright smile dental",
+          "Health & Fitness"
+        ],
+        [
+          "eventbrite",
+          "Entertainment"
+        ],
+        [
+          "intuit",
+          "Subscriptions"
+        ],
+        [
+          "max",
+          "Entertainment"
+        ],
+        [
+          "p.f. chang s mi",
+          "Dining"
+        ],
+        [
+          "publix",
+          "Groceries"
+        ],
+        [
+          "spotify",
+          "Entertainment"
+        ],
+        [
+          "vrbo",
+          "Travel"
+        ]
+      ],
+      "revoked": [
+        "cvs/pharmacy",
+        "netflix.com"
+      ],
+      "relabelled_rows": 7623,
+      "added_rows": 3981,
+      "training_rows": 583352,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.7
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": true,
+          "detail": "0.855 vs 0.831"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.946 vs 0.938"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.923 vs 0.892 on 816 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.065 vs 0.089"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.939 vs 0.914"
+        }
+      ],
+      "decision": "promoted"
+    },
+    {
+      "month": "2024-12",
+      "labels": 48,
+      "new_labels": [
+        [
+          "ace hardware",
+          "Shopping"
+        ],
+        [
+          "disney plus",
+          "Entertainment"
+        ],
+        [
+          "expedia",
+          "Travel"
+        ],
+        [
+          "little ow",
+          "Dining"
+        ],
+        [
+          "p.f. chang s",
+          "Dining"
+        ],
+        [
+          "paramount+",
+          "Entertainment"
+        ]
+      ],
+      "revoked": [
+        "amazon prime"
+      ],
+      "relabelled_rows": 6877,
+      "added_rows": 5180,
+      "training_rows": 584551,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": true,
+          "detail": "0.863 vs 0.859"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.945 vs 0.945"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.949 vs 0.926 on 987 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.056 vs 0.064"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.942 vs 0.938"
+        }
+      ],
+      "decision": "promoted"
+    },
+    {
+      "month": "2025-03",
+      "labels": 57,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ]
+      ],
+      "revoked": [],
+      "relabelled_rows": 13471,
+      "added_rows": 6462,
+      "training_rows": 585833,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.852 vs 0.859"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.945 vs 0.945"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": false,
+          "detail": "0.879 vs 0.890 on 987 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.053 vs 0.057"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.904 vs 0.937"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2025-06",
+      "labels": 58,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "laugh track c",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ],
+        [
+          "safewa",
+          "Groceries"
+        ]
+      ],
+      "revoked": [
+        "disney plus"
+      ],
+      "relabelled_rows": 11537,
+      "added_rows": 7447,
+      "training_rows": 586818,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.849 vs 0.856"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.948 vs 0.948"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.900 vs 0.882 on 1005 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.055 vs 0.062"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.909 vs 0.934"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2025-09",
+      "labels": 59,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "laugh track c",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pep boys dallas t",
+          "Transportation"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ],
+        [
+          "safewa",
+          "Groceries"
+        ],
+        [
+          "walgreens dalla",
+          "Shopping"
+        ]
+      ],
+      "revoked": [
+        "disney plus",
+        "spotify usa"
+      ],
+      "relabelled_rows": 10084,
+      "added_rows": 8626,
+      "training_rows": 587997,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.846 vs 0.860"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": true,
+          "detail": "0.944 vs 0.947"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.900 vs 0.882 on 1036 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.048 vs 0.058"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.911 vs 0.934"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2025-12",
+      "labels": 60,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "food lion",
+          "Groceries"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "lakeside toy",
+          "Shopping"
+        ],
+        [
+          "laugh track c",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pep boys dallas t",
+          "Transportation"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ],
+        [
+          "safewa",
+          "Groceries"
+        ],
+        [
+          "walgreens",
+          "Shopping"
+        ],
+        [
+          "walgreens dalla",
+          "Shopping"
+        ]
+      ],
+      "revoked": [
+        "disney plus",
+        "hulu.com/bill",
+        "spotify",
+        "spotify usa"
+      ],
+      "relabelled_rows": 11270,
+      "added_rows": 9847,
+      "training_rows": 589218,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.842 vs 0.862"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": false,
+          "detail": "0.942 vs 0.947"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": false,
+          "detail": "0.858 vs 0.866 on 1023 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.058 vs 0.062"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.913 vs 0.940"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2026-03",
+      "labels": 63,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "disney+",
+          "Entertainment"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "food lion",
+          "Groceries"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "lakeside toy",
+          "Shopping"
+        ],
+        [
+          "laugh track c",
+          "Entertainment"
+        ],
+        [
+          "max.com",
+          "Entertainment"
+        ],
+        [
+          "netflix",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pep boys dallas t",
+          "Transportation"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ],
+        [
+          "safewa",
+          "Groceries"
+        ],
+        [
+          "walgreens",
+          "Shopping"
+        ],
+        [
+          "walgreens dalla",
+          "Shopping"
+        ]
+      ],
+      "revoked": [
+        "disney plus",
+        "hulu.com/bill",
+        "spotify",
+        "spotify usa"
+      ],
+      "relabelled_rows": 12646,
+      "added_rows": 10973,
+      "training_rows": 590344,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.837 vs 0.863"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": false,
+          "detail": "0.940 vs 0.946"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.860 vs 0.851 on 1030 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.054 vs 0.060"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.904 vs 0.943"
+        }
+      ],
+      "decision": "rejected"
+    },
+    {
+      "month": "2026-06",
+      "labels": 65,
+      "new_labels": [
+        [
+          "amazon prime",
+          "Entertainment"
+        ],
+        [
+          "apple icloud",
+          "Entertainment"
+        ],
+        [
+          "bp",
+          "Transportation"
+        ],
+        [
+          "citymd",
+          "Health & Fitness"
+        ],
+        [
+          "costcowhse",
+          "Shopping"
+        ],
+        [
+          "disney+",
+          "Entertainment"
+        ],
+        [
+          "dollar tree",
+          "Shopping"
+        ],
+        [
+          "food lion",
+          "Groceries"
+        ],
+        [
+          "google",
+          "Entertainment"
+        ],
+        [
+          "lakeside toy",
+          "Shopping"
+        ],
+        [
+          "laugh track c",
+          "Entertainment"
+        ],
+        [
+          "max.com",
+          "Entertainment"
+        ],
+        [
+          "netflix",
+          "Entertainment"
+        ],
+        [
+          "netflix.com",
+          "Entertainment"
+        ],
+        [
+          "pep boys dallas t",
+          "Transportation"
+        ],
+        [
+          "pho saigo",
+          "Dining"
+        ],
+        [
+          "safewa",
+          "Groceries"
+        ],
+        [
+          "taget",
+          "Shopping"
+        ],
+        [
+          "target sore",
+          "Shopping"
+        ],
+        [
+          "walgreens",
+          "Shopping"
+        ],
+        [
+          "walgreens dalla",
+          "Shopping"
+        ]
+      ],
+      "revoked": [
+        "disney plus",
+        "hulu.com/bill",
+        "spotify",
+        "spotify usa"
+      ],
+      "relabelled_rows": 12655,
+      "added_rows": 12059,
+      "training_rows": 591430,
+      "policy": {
+        "familiar_below": 0.95,
+        "unfamiliar_below": 0.65
+      },
+      "gates": [
+        {
+          "name": "macro_f1_view",
+          "passed": false,
+          "detail": "0.835 vs 0.857"
+        },
+        {
+          "name": "familiar_no_regression",
+          "passed": false,
+          "detail": "0.940 vs 0.945"
+        },
+        {
+          "name": "labelled_strings_improve",
+          "passed": true,
+          "detail": "0.870 vs 0.855 on 1083 rows"
+        },
+        {
+          "name": "unfamiliar_brier",
+          "passed": true,
+          "detail": "0.049 vs 0.058"
+        },
+        {
+          "name": "truth_macro_f1 (reported, not gated)",
+          "passed": true,
+          "detail": "0.903 vs 0.938"
+        }
+      ],
+      "decision": "rejected"
+    }
+  ],
+  "labels": [
+    {
+      "merchant_key": "ace hardware",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "home",
+      "voters": 12,
+      "agreeing": 12,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "amazon prime",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 15,
+      "agreeing": 12,
+      "corrections": 12
+    },
+    {
+      "merchant_key": "apple icloud",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 6,
+      "agreeing": 6,
+      "corrections": 6
+    },
+    {
+      "merchant_key": "apple.com/bill",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 5,
+      "agreeing": 4,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "arco",
+      "category": "Transportation",
+      "true_category": "Transportation",
+      "subtype": "fuel",
+      "voters": 7,
+      "agreeing": 6,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "bp",
+      "category": "Transportation",
+      "true_category": "Transportation",
+      "subtype": "fuel",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "bright smile dental",
+      "category": "Health & Fitness",
+      "true_category": "Health & Fitness",
+      "subtype": "medical",
+      "voters": 11,
+      "agreeing": 9,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "chick-fil-a",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "fast_casual",
+      "voters": 23,
+      "agreeing": 23,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "citymd",
+      "category": "Health & Fitness",
+      "true_category": "Health & Fitness",
+      "subtype": "medical",
+      "voters": 17,
+      "agreeing": 16,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "costcowhse",
+      "category": "Shopping",
+      "true_category": "Groceries",
+      "subtype": "warehouse",
+      "voters": 3,
+      "agreeing": 2,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "disney+",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "dollar tree",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 7,
+      "agreeing": 7,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "eventbrite",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "events",
+      "voters": 10,
+      "agreeing": 10,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "expedia",
+      "category": "Travel",
+      "true_category": "Travel",
+      "subtype": "lodging",
+      "voters": 9,
+      "agreeing": 8,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "fastrak",
+      "category": "Transportation",
+      "true_category": "Transportation",
+      "subtype": "toll",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "five below",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 11,
+      "agreeing": 10,
+      "corrections": 7
+    },
+    {
+      "merchant_key": "five below phoenix az",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 4,
+      "agreeing": 3,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "food lion",
+      "category": "Groceries",
+      "true_category": "Groceries",
+      "subtype": "supermarket",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "google",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 6,
+      "agreeing": 6,
+      "corrections": 6
+    },
+    {
+      "merchant_key": "h-e-b",
+      "category": "Groceries",
+      "true_category": "Groceries",
+      "subtype": "supermarket",
+      "voters": 7,
+      "agreeing": 7,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "in-n-out burger",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "fast_casual",
+      "voters": 15,
+      "agreeing": 13,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "intuit",
+      "category": "Subscriptions",
+      "true_category": "Subscriptions",
+      "subtype": "software",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "lakeside toy",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "kids",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "laugh track c",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "leisure",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "little ow",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "coffee",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "lowe's",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "home",
+      "voters": 10,
+      "agreeing": 9,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "max",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 14,
+      "agreeing": 11,
+      "corrections": 5
+    },
+    {
+      "merchant_key": "max.com",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 10,
+      "agreeing": 8,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "netflix",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "netflix.com",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 11,
+      "agreeing": 9,
+      "corrections": 9
+    },
+    {
+      "merchant_key": "one medical",
+      "category": "Health & Fitness",
+      "true_category": "Health & Fitness",
+      "subtype": "medical",
+      "voters": 26,
+      "agreeing": 25,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "p.f. chang s",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "restaurant",
+      "voters": 7,
+      "agreeing": 6,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "p.f. chang s mi",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "restaurant",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "panda express",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "fast_casual",
+      "voters": 12,
+      "agreeing": 9,
+      "corrections": 8
+    },
+    {
+      "merchant_key": "paramount+",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 6,
+      "agreeing": 5,
+      "corrections": 5
+    },
+    {
+      "merchant_key": "peacock",
+      "category": "Entertainment",
+      "true_category": "Subscriptions",
+      "subtype": "streaming",
+      "voters": 8,
+      "agreeing": 7,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "pep boys dallas t",
+      "category": "Transportation",
+      "true_category": "Transportation",
+      "subtype": "auto_repair",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "pho saigo",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "restaurant",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "progressive",
+      "category": "Insurance & Fees",
+      "true_category": "Insurance & Fees",
+      "subtype": "auto_insurance",
+      "voters": 8,
+      "agreeing": 6,
+      "corrections": 5
+    },
+    {
+      "merchant_key": "progressive web pmt",
+      "category": "Insurance & Fees",
+      "true_category": "Insurance & Fees",
+      "subtype": "auto_insurance",
+      "voters": 5,
+      "agreeing": 5,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "publix",
+      "category": "Groceries",
+      "true_category": "Groceries",
+      "subtype": "supermarket",
+      "voters": 4,
+      "agreeing": 3,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "riverside mini",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "leisure",
+      "voters": 7,
+      "agreeing": 7,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "riverside mini go",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "leisure",
+      "voters": 7,
+      "agreeing": 7,
+      "corrections": 6
+    },
+    {
+      "merchant_key": "safewa",
+      "category": "Groceries",
+      "true_category": "Groceries",
+      "subtype": "supermarket",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "scholastic book fair",
+      "category": "Childcare & Education",
+      "true_category": "Childcare & Education",
+      "subtype": "school",
+      "voters": 6,
+      "agreeing": 5,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "seatgeek",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "events",
+      "voters": 10,
+      "agreeing": 10,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "sittercity",
+      "category": "Childcare & Education",
+      "true_category": "Childcare & Education",
+      "subtype": "babysitting",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "sprouts farmers market sto",
+      "category": "Groceries",
+      "true_category": "Groceries",
+      "subtype": "supermarket",
+      "voters": 6,
+      "agreeing": 6,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "starlight bowling",
+      "category": "Entertainment",
+      "true_category": "Entertainment",
+      "subtype": "leisure",
+      "voters": 6,
+      "agreeing": 5,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "subway",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "fast_casual",
+      "voters": 17,
+      "agreeing": 15,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "sweetgreen",
+      "category": "Dining",
+      "true_category": "Dining",
+      "subtype": "fast_casual",
+      "voters": 17,
+      "agreeing": 16,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "taget",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "target los angeles ca",
+      "category": "Groceries",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 4,
+      "agreeing": 3,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "target phoenix az",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 3,
+      "agreeing": 2,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "target seattle wa",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 5,
+      "agreeing": 4,
+      "corrections": 3
+    },
+    {
+      "merchant_key": "target sore",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "general",
+      "voters": 3,
+      "agreeing": 3,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "temu",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "marketplace",
+      "voters": 10,
+      "agreeing": 8,
+      "corrections": 7
+    },
+    {
+      "merchant_key": "the children's place",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "kids",
+      "voters": 15,
+      "agreeing": 14,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "tjmaxx",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "clothing",
+      "voters": 13,
+      "agreeing": 12,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "vrbo",
+      "category": "Travel",
+      "true_category": "Travel",
+      "subtype": "lodging",
+      "voters": 6,
+      "agreeing": 6,
+      "corrections": 1
+    },
+    {
+      "merchant_key": "walgreens",
+      "category": "Shopping",
+      "true_category": "Health & Fitness",
+      "subtype": "pharmacy",
+      "voters": 5,
+      "agreeing": 5,
+      "corrections": 5
+    },
+    {
+      "merchant_key": "walgreens dalla",
+      "category": "Shopping",
+      "true_category": "Health & Fitness",
+      "subtype": "pharmacy",
+      "voters": 4,
+      "agreeing": 4,
+      "corrections": 4
+    },
+    {
+      "merchant_key": "wayfair",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "home",
+      "voters": 10,
+      "agreeing": 10,
+      "corrections": 7
+    },
+    {
+      "merchant_key": "wayfair dallas tx",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "home",
+      "voters": 3,
+      "agreeing": 2,
+      "corrections": 2
+    },
+    {
+      "merchant_key": "zara",
+      "category": "Shopping",
+      "true_category": "Shopping",
+      "subtype": "clothing",
+      "voters": 9,
+      "agreeing": 9,
+      "corrections": 4
+    }
+  ],
+  "remaps": [
+    {
+      "subtype": "books",
+      "default": "Shopping",
+      "remapped_to": "Entertainment",
+      "holders": 13,
+      "holders_feedback": 6,
+      "evaluation_match_view": 0.6666666666666666,
+      "evaluation_match_interval": [
+        0.0,
+        1.0
+      ],
+      "labels_now": {},
+      "label_changes": []
+    },
+    {
+      "subtype": "gym",
+      "default": "Health & Fitness",
+      "remapped_to": "Subscriptions",
+      "holders": 22,
+      "holders_feedback": 12,
+      "evaluation_match_view": 0.6470588235294118,
+      "evaluation_match_interval": [
+        0.4117647058823529,
+        0.8823529411764706
+      ],
+      "labels_now": {},
+      "label_changes": []
+    },
+    {
+      "subtype": "pharmacy",
+      "default": "Health & Fitness",
+      "remapped_to": "Shopping",
+      "holders": 38,
+      "holders_feedback": 24,
+      "evaluation_match_view": 0.7608695652173914,
+      "evaluation_match_interval": [
+        0.6086956521739131,
+        0.8695652173913043
+      ],
+      "labels_now": {
+        "Shopping": 2
+      },
+      "label_changes": [
+        {
+          "seq": 791,
+          "merchant_key": "cvs/pharmacy",
+          "category": "Shopping",
+          "voters": 3
+        },
+        {
+          "seq": 816,
+          "merchant_key": "cvs/pharmacy",
+          "category": null,
+          "voters": 5
+        },
+        {
+          "seq": 1562,
+          "merchant_key": "walgreens dalla",
+          "category": "Shopping",
+          "voters": 3
+        },
+        {
+          "seq": 1600,
+          "merchant_key": "walgreens",
+          "category": "Shopping",
+          "voters": 3
+        }
+      ]
+    },
+    {
+      "subtype": "rideshare",
+      "default": "Transportation",
+      "remapped_to": "Travel",
+      "holders": 25,
+      "holders_feedback": 14,
+      "evaluation_match_view": 0.698761023333017,
+      "evaluation_match_interval": [
+        0.5480164145946732,
+        0.8172665857189435
+      ],
+      "labels_now": {},
+      "label_changes": [
+        {
+          "seq": 106,
+          "merchant_key": "lyft",
+          "category": "Transportation",
+          "voters": 3
+        },
+        {
+          "seq": 110,
+          "merchant_key": "lyft",
+          "category": null,
+          "voters": 4
+        },
+        {
+          "seq": 133,
+          "merchant_key": "lyft",
+          "category": "Travel",
+          "voters": 6
+        },
+        {
+          "seq": 242,
+          "merchant_key": "lyft",
+          "category": null,
+          "voters": 8
+        },
+        {
+          "seq": 265,
+          "merchant_key": "uber",
+          "category": "Travel",
+          "voters": 3
+        },
+        {
+          "seq": 338,
+          "merchant_key": "lyft",
+          "category": "Travel",
+          "voters": 9
+        },
+        {
+          "seq": 347,
+          "merchant_key": "lyft",
+          "category": null,
+          "voters": 11
+        },
+        {
+          "seq": 713,
+          "merchant_key": "uber",
+          "category": null,
+          "voters": 8
+        },
+        {
+          "seq": 764,
+          "merchant_key": "uber",
+          "category": "Travel",
+          "voters": 9
+        },
+        {
+          "seq": 785,
+          "merchant_key": "uber",
+          "category": null,
+          "voters": 10
+        },
+        {
+          "seq": 899,
+          "merchant_key": "uber",
+          "category": "Travel",
+          "voters": 12
+        },
+        {
+          "seq": 1072,
+          "merchant_key": "uber",
+          "category": null,
+          "voters": 14
+        }
+      ]
+    },
+    {
+      "subtype": "streaming",
+      "default": "Subscriptions",
+      "remapped_to": "Entertainment",
+      "holders": 90,
+      "holders_feedback": 53,
+      "evaluation_match_view": 0.5934782608695652,
+      "evaluation_match_interval": [
+        0.5031884057971014,
+        0.6783303140096618
+      ],
+      "labels_now": {
+        "Entertainment": 11
+      },
+      "label_changes": [
+        {
+          "seq": 371,
+          "merchant_key": "spotify usa",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 444,
+          "merchant_key": "amazon prime",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 563,
+          "merchant_key": "apple.com/bill",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 567,
+          "merchant_key": "hulu.com/bill",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 786,
+          "merchant_key": "netflix.com",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 804,
+          "merchant_key": "peacock",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 949,
+          "merchant_key": "netflix.com",
+          "category": null,
+          "voters": 5
+        },
+        {
+          "seq": 1028,
+          "merchant_key": "max",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1062,
+          "merchant_key": "spotify",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1155,
+          "merchant_key": "paramount+",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1179,
+          "merchant_key": "amazon prime",
+          "category": null,
+          "voters": 8
+        },
+        {
+          "seq": 1203,
+          "merchant_key": "disney plus",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1300,
+          "merchant_key": "amazon prime",
+          "category": "Entertainment",
+          "voters": 9
+        },
+        {
+          "seq": 1377,
+          "merchant_key": "apple icloud",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1380,
+          "merchant_key": "netflix.com",
+          "category": "Entertainment",
+          "voters": 6
+        },
+        {
+          "seq": 1394,
+          "merchant_key": "google",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1463,
+          "merchant_key": "disney plus",
+          "category": null,
+          "voters": 5
+        },
+        {
+          "seq": 1492,
+          "merchant_key": "spotify usa",
+          "category": null,
+          "voters": 8
+        },
+        {
+          "seq": 1567,
+          "merchant_key": "hulu.com/bill",
+          "category": null,
+          "voters": 5
+        },
+        {
+          "seq": 1573,
+          "merchant_key": "spotify",
+          "category": null,
+          "voters": 5
+        },
+        {
+          "seq": 1692,
+          "merchant_key": "netflix",
+          "category": "Entertainment",
+          "voters": 3
+        },
+        {
+          "seq": 1696,
+          "merchant_key": "max.com",
+          "category": "Entertainment",
+          "voters": 10
+        },
+        {
+          "seq": 1697,
+          "merchant_key": "disney+",
+          "category": "Entertainment",
+          "voters": 3
+        }
+      ]
+    },
+    {
+      "subtype": "warehouse",
+      "default": "Groceries",
+      "remapped_to": "Shopping",
+      "holders": 20,
+      "holders_feedback": 12,
+      "evaluation_match_view": 0.3125350140056022,
+      "evaluation_match_interval": [
+        0.20898478835978837,
+        0.4420972092540719
+      ],
+      "labels_now": {
+        "Shopping": 1
+      },
+      "label_changes": [
+        {
+          "seq": 75,
+          "merchant_key": "costco whse",
+          "category": "Shopping",
+          "voters": 6
+        },
+        {
+          "seq": 113,
+          "merchant_key": "costco whse",
+          "category": null,
+          "voters": 7
+        },
+        {
+          "seq": 308,
+          "merchant_key": "sam s club",
+          "category": "Shopping",
+          "voters": 3
+        },
+        {
+          "seq": 740,
+          "merchant_key": "sam s club",
+          "category": null,
+          "voters": 8
+        },
+        {
+          "seq": 1375,
+          "merchant_key": "costcowhse",
+          "category": "Shopping",
+          "voters": 3
+        }
+      ]
+    }
+  ],
+  "summary": {
+    "votes": 1825,
+    "corrections": 615,
+    "global_labels": 65,
+    "labels_matching_truth": 50,
+    "promotions": 3,
+    "evaluation_first_month": {
+      "rows": 4293,
+      "accuracy_view": 0.909853249475891,
+      "macro_f1_view": 0.8215257372642456,
+      "macro_f1_truth": 0.9537342720576792
+    },
+    "evaluation_last_quarter_macro_f1_view": 0.858442452772099,
+    "personal_accuracy_last_quarter": 0.941588756072981,
+    "items_shown_per_user_month": 0.6747181964573268,
+    "seconds": 2279
+  }
+}

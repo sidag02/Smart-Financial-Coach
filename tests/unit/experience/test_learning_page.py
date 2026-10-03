@@ -11,7 +11,7 @@ from tests.unit.experience.test_web import make_client, sign_in
 MONTH = {
     "personal": {"rows": 10, "accuracy_view": 0.9},
     "personal_model_only": {"rows": 10, "accuracy_view": 0.8},
-    "evaluation_unseen": {"rows": 5, "macro_f1_view": 0.7},
+    "evaluation_unseen": {"rows": 5, "macro_f1_view": 0.7, "macro_f1_truth": 0.75},
     "items_shown_per_user": 1.5,
     "votes": 3,
     "global_labels": 1,
@@ -92,5 +92,6 @@ def test_the_replay_story_and_visitors_agreement(
     assert "model error fixed" not in page  # Netflix was a preference, not an error
     assert "promoted" in page
     assert "<polyline" in page
+    assert "75.0% → 75.0% (macro F1, true categories)" in page
     assert f"{item['merchant_key'].title()} → {target}" in page  # the visitor's vote, live
     assert "1 of 1 agree · 3 people needed" in page

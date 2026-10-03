@@ -4,7 +4,7 @@ sfc-experiment run configs/experiments/categorization/ --data data/synthetic/def
 sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
 sfc-experiment report --task categorization --data data/synthetic/default.sqlite --out report.md
 sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite
-sfc-experiment replay --data data/synthetic/default.sqlite --out reports/fr5_replay.json
+sfc-experiment replay --data data/synthetic/default.sqlite --out docs/reports/fr5-replay.json
 sfc-model promote --task categorization --run ID --note "linear weights explain each category"
 
 `promote` uploads the model file to a GitHub Release (needs `gh` with write access) and records its
