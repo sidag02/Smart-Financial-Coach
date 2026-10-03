@@ -25,6 +25,7 @@ Run once with N = 3 and the default settings; nothing is chosen from its results
 import hashlib
 import json
 import logging
+import tempfile
 import time
 from collections import Counter
 from collections.abc import Callable
@@ -42,7 +43,9 @@ from smart_financial_coach.data.labels import load_truth
 from smart_financial_coach.evaluation.experiment import ExperimentConfig, load_experiment
 from smart_financial_coach.evaluation.metrics.classification import macro_f1
 from smart_financial_coach.evaluation.retrain import RetrainError, retrain
+from smart_financial_coach.evaluation.runner import code_version, git_commit, git_dirty
 from smart_financial_coach.evaluation.tasks.categorization import CategorizationTask
+from smart_financial_coach.evaluation.tracking import KIND_TAG, MODEL_PATH, Tracker
 from smart_financial_coach.intelligence.categorization.agreement import (
     AgreementRule,
     Vote,
@@ -54,7 +57,9 @@ from smart_financial_coach.intelligence.categorization.contract import INPUT_COL
 from smart_financial_coach.intelligence.categorization.review import (
     ReviewPolicy,
     load_review_policy,
+    save_review_policy,
 )
+from smart_financial_coach.intelligence.models.artifact import save_artifact
 from smart_financial_coach.intelligence.models.contract import Checked
 from smart_financial_coach.intelligence.service import load_service
 
@@ -355,6 +360,12 @@ def run_replay(
             k: [v.subject for v in standing if v.merchant_key == k and v.category == c]
             for k, c in agreed.items()
         }
+        # Everything the retraining reads, so `retrain_step` can rebuild it exactly
+        step["inputs"] = {
+            "cutoff": str(cutoff.date()),
+            "agreed": agreed,
+            "contributors": contributors,
+        }
         progress(f"{month}: retraining on {len(agreed)} global labels ({len(new)} new)")
         try:
             candidate = retrain(
@@ -400,6 +411,95 @@ def run_replay(
     _report(result, tx, votes, feedback, evaluation, spending, config, preds, overrides)
     result.summary["seconds"] = round(time.perf_counter() - started)
     return result
+
+
+FEEDBACK_KIND = "feedback-retrain"  # a run's sfc.kind: never on the leaderboard or finalized
+
+
+def groups(data: Path) -> tuple[list[str], list[str]]:
+    """The replay's feedback and evaluation users (test users split by a hash of their id)."""
+    truth = load_truth(data)
+    users = sorted(truth.users.loc[truth.users["split"] == "test", "user_id"])
+    feedback = [u for u in users if _half(u, "replay-group") < 0.5]
+    return feedback, [u for u in users if u not in set(feedback)]
+
+
+def retrain_step(
+    data: Path,
+    replay: dict[str, Any],
+    month: str,
+    tracker: Tracker,
+    *,
+    experiment: Path = SHIPPED_CONFIG,
+) -> str:
+    """Rebuild one of the replay's retrainings from its recorded inputs and log the model as a
+    tracked run (`sfc.kind` = feedback-retrain). Not a finalist, so it can't be promoted without
+    `finalize` and `promote`; nothing is deployed. Returns the run ID."""
+    steps = [s for s in replay["retrainings"] if s["month"] == month and "inputs" in s]
+    if not steps:
+        raise ValueError(f"the replay has no retraining with recorded inputs in {month}")
+    step = steps[0]
+    inputs = step["inputs"]
+    task = CategorizationTask()
+    examples = task.load(data)
+    shipped = load_experiment(experiment).twin()
+    splits = task.split(examples, shipped.task_params, shipped.seed)
+    _, evaluation = groups(data)
+    version = f"feedback-{month}-{shipped.config_hash()[:8]}-{examples.data_hash[:8]}"
+    retrained = retrain(
+        task,
+        examples,
+        splits,
+        shipped,
+        inputs["agreed"],
+        inputs["contributors"],
+        pd.Timestamp(inputs["cutoff"]),
+        evaluation,
+        version=version,
+    )
+    tags = {
+        KIND_TAG: FEEDBACK_KIND,
+        "sfc.task": task.name,
+        "sfc.config_hash": shipped.config_hash(),
+        "sfc.data_hash": examples.data_hash,
+        "sfc.code_version": code_version(),
+        "sfc.git_commit": git_commit(),
+        "sfc.git_dirty": str(git_dirty()).lower(),
+        "sfc.version": version,
+        "sfc.replay_month": month,
+        "sfc.replay_decision": str(step.get("decision")),
+        "sfc.note": (
+            "Retrained from the FR-5/FR-6 replay's agreed labels (simulated test users' "
+            "feedback). Its FR-3/FR-4 test-set scores aren't clean; it isn't promoted."
+        ),
+    }
+    with tracker.run(task.name, f"{shipped.name} feedback {month}", tags) as run_id:
+        tracker.log(
+            run_id,
+            params={
+                "cutoff": inputs["cutoff"],
+                "global_labels": str(len(inputs["agreed"])),
+                "relabelled_rows": str(retrained.relabelled_rows),
+                "added_rows": str(retrained.added_rows),
+                "training_rows": str(retrained.training_rows),
+            },
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / MODEL_PATH
+            manifest = {
+                "task": task.name,
+                "config": json.loads(shipped.model_dump_json()),
+                "mlflow_run_id": run_id,
+                "replay_step": {k: v for k, v in step.items() if k != "inputs"},
+                **{k.removeprefix("sfc."): v for k, v in tags.items()},
+            }
+            save_artifact(retrained.model.model, out, manifest)
+            save_review_policy(retrained.policy, out)
+            labels = Path(tmp) / "agreed_labels.json"
+            labels.write_text(json.dumps(inputs, indent=2, sort_keys=True), encoding="utf-8")
+            tracker.log_artifacts(run_id, out, MODEL_PATH)
+            tracker.log_artifacts(run_id, Path(tmp), "")
+    return run_id
 
 
 def _gates(

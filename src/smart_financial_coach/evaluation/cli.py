@@ -130,6 +130,17 @@ def _replay(args: argparse.Namespace) -> int:
     return 0
 
 
+def _retrain_from_replay(args: argparse.Namespace) -> int:
+    import json
+
+    from smart_financial_coach.evaluation.replay import retrain_step
+
+    replay = json.loads(args.replay.read_text(encoding="utf-8"))
+    run_id = retrain_step(args.data, replay, args.month, Tracker(args.tracking_uri))
+    print(f"logged run {run_id}: retrained from the replay's {args.month} labels; not promoted")
+    return 0
+
+
 def _finalize(args: argparse.Namespace) -> int:
     scored = finalize(
         args.task,
@@ -286,6 +297,15 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     rpl.add_argument("--seed", type=int, default=0)
     rpl.set_defaults(handler=_replay)
 
+    rfr = commands.add_parser(
+        "retrain-from-replay",
+        help="rebuild one of the replay's retrainings and log it as a run, without promoting it",
+    )
+    rfr.add_argument("--data", type=Path, required=True)
+    rfr.add_argument("--replay", type=Path, required=True, help="sfc-experiment replay's JSON")
+    rfr.add_argument("--month", required=True, help="the retraining's month, e.g. 2024-12")
+    rfr.set_defaults(handler=_retrain_from_replay)
+
     fin = commands.add_parser("finalize", help="score the leaderboard's top three on the test sets")
     fin.add_argument("--task", required=True)
     fin.add_argument("--data", type=Path, required=True)
@@ -294,7 +314,7 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     fin.add_argument("--override", help="why this departs from the decision rule (recorded)")
     fin.set_defaults(handler=_finalize)
 
-    for sub in (run, board, rep, fin):
+    for sub in (run, board, rep, fin, rfr):
         _common(sub)
     return _dispatch(parser, argv)
 

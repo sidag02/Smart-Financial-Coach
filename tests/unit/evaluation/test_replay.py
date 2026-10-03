@@ -8,14 +8,27 @@ import pytest
 import yaml
 
 from smart_financial_coach.data.store import load_transactions
-from smart_financial_coach.evaluation.replay import Behavior, ReplayConfig, run_replay
+from smart_financial_coach.evaluation.replay import (
+    FEEDBACK_KIND,
+    Behavior,
+    ReplayConfig,
+    retrain_step,
+    run_replay,
+)
+from smart_financial_coach.evaluation.tracking import KIND_TAG, MODEL_PATH, Tracker
 from smart_financial_coach.intelligence.categorization.agreement import AgreementRule
 from smart_financial_coach.intelligence.categorization.baseline import Majority
 from smart_financial_coach.intelligence.categorization.review import (
     ReviewPolicy,
+    read_review_policy,
     save_review_policy,
 )
-from smart_financial_coach.intelligence.models.artifact import record_promotion, save_artifact
+from smart_financial_coach.intelligence.models.artifact import (
+    POINTER_FILE,
+    read_manifest,
+    record_promotion,
+    save_artifact,
+)
 
 STUB = {
     "name": "replay_stub",
@@ -83,3 +96,21 @@ def test_the_replay_runs_the_loop_and_reports_it(
     for remap in data["remaps"]:  # category -> count, not mangled by dataclasses.asdict
         assert all(isinstance(n, int) and "/" not in c for c, n in remap["labels_now"].items())
     assert all("evaluation" in m for m in result.months)
+
+    # A recorded retraining can be rebuilt as a tracked run, without promoting anything
+    step = trained[0]
+    assert set(step["inputs"]) == {"cutoff", "agreed", "contributors"}
+    tracker = Tracker(
+        f"sqlite:///{artifacts.parent / 'mlflow.db'}", artifact_root=artifacts.parent / "art"
+    )
+    pointer = (artifacts / "categorization" / POINTER_FILE).read_text()
+
+    run_id = retrain_step(small_sqlite, data, step["month"], tracker, experiment=experiment)
+
+    run = tracker.get(run_id)
+    assert run.tags[KIND_TAG] == FEEDBACK_KIND  # not an experiment: never on the leaderboard
+    assert run.params["global_labels"] == str(len(step["inputs"]["agreed"]))
+    folder = tracker.download(run_id, MODEL_PATH, artifacts.parent / "dl")
+    assert read_manifest(folder)["replay_month"] == step["month"]
+    assert read_review_policy(folder).model_version == run.tags["sfc.version"]
+    assert (artifacts / "categorization" / POINTER_FILE).read_text() == pointer  # not promoted
