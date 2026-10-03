@@ -167,7 +167,7 @@ flowchart LR
   - familiar threshold: the highest at which at least **25%** of familiar flags are real errors, **capped at 0.95**.
 
   On the promoted model's validation predictions, grouped by its `familiar` flag, the rule gives 0.65 and 0.95 (Feasibility). The first version asked for 80% of unfamiliar errors, which the clean FR-4 model can't meet at any threshold; the owner lowered it to 60% rather than flag every new merchant (Oct 3, 2026). The cap is needed because this model's familiar flags are at least 25% errors at every threshold measured, so without it the rule's "highest" would run to 1.0 and flag nearly every familiar row.
-- **Flags are computed in the ingestion batch** and written to the predictions file (`needs_review`, `review_reason`), so the dashboard reads them without calling the model.
+- **Flags are computed in the ingestion batch** and written to the predictions file (`needs_review`, `review_reason`), so the dashboard reads them without calling the model. **Only rows predicted as a spending category are flagged** (owner, Oct 3, 2026, on #32): the thresholds were chosen on spending rows, and their precision on rows predicted Income wasn't measured.
 - **Reason:** `new_merchant` for an unfamiliar string below its threshold, `low_confidence` for a familiar one.
 - **Why not one threshold:** see Feasibility. **Why not a fixed review budget per user** (top-k by uncertainty): it hides how uncertain the model really is, and makes the queue's meaning change with the user's volume. The budget is applied at display time instead (goal 2), and items are ranked by spend.
 
@@ -436,6 +436,7 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 - [x] The replay runs once on test users with N = 3 and default settings; nothing is chosen from it; later tuning splits test users in half (owner, Oct 3, 2026).
 - [x] A retrained model that passes §5's gates is promoted; for the demo, by the end of Oct 5 (owner, Oct 3, 2026).
 - [x] In the demo, feedback lives in a `feedback.sqlite` in the container, keyed by browser session, and feeds the agreement rule (owner, Oct 3, 2026).
+- [x] Only rows predicted as a spending category are flagged for review (owner, Oct 3, 2026, on #32).
 - [x] The review rule is kept as decided; on the promoted model, grouped by `familiar`, it gives 0.65 and 0.95 (owner, Oct 3, 2026).
 - [x] The Uber / Uber Eats normalizer collision is fixed with the first model retrained from feedback, not before the demo (owner, Oct 3, 2026).
 
