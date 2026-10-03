@@ -1,6 +1,6 @@
 # Smart Financial Coach — Web App UI
 
-Oct 2, 2026 · Owner: @Sidd · Status: **Accepted** (decisions below) · Branch: `design/mockup`
+Oct 2, 2026 · Owner: @Sidd · Status: **Accepted** (owner decisions, Oct 2, 2026; recorded in the Delivery Plan and the Technical Design too) · Branch: `design/mockup`
 
 ## Summary
 
@@ -15,6 +15,7 @@ Hi-fi mockups for the v1 web app are in [`mockups/`](mockups/). This note maps e
 Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server (`python -m http.server` in that folder); the files load React from unpkg. The light and dark files hold screens 1a–1l and 2a–2l; `Sidebar*.dc.html` is the shared nav and `support.js` the viewer runtime.
 
 - Data is mocked per persona with the repo's 13 categories, through Sep 30, 2026. Persona is a design-time switch only; customers never see persona labels.
+- Coach copy in the mockups uses only numbers a tool could return (FR-14) and gives no tax or investment advice (NFR-4); answers that need a what-if forecast are gap 5.
 - Visual direction: cream grounds, apricot accent, sage for good news, amber for "worth a look"; Bricolage Grotesque and Figtree.
 
 ## Screens
@@ -32,9 +33,13 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 
 ## Decisions
 
-1. **Sign-in: demo accounts.** Keep screen 1i. A seed step gives a few synthetic users a name and email in their own table, so the generator's file is unchanged. One shared password comes from `SFC_DEMO_PASSWORD` and is checked against a scrypt hash (standard library). A signed session cookie holds the `user_id`, and it is the only place the app learns who the user is. One-click "Continue as …" buttons are on locally and off in the hosted demo. Real sign-in (v2) replaces only the login route. The password also gates the public demo (NFR-9), with rate limits on sign-in and chat.
+1. **Sign-in: demo accounts.** Keep screen 1i. A few synthetic users get a name and email in `configs/web/demo_accounts.yaml`, so the generator's file is unchanged. One shared password comes from `SFC_DEMO_PASSWORD` and is checked against a scrypt hash (standard library). Real sign-in (v2) replaces only the login route. The password also gates the public demo (NFR-9). Hardening, since it's the only gate on a public URL:
+   - **One-click "Continue as …" fails closed:** off unless a local-only setting turns it on (`SFC_QUICK_SIGNIN`, set by `sfc-web serve --dev`), so a forgotten variable can't open the hosted demo.
+   - **Session cookie:** signed with `SFC_SESSION_SECRET` from the environment (NFR-3), `HttpOnly`, `Secure` (on unless a local setting turns it off), `SameSite=Lax`, expiring after 12 hours. It holds the `user_id` and a random session id, and it's the only place the app learns who the user is. Signing in clears the old session.
+   - **CSRF:** `SameSite=Lax` keeps the cookie off cross-site posts (sign-in, chat, and later corrections), so no form token is needed while every state change is a same-site post.
+   - **Rate limits:** sign-in attempts per client address, since everyone shares one password; chat messages per session.
 2. **Dashboard layout: 1a.** 1b leads with an LLM-written summary, which would break the dashboard when the LLM is unavailable (NFR-6) and slow it past 2 s (NFR-5). 1b's summary can come later as a precomputed card.
-3. **Essentials grouping** for the money-flow chart: Housing, Utilities, Groceries, Insurance & Fees, Childcare & Education. Everything else is "Everything else". This is a display grouping, not a taxonomy change.
+3. **Essentials grouping** for the money-flow chart: Housing, Utilities, Groceries, Insurance & Fees, Childcare & Education. Everything else is "Everything else", including Transportation and Health & Fitness (owner confirmed, Oct 2, 2026). This is a display grouping, not a taxonomy change.
 4. **Responsive and dark mode from the start.** The mockups' palette becomes CSS tokens with a dark set; layouts hold down to 390 px. The PRD rules out a mobile app, not a responsive web app.
 5. **Coach name** is a setting, defaulting to "Wren"; tests don't depend on it. Check the name doesn't collide with a financial product before a public launch.
 6. **Coach LLM: Anthropic** (Technical Design open question). The key comes from the environment, never the image (NFR-3).
@@ -44,21 +49,23 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 
 A short-lived deployment for a presentation, up from Oct 3 and torn down on Oct 6. It takes shortcuts the Delivery Plan's CD stages will replace:
 
-- **Hosting:** Azure Container Apps, one replica, HTTPS on the platform address. Deleting the resource group removes everything.
-- **Read-only data in the image.** The dataset, categorization predictions and demo accounts are built into a read-only SQLite file at image build time; no ingestion worker, no volume. Nothing a visitor does changes shared data, so shared demo accounts are safe.
+- **Hosting:** Azure Container Apps, one replica, HTTPS on the platform address, in its own resource group. Deleting the resource group removes everything. A short-lived shortcut, outside the Delivery Plan's option D, which stays open for staging.
+- **Read-only data in the image.** The dataset, categorization predictions and demo accounts are built into a read-only SQLite file at image build time; no ingestion worker, no volume. Nothing a visitor does changes shared data.
+- **Chat is per session, not per user.** Several visitors can sign in as the same demo user, and a question can contain anything, so conversation history is kept in memory by the session's random id: never keyed by `user_id`, never in the database. Two sessions as the same user don't see each other's chat (NFR-2), and a test checks it.
 - **Tools in-process.** The tool functions run inside the web app rather than a separate tool server, but identity still comes only from the session, every query is scoped at the data-access layer, and the isolation tests run. Splitting the tool server out is milestone P1.
 - **Chat cost:** a spending cap on the API key and a per-visitor rate limit.
 
 ## Gaps the mockups need that nothing provides yet
 
-1. **Readable merchant names.** 1e and 1f show "Blue Bottle Coffee" over `SQ *BLUE BOTTLE #4321`, and #15's `list_review_items` returns a `merchant` display name. FR-3's normalizer makes matching keys, not names. Needs an owner: FR-4 or a small display-name step. The demo shows the raw text.
+1. **Readable merchant names.** 1e and 1f show "Blue Bottle Coffee" over `SQ *BLUE BOTTLE #4321`, and #15's `list_review_items` returns a `merchant` display name. FR-3's normalizer makes matching keys, not names. Needs an owner: FR-4 or a small display-name step. The demo shows the normalizer's key, capitalized, above the raw text.
 2. **Alternative categories.** The review panel offers 2–3 alternatives per item; #15 returns only `suggested_category`. Add the top few.
 3. **Sources for every number (FR-16).** 1d links each number to a numbered source ("Savings forecast · 21 months"). Tools need to return source metadata and the coach a number-to-source mapping. P1, but cheaper to build into the first chat than to add later.
 4. **Goal tools.** 1h's live "How it fits" needs a forecast for an unsaved goal (`forecast_goal` takes a `goal_id`). "Set aside $75 more a month" must come from the tool, not LLM arithmetic. Creating and editing goals needs a write tool. Fix the interval at 80% in the contract.
-5. **Flag actions.** "I recognize this", "Not me — what now?", "Expected, all good" and the sensitivity control (FR-9) belong in the FR-7/8 design.
-6. **Copy.** 1e says a correction updates "your goal forecast"; forecasts are precomputed nightly and net savings rarely depend on categories. Change the copy or define the behavior.
-7. **The app's date.** Data ends Sep 30, 2026, so "today" comes from the dataset's `as_of`, not the clock.
-8. **Missing screens:** "not available yet" and "coming next" panels, chat with the LLM unavailable (NFR-6), short histories, loading and error states.
+5. **What-if forecasts.** Two mockup answers forecast a hypothetical: the freelancer's "Spending $900 in November would lower your likely tax reserve … to about $5,800" and the family's "Even a December like last year's keeps you on track". `forecast_goal` forecasts only a saved goal on actual history, and the number must come from a tool (FR-14, NFR-1). Either add a scenario input (an extra expense in a month, or a month replaced by last year's) or drop those answers.
+6. **Flag actions.** "I recognize this", "Not me — what now?", "Expected, all good" and the sensitivity control (FR-9) belong in the FR-7/8 design.
+7. **Copy.** 1e says a correction updates "your goal forecast"; forecasts are precomputed nightly and net savings rarely depend on categories. Change the copy or define the behavior.
+8. **The app's date.** Data ends Sep 30, 2026, so "today" comes from the dataset's `as_of`, not the clock.
+9. **Missing screens:** "not available yet" and "coming next" panels, chat with the LLM unavailable (NFR-6), short histories, loading and error states.
 
 ## Open questions
 

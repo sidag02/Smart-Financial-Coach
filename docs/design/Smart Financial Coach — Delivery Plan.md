@@ -227,17 +227,17 @@ One PR per milestone, interleaved with the model track.
 
 **Decisions for review**
 
-- [ ] Two tracks: the product track starts now, as a walking skeleton.
+- [x] Two tracks: the product track starts now, as a walking skeleton (owner, Oct 2, 2026; the web app started for the Oct 6 demo, Web App UI).
 - [ ] CD in four stages; models (and their embedding file) baked into the image and verified at build time.
 - [ ] Kubernetes as the deploy target, with `kind` in CI.
-- [ ] Web framework: server-rendered Python (FastAPI, templates, htmx), recommended.
+- [x] Web framework: server-rendered Python (FastAPI, templates, htmx) (owner, Oct 2, 2026).
 - [ ] Tool server transport: HTTP plus stdio.
-- [ ] Hosted staging and demo target: option D (owner).
+- [ ] Hosted staging and demo target: option D (owner). Still open for staging. The Oct 6, 2026 demo runs on Azure Container Apps as a short-lived shortcut outside option D, torn down after the demo (owner, Oct 2, 2026; Web App UI, "Demo build").
 
 **Open questions**
 
-- [ ] LLM provider (Technical Design). Needed before the coach (P3), not before.
-- [ ] Access control and an LLM budget for a public demo (NFR-9).
+- [x] LLM provider: Anthropic (owner, Oct 2, 2026; Technical Design).
+- [x] Access control and an LLM budget for a public demo (NFR-9): demo accounts behind one shared password, rate limits on sign-in and chat, and a spending cap on the API key (owner, Oct 2, 2026; Web App UI, decision 1).
 - [ ] When SQLite gives way to Postgres. The Technical Design says v2, but FR-5/FR-6's feedback store has writes from several entry points and may pull it earlier.
 - [ ] Whether staging also hosts the shared MLflow server (FR-3 open question).
 
