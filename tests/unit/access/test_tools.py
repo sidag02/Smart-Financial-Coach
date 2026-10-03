@@ -2,6 +2,7 @@
 
 import json
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -237,3 +238,36 @@ def test_detect_anomalies_without_duplicate_flags(
     found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
 
     assert found["count"] == len(kinds)
+
+
+def test_flags_loaded_from_the_file_without_duplicates(
+    sources: DataSources, two_users: tuple[str, str], tmp_path: Path
+) -> None:
+    """Maya's case from review on #39: some flags, none a duplicate, read back from the flag
+    file (string-typed columns under pandas 3)."""
+    from dataclasses import replace
+
+    import pandas as pd
+
+    from smart_financial_coach.data.flags import FlagWriter, load_flags
+
+    ledger = Ledger.load(sources, two_users[0])
+    ids = ledger.transactions["transaction_id"].head(2).to_numpy()
+    evidence = json.dumps({"usual_amount": 5.0, "ratio": 9.0, "prior_charges": 14})
+    scored = pd.DataFrame(
+        {
+            "transaction_id": ids,
+            "score": 9.0,
+            "is_flagged": True,
+            "reason_code": "amount_unusual",
+            "evidence": evidence,
+            "model_version": "v",
+        }
+    )
+    path = tmp_path / "flags.sqlite"
+    with FlagWriter(path, {"model_version": "v"}) as writer:
+        writer.append(pd.Series([two_users[0]] * 2), scored)
+    tools = Tools(replace(ledger, flags=load_flags(path, user_id=two_users[0])))
+
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+    assert {f["transaction_id"] for f in found["unusual_transactions"]} == set(ids)
