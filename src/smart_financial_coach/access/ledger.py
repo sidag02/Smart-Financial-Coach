@@ -7,7 +7,7 @@ model (FR-3); merchant display names from the shared normalizer, title-cased (We
 
     sources = DataSources.from_dir(settings.demo_dir)
     ledger = Ledger.load(sources, user_id)
-    ledger.transactions  # ts, amount, merchant, merchant_raw, category, confidence, ...
+    ledger.transactions  # ts, amount, merchant, merchant_raw, category, confidence, needs_review
 """
 
 import json
@@ -20,12 +20,9 @@ import pandas as pd
 
 from smart_financial_coach.data import store
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
-from smart_financial_coach.data.predictions import load_categories
+from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
 
 INCOME = "Income"
-# Below this calibrated confidence a category shows "Not sure?". A stand-in for FR-5's
-# per-familiarity review policy (#15), which isn't built yet
-REVIEW_BELOW = 0.6
 
 _COLUMNS = [
     "transaction_id",
@@ -38,6 +35,9 @@ _COLUMNS = [
     "category",
     "confidence",
     "model_version",
+    "familiar",
+    "needs_review",  # by the model's review policy, computed in the batch (FR-5 §1)
+    "review_reason",
 ]
 
 
@@ -53,6 +53,12 @@ class DataSources:
     def as_of(self) -> date:
         """The dataset's last day: the app's "today" (Web App UI, gap 8)."""
         return date.fromisoformat(store.load_meta(self.dataset)["calendar_end"])
+
+    def review_thresholds(self) -> tuple[float, float]:
+        """The review policy the predictions were flagged with: (familiar, unfamiliar); a
+        category is flagged below its group's threshold."""
+        meta = load_prediction_meta(self.predictions)
+        return float(meta["review_familiar_below"]), float(meta["review_unfamiliar_below"])
 
     def categories(self) -> list[str]:
         """The dataset's taxonomy, Income included."""

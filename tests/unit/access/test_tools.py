@@ -82,7 +82,9 @@ def test_transactions_filter_sort_and_limit(tools: Tools) -> None:
     assert data["matched"] >= data["shown"]
     assert amounts == sorted(amounts, reverse=True)
     assert {t["category"] for t in data["transactions"]} == {"Dining"}
-    assert all(t["needs_review"] == (t["confidence"] < 0.6) for t in data["transactions"])
+    flags = tools.ledger.transactions.set_index("transaction_id")["needs_review"]
+    assert all(t["needs_review"] == flags[t["transaction_id"]] for t in data["transactions"])
+    assert all((t["review_reason"] is None) != t["needs_review"] for t in data["transactions"])
 
 
 def test_bad_arguments_are_tool_errors(tools: Tools) -> None:

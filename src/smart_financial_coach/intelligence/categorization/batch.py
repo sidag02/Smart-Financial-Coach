@@ -4,6 +4,11 @@ Categorization runs on ingestion, batched across users (Technical Design, comput
 is the serving path, and its throughput is the number a cluster is sized by. Batches mix users:
 one merchant string seen by many users is embedded once.
 
+Each row is flagged for review here, by the promoted model's own review policy (FR-5 §1), so
+the dashboard and the tools read flags without calling the model. Only rows predicted as a
+spending category are flagged: the policy's thresholds were chosen on spending rows (owner,
+Oct 3, 2026, on #32).
+
     run = categorize_dataset("data/synthetic/default.sqlite", "data/predictions/default.sqlite")
     run.rows_per_second
 """
@@ -13,9 +18,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 from time import perf_counter
 
+import numpy as np
+
+from smart_financial_coach.data.generator.taxonomy import INCOME
 from smart_financial_coach.data.predictions import CategoryWriter
 from smart_financial_coach.data.store import iter_transactions, load_meta
 from smart_financial_coach.intelligence.categorization.contract import Categorizer
+from smart_financial_coach.intelligence.categorization.review import load_review_policy
 from smart_financial_coach.intelligence.service import load_service
 
 # Throughput is flat from 20k to 100k rows per batch (about 12k rows/s with bge-base on a laptop),
@@ -48,6 +57,9 @@ def categorize_dataset(
     categorizer = load_service("categorization", artifacts_dir)
     if not isinstance(categorizer, Categorizer):
         raise TypeError(f"the categorization service returned {type(categorizer).__name__}")
+    policy = load_review_policy(artifacts_dir)
+    if policy.model_version != categorizer.version:  # the pointer moved while loading
+        raise RuntimeError(f"review policy {policy.model_version} for model {categorizer.version}")
     loaded = perf_counter()
     dataset = load_meta(data)
     meta = {
@@ -55,6 +67,8 @@ def categorize_dataset(
         "data_spec_name": dataset.get("spec_name", ""),
         "data_spec_hash": dataset.get("spec_hash", ""),
         "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+        "review_familiar_below": str(policy.familiar_threshold),
+        "review_unfamiliar_below": str(policy.unfamiliar_threshold),
     }
     categorize_seconds = 0.0
     with CategoryWriter(out, meta, overwrite=overwrite) as writer:
@@ -62,5 +76,9 @@ def categorize_dataset(
             start = perf_counter()
             categories = categorizer.categorize(batch)
             categorize_seconds += perf_counter() - start
-            writer.append(batch["user_id"], categories)
+            needs_review, reason = policy.flag(categories["confidence"], categories["familiar"])
+            spending = (categories["category"] != INCOME).to_numpy()
+            needs_review, reason = needs_review & spending, np.where(spending, reason, "")
+            flagged = categories.assign(needs_review=needs_review, review_reason=reason)
+            writer.append(batch["user_id"], flagged)
     return BatchRun(categorizer.version, writer.rows, loaded - started, categorize_seconds)
