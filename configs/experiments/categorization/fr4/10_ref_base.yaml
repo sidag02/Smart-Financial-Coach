@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): the shipped configuration (launch 20_linear_base), as the reference
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 10_ref_base
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-base-en-v1.5}}}
+task_params: {k: 3}
+complexity: 2
+tags: {plan: fr4-feasibility}

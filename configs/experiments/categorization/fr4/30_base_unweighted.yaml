@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): the reference without balanced class weights (the Travel fallback)
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 30_base_unweighted
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-base-en-v1.5, class_weight: none}}}
+task_params: {k: 3}
+complexity: 2
+tags: {plan: fr4-feasibility}

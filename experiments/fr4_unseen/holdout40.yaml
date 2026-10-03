@@ -1,0 +1,4 @@
+extends: ../../configs/data/default.yaml
+name: holdout40
+catalog:
+  holdout: {share: 0.4, seed: 8, test_user_bias: 0.45}

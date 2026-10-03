@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): embeddings only, without injected label noise
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 41_emb_only_noise0
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-base-en-v1.5, ngrams: false}}}
+task_params: {k: 3, label_noise: 0.0}
+complexity: 2
+tags: {plan: fr4-feasibility}

@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): without injected noise and without balanced class weights
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 21_base_noise0_unweighted
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/linear_text, params: {C: 1.0, embeddings: BAAI/bge-base-en-v1.5, class_weight: none}}}
+task_params: {k: 3, label_noise: 0.0}
+complexity: 2
+tags: {plan: fr4-feasibility}

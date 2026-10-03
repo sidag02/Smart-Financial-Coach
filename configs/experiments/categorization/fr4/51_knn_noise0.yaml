@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): nearest neighbours, without injected label noise
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 51_knn_noise0
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/knn_text, params: {embeddings: BAAI/bge-base-en-v1.5, k: 10, power: 4.0}}}
+task_params: {k: 3, label_noise: 0.0}
+complexity: 1
+tags: {plan: fr4-feasibility}

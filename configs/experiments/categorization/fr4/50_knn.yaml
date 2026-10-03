@@ -1,0 +1,13 @@
+# FR-4 feasibility (validation folds only, no test data): nearest neighbours over bge-base embeddings, one example per known string
+# Same 3-fold split as the launch round, so runs pair with the bge-base reference.
+name: 50_knn
+task: categorization
+model:
+  type: categorization/calibrated
+  params:
+    method: auto
+    by: familiarity
+    base: {$model: {type: categorization/knn_text, params: {embeddings: BAAI/bge-base-en-v1.5, k: 10, power: 4.0}}}
+task_params: {k: 3}
+complexity: 1
+tags: {plan: fr4-feasibility}
