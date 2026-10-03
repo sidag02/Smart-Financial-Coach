@@ -30,16 +30,16 @@ The reference reproduces the launch round's bge-base exactly (0.512), so the com
 
 ## Per-category F1 on unseen merchants
 
-`uv run python experiments/fr4_unseen/unseen_errors.py <tracking-uri or -> <run_id>`
+`uv run python experiments/fr4_unseen/unseen_errors.py <tracking-uri or -> <run_id>`. Each merchant is counted once, under its majority category; the ambiguous merchants (warehouse clubs, marketplaces) have rows in both Groceries and Shopping. *Corrected in review (PR #17): an earlier version counted them in both, so the column summed to 172.*
 
 | Category | Merchants | Shipped (`10_ref_base`) | Clean (`20`) | Clean, no weights (`21`) |
 | --- | --- | --- | --- | --- |
 | Housing | 8 | 0.689 | 0.985 | 0.981 |
 | Utilities | 12 | 0.916 | 0.905 | 0.892 |
-| Groceries | 18 | 0.588 | 0.815 | 0.801 |
+| Groceries | 17 | 0.588 | 0.815 | 0.801 |
 | Dining | 33 | 0.670 | 0.893 | 0.886 |
 | Transportation | 14 | 0.696 | 0.731 | 0.719 |
-| Shopping | 28 | 0.580 | 0.758 | 0.801 |
+| Shopping | 26 | 0.580 | 0.758 | 0.801 |
 | Entertainment | 8 | 0.289 | 0.358 | 0.463 |
 | Subscriptions | 15 | 0.879 | 0.883 | 0.890 |
 | Health & Fitness | 10 | 0.075 | 0.142 | 0.156 |
@@ -50,16 +50,19 @@ The reference reproduces the launch round's bge-base exactly (0.512), so the com
 
 ## How precise is a holdout of N merchants?
 
-`uv run python experiments/fr4_unseen/holdout_size.py`: category-stratified subsets of the 169 validation merchants, bge-base's pooled validation predictions (launch run `000ef7d3`).
+`uv run python experiments/fr4_unseen/holdout_size.py`: category-stratified subsets of the 169 validation merchants, bge-base's pooled validation predictions (launch run `000ef7d3`, unseen macro F1 0.512).
 
-| Merchants | Same model, spread across holdout draws (95%) | Draw-to-draw SD | Mean bootstrap interval width |
-| --- | --- | --- | --- |
-| 58 (today's test holdout) | 0.425–0.624 | 0.051 | 0.186 |
-| 87 | 0.447–0.599 | 0.035 | 0.163 |
-| 115 | 0.461–0.570 | 0.029 | 0.148 |
-| 140 | 0.483–0.543 | 0.017 | 0.136 |
+| Merchants | Bootstrap SD | 95% bootstrap interval width | P(score ≥ 0.70) if true score is 0.745 | … if 0.73 |
+| --- | --- | --- | --- | --- |
+| 58 (today's test holdout) | 0.048 | 0.186 | 83% | 73% |
+| 87 | 0.042 | 0.163 | 86% | 76% |
+| 115 | 0.038 | 0.148 | 88% | 78% |
 
-Draws close to 169 share most merchants, so the spread at 140 is understated.
+- The bootstrap resamples merchants with replacement, so it treats them as independent draws, as a fresh holdout's merchants are. Going from 58 to 115 merchants narrows the interval by about a fifth (√(58/115) predicts about 29% for independent merchants).
+- At 58 merchants, subsets of the 169 put the same model anywhere from 0.425 to 0.624.
+- 0.73 allows for 0.745 being the best of nine runs on the same folds. The pass rates use a normal approximation, and the SD measured on this model (unseen F1 0.51), not on the leader.
+
+*Corrected in review (PR #17):* an earlier version reported the spread of subset scores at 87, 115 and 140 merchants. Subsets drawn without replacement from the same 169 merchants share most of them (finite-population factor 0.57 at 115), so that spread understated a fresh holdout's: SD 0.029 at 115, against 0.038 from the bootstrap.
 
 ## A larger holdout
 

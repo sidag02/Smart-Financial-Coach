@@ -30,8 +30,11 @@ out = pd.DataFrame(
         "f1": f1.round(3),
         "true_rows": rows["category"].value_counts().reindex(labels).fillna(0).astype(int),
         "predicted_rows": rows["predicted"].value_counts().reindex(labels).fillna(0).astype(int),
-        "merchants": rows.groupby("category")["merchant_id"]
-        .nunique()
+        # Each merchant once, under its majority category (a few merchants have rows in two),
+        # as the merchant bootstrap groups them
+        "merchants": rows.groupby("merchant_id")["category"]
+        .agg(lambda c: c.mode().iloc[0])
+        .value_counts()
         .reindex(labels)
         .fillna(0)
         .astype(int),
