@@ -1,0 +1,25 @@
+<div class="drawer" role="dialog" aria-modal="true" aria-label="{{ category }}">
+  <div class="drawer-panel">
+    <div class="drawer-head">
+      <div class="drawer-title"><span class="swatch" style="background:{{ colors(category)[0] }}"></span>{{ category }}</div>
+      <button class="close" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="drawer-total">
+      <div><div class="muted" style="font-size:13px">{{ period.label }}</div><div class="mid">{{ (-rows.total) | money }}</div></div>
+      <div class="muted" style="text-align:right;font-size:13px;line-height:1.5">
+        <div>{{ rows.matched }} transaction{{ "s" if rows.matched != 1 }}</div>
+        <div>{{ (share * 100) | round | int }}% of spending</div>
+      </div>
+    </div>
+    <div class="list">
+      {% for r in rows.transactions %}
+      <div class="list-row"><span class="d">{{ r.date[5:7] | int }}/{{ r.date[8:] | int }}</span><span class="merchant">{{ r.merchant }}</span><b class="num">{{ r.amount | money(cents=True) }}</b></div>
+      {% endfor %}
+      {% if rows.matched > rows.shown %}<div class="list-row" style="grid-template-columns:1fr"><span class="muted">Largest {{ rows.shown }} of {{ rows.matched }}</span></div>{% endif %}
+    </div>
+    <div class="drawer-actions">
+      <a class="btn" style="text-align:center" href="/transactions?month={{ month_key }}&category={{ category | urlencode }}">Open in Transactions</a>
+      <a class="btn-ghost" href="/chat?q={{ ('Tell me about my ' ~ category ~ ' spending, ' ~ period.label) | urlencode }}">Ask {{ coach_name }} about this</a>
+    </div>
+  </div>
+</div>

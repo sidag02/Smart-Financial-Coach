@@ -1,0 +1,17 @@
+{% macro cat_chip(category, unsure=False) -%}
+{%- set c = colors(category) -%}
+<span class="cat-chip{% if unsure %} unsure{% endif %}" style="--mark:{{ c[0] }};--soft-l:{{ c[1] }};--soft-d:{{ c[2] }}">{{ category }}</span>
+{%- endmacro %}
+
+{% macro month_picker(action, month, month_options, extra={}) -%}
+<form method="get" action="{{ action }}">
+  {% for k, v in extra.items() %}{% if v %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endif %}{% endfor %}
+  <label class="visually-hidden" for="month">Month</label>
+  <select class="pill-select" id="month" name="month" onchange="this.form.submit()">
+    {% for key, label in month_options %}
+    <option value="{{ key }}"{% if key == month.start.strftime('%Y-%m') %} selected{% endif %}>{{ label }}</option>
+    {% endfor %}
+  </select>
+  <noscript><button class="btn-ghost" type="submit">Show</button></noscript>
+</form>
+{%- endmacro %}

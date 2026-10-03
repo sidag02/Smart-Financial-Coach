@@ -1,0 +1,38 @@
+<section class="card" id="flow-card">
+  <div class="card-head" style="flex-wrap:wrap">
+    <div>
+      <div class="card-title">Where your money went · {{ flow_period.label }}</div>
+      <div class="muted" style="font-size:13px;margin-top:2px">Came in {{ flow_summary.income | money }} · Spent {{ flow_summary.spending | money }} · {% if flow_summary.net >= 0 %}Left over {{ flow_summary.net | money }}{% else %}{{ (-flow_summary.net) | money }} more than came in{% endif %}</div>
+    </div>
+    <nav class="seg" aria-label="Period">
+      {% for key, label in horizons.items() %}
+      <a href="/?month={{ month_key }}&horizon={{ key }}" hx-get="/flow?month={{ month_key }}&horizon={{ key }}" hx-target="#flow-card" hx-swap="outerHTML"{% if key == horizon %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </nav>
+  </div>
+  {% if flow.empty %}
+  <div class="empty">No spending or income in this period.</div>
+  {% else %}
+  <div class="flow">
+    <svg viewBox="{{ flow.viewbox }}" preserveAspectRatio="none" aria-hidden="true">
+      {% for r in flow.ribbons %}<path d="{{ r.d }}"{% if r.color %} fill="{{ r.color }}"{% else %} class="k-{{ r.kind }}"{% endif %}></path>{% endfor %}
+    </svg>
+    {% for b in flow.blocks %}
+    <div class="flow-block k-{{ b.kind }}{% if b.slim %} slim{% endif %}" style="left:{{ b.left }};width:{{ b.width }};top:{{ b.top }};height:{{ b.height }}"><div class="lbl">{{ b.label }}</div><div class="amt">{{ b.amount | money }}</div></div>
+    {% endfor %}
+    {% for c in flow.categories %}
+    <div class="flow-mark" style="top:{{ c.top }};height:{{ c.height }};background:{{ c.color }}"></div>
+    <button class="flow-cat" style="top:{{ c.top }};height:{{ c.height }}" hx-get="/drill?month={{ month_key }}&horizon={{ horizon }}&category={{ c.name | urlencode }}" hx-target="#drawer"><span>{{ c.name }}</span><b class="num">{{ c.amount | money }}</b><i>›</i></button>
+    {% endfor %}
+  </div>
+  <div class="cat-list">
+    {% set top = flow_summary.by_category[0].amount if flow_summary.by_category else 1 %}
+    {% for c in flow_summary.by_category if c.amount > 0 %}
+    <button class="cat-row" hx-get="/drill?month={{ month_key }}&horizon={{ horizon }}&category={{ c.category | urlencode }}" hx-target="#drawer">
+      <span>{{ c.category }}</span><b class="num">{{ c.amount | money }}</b>
+      <span class="bar"><div style="width:{{ (c.amount / top * 100) | round(1) }}%;background:{{ colors(c.category)[0] }}"></div></span>
+    </button>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>

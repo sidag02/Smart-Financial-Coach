@@ -71,3 +71,18 @@ uv run mlflow ui --backend-store-uri sqlite:///mlruns/mlflow.db   # compare runs
 ```
 
 Runs are tracked in MLflow: a local store in `mlruns/` (git-ignored) by default, or a shared server via `SFC_MLFLOW_TRACKING_URI`. MLflow is in the `train` dependency group; a serving install can leave it out with `uv sync --no-default-groups`. Design: [FR-3 Transaction Categorization — Feature Design.md](<docs/design/features/FR-3 Transaction Categorization — Feature Design.md>).
+
+## Web app
+
+Overview, transactions and the coach chat, from a read-only demo bundle: the demo accounts' data (`configs/web/demo_accounts.yaml`), categorized by the promoted model.
+
+```sh
+uv run sfc-web build-demo --data data/synthetic/default.sqlite   # -> build/demo
+uv run sfc-web serve --dev        # http://127.0.0.1:8000, password demo-password, one-click sign-in
+```
+
+`--dev` makes throwaway secrets for plain http. A hosted run needs `SFC_DEMO_PASSWORD` and `SFC_SESSION_SECRET`, and `SFC_LLM_API_KEY` (or `ANTHROPIC_API_KEY`) for chat; without a key, chat says it's unavailable and the rest works. The `Dockerfile` packages the app with `build/demo`. Design: [Smart Financial Coach — Web App UI.md](<docs/design/Smart Financial Coach — Web App UI.md>) and the mockups in `docs/design/mockups/`.
+
+### Demo deployment (Azure)
+
+`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/set-llm-key.sh` passes the Anthropic key from `.env` to the app as a secret; `deploy/azure/teardown.sh` deletes everything.

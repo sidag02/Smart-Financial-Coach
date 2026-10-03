@@ -1,0 +1,11 @@
+# Only what the image needs: code, lock file, web configs, design docs and the demo bundle
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!configs/web/
+!docs/design/
+!build/demo/
+**/__pycache__
+**/*.pyc

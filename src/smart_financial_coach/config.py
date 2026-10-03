@@ -28,10 +28,41 @@ class Settings(BaseSettings):
     # Experiment tracking (evaluation only; serving never reads it). None: local store in mlruns/
     mlflow_tracking_uri: str | None = None
 
-    # LLM (provider TBD, see Technical Design open questions)
-    llm_provider: str | None = None
-    llm_model: str | None = None
+    # LLM for the coach (Anthropic; Web App UI decision 6). No key: chat says it's unavailable
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-opus-5-5"
+    llm_effort: str = "low"  # chat is a path the user waits on (NFR-5: answer < 8 s at p95)
     llm_api_key: SecretStr | None = Field(default=None, repr=False)
+
+    # Web app (Web App UI note). The demo bundle holds the dataset, predictions and accounts the
+    # app serves, read-only (`sfc-web build-demo`)
+    demo_dir: Path = PROJECT_ROOT / "build" / "demo"
+    # The shared demo password and the session-cookie signing key. Both are required to serve;
+    # `sfc-web serve --dev` makes throwaway ones for a local run
+    demo_password: SecretStr | None = Field(default=None, repr=False)
+    session_secret: SecretStr | None = Field(default=None, repr=False)
+    quick_signin: bool = False  # one-click "Continue as …": local only, never the hosted demo
+    secure_cookies: bool = True  # HTTPS-only session cookie; off only for local http
+    coach_name: str = "Wren"
+    # Essentials: the bare minimum to live on, shown apart from everything else in the money-flow
+    # chart (Web App UI, decision 3). A display grouping only; names must be taxonomy categories,
+    # checked at startup. Env: a JSON list, e.g. SFC_ESSENTIALS='["Housing", "Groceries"]'
+    essentials: tuple[str, ...] = (
+        "Housing",
+        "Utilities",
+        "Groceries",
+        "Insurance & Fees",
+        "Childcare & Education",
+    )
+    # Rate limits per client address, and across all visitors as a backstop. The chat total is the
+    # bound on LLM spend (NFR-9): size it to the API key's spending cap
+    chat_messages_per_hour: int = 30
+    chat_messages_per_hour_total: int = 200
+    signin_attempts_per_minute: int = 10
+    signin_attempts_per_minute_total: int = 60
+    # Proxies in front of the app that append to X-Forwarded-For: 1 behind Azure Container Apps'
+    # ingress, 0 when serving directly (the header is then ignored)
+    trusted_proxy_hops: int = 0
 
     log_level: str = "INFO"
 

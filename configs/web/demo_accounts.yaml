@@ -1,0 +1,6 @@
+# Demo accounts (Web App UI, decision 1): synthetic test users given a name and an email. They
+# share one password, from SFC_DEMO_PASSWORD. Each has a planted spending spike in Aug or Sep 2026.
+accounts:
+  - {user_id: u_te_yp_0030, name: Maya Chen, email: maya@example.com}
+  - {user_id: u_te_fb_0003, name: Ada Okafor, email: ada@example.com}
+  - {user_id: u_te_fl_0010, name: Jordan Reyes, email: jordan@example.com}
