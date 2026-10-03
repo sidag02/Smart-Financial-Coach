@@ -1,36 +1,36 @@
 # FR-5 and FR-6 Review, Corrections and Retraining — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Proposed**; the data contract in §7 is **Accepted** (owner, Oct 2, 2026) · Branch: `docs/fr-5-design` · **Start with [Status and handoff](#status-and-handoff-oct-3-2026)**
+Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026); N, the majority and the retraining cadence are **provisional** until the replay · Branch: `docs/fr-5-design` · **Start with [Status and handoff](#status-and-handoff-oct-3-2026)**
 
 ## Summary
 
 This feature closes the loop that FR-3's cold-start categorizer was built for. Users review the categories the model is unsure about and correct the ones that are wrong. Their corrections fix their own view at once, and retrain the shared model when enough users agree.
 
 - **Requirements:** FR-5 (P1), *"Mark low-confidence categories for user review"*, and FR-6 (P1), *"Let users correct a category"*. They are designed together, as the Technical Design's "Learning from user feedback" asks: a review queue only matters if corrections flow back.
-- **Starting point:** the promoted categorizer (bge-base, `3f0ccc82-2f0e60a6`) is wrong on about 2% of transactions at merchant strings it knows and about 42% at strings it doesn't (validation). Its known issues are a Travel fallback for unfamiliar merchants and under-confidence on familiar ones (FR-3 Categorization Model Selection).
+- **Starting point:** the promoted categorizer (FR-4: bge-small, clean labels, `20eea4fb-44781bc4-c0274576`) is wrong on about 3% of transactions at merchant strings it knows and about 19% at strings it doesn't (validation). It is a good cold model, so review flags only what it is unsure about; its confident errors are left to corrections and retraining.
 - **Feasibility, measured on validation data** ([evidence](#feasibility)):
-  - A single confidence threshold doesn't work: at 0.9 it flags 66% of familiar transactions, which are 97% right. One threshold **per familiarity group** does: familiar below 0.6 and unfamiliar below 0.8 flag 19% of a realistic mix of transactions and catch 83% of its errors.
-  - Reviewing per **merchant string**, not per transaction, keeps the burden small. A test user meets about 36 distinct strings in their first month (about 7 review items at those thresholds), then fewer than one new item a month.
-  - These numbers describe the **current** promoted model, which FR-4 replaces with a clean-label model. The simulated feedback replay runs **after FR-4**, on FR-4's promoted model and regenerated dataset, and this Feasibility section is re-measured on that model at the same time (owner decision, Oct 2, 2026).
+  - One threshold **per familiarity group**: familiar below 0.95 and unfamiliar below 0.8 flag about 13% of a realistic mix of transactions and catch about 74% of its errors.
+  - Reviewing per **merchant string**, not per transaction, keeps the burden small: about 4–5 review items in a user's first month, then fewer than 0.4 a month.
+  - The simulated feedback replay runs on FR-4's promoted model and regenerated dataset (owner decision, Oct 2, 2026).
 - **Approach:**
   1. **Review policy with the model.** The categorizer reports whether each string is familiar, and the promoted artifact carries per-group review thresholds chosen on validation. Flags are computed in the ingestion batch.
   2. **One review item per user and merchant string**, ranked by spend, with a reason the user can read.
   3. **Corrections are events; overrides are state.** A correction or confirmation applies to that user at once, by merchant (default) or for one transaction. Precedence: transaction override, then merchant override, then the model. Every correction can be undone.
   4. **Global labels only by agreement:** a merchant string's category becomes a training label when at least 3 distinct users agree (to be tuned by the replay), including at least one who corrected rather than accepted a suggestion. A string only one user ever sees never leaves that user.
   5. **Scheduled retraining through the FR-3 framework**, on clean labels, gated and promoted the same way, evaluated on data that arrived after its training cutoff from users who supplied no labels. Review thresholds are re-derived with every promotion.
-  6. **Use-case ready:** tools on the tool server and their JSON shapes, which the stub web app and coach call, so the flows work end to end when the UI lands.
+  6. **Use-case ready:** tools on the tool server (`access/tools.py`, and the MCP server) and their JSON shapes, which the web app and the coach call, so the dashboard and the coach can't disagree.
   7. **A simulator** of synthetic users with their own category preferences, who review, correct, slip and occasionally misbehave, replayed month by month to measure the loop.
 - **Principle (carried from FR-3):** models are compared on data they didn't train on. For retraining, that means data from later months and from users who supplied no labels.
 
 ## Context
 
-What FR-3 hands over:
+What FR-3 and FR-4 hand over:
 
-| From FR-3 | Consequence here |
+| From FR-3 and FR-4 | Consequence here |
 | --- | --- |
 | Confidence calibrated per familiarity group (familiar / unfamiliar string) | The review policy uses the same groups |
-| Familiar strings are under-confident (only 33% reach 0.9 on test, all correct) | A fixed 0.9 threshold would flood users with correct items |
-| Travel is the fallback for unfamiliar strings (30% of unseen-merchant rows called Travel) | The review queue is where most of these get caught; corrections feed the fix |
+| Unfamiliar strings are wrong far more often (19% against 3%), and many of those errors are confident | Thresholds differ per group; review can't catch every error, so corrections and retraining carry the rest |
+| The old model's Travel fallback for unfamiliar strings is gone with clean labels (FR-4) | Review items are a mix of categories, not one fallback |
 | Predictions are stored per model version in a separate file (`transaction_categories`) | Overrides live in their own store and survive model changes |
 | `fit` takes labels as an argument | Retraining on feedback labels needs no model change |
 | Batches mix users (one string embedded once) | Overrides are applied per user **after** the shared inference (Technical Design, feedback constraints) |
@@ -39,30 +39,30 @@ What the user sees today, without this feature: a category on every transaction,
 
 ## Feasibility
 
-**Evidence:** the shipped configuration's out-of-fold **calibrated** confidences from the launch round (run `000ef7d3`, 3 merchant-grouped folds, validation only). For the review burden: test users' model-visible transactions and the promoted model's vocabulary. No test labels are used.
+**Evidence:** the promoted model's twin's out-of-fold **calibrated** confidences from the FR-4 round (`21_small_unweighted.ship`, run `6bc58706`, validation only), for model `20eea4fb-44781bc4-c0274576` on data hash `44781bc4e4a5`. For the review burden: test users' model-visible transactions and the promoted model's vocabulary. No test labels are used. The script and its results are on the POC branch `poc/fr-5-review` (`54bc286`, `experiments/fr5_review/`). These replace the first version's numbers, measured on the old model `3f0ccc82` (bge-base trained under injected noise: 2.0% and 41.9% error rates).
 
-**Which model these numbers describe:** the current promoted categorizer (bge-base trained under the injected 2% noise, `3f0ccc82-2f0e60a6`) on the default dataset as of FR-3 (data hash `2f0e60a6`). FR-4 replaces both: a clean-label model (about 0.83 unseen accuracy on validation, no Travel fallback) and a dataset regenerated with a 40% holdout. The design doesn't depend on these numbers, since thresholds are chosen per model at promotion (§1). What changes is the evidence quoted here: the starting point, the threshold table and the (0.6, 0.8) choice, the review burden, and the automation-bias rationale. All of them are re-measured on FR-4's promoted model, with its version and data hash stated.
-
-Rows at held-out merchants stand in for unfamiliar strings; the 10% seen-merchant sample stands in for familiar ones. The "mix" columns weight them to production at 22% unfamiliar rows, the share among FR-3's test users. Error rates: **2.0%** familiar, **41.9%** unfamiliar.
+Rows at held-out merchants stand in for unfamiliar strings; the seen-merchant sample stands in for familiar ones. The "mix" columns weight them to production at 23.7% unfamiliar rows, the share among test users. Error rates: **2.8%** familiar, **18.6%** unfamiliar.
 
 | Threshold (flag if confidence below) | Familiar: flagged | Familiar: errors caught | Familiar: flags that are errors | Unfamiliar: flagged | Unfamiliar: errors caught | Unfamiliar: flags that are errors | Mix: flagged | Mix: errors caught |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 0.5 | 2.0% | 40% | 42% | 35% | 51% | 61% | 9% | 50% |
-| 0.6 | 4.6% | 68% | 30% | 47% | 65% | 57% | 14% | 65% |
-| 0.7 | 12.6% | 91% | 15% | 61% | 76% | 52% | 23% | 78% |
-| 0.8 | 33.8% | 99% | 6% | 71% | 85% | 50% | 42% | 87% |
-| 0.9 | 66.3% | 100% | 3% | 85% | 99% | 49% | 71% | 99% |
+| 0.50 | 0.1% | 1% | 45% | 7.2% | 22% | 57% | 1.8% | 15% |
+| 0.60 | 3.3% | 58% | 50% | 15.8% | 39% | 46% | 6.2% | 45% |
+| 0.70 | 4.4% | 77% | 49% | 25.8% | 53% | 38% | 9.5% | 61% |
+| 0.80 | 5.8% | 98% | 48% | 33.1% | 61% | 34% | 12.3% | 73% |
+| 0.90 | 6.0% | 100% | 47% | 43.1% | 67% | 29% | 14.8% | 78% |
+| 0.95 | 6.2% | 100% | 46% | 53.5% | 71% | 25% | 17.4% | 81% |
 
-- **One threshold for both groups fails either way.** Low enough to spare familiar strings (0.6), it misses a third of unfamiliar errors. High enough for unfamiliar strings (0.8), it flags a third of familiar transactions, of which 94% are right.
-- **Per-group thresholds work.** Familiar below 0.6 and unfamiliar below 0.8 flag about 4.6% and 71% of their groups (19% of the mix), catching 68% and 85% of their errors (83% of the mix's). Half of the unfamiliar flags are real errors, so a flagged item is worth a user's glance.
+- **Familiar strings:** almost every error sits below 0.8, and flags are nearly half errors at every threshold. Below 0.95 flags 6.2% of familiar rows and catches all their errors.
+- **Unfamiliar strings:** no threshold catches 80% of their errors (71% at 0.95), because many of the clean model's remaining unfamiliar errors are confident. Raising the threshold mostly adds correct items: at 0.95, three in four flags are right.
+- **The chosen thresholds** (§1; owner, Oct 3, 2026): familiar below 0.95 and unfamiliar below 0.8 flag 6.2% and 33.1% of their groups (about 13% of the mix), catching all familiar errors and 61% of unfamiliar ones (about 74% of the mix's). A third of unfamiliar flags are real errors, so a flagged item is worth a user's glance.
+- **Rejected: flag every unfamiliar string on first sight.** It catches every error but asks about strings the model gets right four times in five, which says the cold model can't be trusted. FR-3 and FR-4 exist to make it trustworthy; review flags what it is unsure about, and the confident errors are what corrections and retraining are for (owner, Oct 3, 2026).
 
 **Review burden**, counted per distinct normalized merchant string per user, since one review settles every transaction at that string:
 
-| Period | Familiar strings met | Unfamiliar strings met | Review items at (0.6, 0.8) |
+| Period | Familiar strings met | Unfamiliar strings met | Review items at (0.95, 0.8) |
 | --- | --- | --- | --- |
-| First month | 28.3 | 7.9 | about 7 |
-| Months 1–3 (new strings) | 44.7 | 13.1 | about 11 |
-| Each month after that (new strings) | 1.7 | 0.8 | about 0.7 |
+| First month | 27.4 | 8.7 | about 4.6 |
+| Each month from month 4 (new strings) | 1.6 | 0.8 | about 0.4 |
 
 Items are estimated by applying the per-group flag rates, measured on transactions, to strings. That is an approximation: a string's transactions differ only in amount, channel and hour, so they are usually flagged together, but this wasn't measured.
 
@@ -71,7 +71,7 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 **Still to measure:** the simulated replay ([Simulation](#7-simulation-and-replay)): personal accuracy after feedback, global gain on users who supplied no corrections, entrenched errors, and robustness to wrong corrections.
 
 - **Sequencing** (owner decision, Oct 2, 2026): FR-4's milestone 1 regenerates the default dataset once, with this design's `truth_preferences` (schema 4). The replay is built after FR-4's milestone 2 (shipping twins and explicit `label_noise`) and runs on FR-4's promoted twin, so its numbers describe the model that ships.
-- This design stays in draft until the replay and the re-measured Feasibility are in, **except its data contract** (§7: `truth_preferences` and the preference-aware label contract), which the owner accepted ahead of the rest so FR-4's milestone 1 can build it.
+- The data contract (§7) was accepted on Oct 2 so FR-4's milestone 1 could build it; the rest of the design was accepted on Oct 3, with N, the majority and the cadence provisional until the replay.
 
 ## Goals and non-goals
 
@@ -91,7 +91,7 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 - Changing the taxonomy. Clusters of corrections toward a missing category are reported as product signal, not modelled.
 - Real authentication (v2). Identity comes from the session as in v1.
 - An LLM in categorization (owner decision for FR-4, carried here).
-- Building the web app or the coach. They exist as stubs; this design defines what they call.
+- Redesigning the web app or the coach. They exist (#19, #23); this design adds the review and correction tools, the pages that call them, and the coach's use of them.
 
 ## What it will look like
 
@@ -155,10 +155,10 @@ flowchart LR
 
 - **Per familiarity group thresholds**, stored with the promoted model (`review_policy` in the manifest), so every model version brings thresholds that match its own confidence.
 - **Chosen at promotion on validation**, by a written rule rather than by hand:
-  - unfamiliar threshold: the lowest that catches at least **80%** of unfamiliar-string errors on validation;
-  - familiar threshold: the highest at which at least **25%** of familiar flags are real errors.
+  - unfamiliar threshold: the lowest that catches at least **60%** of unfamiliar-string errors on validation;
+  - familiar threshold: the highest at which at least **25%** of familiar flags are real errors, **capped at 0.95**.
 
-  On the shipped model's validation predictions, the rule gives about 0.8 and 0.6 (Feasibility).
+  On the promoted model's validation predictions, the rule gives 0.8 and 0.95 (Feasibility). The first version asked for 80% of unfamiliar errors, which the clean FR-4 model can't meet at any threshold; the owner lowered it to 60% rather than flag every new merchant (Oct 3, 2026). The cap is needed because this model's familiar flags are at least 25% errors at every threshold measured, so without it the rule's "highest" would run to 1.0 and flag nearly every familiar row.
 - **Flags are computed in the ingestion batch** and written to the predictions file (`needs_review`, `review_reason`), so the dashboard reads them without calling the model.
 - **Reason:** `new_merchant` for an unfamiliar string below its threshold, `low_confidence` for a familiar one.
 - **Why not one threshold:** see Feasibility. **Why not a fixed review budget per user** (top-k by uncertainty): it hides how uncertain the model really is, and makes the queue's meaning change with the user's volume. The budget is applied at display time instead (goal 2), and items are ranked by spend.
@@ -173,6 +173,7 @@ flowchart LR
 ### 3. Corrections, overrides and effective categories
 
 - **Feedback store:** a SQLite file per deployment in v1 (Postgres with row-level security in v2, as the data store), separate from the generated dataset and from predictions files. Predictions are regenerated per model version; feedback is durable user state.
+- **In the Oct 6 demo** (owner, Oct 3, 2026): the same tables in a `feedback.sqlite` in a writable folder inside the container, next to the read-only bundle. The app runs as one replica, so there is one store. It lasts until the container restarts or redeploys (every merge to `main`), which is enough for a demo; mounting Azure Files on that folder would make it durable. Visitors share demo accounts, so feedback is keyed by the **browser session**, as chat history already is (#19): two visitors on one account never see each other's corrections, and the agreement rule (§4) counts each session as a distinct user.
 
   | Table | Key | Holds |
   | --- | --- | --- |
@@ -191,7 +192,7 @@ flowchart LR
 A correction means one of two things: the model was wrong, or the user sees it differently (Technical Design). The rule separates them by agreement across users.
 
 - **Agreement rule:** a merchant string's category becomes a global training label when at least **N distinct users** (default 3) have confirmed or corrected it, and at least **two thirds** of them agree on the category.
-- **Confirmations are weaker evidence than corrections (automation bias).** A confirmation accepts the model's own suggestion, and users often accept suggestions without checking. About half of unfamiliar flags are wrong (Feasibility), many of them the Travel fallback, so three habitual confirmations could turn a model error into a global label, and retraining would entrench it. So:
+- **Confirmations are weaker evidence than corrections (automation bias).** A confirmation accepts the model's own suggestion, and users often accept suggestions without checking. A third of unfamiliar flags are wrong at the chosen thresholds (Feasibility; about half on the old model, many of them its Travel fallback), so three habitual confirmations could turn a model error into a global label, and retraining would entrench it. So:
   - a global label needs **at least one independent correction** to that category, a choice the user made rather than accepted; confirmations alone never create one;
   - confirmations still count toward N and the majority once a correction exists, and still pin the category for the user who confirmed (§3).
 
@@ -260,7 +261,7 @@ The loop is measured on synthetic users before any real user sees it.
   | Personal accuracy | Share of a user's spending transactions whose effective category matches their view, over time |
   | Corrections needed | Corrections per user until their categories match their view; repeat corrections of the same string |
   | Global gain | Unseen-merchant macro F1 of each retrained model, on users who supplied none of its labels and on months after its cutoff, **scored against those users' own view** (their "user's category"). Truth-based F1 is reported alongside, so a shift toward an agreed preference shows as a preference, not as a regression |
-  | Entrenched errors | Global labels whose category differs from the contributing users' views (e.g. confirmed Travel fallbacks) |
+  | Entrenched errors | Global labels whose category differs from the contributing users' views (e.g. confirmed model errors) |
   | Isolation | Effective categories of users who never corrected don't change except through promoted models |
   | Robustness | Global gain with 5% and 20% adversarial users; no global label from a single user |
   | Calibration after retraining | Unfamiliar Brier and the review policy's catch rate keep their meaning |
@@ -282,14 +283,14 @@ The loop is measured on synthetic users before any real user sees it.
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Per transaction | Simple | 85 transactions a month per user; the same merchant asked about again and again |
-| **(b) Per user and merchant string (recommended)** | One answer fixes every transaction at that merchant; about 0.7 items a month after onboarding | Ambiguous merchants need a per-transaction exception, which the scope choice provides |
+| **(b) Per user and merchant string (recommended)** | One answer fixes every transaction at that merchant; about 0.4 items a month after onboarding | Ambiguous merchants need a per-transaction exception, which the scope choice provides |
 | (c) Per merchant across users | Least burden | Mixes users; breaks isolation |
 
 ### B. Review threshold
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| (a) One fixed threshold (0.9) | Easy to explain | Flags 66% of familiar rows, almost all right |
+| (a) One fixed threshold | Easy to explain | At 0.8 it catches only 61% of unfamiliar errors; at 0.95, three in four unfamiliar flags are right (on the old model, 0.9 flagged 66% of familiar rows) |
 | **(b) Per familiarity group, chosen at promotion by a written rule (recommended)** | Matches how the model's confidence behaves; moves with each model version | Two numbers to explain; needs `familiar` in the contract |
 | (c) Top-k most uncertain per user | Fixed burden | Hides real uncertainty; meaning varies with volume |
 
@@ -321,7 +322,7 @@ The loop is measured on synthetic users before any real user sees it.
 
 - **Unit:** override precedence (transaction over merchant over model); undo restores the previous state and leaves the log intact; the agreement rule counts distinct users, never corrections, and rejects strings below N users; review item open, update, close and supersede; the review policy rule on constructed confidences.
 - **Isolation:** a correction by user A leaves user B's effective categories, totals and tool outputs unchanged; tools reject a `user_id` argument; a feedback-store read without a session user fails.
-- **Contract:** tool inputs and outputs validate against their JSON schemas; the stub web app's calls round-trip; unknown categories are rejected.
+- **Contract:** tool inputs and outputs validate against their JSON schemas; the web app's calls round-trip; unknown categories are rejected.
 - **Integration (small data, stub embedder):** ingest, flag, review, correct, effective totals change, undo, totals restore; a retraining on agreed labels runs through run, gates and promotion, and the review policy is re-derived.
 - **Replay (default data):** the measures in §7, with the numbers recorded in the evaluation report.
 
@@ -331,95 +332,62 @@ One PR per milestone.
 
 1. **Contract and review policy:** `familiar` in the categorizer output, `review_policy` in the manifest, chosen at promotion; `needs_review` and `review_reason` in the predictions file.
 2. **Feedback store and effective categories:** tables, precedence, undo, per-user effective categories in the data-access layer, isolation tests.
-3. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections`; effective categories in `get_transactions` and `get_spending_summary`; JSON schemas and contract tests against the web app and coach stubs.
+3. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections`; effective categories in `get_transactions` and `get_spending_summary`; JSON schemas and contract tests against the web app and the coach.
 4. **The simulator:** preference profiles and simulated review and correction behavior. The data contract they write into (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted and lands with FR-4's milestone 1, in the same regeneration as FR-4's new holdout.
 5. **Global labels and retraining:** the agreement rule (with the correction requirement), a feedback-aware training task, time-forward evaluation on non-contributing users scored against their own view, a leak check on training rows (no evaluation user, nothing after the cutoff), gates, policy re-derivation, and an explicit `label_noise` required at promotion.
-6. **Replay and decisions:** the replay on FR-4's promoted twin and the regenerated dataset; the Feasibility section re-measured on that model; settle N and the cadence; Technical Design updates.
+6. **Replay and decisions:** the replay on FR-4's promoted twin and the regenerated dataset; settle N and the cadence; PRD and Technical Design updates. (The Feasibility section was re-measured on that model on Oct 3.)
 
 ## Status and handoff (Oct 3, 2026)
 
-Written for the session that continues FR-5 and FR-6, human or agent. Read it first: parts of this design above were written before FR-4 shipped a new model and before the web app existed, and this section says which.
+Written for the session that continues FR-5 and FR-6, human or agent. Read it first.
 
 ### Where it stands
 
-- **This design is a draft** (PR #15). The parts already accepted by the owner:
-  - **the data contract** (§7): `truth_preferences`, schema 4, the preference-aware label contract (`Truth.user_categories()`), and the preference profiles (six remaps: four at 30% of test users, books at 50%, streaming at 70%). It's built and in the default dataset (#20; data hash `44781bc4e4a5`);
-  - **clean labels:** the shipped model and models retrained from feedback train with `label_noise: 0`; injected noise is only for comparing candidates;
+- **Accepted by the owner (Oct 3, 2026),** with N = 3, the two-thirds majority and the retraining cadence **provisional** until the replay. Earlier owner decisions stand:
+  - **the data contract** (§7): `truth_preferences`, schema 4, the preference-aware label contract (`Truth.user_categories()`), and the preference profiles. It's built and in the default dataset (#20; data hash `44781bc4e4a5`);
+  - **clean labels:** the shipped model and models retrained from feedback train with `label_noise: 0`;
   - **retrained promotions** use §5's gates against users' own view; FR-3's and FR-4's truth-based numbers are reported, not gated;
-  - **a global label needs at least one independent correction**; labels are re-evaluated as votes accumulate and can be revoked; a global label supersedes the original training label at its string;
-  - **the replay runs on FR-4's promoted model**, after FR-4 (done).
-- **FR-4 is complete:** its model **`20eea4fb-44781bc4-c0274576`** (bge-small, no class weights, clean labels) is promoted (#28) and live in the demo. Its FR-4 docs (#29) may still be open. The FR-4 design's "Status: complete" section and `docs/reports/FR-4 Categorization — Round Results.md` have the details.
+  - **a global label needs at least one independent correction**; labels are re-evaluated as votes accumulate and can be revoked; a global label supersedes the original training label at its string.
+- **FR-4 is complete:** its model **`20eea4fb-44781bc4-c0274576`** (bge-small, no class weights, clean labels) is promoted (#28) and live in the demo. Feasibility above is re-measured on it.
+- **The product exists:** the web app (#19: `src/smart_financial_coach/experience/web/`, designed in `docs/design/Smart Financial Coach — Web App UI.md`), the tools and MCP server (#23: `access/tools.py`, `access/ledger.py`, `access/mcp_server.py`), and the demo, deployed to Azure for **Oct 6, 2026** by `.github/workflows/deploy.yml` on every merge to `main`. The demo serves a read-only bundle (`experience/demo.py`, `sfc-web build-demo`) from one replica; visitors share a few demo accounts.
 
-### What changed since this design was written
+### Owner decisions, Oct 3, 2026
 
-1. **The model, and so the evidence in Feasibility.** Feasibility above was measured on the old model (`3f0ccc82`, trained under injected noise). Re-measured on the promoted model's twin (POC branch `poc/fr-5-review`, commit `54bc286`, `experiments/fr5_review/`):
-   - error rates are **2.8%** on familiar strings and **18.6%** on unfamiliar ones (previously 2.0% and 41.9%); known-merchant confidence is now calibrated;
-   - **§1's threshold rule can't be met:** no threshold catches 80% of unfamiliar errors (71% at 0.95), because the new model's remaining unfamiliar errors are often confident. For familiar strings, flags are at least 25% errors at every threshold, so the rule's "highest" goes to 0.95 or more (about 6% of familiar rows, catching nearly all familiar errors);
-   - **burden:** in a user's first month, 27.4 familiar and 8.7 unfamiliar strings; from month 4, 1.6 and 0.8 new strings a month. At familiar < 0.95 and unfamiliar < 0.8, that's roughly 4–5 review items in the first month, then under 0.4 a month;
-   - **automation bias:** at unfamiliar < 0.8, 34% of unfamiliar flags are real errors (previously about half).
-
-   Replace the Feasibility section's numbers with these once the owner has re-decided the rule (decision 2 below).
-2. **The product exists.** When this design was written, the tool server and web app were stubs. Now:
-   - **the web app** (#19): `src/smart_financial_coach/experience/web/` (`app.py`, Jinja templates, htmx), designed in `docs/design/Smart Financial Coach — Web App UI.md`;
-   - **the tools and MCP server** (#23): `src/smart_financial_coach/access/tools.py` (`Tools`: `get_spending_summary`, `get_transactions`, `list_goals`, …), `access/ledger.py` (a user's data and categories), `access/mcp_server.py`;
-   - **the demo:** deployed to Azure for **Oct 6, 2026** by `.github/workflows/deploy.yml` on merges to `main`. Its bundle (`experience/demo.py`, `sfc-web build-demo`) is a read-only copy of a few users' data and predictions, **built so serving needs no model, no network and no writable disk**. Visitors share a few demo accounts.
-
-   This design's "Tools" and "Flows" sections were written against stubs: check them against these files before building.
-3. **The owner's direction (Oct 3, 2026): FR-5 and FR-6 belong in the Oct 6 demo.** The project exists to show how the whole system is built, and the review-and-correct loop is one of the strongest things to show.
-
-### Decisions needed from the owner before building
-
-1. **Accept this design now, without the replay?** The review queue and corrections don't depend on the replay's numbers: thresholds are chosen per model, and only N, the majority and the retraining cadence wait on it. A reviewer suggested this split on #15. Without it, the user-facing loop can't be built in time for Oct 6 under the current process. *Recommended: yes, with N = 3, two thirds and the cadence marked provisional until the replay.*
-2. **The review policy for the new model** (§1's rule can't be met; numbers above). Options, all per familiarity group:
-   - (a) lower the unfamiliar target, e.g. catch at least 60% of unfamiliar errors (threshold 0.8: 33% of unfamiliar rows flagged), and cap the familiar threshold (e.g. 0.95);
-   - (b) flag every unfamiliar string on first sight ("new merchant: is this right?"): catches every unfamiliar error, about 8.7 items in the first month and 0.8 a month after;
-   - (c) a per-user review budget (top-k by spend and uncertainty) instead of thresholds.
-
-   *No recommendation is recorded yet. Ask the owner, with the table in `experiments/fr5_review/results.md`.*
-3. **Corrections in the shared demo.** Visitors share demo accounts, and the demo has no writable disk. *Recommended: per browser session, in memory, reset on sign-out*, so each visitor gets a sandbox and the demo stays clean. The production design (a feedback store per deployment, §3) stays as written.
-4. **Who builds the web pages.** Another session owns the web app (#19) and the MCP server (#23). Either this session builds the backend and the pages in their style, or the backend here and the pages there, against the tool shapes. *Agree this with the owner, and with whoever works on the web app, before touching it.*
+1. **FR-5, FR-6 and the retraining pipeline are in the Oct 6 demo.** The project exists to show how the whole system is built, and the feedback loop is one of the strongest things to show.
+2. **Retraining is shown as the precomputed replay, walked step by step:** a "Learning" page goes from corrections, to agreement across users, to training data, to retraining, to the gates, to promoted or rejected, with the replay's numbers at each step. No live retraining in the container.
+3. **Accept the design now;** N, the majority and the cadence are provisional until the replay.
+4. **The review rule** (§1): unfamiliar strings below the lowest threshold catching at least 60% of their errors, familiar strings below the highest threshold whose flags are at least 25% errors, capped at 0.95. On the promoted model: 0.8 and 0.95. Flagging every new merchant was rejected: the point of FR-3 and FR-4 was a cold model good enough to trust, so review flags only what it is unsure about.
+5. **The replay runs on test users** (only they hold preferences), **once, with N = 3 and the default settings; nothing is chosen from its results.** Their data was scored once at FR-4's `finalize`, and the replay answers a different question, so that is acceptable; tuning on it would not be. When N or the cadence is tuned later, split the test users into a tuning half and a reporting half.
+6. **A retrained model that passes §5's gates is promoted,** with the normal `promote` command. Two consequences, recorded in the promotion log:
+   - for the demo: a promotion **by the end of Oct 5** is rebuilt into the demo and clicked through; after that, the demo keeps `20eea4fb`;
+   - the promoted model has trained on contributing test users' transactions, so its truth-based numbers are reported on non-contributing test users only; FR-3's and FR-4's full test sets no longer score it cleanly.
+7. **The replay's must-have measures:** global gain on non-contributors against their own view (truth alongside), per-remap outcomes with bootstrap intervals, burden, robustness at 5% and 20% adversarial users, and isolation. Deferred: down-weighting users who often disagree with consensus, and "cheap to retrain". Retraining is quarterly in the replay (about an hour of compute).
+8. **Visitors' corrections feed the real loop:** a `feedback.sqlite` in the container (§3), keyed by browser session, so each visitor is a distinct user for the agreement rule. The "Learning" page shows live agreement counts from visitors ("Netflix → Entertainment: 2 of 3 users needed"). No scheduled retraining from visitors' feedback.
+9. **Web app ownership:** this work touches the web app and the MCP server only where FR-5 and FR-6 need it.
+10. **The coach mentions unconfirmed spend** when it affects an answer (open question 5).
+11. **The PRD and the Technical Design are updated** in a small docs PR after #29 lands: FR-5 and FR-6 move into the v1 demo, the feedback section is no longer "not yet designed", and the tools table gains the new tools.
 
 ### Plan for the Oct 6 demo
 
-**Must-have: the user-facing loop.** It's this design's milestones 1–3, adapted to the real app. One PR per step; keep each small, since the demo deploys on every merge.
+One PR per step, each small, since the demo deploys on every merge. After each merge, confirm the deploy succeeded (its smoke test checks `/healthz`) and click through what changed.
 
-1. **`familiar` in the categorizer's output.** `Calibrated` already gets it from `base.scores`. Add it to the contract's output columns, the predictions file and the demo bundle. No retraining: the promoted model's pickle already holds its vocabulary.
-2. **The review policy for the promoted model.** Since `20eea4fb` is already promoted, derive its per-group thresholds from its twin's validation predictions with the owner's rule (decision 2). Store them next to the manifest, e.g. `artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding them to the manifest would change its checksum fields. Future promotions derive the policy at `promote`.
-   - The twin's predictions (run `6bc58706…`) were in the FR-4 round's MLflow store, a temporary, session-local store on the machine that ran the round: treat it as gone.
-   - If it is, rerun the twin: `configs/experiments/categorization/fr4/21_small_unweighted.yaml` runs the comparison run and its twin (about 9 minutes). The twin's pooled predictions are what you need. Don't `finalize` it.
-3. **`needs_review` and `review_reason`** computed in the batch (`batch.py`), written to predictions and the demo bundle.
-4. **Overrides and effective categories:**
-   - the precedence and undo of §3, applied per user **after** the shared predictions;
-   - `access/ledger.py` is the natural place;
-   - for the demo, the store is in memory per session (decision 3).
-5. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections` in `access/tools.py` (and the MCP server). `get_transactions` and `get_spending_summary` return effective categories, `category_source` and `needs_review`.
-6. **Web pages:**
-   - a review badge and queue;
-   - correct from the transaction list, with scope "this merchant" or "just this one";
-   - "recent changes" with undo;
-   - totals and coach answers updating at once.
-7. **Tests:**
+1. **`familiar` and the review policy.** `Calibrated` already knows familiarity from `base.scores`; add `familiar` to the contract's output columns and the predictions file. Derive the promoted model's policy with §1's rule and store it next to its manifest (`artifacts/categorization/20eea4fb-44781bc4-c0274576/review_policy.json`; adding it to the manifest would change its checksum fields). Future promotions derive it at `promote`.
+   - The twin's predictions (run `6bc58706…`) were in the FR-4 round's session-local MLflow store: treat it as gone. Rerun the twin with `configs/experiments/categorization/fr4/21_small_unweighted.yaml` (about 9 minutes) and use its pooled predictions. Don't `finalize` it.
+2. **`needs_review` and `review_reason`** computed in the batch (`batch.py`), written to predictions and the demo bundle.
+3. **The feedback store and effective categories:** §3's tables in `feedback.sqlite`, keyed by session in the demo; precedence and undo; effective categories applied per user **after** the shared predictions, in `access/ledger.py`.
+4. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections` in `access/tools.py` and the MCP server; `get_transactions` and `get_spending_summary` return effective categories, `category_source`, `needs_review` and `unreviewed_spend`.
+5. **Web pages:** a review badge and queue; correct from the transaction list ("this merchant" or "just this one"); "recent changes" with undo; totals and coach answers updating at once.
+6. **The replay** (in parallel with 1–5): built on the POC branch `poc/fr-5-review`:
+   - the simulator (§7 Behavior): engagement, slips, an accept-the-suggestion rate, unflagged corrections weighted by amount, adversarial users;
+   - the agreement rule (§4), overrides (§3), retraining (§5: `linear_text` + `calibrated`, `label_noise: 0`, original rows relabelled at globally labelled strings, contributors' rows from before the cutoff, a leak check);
+   - time-forward evaluation on non-contributors against their own view, truth alongside; the measures in decision 7;
+   - its output, the step-by-step record and the measures, saved as a file the demo bundle includes.
+7. **The "Learning" page:** the replay's steps and numbers, the gate outcome, and live agreement counts from visitors.
+8. **Promotion** if a retrained candidate passes §5's gates (decision 6).
+9. **Tests:**
    - two sessions on the same demo account never see each other's corrections;
-   - precedence;
-   - undo;
-   - unknown categories are rejected;
-   - tool schemas;
+   - precedence; undo; unknown categories are rejected; tool schemas;
    - a correction alone never raises a spending spike (§3).
-8. **After each merge,** confirm the demo deploy succeeded (its smoke test checks `/healthz`) and click through the review flow.
-
-**Stretch: the learning story.** A static results page, or a section in the demo, from the replay: "after N users corrected these merchants, new-merchant accuracy rose for users who never corrected anything", with the per-remap outcomes. It needs the replay below (about a day of building and an hour of compute). **Out of scope for the demo:** live retraining or promotion from the demo.
-
-### The replay (needed to accept the rest of this design)
-
-Build it on the POC branch `poc/fr-5-review`, as FR-4 did:
-- **the simulator** (§7 Behavior): engagement, slips, an accept-the-suggestion rate, unflagged corrections weighted by amount, adversarial users;
-- **the agreement rule** (§4): N distinct users, a two-thirds majority, at least one independent correction, re-evaluation and revocation;
-- **overrides** (§3);
-- **retraining** (§5): the FR-4 framework's `linear_text` + `calibrated`, `label_noise: 0`, original rows relabelled at globally labelled strings, contributors' rows from before the cutoff, a leak check. Evaluate time-forward on non-contributors against their own view, with truth alongside;
-- **the measures** (§7), per-remap outcomes with user-level bootstrap intervals, and burden;
-- **compute:** a clean bge-small fit takes about 3 minutes, so monthly replays with quarterly retraining are about an hour.
-
-Then fold the replay's numbers and the re-measured Feasibility into this design, settle N and the cadence with the owner, and take the PR out of draft.
 
 ### Practical notes
 
@@ -435,30 +403,35 @@ Then fold the replay's numbers and the re-measured Feasibility into this design,
 
 ## Decisions and open questions
 
-**Decisions for review**
+**Decisions**
 
-- [ ] FR-5 and FR-6 designed together, with retraining.
-- [ ] Review per (user, merchant string); per-familiarity thresholds chosen at promotion by the rule in §1.
-- [ ] `familiar` added to the categorizer contract.
-- [ ] Overrides applied per user after shared inference, with transaction over merchant over model.
-- [ ] Global labels by distinct-user agreement (N = 3, two-thirds majority, both tuned by the replay).
-- [ ] Retraining scheduled, evaluated on later months from non-contributing users, promoted through the FR-3 gates.
-- [ ] The web app and the coach use the same tools; bulk coach changes need confirmation.
-- [ ] A global label needs at least one independent correction; confirmations alone never create one (from review).
-- [ ] Retraining uses only contributing users' transactions from before the cutoff, with a leak check (from review).
-- [ ] Global gain is scored against non-contributors' own view, with truth-based F1 alongside (from review).
-- [ ] Spike baselines and periods always use the current effective categories (from review).
+- [x] FR-5 and FR-6 designed together, with retraining.
+- [x] Review per (user, merchant string); per-familiarity thresholds chosen at promotion by the rule in §1 (60% of unfamiliar errors; familiar flags at least 25% errors, capped at 0.95; owner, Oct 3, 2026).
+- [x] `familiar` added to the categorizer contract.
+- [x] Overrides applied per user after shared inference, with transaction over merchant over model.
+- [x] Global labels by distinct-user agreement (N = 3, two-thirds majority, both provisional until the replay).
+- [x] Retraining scheduled, evaluated on later months from non-contributing users, promoted through the FR-3 gates.
+- [x] The web app and the coach use the same tools; bulk coach changes need confirmation.
+- [x] A global label needs at least one independent correction; confirmations alone never create one (from review).
+- [x] Retraining uses only contributing users' transactions from before the cutoff, with a leak check (from review).
+- [x] Global gain is scored against non-contributors' own view, with truth-based F1 alongside (from review).
+- [x] Spike baselines and periods always use the current effective categories (from review).
 - [x] The shipped model and retrained models train on clean labels; injected noise only for comparing candidates (owner, Oct 2, 2026).
 - [x] The replay runs after FR-4, on its promoted twin and the dataset regenerated once with schema 4 (owner, Oct 2, 2026).
 - [x] The data contract in §7 (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted now; the rest stays in draft until the replay (owner, Oct 2, 2026). This breaks the loop where FR-4's milestone 1 would build a schema from an unaccepted design.
 - [x] The preference profiles: four remaps at 30%, books at 50%, streaming at 70%; independent per user, test users only, their own seed; FR-4 stays on the true category (owner, Oct 2, 2026).
 - [x] A global label supersedes the original label at that string; agreement is re-evaluated as votes accumulate and labels can be revoked; the replay reports per-remap preference outcomes (owner, Oct 2, 2026).
 - [x] Retrained models are promoted on §5's gates (non-contributors' own view); FR-3's and FR-4's truth-based numbers are reported alongside, not gated. FR-4's own candidates stay gated on the true category (owner, Oct 2, 2026).
+- [x] The design is accepted without the replay; N, the majority and the cadence are provisional (owner, Oct 3, 2026).
+- [x] FR-5, FR-6 and the retraining pipeline are in the Oct 6 demo; retraining is shown as the precomputed replay, walked step by step (owner, Oct 3, 2026).
+- [x] The replay runs once on test users with N = 3 and default settings; nothing is chosen from it; later tuning splits test users in half (owner, Oct 3, 2026).
+- [x] A retrained model that passes §5's gates is promoted; for the demo, by the end of Oct 5 (owner, Oct 3, 2026).
+- [x] In the demo, feedback lives in a `feedback.sqlite` in the container, keyed by browser session, and feeds the agreement rule (owner, Oct 3, 2026).
 
 **Open questions**
 
 1. [ ] **N and the majority** for global labels: the replay measures how fast global gain arrives against how often a personal preference or an adversarial user leaks.
-2. [ ] **Retraining cadence** and the minimum number of new labels per retraining.
+2. [ ] **Retraining cadence** and the minimum number of new labels per retraining. Quarterly in the replay for now.
 3. [x] **Should retraining (and the shipped model) train on injected label noise?** **Decided (owner, Oct 2, 2026): no.** Injected noise stays for experiments that compare candidates, the Technical Design's control against flattering results. The shipped model and models retrained from feedback train on clean labels, with `label_noise: 0` explicit in the promoted configuration (§5). Robustness to the natural noise in feedback labels is measured in the replay instead. Basis: without the injected noise, validation unseen-merchant macro F1 is 0.714 against 0.512 (known 0.988 against 0.969; FR-4 feasibility), and the Travel fallback is the noise's most visible cost in the shipped model. This refines the Oct 1 decision to keep noise, which was about comparing candidates; that discipline is unchanged.
-4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): the replay measures retraining time per cycle.
-5. [ ] **Coach answers during review:** should the coach mention open review items when they affect an answer ("$120 of this is still unconfirmed")? Proposed yes, using `unreviewed_spend`.
+4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): deferred past the demo (owner, Oct 3, 2026); the replay records retraining time per cycle.
+5. [x] **Coach answers during review:** should the coach mention open review items when they affect an answer ("$120 of this is still unconfirmed")? **Yes** (owner, Oct 3, 2026), using `unreviewed_spend`.
