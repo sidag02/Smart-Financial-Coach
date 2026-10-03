@@ -8,7 +8,8 @@ source chip (FR-16). Category feedback (FR-5, FR-6) is read and written for the 
 subject, as an assistant: changes to more than one transaction need `confirm` (#15 §3). Savings
 goals (FR-10) are read and written for the same subject; the token's `client` claim says whether
 a change comes from Wren (`coach`) or another assistant (`assistant`), and every goal change needs
-`confirm`. A token without a feedback subject gets read-only tools.
+`confirm`. A goal change that breaks a rule comes back as status `invalid` with its problems. A
+token without a feedback subject gets read-only tools.
 
     server, asgi = build_mcp_server(sources, tokens, public_url="https://…")
     app.mount("/", asgi)  # serves /mcp; run `server.session_manager.run()` in the lifespan
@@ -37,6 +38,7 @@ from smart_financial_coach.access.tools import (
     TOOL_SPECS,
     Feedback,
     GoalAccess,
+    GoalProblemsError,
     ToolError,
     Tools,
 )
@@ -102,6 +104,17 @@ def build_mcp_server(
         tools = Tools(Ledger.load(sources, token.subject), context, goal_access)
         try:
             result = tools.call(tool, {k: v for k, v in arguments.items() if v is not None})
+        except GoalProblemsError as error:
+            # A goal change that breaks a rule is an answer, not a failure: the problems go back
+            # with their fields and codes, as check_goal returns them (review on #43)
+            return {
+                "status": "invalid",
+                "message": str(error),
+                "problems": [
+                    {"field": p.field, "code": p.code, "message": p.message} for p in error.problems
+                ],
+                "source": {"title": "Goal not changed", "detail": f"{tool} refused"},
+            }
         except ToolError as error:
             raise McpToolError(str(error)) from error
         return {
