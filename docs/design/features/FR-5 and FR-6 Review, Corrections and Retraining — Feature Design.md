@@ -265,7 +265,7 @@ The loop is measured on synthetic users before any real user sees it.
   | Robustness | Global gain with 5% and 20% adversarial users; no global label from a single user |
   | Calibration after retraining | Unfamiliar Brier and the review policy's catch rate keep their meaning |
   | Burden | Review items per user per month; share of items resolved |
-  | Preference outcomes, per remap | Share of non-contributors whose effective category at that subtype matches their view; how often a minority or split preference became a global label, and after how many votes it was revoked |
+  | Preference outcomes, per remap | Share of non-contributors whose effective category at that subtype matches their view; how often a minority or split preference became a global label, and after how many votes it was revoked. Reported **with intervals** (a user-level bootstrap): with 120 test users, a 30% remap has about 36 holders, enough for the N = 3 rule but few for a precise per-remap rate (review on #20) |
 
 ## Metrics and why
 
