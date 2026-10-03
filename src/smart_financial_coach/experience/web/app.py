@@ -312,7 +312,15 @@ def create_app(
 
     @app.get("/healthz")
     def healthz() -> JSONResponse:
-        return JSONResponse({"status": "ok", "as_of": as_of.isoformat()})
+        """Healthy only if every demo account's data loads: the deploy's smoke test and the
+        container's health check then catch an unreadable or incomplete bundle."""
+        try:
+            for account in accounts:
+                Ledger.load(sources, account.user_id)  # cached after the first check
+        except Exception:
+            log.exception("health check: the demo data doesn't load")
+            return JSONResponse({"status": "error", "as_of": as_of.isoformat()}, 503)
+        return JSONResponse({"status": "ok", "as_of": as_of.isoformat(), "users": len(accounts)})
 
     @app.get("/signin")
     def signin_page(request: Request) -> Response:

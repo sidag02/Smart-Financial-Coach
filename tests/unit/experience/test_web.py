@@ -1,7 +1,10 @@
 """The web app: sign-in, pages, data isolation between users, and chat (NFR-2, NFR-5, NFR-6)."""
 
+import os
+import shutil
 import time
 from collections.abc import Iterator
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -80,6 +83,24 @@ def test_essentials_are_a_setting_checked_against_the_taxonomy(
     assert f"{money(spent)} on essentials" in page
 
 
+@pytest.mark.skipif(os.geteuid() == 0, reason="root reads files whatever their mode")
+def test_health_fails_when_the_demo_data_does_not_load(
+    sources: DataSources, accounts: list[Account], tmp_path: Path
+) -> None:
+    """The deploy's smoke test relies on this: a bundle the app can't read isn't healthy."""
+    predictions = tmp_path / "predictions.sqlite"
+    shutil.copyfile(sources.predictions, predictions)
+    predictions.chmod(0)
+    unreadable = DataSources(sources.dataset, predictions)
+    try:
+        with make_client(unreadable, accounts) as c:
+            reply = c.get("/healthz")
+    finally:
+        predictions.chmod(0o644)
+    assert reply.status_code == 503
+    assert reply.json()["status"] == "error"
+
+
 def test_pages_need_a_signed_in_user(client: TestClient) -> None:
     for path in ("/", "/transactions", "/chat", "/goals", "/worth-a-look", "/flow"):
         reply = client.get(path, follow_redirects=False)
@@ -88,7 +109,7 @@ def test_pages_need_a_signed_in_user(client: TestClient) -> None:
     htmx = client.get("/flow", headers={"HX-Request": "true"})
     assert htmx.status_code == 204
     assert htmx.headers["HX-Redirect"] == "/signin"
-    assert client.get("/healthz").json() == {"status": "ok", "as_of": "2026-09-30"}
+    assert client.get("/healthz").json() == {"status": "ok", "as_of": "2026-09-30", "users": 2}
 
 
 def test_sign_in_checks_email_and_password(client: TestClient) -> None:

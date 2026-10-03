@@ -79,4 +79,8 @@ def build_demo(
     if run.rows != rows:
         raise RuntimeError(f"categorized {run.rows} of {rows} transactions")
     shutil.copyfile(accounts_file, out / ACCOUNTS_FILE)
+    # Readable by everyone: the predictions file is written through a temporary file, which is
+    # owner-only, and the image serves the bundle as a different user from the one that built it
+    for path in out.iterdir():
+        path.chmod(0o644)
     return DemoBundle(out, len(user_ids), rows, run.model_version)

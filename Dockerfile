@@ -21,6 +21,8 @@ RUN uv sync --locked --no-default-groups
 COPY configs/web ./configs/web
 COPY docs/design ./docs/design
 COPY build/demo ./build/demo
+# The app runs as another user: the bundle must be readable by everyone (see sfc-web build-demo)
+RUN chmod -R a+rX build/demo
 
 RUN useradd --uid 10001 --no-create-home app
 USER 10001
