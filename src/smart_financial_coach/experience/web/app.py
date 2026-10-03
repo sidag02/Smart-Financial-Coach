@@ -12,12 +12,13 @@ import logging
 import re
 import secrets
 from collections import OrderedDict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from anyio.lowlevel import EventLoopToken, current_token
@@ -34,6 +35,7 @@ from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
+from smart_financial_coach.access.review_items import alternatives, open_review_items
 from smart_financial_coach.access.tokens import AccessTokens
 from smart_financial_coach.access.tools import (
     Feedback,
@@ -62,6 +64,9 @@ MAX_CONVERSATIONS = 1_000
 MINUS = "\u2212"  # a real minus sign for amounts
 COACH_TOKEN_LIFETIME = timedelta(minutes=5)  # one question's worth of tool calls
 HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year"}
+REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
+ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
+CHANGES_SHOWN = 5  # recent corrections listed with an undo button (FR-6)
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -276,6 +281,31 @@ def create_app(
         response.headers.update(SECURITY_HEADERS)
         return response
 
+    # Cross-site form posts (review on #38). SameSite=Lax isn't enough on the demo's address:
+    # azurecontainerapps.io isn't on the Public Suffix List, so other tenants' apps there count as
+    # the same site and their pages could post forms with a visitor's cookie. Browsers send
+    # Origin on every POST, so a state-changing request from a browser must come from our own
+    # origin; the MCP endpoint is exempt (bearer tokens, no cookies)
+    own = urlsplit(public_url)
+    allowed = {f"{own.scheme}://{own.netloc}"}
+    if own.hostname in ("127.0.0.1", "localhost"):  # a local run, reached by either name
+        allowed |= {f"{own.scheme}://{h}:{own.port}" for h in ("127.0.0.1", "localhost")}
+
+    @app.middleware("http")
+    async def same_origin_posts(request: Request, call_next: Any) -> Response:
+        path = request.url.path
+        mcp = path == MCP_PATH or path.startswith(f"{MCP_PATH}/")  # not /mcp-anything (#38)
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not mcp:
+            origin = request.headers.get("origin")
+            if origin is None and (referer := request.headers.get("referer")):
+                parts = urlsplit(referer)
+                origin = f"{parts.scheme}://{parts.netloc}"
+            if origin is not None and origin not in allowed:
+                log.warning("refused a %s to %s from %s", request.method, request.url.path, origin)
+                return Response("Cross-site request refused", status_code=403)
+        response: Response = await call_next(request)
+        return response
+
     @app.exception_handler(NotSignedInError)
     async def to_signin(request: Request, _: NotSignedInError) -> Response:
         if request.headers.get("HX-Request"):
@@ -456,7 +486,7 @@ def create_app(
             share=(-rows["total"] / spent) if spent else 0.0,
         )
 
-    # Transactions (mockup 1e, read-only)
+    # Transactions, with review and corrections (mockup 1e; FR-5, FR-6)
 
     @app.get("/transactions")
     def transactions(
@@ -482,6 +512,18 @@ def create_app(
             ]
         if review:
             rows = rows[rows["needs_review"]]
+        queue = tools.list_review_items(limit=REVIEW_SHOWN).data
+        keys: dict[str, str] = dict(
+            open_review_items(tools.ledger.transactions, account.user_id)[
+                ["item_id", "merchant_key"]
+            ].itertuples(index=False)
+        )
+        picks = {
+            i["item_id"]: alternatives(
+                tools.ledger.transactions, keys[i["item_id"]], i["suggested_category"], ALTERNATIVES
+            )
+            for i in queue["items"]
+        }
         return page(
             request,
             "transactions.html",
@@ -501,7 +543,71 @@ def create_app(
             review_below=dict(
                 zip(("familiar", "unfamiliar"), sources.review_thresholds(), strict=True)
             ),
+            queue=queue,
+            picks=picks,
+            changes=tools.list_corrections(limit=CHANGES_SHOWN).data["corrections"],
+            flash=request.session.pop("flash", None),
+            back=str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
         )
+
+    def back_to(back: str) -> RedirectResponse:
+        """Back to the page a form came from: only a transactions page of this app."""
+        ok = back.startswith("/transactions") and not back.startswith("//")
+        return RedirectResponse(back if ok else "/transactions", status_code=303)
+
+    def changed(result: dict[str, Any]) -> str:
+        n = result["transactions_changed"]
+        noun = "transaction" if n == 1 else "transactions"
+        c = result["correction"]
+        if c["action"] == "confirm":
+            # An ambiguous merchant's other rows move too: say so (review on #38)
+            moved = f" (moved {n} {noun})" if n else ""
+            return f"Confirmed {c['merchant']} as {c['to_category']}{moved}."
+        return f"Moved {n} {noun} at {c['merchant']} to {c['to_category']}."
+
+    def feedback_action(request: Request, back: str, call: Callable[[Tools], str]) -> Response:
+        account = signed_in(request)
+        try:
+            request.session["flash"] = call(tools_for(account, request))
+        except ToolError as error:
+            request.session["flash"] = f"Couldn't change that: {error}"
+        return back_to(back)
+
+    @app.post("/review/{item}")
+    def resolve(
+        request: Request,
+        item: str,
+        action: Annotated[str, Form()],
+        category: Annotated[str | None, Form()] = None,
+        back: Annotated[str, Form()] = "/transactions",
+    ) -> Response:
+        args = {"item_id": item, "action": action, **({"category": category} if category else {})}
+        return feedback_action(
+            request, back, lambda t: changed(t.call("resolve_review_item", args).data)
+        )
+
+    @app.post("/transactions/{transaction_id}/category")
+    def recategorize(
+        request: Request,
+        transaction_id: str,
+        category: Annotated[str, Form()],
+        scope: Annotated[str, Form()] = "merchant",
+        back: Annotated[str, Form()] = "/transactions",
+    ) -> Response:
+        args = {"transaction_id": transaction_id, "category": category, "scope": scope}
+        return feedback_action(
+            request, back, lambda t: changed(t.call("correct_category", args).data)
+        )
+
+    @app.post("/corrections/{correction_id}/undo")
+    def undo(
+        request: Request, correction_id: str, back: Annotated[str, Form()] = "/transactions"
+    ) -> Response:
+        def run(t: Tools) -> str:
+            result = t.call("undo_correction", {"correction_id": correction_id}).data
+            return f"Undone: {result['undone']['merchant']} is back to how it was."
+
+        return feedback_action(request, back, run)
 
     # Chat (mockup 1d)
 
