@@ -217,4 +217,4 @@ def test_cli_predict(
     assert "rows per second" in capsys.readouterr().out
     assert model_main(["predict", "--task", "categorization", *args]) == 1  # exists
     assert model_main(["predict", "--task", "toy", *args, "--overwrite"]) == 1
-    assert "categorization task only" in capsys.readouterr().err
+    assert "supports categorization and unusual_transactions" in capsys.readouterr().err
