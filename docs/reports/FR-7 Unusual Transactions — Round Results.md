@@ -111,9 +111,11 @@ New-merchant recall by the number of *other* users with charges at the merchant 
 
 ## Round history
 
-1. **First attempt** (Oct 3, discarded before any test scoring). A pre-round correctness review found two issues, and the round was rerun:
+1. **First attempt** (Oct 3, discarded before any test scoring). A correctness review found two issues, and the round was rerun:
    - flag rates counted each user's warm-up, so 0.11 was really about 0.12 (#34);
    - same-minute duplicates were missed when the copy's ID sorted first (#33).
+
+   It ran on validation only, and its results were seen before it was discarded: the review finished just after the round did. Recall at the (mis-counted) rate was `isolation_forest` 0.732, `rules` 0.696, `probabilistic` 0.622 and the baseline 0.045, with own-cutoff precision 0.796–0.800. The order was the same as in the rounds that followed. No test user was scored, and nothing was chosen from it.
 2. **First round** (commit `afeed9c`, code `b5c5488fc9b5`). `isolation_forest` ranked first at 0.708. Test users were **scored once** by `finalize`, and the forest was promoted (`fb6dab21-8b9632e6-b5c5488f`).
 3. **Found in serving review:** 57 of its 1,597 flags called a cheap first visit "a large new-merchant charge". The history rank was two-sided, contrary to §3. The owner chose to fix it now (option (b) on #39).
 4. **This round** (commit `0c6f857`). It adds the one-sided forest and the report-only baseline, plus three review fixes:
