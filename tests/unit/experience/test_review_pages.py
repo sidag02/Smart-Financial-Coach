@@ -132,3 +132,45 @@ def test_bad_requests_change_nothing(client: TestClient, sources: DataSources) -
     stranger = TestClient(client.app)
     reply = stranger.post("/review/x", data={"action": "confirm"}, follow_redirects=False)
     assert reply.headers["location"] == "/signin"
+
+
+def test_posts_from_another_site_are_refused(
+    client: TestClient, sources: DataSources, accounts: list[Account]
+) -> None:
+    """Another tenant's app on azurecontainerapps.io is the same *site* (not on the Public Suffix
+    List), so SameSite=Lax sends the cookie; the Origin check refuses it (review on #38)."""
+    item = top_item(sources, accounts[0].user_id)
+    before = open_count(client.get("/transactions").text)
+    evil = "https://evil.azurecontainerapps.io"
+
+    by_origin = client.post(
+        f"/review/{item['item_id']}", data={"action": "confirm"}, headers={"Origin": evil}
+    )
+    by_referer = client.post(
+        f"/review/{item['item_id']}", data={"action": "confirm"}, headers={"Referer": f"{evil}/x"}
+    )
+    assert by_origin.status_code == by_referer.status_code == 403
+    assert open_count(client.get("/transactions").text) == before
+
+    ours = client.post(
+        f"/review/{item['item_id']}",
+        data={"action": "confirm"},
+        headers={"Origin": "http://127.0.0.1:8000"},
+    )
+    assert ours.status_code == 200
+    assert open_count(ours.text) == before - 1
+
+
+def test_a_signed_out_post_changes_no_ones_feedback(
+    client: TestClient, sources: DataSources, accounts: list[Account]
+) -> None:
+    item = top_item(sources, accounts[0].user_id)
+    before = open_count(client.get("/transactions").text)
+
+    stranger = TestClient(client.app)
+    reply = stranger.post(
+        f"/review/{item['item_id']}", data={"action": "confirm"}, follow_redirects=False
+    )
+
+    assert reply.headers["location"] == "/signin"
+    assert open_count(client.get("/transactions").text) == before

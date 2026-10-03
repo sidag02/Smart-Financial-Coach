@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, Any
+from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
 from anyio.lowlevel import EventLoopToken, current_token
@@ -267,6 +268,31 @@ def create_app(
     async def security_headers(request: Request, call_next: Any) -> Response:
         response: Response = await call_next(request)
         response.headers.update(SECURITY_HEADERS)
+        return response
+
+    # Cross-site form posts (review on #38). SameSite=Lax isn't enough on the demo's address:
+    # azurecontainerapps.io isn't on the Public Suffix List, so other tenants' apps there count as
+    # the same site and their pages could post forms with a visitor's cookie. Browsers send
+    # Origin on every POST, so a state-changing request from a browser must come from our own
+    # origin; the MCP endpoint is exempt (bearer tokens, no cookies)
+    own = urlsplit(public_url)
+    allowed = {f"{own.scheme}://{own.netloc}"}
+    if own.hostname in ("127.0.0.1", "localhost"):  # a local run, reached by either name
+        allowed |= {f"{own.scheme}://{h}:{own.port}" for h in ("127.0.0.1", "localhost")}
+
+    @app.middleware("http")
+    async def same_origin_posts(request: Request, call_next: Any) -> Response:
+        if request.method not in ("GET", "HEAD", "OPTIONS") and not request.url.path.startswith(
+            MCP_PATH
+        ):
+            origin = request.headers.get("origin")
+            if origin is None and (referer := request.headers.get("referer")):
+                parts = urlsplit(referer)
+                origin = f"{parts.scheme}://{parts.netloc}"
+            if origin is not None and origin not in allowed:
+                log.warning("refused a %s to %s from %s", request.method, request.url.path, origin)
+                return Response("Cross-site request refused", status_code=403)
+        response: Response = await call_next(request)
         return response
 
     @app.exception_handler(NotSignedInError)
@@ -522,7 +548,9 @@ def create_app(
         noun = "transaction" if n == 1 else "transactions"
         c = result["correction"]
         if c["action"] == "confirm":
-            return f"Confirmed {c['merchant']} as {c['to_category']}."
+            # An ambiguous merchant's other rows move too: say so (review on #38)
+            moved = f" (moved {n} {noun})" if n else ""
+            return f"Confirmed {c['merchant']} as {c['to_category']}{moved}."
         return f"Moved {n} {noun} at {c['merchant']} to {c['to_category']}."
 
     def feedback_action(request: Request, back: str, call: Callable[[Tools], str]) -> Response:
