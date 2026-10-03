@@ -20,6 +20,14 @@ STUB_META = {
 }
 
 
+@pytest.fixture(autouse=True)
+def feedback_db(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Every test's app writes category feedback to its own file, never the repo's data/."""
+    path = tmp_path / "feedback.sqlite"
+    monkeypatch.setenv("SFC_FEEDBACK_DB", str(path))
+    return path
+
+
 @pytest.fixture(scope="session")
 def small_sqlite(tmp_path_factory: pytest.TempPathFactory) -> Path:
     """The small spec (30 users), generated once per session and written to SQLite."""

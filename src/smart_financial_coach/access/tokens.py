@@ -7,8 +7,13 @@ token is the only place the MCP server learns whose data to read: no tool takes 
 rotating `SFC_SESSION_SECRET` revokes them all.
 
     tokens = AccessTokens(secret, known_users)
-    token = tokens.issue("u_te_yp_0030", timedelta(days=7))
+    token = tokens.issue("u_te_yp_0030", timedelta(days=7), feedback_subject=session_feedback_id)
     tokens.user(token)  # "u_te_yp_0030", or None when forged, expired or for an unknown user
+    tokens.feedback_subject(token)  # whose category feedback the calls read and write
+
+The feedback subject (FR-5, FR-6) is the user in production; in the demo, where visitors share
+accounts, it's the browser session that issued the token, so an assistant connected from a
+session sees and changes that session's corrections only. It's signed like the user.
 """
 
 import time
@@ -27,11 +32,24 @@ class AccessTokens:
         self._signer = URLSafeSerializer(secret, salt=SALT)
         self._users = frozenset(known_users)
 
-    def issue(self, user_id: str, lifetime: timedelta, *, client: str = "assistant") -> str:
+    def issue(
+        self,
+        user_id: str,
+        lifetime: timedelta,
+        *,
+        client: str = "assistant",
+        feedback_subject: str | None = None,
+    ) -> str:
         if user_id not in self._users:
             raise ValueError(f"unknown user {user_id!r}")
         expires = int(time.time() + lifetime.total_seconds())
-        return PREFIX + self._signer.dumps({"sub": user_id, "exp": expires, "client": client})
+        claims = {
+            "sub": user_id,
+            "exp": expires,
+            "client": client,
+            "fb": feedback_subject or user_id,
+        }
+        return PREFIX + self._signer.dumps(claims)
 
     def claims(self, token: str) -> dict[str, object] | None:
         """The token's claims if it's genuine, unexpired and for a known user."""
@@ -51,6 +69,14 @@ class AccessTokens:
     def user(self, token: str) -> str | None:
         claims = self.claims(token)
         return str(claims["sub"]) if claims else None
+
+    def feedback_subject(self, token: str) -> str | None:
+        """Whose category feedback the token's calls use. None for a token issued before
+        feedback existed: falling back to the account would put every visitor's assistant on one
+        shared subject, so such a token gets read-only tools (review on #36)."""
+        claims = self.claims(token)
+        fb = claims.get("fb") if claims else None
+        return str(fb) if fb else None
 
     async def verify_token(self, token: str) -> AccessToken | None:
         """The MCP SDK's `TokenVerifier`: a valid token's user becomes the token's subject."""

@@ -46,6 +46,9 @@ def open_review_items(transactions: pd.DataFrame, user_id: str) -> pd.DataFrame:
     if flagged.empty:
         return pd.DataFrame(columns=columns)
     at_flagged = transactions[transactions["merchant_key"].isin(set(flagged["merchant_key"]))]
+    # What resolving the item covers: a merchant override leaves rows predicted Income alone
+    if "model_category" in at_flagged:
+        at_flagged = at_flagged[at_flagged["model_category"] != "Income"]
     spend = (-at_flagged["amount"]).clip(lower=0)
     totals = (
         at_flagged.assign(spend=spend)

@@ -1,5 +1,6 @@
 # The web app image for the Oct 6, 2026 demo (Web App UI, "Demo build"). It serves the demo
-# bundle read-only, so it needs no model download, no network at start-up and no writable disk.
+# bundle read-only, so it needs no model download and no network at start-up; the only file it
+# writes is the category feedback store (below).
 #
 #   uv run sfc-web build-demo --data data/synthetic/default.sqlite   # -> build/demo
 #   az acr build --registry <registry> --image sfc-web:<tag> .
@@ -25,6 +26,12 @@ COPY build/demo ./build/demo
 RUN chmod -R a+rX build/demo
 
 RUN useradd --uid 10001 --no-create-home app
+# Category feedback (FR-5, FR-6) is the one thing the app writes: a SQLite file in the container's
+# writable layer, kept until the container restarts or redeploys (owner, Oct 3, 2026). For a
+# durable store, prefer Postgres (the v2 plan) to SQLite on an Azure Files (SMB) mount, whose file
+# locking SQLite doesn't trust
+RUN mkdir -p /var/lib/sfc && chown 10001 /var/lib/sfc
+ENV SFC_FEEDBACK_DB=/var/lib/sfc/feedback.sqlite
 USER 10001
 EXPOSE 8000
 HEALTHCHECK CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz')"
