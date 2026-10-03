@@ -538,7 +538,7 @@ def _report(
                 ]
                 if reps
                 else None,
-                "labels_now": Counter(final[k].category for k in keys if k in final),
+                "labels_now": dict(Counter(final[k].category for k in keys if k in final)),
                 "label_changes": [asdict(c) for c in changes],
             }
         )

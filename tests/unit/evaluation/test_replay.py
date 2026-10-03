@@ -79,5 +79,7 @@ def test_the_replay_runs_the_loop_and_reports_it(
         assert step["decision"] in ("promoted", "rejected")
         assert step["added_rows"] >= 0
         assert {g["name"] for g in step["gates"]} >= {"macro_f1_view", "unfamiliar_brier"}
-    json.loads(result.to_json())  # the Learning page reads it
+    data = json.loads(result.to_json())  # the Learning page reads it
+    for remap in data["remaps"]:  # category -> count, not mangled by dataclasses.asdict
+        assert all(isinstance(n, int) and "/" not in c for c, n in remap["labels_now"].items())
     assert all("evaluation" in m for m in result.months)
