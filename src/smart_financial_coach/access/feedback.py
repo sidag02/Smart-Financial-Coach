@@ -31,6 +31,7 @@ from pathlib import Path
 
 import pandas as pd
 
+INCOME = "Income"
 ACTIONS = ("confirm", "correct")
 SCOPES = ("merchant", "transaction")
 SOURCES = ("review", "edit", "coach")
@@ -110,17 +111,23 @@ class Overrides:
 
     @classmethod
     def replay(cls, events: Iterable[Correction]) -> "Overrides":
-        """Current state from events in order: undone events are skipped, later ones win."""
+        """Current state from events in order: undone events are skipped, later ones win.
+
+        A merchant-wide change supersedes earlier single-transaction changes at that merchant
+        (review on #35): "every <merchant> transaction" means every one, including a row the user
+        had set on its own. A single-transaction change made after it still wins for its row.
+        """
         merchant: dict[str, str] = {}
-        transaction: dict[str, str] = {}
+        transaction: dict[str, tuple[str, str]] = {}  # transaction_id -> (merchant_key, category)
         for e in events:
             if e.undone:
                 continue
             if e.scope == "transaction" and e.transaction_id is not None:
-                transaction[e.transaction_id] = e.to_category
+                transaction[e.transaction_id] = (e.merchant_key, e.to_category)
             else:
                 merchant[e.merchant_key] = e.to_category
-        return cls(merchant, transaction)
+                transaction = {t: v for t, v in transaction.items() if v[0] != e.merchant_key}
+        return cls(merchant, {t: category for t, (_, category) in transaction.items()})
 
 
 def _now() -> str:
@@ -251,10 +258,15 @@ def effective_categories(transactions: pd.DataFrame, overrides: Overrides) -> pd
     Adds `model_category` (the model's), `category_source` ("model" or "you") and keeps
     `needs_review` only where the model's category still stands: an override settles review.
     `transactions` needs `transaction_id`, `merchant_key`, `category` and `needs_review`.
+
+    A merchant override leaves rows the model predicted as Income alone: review covers spending
+    rows only (owner, on #32), so settling a spending flag never moves income, such as a refund
+    at that merchant (review on #35). Those rows can still be changed one at a time.
     """
     out = transactions.copy()
     out["model_category"] = out["category"]
-    by_merchant = out["merchant_key"].map(overrides.merchant)
+    spending = out["model_category"] != INCOME
+    by_merchant = out["merchant_key"].map(overrides.merchant).where(spending)
     by_transaction = out["transaction_id"].map(overrides.transaction)
     chosen = by_transaction.fillna(by_merchant)
     yours = chosen.notna()

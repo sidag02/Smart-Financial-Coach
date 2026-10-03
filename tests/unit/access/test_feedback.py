@@ -5,7 +5,13 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
+from smart_financial_coach.access.feedback import (
+    Correction,
+    FeedbackError,
+    FeedbackStore,
+    Overrides,
+    effective_categories,
+)
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.review_items import open_review_items
 
@@ -186,3 +192,41 @@ def test_review_items_are_one_per_merchant_string_ranked_by_unreviewed_spend(
     assert top["unreviewed_spend"] == pytest.approx(
         (-at.loc[at["needs_review"], "amount"]).clip(lower=0).sum()
     )
+
+
+def event(seq: int, scope: str, to: str, transaction_id: str | None = None) -> Correction:
+    return Correction(
+        f"c{seq}", seq, "s1", "u1", "correct", scope, "shop", transaction_id, "Shopping", to,
+        "edit", "v", "2026-10-03T00:00:00+00:00", None,
+    )  # fmt: skip
+
+
+SHOP = pd.DataFrame(
+    {
+        "transaction_id": ["t1", "t2", "t3"],
+        "merchant_key": ["shop", "shop", "shop"],
+        "category": ["Shopping", "Shopping", "Income"],  # t3: a refund the model called Income
+        "needs_review": [True, True, False],
+    }
+)
+
+
+def test_a_merchant_override_never_moves_income() -> None:
+    """Review covers spending rows (owner, on #32): settling one leaves the refund as Income."""
+    seen = effective_categories(SHOP, Overrides.replay([event(1, "merchant", "Travel")]))
+
+    assert seen["category"].tolist() == ["Travel", "Travel", "Income"]
+    assert seen["category_source"].tolist() == ["you", "you", "model"]
+    one = Overrides.replay([event(1, "transaction", "Dining", "t3")])
+    assert effective_categories(SHOP, one)["category"].tolist()[2] == "Dining"  # one at a time
+
+
+def test_every_transaction_means_every_one_including_a_row_set_on_its_own() -> None:
+    row_then_all = [event(1, "transaction", "Travel", "t1"), event(2, "merchant", "Dining")]
+    all_then_row = [event(1, "merchant", "Dining"), event(2, "transaction", "Travel", "t1")]
+
+    later_merchant = effective_categories(SHOP, Overrides.replay(row_then_all))
+    later_row = effective_categories(SHOP, Overrides.replay(all_then_row))
+
+    assert later_merchant["category"].tolist()[:2] == ["Dining", "Dining"]
+    assert later_row["category"].tolist()[:2] == ["Travel", "Dining"]
