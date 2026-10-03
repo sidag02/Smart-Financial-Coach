@@ -12,7 +12,7 @@ import logging
 import re
 import secrets
 from collections import OrderedDict
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
@@ -33,8 +33,9 @@ from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
+from smart_financial_coach.access.review_items import alternatives, open_review_items
 from smart_financial_coach.access.tokens import AccessTokens
-from smart_financial_coach.access.tools import Feedback, Source, Tools, span_label
+from smart_financial_coach.access.tools import Feedback, Source, ToolError, Tools, span_label
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
@@ -53,6 +54,9 @@ MAX_CONVERSATIONS = 1_000
 MINUS = "\u2212"  # a real minus sign for amounts
 COACH_TOKEN_LIFETIME = timedelta(minutes=5)  # one question's worth of tool calls
 HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year"}
+REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
+ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
+CHANGES_SHOWN = 5  # recent corrections listed with an undo button (FR-6)
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -444,7 +448,7 @@ def create_app(
             share=(-rows["total"] / spent) if spent else 0.0,
         )
 
-    # Transactions (mockup 1e, read-only)
+    # Transactions, with review and corrections (mockup 1e; FR-5, FR-6)
 
     @app.get("/transactions")
     def transactions(
@@ -470,6 +474,18 @@ def create_app(
             ]
         if review:
             rows = rows[rows["needs_review"]]
+        queue = tools.list_review_items(limit=REVIEW_SHOWN).data
+        keys: dict[str, str] = dict(
+            open_review_items(tools.ledger.transactions, account.user_id)[
+                ["item_id", "merchant_key"]
+            ].itertuples(index=False)
+        )
+        picks = {
+            i["item_id"]: alternatives(
+                tools.ledger.transactions, keys[i["item_id"]], i["suggested_category"], ALTERNATIVES
+            )
+            for i in queue["items"]
+        }
         return page(
             request,
             "transactions.html",
@@ -489,7 +505,69 @@ def create_app(
             review_below=dict(
                 zip(("familiar", "unfamiliar"), sources.review_thresholds(), strict=True)
             ),
+            queue=queue,
+            picks=picks,
+            changes=tools.list_corrections(limit=CHANGES_SHOWN).data["corrections"],
+            flash=request.session.pop("flash", None),
+            back=str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
         )
+
+    def back_to(back: str) -> RedirectResponse:
+        """Back to the page a form came from: only a transactions page of this app."""
+        ok = back.startswith("/transactions") and not back.startswith("//")
+        return RedirectResponse(back if ok else "/transactions", status_code=303)
+
+    def changed(result: dict[str, Any]) -> str:
+        n = result["transactions_changed"]
+        noun = "transaction" if n == 1 else "transactions"
+        c = result["correction"]
+        if c["action"] == "confirm":
+            return f"Confirmed {c['merchant']} as {c['to_category']}."
+        return f"Moved {n} {noun} at {c['merchant']} to {c['to_category']}."
+
+    def feedback_action(request: Request, back: str, call: Callable[[Tools], str]) -> Response:
+        account = signed_in(request)
+        try:
+            request.session["flash"] = call(tools_for(account, request))
+        except ToolError as error:
+            request.session["flash"] = f"Couldn't change that: {error}"
+        return back_to(back)
+
+    @app.post("/review/{item}")
+    def resolve(
+        request: Request,
+        item: str,
+        action: Annotated[str, Form()],
+        category: Annotated[str | None, Form()] = None,
+        back: Annotated[str, Form()] = "/transactions",
+    ) -> Response:
+        args = {"item_id": item, "action": action, **({"category": category} if category else {})}
+        return feedback_action(
+            request, back, lambda t: changed(t.call("resolve_review_item", args).data)
+        )
+
+    @app.post("/transactions/{transaction_id}/category")
+    def recategorize(
+        request: Request,
+        transaction_id: str,
+        category: Annotated[str, Form()],
+        scope: Annotated[str, Form()] = "merchant",
+        back: Annotated[str, Form()] = "/transactions",
+    ) -> Response:
+        args = {"transaction_id": transaction_id, "category": category, "scope": scope}
+        return feedback_action(
+            request, back, lambda t: changed(t.call("correct_category", args).data)
+        )
+
+    @app.post("/corrections/{correction_id}/undo")
+    def undo(
+        request: Request, correction_id: str, back: Annotated[str, Form()] = "/transactions"
+    ) -> Response:
+        def run(t: Tools) -> str:
+            result = t.call("undo_correction", {"correction_id": correction_id}).data
+            return f"Undone: {result['undone']['merchant']} is back to how it was."
+
+        return feedback_action(request, back, run)
 
     # Chat (mockup 1d)
 
