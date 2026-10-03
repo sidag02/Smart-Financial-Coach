@@ -263,7 +263,7 @@ FR-4 is implemented. This section records where things ended, and what someone c
 **What depends on FR-4:** FR-5/FR-6 (draft #15). Its simulated replay runs on the promoted model, and its Feasibility section is re-measured on it (owner decision on #15).
 
 **Notes for reruns and later rounds:**
-- **The round's MLflow runs** were in a local store on the machine that ran them, which no longer exists. Nothing remaining needs it.
+- **The round's MLflow runs** were in a temporary, session-local store on the machine that ran them: treat it as gone. Nothing remaining needs it.
   - To rebuild: check out the tag `runs/fr4-round` (the clean-tree training commit `f53643f`), regenerate the dataset (data hash `44781bc4e4a5`), and run `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour).
   - Don't rerun `finalize` on that split without an override reason: its test set is used.
 - **Run a round on a quiet machine.** Batch cost is measured during the run, and it decides between runs tied on F1 and Brier (§5). In this round the gap (1.34 s against 3.73 s) was too large to flip.
