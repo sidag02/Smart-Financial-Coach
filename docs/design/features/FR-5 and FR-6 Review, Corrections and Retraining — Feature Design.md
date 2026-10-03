@@ -11,7 +11,7 @@ This feature closes the loop that FR-3's cold-start categorizer was built for. U
 - **Feasibility, measured on validation data** ([evidence](#feasibility)):
   - A single confidence threshold doesn't work: at 0.9 it flags 66% of familiar transactions, which are 97% right. One threshold **per familiarity group** does: familiar below 0.6 and unfamiliar below 0.8 flag 19% of a realistic mix of transactions and catch 83% of its errors.
   - Reviewing per **merchant string**, not per transaction, keeps the burden small. A test user meets about 36 distinct strings in their first month (about 7 review items at those thresholds), then fewer than one new item a month.
-  - The simulated feedback replay with retraining runs next and will be added here before review.
+  - These numbers describe the **current** promoted model, which FR-4 replaces with a clean-label model. The simulated feedback replay runs **after FR-4**, on FR-4's promoted model and regenerated dataset, and this Feasibility section is re-measured on that model at the same time (owner decision, Oct 2, 2026).
 - **Approach:**
   1. **Review policy with the model.** The categorizer reports whether each string is familiar, and the promoted artifact carries per-group review thresholds chosen on validation. Flags are computed in the ingestion batch.
   2. **One review item per user and merchant string**, ranked by spend, with a reason the user can read.
@@ -41,6 +41,8 @@ What the user sees today, without this feature: a category on every transaction,
 
 **Evidence:** the shipped configuration's out-of-fold **calibrated** confidences from the launch round (run `000ef7d3`, 3 merchant-grouped folds, validation only). For the review burden: test users' model-visible transactions and the promoted model's vocabulary. No test labels are used.
 
+**Which model these numbers describe:** the current promoted categorizer (bge-base trained under the injected 2% noise, `3f0ccc82-2f0e60a6`) on the default dataset as of FR-3 (data hash `2f0e60a6`). FR-4 replaces both: a clean-label model (about 0.83 unseen accuracy on validation, no Travel fallback) and a dataset regenerated with a 40% holdout. The design doesn't depend on these numbers, since thresholds are chosen per model at promotion (§1). What changes is the evidence quoted here: the starting point, the threshold table and the (0.6, 0.8) choice, the review burden, and the automation-bias rationale. All of them are re-measured on FR-4's promoted model, with its version and data hash stated.
+
 Rows at held-out merchants stand in for unfamiliar strings; the 10% seen-merchant sample stands in for familiar ones. The "mix" columns weight them to production at 22% unfamiliar rows, the share among FR-3's test users. Error rates: **2.0%** familiar, **41.9%** unfamiliar.
 
 | Threshold (flag if confidence below) | Familiar: flagged | Familiar: errors caught | Familiar: flags that are errors | Unfamiliar: flagged | Unfamiliar: errors caught | Unfamiliar: flags that are errors | Mix: flagged | Mix: errors caught |
@@ -66,7 +68,10 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 
 **Retraining evidence from FR-4's feasibility work:** the same configuration trained without the injected 2% label noise reaches **0.714** validation unseen-merchant macro F1, against 0.512 with it, and 0.988 against 0.969 on known merchants. Clean labels matter far more than anything else measured so far. This bears on what retraining from feedback can achieve and on [open question 3](#open-questions).
 
-**Still to measure:** the simulated replay ([Simulation](#7-simulation-and-replay)): personal accuracy after feedback, global gain on users who supplied no corrections, and robustness to wrong corrections. It runs on CPU after FR-4's experiments and is added here before this design is reviewed.
+**Still to measure:** the simulated replay ([Simulation](#7-simulation-and-replay)): personal accuracy after feedback, global gain on users who supplied no corrections, entrenched errors, and robustness to wrong corrections.
+
+- **Sequencing** (owner decision, Oct 2, 2026): FR-4's milestone 1 regenerates the default dataset once, with this design's `truth_preferences` (schema 4). The replay is built after FR-4's milestone 2 (shipping twins and explicit `label_noise`) and runs on FR-4's promoted twin, so its numbers describe the model that ships.
+- This design stays in draft until the replay and the re-measured Feasibility are in.
 
 ## Goals and non-goals
 
@@ -315,9 +320,9 @@ One PR per milestone.
 1. **Contract and review policy:** `familiar` in the categorizer output, `review_policy` in the manifest, chosen at promotion; `needs_review` and `review_reason` in the predictions file.
 2. **Feedback store and effective categories:** tables, precedence, undo, per-user effective categories in the data-access layer, isolation tests.
 3. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections`; effective categories in `get_transactions` and `get_spending_summary`; JSON schemas and contract tests against the web app and coach stubs.
-4. **Preferences and the simulator:** `truth_preferences` (schema 4), preference-aware label contract, simulated review and correction behavior.
+4. **Preferences and the simulator:** the preference-aware label contract and simulated review and correction behavior. `truth_preferences` (schema 4) lands with FR-4's milestone 1, in the same regeneration as FR-4's new holdout.
 5. **Global labels and retraining:** the agreement rule (with the correction requirement), a feedback-aware training task, time-forward evaluation on non-contributing users scored against their own view, a leak check on training rows (no evaluation user, nothing after the cutoff), gates, policy re-derivation, and an explicit `label_noise` required at promotion.
-6. **Replay and decisions:** the replay report; settle N, the cadence and the noise question; Technical Design updates.
+6. **Replay and decisions:** the replay on FR-4's promoted twin and the regenerated dataset; the Feasibility section re-measured on that model; settle N and the cadence; Technical Design updates.
 
 ## Decisions and open questions
 
@@ -335,6 +340,7 @@ One PR per milestone.
 - [ ] Global gain is scored against non-contributors' own view, with truth-based F1 alongside (from review).
 - [ ] Spike baselines and periods always use the current effective categories (from review).
 - [x] The shipped model and retrained models train on clean labels; injected noise only for comparing candidates (owner, Oct 2, 2026).
+- [x] The replay runs after FR-4, on its promoted twin and the dataset regenerated once with schema 4 (owner, Oct 2, 2026).
 
 **Open questions**
 
