@@ -119,7 +119,8 @@ def test_end_dates_past_the_data_are_cut_at_as_of(tools: Tools) -> None:
 
 
 def test_unbuilt_services_say_not_available_and_give_no_numbers(tools: Tools) -> None:
-    for name, args in (("detect_anomalies", month(tools)), ("forecast_goal", {"goal_name": "x"})):
+    goal_id = tools.call("list_goals", {}).data["goals"][0]["goal_id"]
+    for name, args in (("detect_anomalies", month(tools)), ("forecast_goal", {"goal_id": goal_id})):
         result = tools.call(name, args)
         assert result.data["status"] == "not_available"
         assert not any(isinstance(v, int | float) for v in result.data.values())
@@ -131,6 +132,8 @@ def test_goals_are_listed(tools: Tools) -> None:
 
     assert data["forecast"] == "not_available"
     assert len(data["goals"]) == len(tools.ledger.goals)
+    with pytest.raises(ToolError, match="no goal 'g_nobody_1'"):
+        tools.call("forecast_goal", {"goal_id": "g_nobody_1"})
 
 
 def test_display_names() -> None:
