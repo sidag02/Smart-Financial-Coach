@@ -7,7 +7,7 @@ Oct 2, 2026 · Owner: @Sidd · Status: **Accepted** (owner decisions, Oct 2, 202
 Hi-fi mockups for the v1 web app are in [`mockups/`](mockups/). This note maps each screen to its requirement, the tools behind it and the milestone that ships it, records the UI decisions, and lists what the mockups need that no design or tool provides yet.
 
 - **Build to the mockups, in the Delivery Plan's order.** Panels ship in a "not available yet" or "coming next" state first and switch to real numbers in the PR that promotes the model behind them (the Delivery Plan's sync rule).
-- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data, and so does Goals with FR-10 (setting up, editing and removing goals). Worth a look links to its mockup until FR-7/8 land, and the goal detail (1g) until FR-11–12. See [Demo build](#demo-build-oct-6-2026).
+- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data, and so does Goals with FR-10 (setting up, editing and removing goals). Worth a look links to its mockup until FR-7/8 land; the goal detail (1g) isn't built until FR-11–12. See [Demo build](#demo-build-oct-6-2026).
 - **Open items** are in [Gaps](#gaps-the-mockups-need-that-nothing-provides-yet) and [Open questions](#open-questions).
 
 ## Mockups
@@ -26,12 +26,12 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 | 1a Overview (classic grid), 1j mobile | FR-17 | `get_spending_summary`, `get_transactions`, `list_goals` | Demo; P2 (flags panel "coming next"; the goal card with FR-10) |
 | 1e Transactions list | FR-3, FR-17 | `get_transactions` with confidence | Demo, read-only; P2 |
 | 1e "Not sure?" review panel | FR-5, FR-6 (P1) | #15: `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction` | After #15 milestone 3 |
-| 1d, 1k Coach chat with sources | FR-13–16 | All read tools | Demo; P3 |
+| 1d, 1k Coach chat with sources | FR-13–16 | Read tools, plus goal and category writes with confirmation | Demo; P3 |
 | 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | When FR-7/8 promote |
 | 1h Goal setup, and the Goals list | FR-10 | `list_goals`, `check_goal`, `create_goal`, `update_goal`, `archive_goal`, `undo_goal_change` | FR-10 (#42, #43, #45); no fit badge until FR-11 |
 | 1g, 1l Goal detail | FR-11, FR-12 | `forecast_goal`, `list_goals` | When FR-11–12 land |
 | 1b Coach-first summary, 1c Mosaic | — | — | Not built (see decision 2) |
-| Connect an assistant (no mockup) | FR-19 | All read tools, over MCP | Demo |
+| Connect an assistant (no mockup) | FR-19 | Read tools, plus goal and category writes with confirmation, over MCP | Demo |
 
 ## Decisions
 
