@@ -1,0 +1,13 @@
+# FR-7 round: the Rules candidate (design §3), the POC's three rules on one score scale.
+# The scales' ratio and the new-merchant floor are label-tuned, so Thresholded searches them on
+# each fold's training users (review on #30), then places the cutoff at precision 0.80.
+name: rules
+task: unusual_transactions
+model:
+  type: unusual_transactions/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: unusual_transactions/rules, params: {z_scale: 5.0}}}
+    search: {ratio_scale: [3.0, 5.0, 8.0], min_amount: [0.0, 250.0]}
+complexity: 1
+tags: {plan: fr7-round}

@@ -253,6 +253,13 @@ def run_experiment(
         metrics = {f"val_{k}": v for k, v in val.items()} | latency
         metrics["latency_warm_p95_ms"] = warm
         metrics |= {f"held_out.{k}": v for k, v in held_out_report.items()}
+        if not held_out_report:  # e.g. a cutoff and the params a fit chose (FR-7 `Thresholded`)
+            fitted = getattr(model, "report", {})
+            metrics |= {
+                f"fit.{k}": float(v)
+                for k, v in fitted.items()
+                if isinstance(v, int | float) and not isinstance(v, bool)
+            }
         if reproduce_poc:
             test = task.test_metrics(examples, splits, checked)
             metrics |= {f"test_{k}": v for k, v in test.items()}
