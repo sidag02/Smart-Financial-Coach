@@ -232,7 +232,7 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 
 **Open questions**
 
-- [ ] LLM provider: Anthropic or OpenAI?
-- [ ] Web framework for v1 (a Python dashboard framework vs. a separate front end)?
+- [x] LLM provider: Anthropic (owner, Oct 2, 2026).
+- [x] Web framework for v1: server-rendered Python, FastAPI with templates and htmx (owner, Oct 2, 2026; Delivery Plan).
 - [ ] Tool server transport for v1: stdio only, or HTTP as well?
 - [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria, and whether the shipped model trains on injected label noise at all (the promoted categorizer's Travel fallback for unfamiliar merchants is its likely effect; FR-3 Categorization Model Selection). Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<div style="width:232px;height:100%;box-sizing:border-box;background:#F7F0E8;border-right:1px solid #EEE3D7;display:flex;flex-direction:column;padding:24px 16px;gap:28px;font-family:'Figtree',sans-serif">
+  <div style="display:flex;align-items:center;gap:10px;padding:0 6px">
+    <div style="width:30px;height:30px;border-radius:10px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:16px;color:#2D2622">S</div>
+    <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:15px;line-height:1.15;color:#2D2622">Smart Financial Coach</div>
+  </div>
+  <div style="display:flex;flex-direction:column;gap:4px">
+    <sc-for list="{{ items }}" as="it" hint-placeholder-count="5">
+      <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:{{ it.bg }};color:{{ it.fg }};font-weight:{{ it.weight }};font-size:14.5px">
+        <div style="width:8px;height:8px;border-radius:99px;background:{{ it.dot }}"></div>
+        <div style="flex:1">{{ it.label }}</div>
+        <sc-if value="{{ it.badge }}"><div style="background:#FCF2D9;color:#8A5C00;font-size:12px;font-weight:700;padding:2px 8px;border-radius:99px">{{ it.badge }}</div></sc-if>
+      </div>
+    </sc-for>
+  </div>
+  <div style="flex:1"></div>
+  <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:16px;padding:12px;display:flex;align-items:center;gap:10px">
+    <div style="width:36px;height:36px;border-radius:99px;background:#E4F0E5;color:#3F6E4C;font-weight:700;font-size:13px;display:flex;align-items:center;justify-content:center">{{ initials }}</div>
+    <div style="flex:1;min-width:0">
+      <div style="font-weight:600;font-size:14px;color:#2D2622">{{ personaName }}</div>
+      <div style="font-size:12.5px;color:#6B5E55">{{ personaLabel }}</div>
+    </div>
+  </div>
+  <div style="font-size:13px;font-weight:600;color:#A9521C;padding:0 12px;margin-top:-18px">Sign out</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:232,&quot;height&quot;:860},&quot;active&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Overview&quot;,&quot;Transactions&quot;,&quot;Worth a look&quot;,&quot;Goals&quot;,&quot;Ask&quot;],&quot;default&quot;:&quot;Overview&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;coachName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wren&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;personaName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Maya Chen&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;personaLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;maya@example.com&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;initials&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;MC&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;flagCount&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:3,&quot;tsType&quot;:&quot;number&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const a = this.props.active ?? 'Overview';
+    const coach = this.props.coachName ?? 'Wren';
+    const labels = ['Overview', 'Transactions', 'Worth a look', 'Goals', 'Ask ' + coach];
+    const keys = ['Overview', 'Transactions', 'Worth a look', 'Goals', 'Ask'];
+    const items = labels.map((l, i) => {
+      const on = keys[i] === a;
+      return { label: l, bg: on ? '#FDEBDD' : 'transparent', fg: on ? '#2D2622' : '#6B5E55', weight: on ? 650 : 500, dot: on ? '#F2A36B' : '#DCCFC2', badge: keys[i] === 'Worth a look' ? String(this.props.flagCount ?? 3) : '' };
+    });
+    return { items, initials: this.props.initials ?? 'MC', personaName: this.props.personaName ?? 'Maya Chen', personaLabel: this.props.personaLabel ?? 'maya@example.com' };
+  }
+}
+</script>
+</body>
+</html>

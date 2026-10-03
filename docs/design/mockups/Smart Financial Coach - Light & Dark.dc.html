@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<style>body{margin:0;background:#EFE8E0}a{color:#A9521C}a:hover{color:#2D2622}</style>
+</helmet>
+<dc-import name="Smart Financial Coach" persona="{{ persona }}" coach-name="{{ coachName }}" hint-size="100%,2900px"></dc-import>
+<div style="background:#2A2420;height:1px"></div>
+<dc-import name="Smart Financial Coach Dark" persona="{{ persona }}" coach-name="{{ coachName }}" hint-size="100%,2900px"></dc-import>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;persona&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;young_professional&quot;,&quot;family_budgeter&quot;,&quot;freelancer&quot;],&quot;default&quot;:&quot;young_professional&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;coachName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wren&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    return { persona: this.props.persona ?? 'young_professional', coachName: this.props.coachName || 'Wren' };
+  }
+}
+</script>
+</body>
+</html>
