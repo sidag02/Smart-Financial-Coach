@@ -1,6 +1,6 @@
 # FR-7 Unusual Transactions — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Proposed** · Branch: `docs/fr-7-design`
+Oct 3, 2026 · @Sidd · Status: **Proposed**; owner decisions on the open questions recorded (Oct 3, 2026, on #30) · Branch: `docs/fr-7-design`
 
 ## Summary
 
@@ -15,10 +15,10 @@ This feature flags individual charges that are unusual for the user who made the
 - **Approach:**
   1. **Score each charge against the user's earlier history only** (point in time), as a nightly job would, so a flag never depends on what happened after it.
   2. **Merchant profiles from many users,** built by the feature pipeline from model-visible data, with at least 3 distinct users per merchant. They supply a merchant's typical price and spread. They change scores only; reasons quote only the user's own numbers (NFR-2).
-  3. **A round of four candidates** through the FR-3 framework: the baseline, the rules above, a single probabilistic score, and an isolation forest over the same features. Chosen on validation recall at a precision target, as FR-3 and FR-4 chose on F1.
-  4. **Tune to precision 0.80, gate at 0.70.** Measured precision swings by about ±0.03 between draws of users, so tuning to exactly 0.70 would pass the gate half the time. The margin costs about 6 points of recall in the POC.
+  3. **A round of four candidates** through the FR-3 framework: the baseline, the rules above, a single probabilistic score, and an isolation forest over the same features. Ranked on out-of-fold recall at a common flag rate fixed before the round, as FR-3 and FR-4 ranked on F1.
+  4. **Tune to precision 0.80, gate at 0.70** (owner, Oct 3, 2026). Measured precision swings by about ±0.03 between draws of users, so tuning to exactly 0.70 would pass the gate half the time. The margin costs about 6 points of recall in the POC.
   5. **Reasons are templates over structured evidence,** not model or LLM text, so the dashboard works without the LLM (NFR-6) and the coach quotes exact numbers (FR-14).
-- **Decisions for the owner** are in [Decisions and open questions](#decisions-and-open-questions). The largest: the 0.80 tuning target, merchant profiles from other users, and flag actions deferred to v1.1 with FR-9.
+- **Owner decisions** (Oct 3, 2026, on #30) settled the tuning target, the baseline comparison, fees and medical bills, and the "Worth a look" window; see [Decisions and open questions](#decisions-and-open-questions). The rest of the design is still for review.
 - **Principle (carried from FR-2):** the modeled behavior is not tuned to make the target pass, and test users are scored once, for finalists.
 
 ## Context
@@ -175,7 +175,10 @@ All features come from model-visible columns. Nothing reads `truth_*`, and the i
 - Profiles are rebuilt nightly. A merchant new to the platform gets a profile once three users have been there, without retraining or promoting anything.
 - **Why not fit them into the model:** a promoted model is a fixed, versioned artifact. A profile table fitted at training time would know only the train users' merchants, so FR-4's holdout merchants would never get a profile in serving, even after hundreds of users had shopped there.
 
-**In evaluation**, the task builds profiles the same way from all users' model-visible rows, with no labels. Test users' charges at holdout merchants then get profiles from other test users who shopped there earlier, which is what serving would do.
+**In evaluation**, profiles are built the same way, with no labels, from two pools (from review):
+
+- **Validation profiles come from train users only.** Each fold's charges are scored against profiles of all train users, with the scored user's own charges left out. Test users' rows, and the unusual charges planted in them, never shape a validation score or model selection, so the round keeps FR-2's train/test separation.
+- **Test and serving profiles come from all users.** Test users' charges at holdout merchants then get profiles from other test users who shopped there earlier, which is what serving would do.
 
 **Categories stay out of the score in v1.** The predicted category (the categorization predictions file) appears only in reason text ("your largest Shopping charge since …"). So categorizer errors can't move an anomaly score, and FR-7's metrics don't depend on which categorizer is promoted. A candidate that uses category features is a later round.
 
@@ -197,11 +200,15 @@ Each candidate outputs one score on a common scale plus a reason code, and each 
 
 Fixed before the round runs. It follows FR-3 and FR-4 where it can.
 
-- **Eligibility:** out-of-fold validation precision ≥ 0.70 at the run's tuned cutoff, and validation recall above the baseline's at the same flag volume.
-- **Ranking:** validation recall at the tuned cutoff. Ties against the leader are judged by a paired **user** bootstrap: users, not charges, are the unit that varies, as merchants were in FR-4.
+- **A common operating point** (from review). Every run's cutoff is tuned to precision 0.80 on other folds, but out of fold it lands at different precisions. Ranking on recall at each run's own cutoff would favour the run whose cutoff slips furthest towards 0.70, which is also the run most likely to fail the test gate. So runs are ranked at one flag rate, fixed now: **0.11 flags per user-month**, the POC's 0.80 point. In each held-out fold, a run flags its highest-scoring charges up to that rate (the rate times the fold's user-months). That cutoff needs no labels, so every run is compared on the same number of alerts.
+- **Eligibility:**
+  - out-of-fold precision ≥ 0.70 at the run's own tuned cutoff;
+  - recall at the common flag rate above the baseline's at the same rate.
+- **Ranking:** out-of-fold recall at the common flag rate. Ties against the leader are judged by a paired **user** bootstrap: users, not charges, are the unit that varies, as merchants were in FR-4.
+- **Reported beside the ranking:** each run's out-of-fold precision and flag rate at its own tuned cutoff. That precision is what predicts the test gate, and it's read before `finalize`.
 - **Tie-breaks, in order:**
   1. reason accuracy, with its own paired tie test against the reason-accuracy leader in the tie set (FR-4 §5's pattern);
-  2. flags per user-month: fewer flags at the same recall is less alert fatigue;
+  2. out-of-fold precision at the run's own cutoff: the higher one is likelier to hold the gate on test users;
   3. batch cost;
   4. explainability (rules and probabilistic before the forest);
   5. operational simplicity.
@@ -210,9 +217,13 @@ Fixed before the round runs. It follows FR-3 and FR-4 where it can.
 
 ### 5. The operating point and the gates
 
-**Where the cutoff comes from.** Scores are unsupervised; labels set only the cutoff. A wrapper does it, as `Calibrated` does for categorization: `Thresholded(base, precision=0.80)`. The wrapper's `fit` passes no labels to the base scorer and uses them only to place the cutoff at the target precision on the training users. Within validation folds, the cutoff for a fold comes from the other folds' users. No change to the `Model` protocol, the runner or promotion is needed (FR-3, "Rule for later features").
+**Where the cutoff comes from.** Scores are unsupervised; labels set only the cutoff. A wrapper does it, as `Calibrated` does for categorization: `Thresholded(base, precision=0.80)`. The wrapper's `fit` passes no labels to the base scorer and uses them only to place the cutoff at the target precision on the training users. Within validation folds, the cutoff for a fold comes from the other folds' users.
 
-**Tune to 0.80, gate at 0.70 (decision for the owner).**
+**Every label-tuned parameter is fitted within the folds** (from review), not only the cutoff. The Rules candidate's grid (the z, the profile ratio and the minimum amount), and any tuned parameter of another candidate, is chosen for each fold on the other folds' users, by recall at the common flag rate (§4), as FR-3's `C` is. A grid chosen once on all train users would carry the POC's in-sample optimism into every validation score.
+
+No change to the `Model` protocol, the runner or promotion is needed (FR-3, "Rule for later features").
+
+**Tune to 0.80, gate at 0.70 (owner, Oct 3, 2026).** The round still reports the 0.75 point for comparison.
 
 - Precision measured on a set of users swings by about ±0.03 (POC user bootstrap, train users). Test users are half as many, so their swing is wider.
 - A cutoff tuned to exactly 0.70 on train users would land below 0.70 on test users about half the time: the gate would test the draw, not the model. The same reasoning set FR-4's target.
@@ -222,7 +233,7 @@ Fixed before the round runs. It follows FR-3 and FR-4 where it can.
 **Promotion gates** (on test users):
 
 1. Precision ≥ 0.70 (PRD), with its user-bootstrap interval reported.
-2. Recall above the baseline's recall **at the same flag volume.** The Technical Design's baseline reaches precision 0.70 only on its 17 highest scores (recall 0.011), so "recall at precision 0.70" would compare against almost nothing. At equal flag volume the comparison asks the PRD's question: does the model find more of what's planted with the same number of alerts?
+2. Recall above the baseline's recall **at the same flag volume** (owner, Oct 3, 2026). The baseline is the Technical Design's per-user z. "Baseline plus the duplicate rule" is reported alongside, not gated: choosing the bar after seeing which rule works would move it. The Technical Design's baseline reaches precision 0.70 only on its 17 highest scores (recall 0.011), so "recall at precision 0.70" would compare against almost nothing. At equal flag volume the comparison asks the PRD's question: does the model find more of what's planted with the same number of alerts?
 3. Every flag has a reason (a contract check, so it can't fail silently).
 
 Reason accuracy and recall on `clear` labels are reported, not gated. The PRD sets no target for them.
@@ -236,22 +247,24 @@ Reason accuracy and recall on `clear` labels are reported, not gated. The PRD se
 A new task, `unusual_transactions`, built from the FR-3 framework's parts. FR-3 named most of them in "Path to a general framework".
 
 - **Examples:** every outflow of every user, after the warm-up, with model-visible columns, the merchant-profile columns, and `anomaly_kind` and `tier` attached on the evaluation side.
-- **Splits:** `by_user_split`: train users for validation, test users for test. Validation uses 5 folds of train users, grouped by user and stratified by persona. Each fold is scored by a model whose cutoff was placed on the other four folds' users.
+- **Splits:** `by_user_split`: train users for validation, test users for test. Validation uses 5 folds of train users, grouped by user and stratified by persona. Each fold is scored by a model whose cutoff and tuned parameters were fitted on the other four folds' users, against profiles built from train users only (§2).
 - **Leak checks:**
   - no user in two sets;
   - profiles leave out the scored user's own charges;
+  - validation profiles contain no test user's rows;
   - each charge's profile is as of the first of its month;
   - the model's input has no truth columns.
 - **Metrics** through `Truth.score_transactions`, so the label contract decides every outcome:
   - precision, recall, recall on `clear` labels, and reason accuracy;
   - recall per kind;
-  - PR-AUC, and precision at the baseline's flag rate;
+  - recall at the common flag rate (the ranking measure), and precision and flag rate at each run's own cutoff;
+  - PR-AUC;
   - flags per user-month;
   - user-bootstrap intervals.
 - **Diagnostics** for the report (FR-4's pattern):
   - false positives by merchant key and by amount band;
-  - missed charges by kind, and by the size of their merchant profile (0, 3–5, 6+ users), which checks the undiagnosed new-merchant misses.
-- **Baseline:** the per-user z, run through the same `Thresholded` wrapper and reported at the candidate's flag volume.
+  - missed charges by kind, and by the size of their merchant profile (0, 3–5, 6+ users), which checks the undiagnosed new-merchant misses; and by the user's history length at the charge.
+- **Baselines:** the per-user z, run through the same `Thresholded` wrapper and compared at the common flag rate and at the candidate's flag volume; the same plus the duplicate rule, reported only.
 
 ### 7. Reasons
 
@@ -287,7 +300,7 @@ A flag's reason is rendered by a small deterministic function from its `evidence
   `spending_spikes` stays "not available yet" until FR-8 promotes (the Delivery Plan's sync rule). The unusual-charges half switches to real flags in the PR that promotes FR-7's model.
 - **The dashboard:** "Worth a look" on the Overview and screen 1f list the last 60 days' flags, newest first, with the mockup's title, amount, date, kind and reason. Transactions (1e) mark flagged rows.
 - **The demo bundle** (Web App UI, "Demo build") precomputes flags into its read-only database, as it does categories.
-- **Short histories** (PRD risk): a user with fewer than 30 earlier charges gets no new-merchant flags, and a merchant with no earlier charges from the user gets no amount flag. The coach says when history is too short to judge, instead of saying nothing is unusual.
+- **Short histories** (PRD risk): no minimum history beyond FR-2's 90-day warm-up (the 30-charge minimum in the first version was unmeasured and dropped in review). New-merchant flags rest on the merchant's profile, not the user's history; when that history is short, the reason says "one of your first charges" instead of "your largest … since". A merchant with no earlier charges from the user gets no amount flag. The coach says when history is too short to judge, instead of saying nothing is unusual. The round reports misses by history length (§6).
 
 **Flag actions (deferred to v1.1, with FR-9).** "I recognize this", "Not me — what now?" and the sensitivity control all write per-user state, and the demo's data is read-only. v1 shows flags without actions. What v1 fixes now, so v1.1 needs no migration:
 
@@ -299,7 +312,7 @@ A flag's reason is rendered by a small deterministic function from its `evidence
 ## Metrics and why
 
 1. **Precision at the tuned cutoff** is the PRD's metric and the gate. False alarms are the PRD's named risk (alert fatigue), and precision measures them directly.
-2. **Recall, at the cutoff and at equal flag volume against the baseline.** Recall at the cutoff ranks candidates. Recall at equal volume answers "better than a simple rule" fairly, when the baseline can't reach the precision target at all.
+2. **Recall at a common flag rate,** to rank candidates and to compare against the baseline. Every run is judged on the same number of alerts, so a run can't buy recall with a cutoff that slips, and "better than a simple rule" is fair when the baseline can't reach the precision target at all.
 3. **Recall per kind and on `clear` labels.** One kind can hide behind another: duplicates alone give 0.31 recall at precision 0.97. Per-kind recall shows whether a candidate wins on the hard kind (amount outliers) or only on the easy one.
 4. **Reason accuracy** turns NFR-7's "every flag has a reason" from a presence check into a correctness check. A flag with the wrong reason ("larger than usual" on a duplicate) erodes trust as much as a wrong number.
 5. **Flags per user-month** is the alert burden in the user's terms. At the POC's 0.80 point it is 0.11, about 1.3 flags per user per year.
@@ -360,7 +373,7 @@ A flag's reason is rendered by a small deterministic function from its `evidence
   - each reason template renders from its evidence alone;
   - `Thresholded` passes no labels to the base scorer.
 - **Isolation:** nothing under `intelligence/` reads truth (the existing test). `detect_anomalies` returns user A's flags to A and nothing to B. Reason text contains no number that isn't in the user's own rows.
-- **Framework (toy task):** out-of-fold cutoffs; equal-volume baseline recall; empty `shipping_params` means no twins; finalize scores test users once.
+- **Framework (toy task):** out-of-fold cutoffs and grid choices (a grid fitted on all users fails the test); recall at the common flag rate; validation profiles without test users; empty `shipping_params` means no twins; finalize scores test users once.
 - **Slow (default data):** the promoted scorer passes the gates on test users; the flag file passes its contract.
 
 ## Milestones
@@ -368,7 +381,7 @@ A flag's reason is rendered by a small deterministic function from its `evidence
 One PR per milestone.
 
 1. **Contract and features:** the `AnomalyScorer` contract and runtime checks; merchant keys and point-in-time history features; merchant profiles in the feature pipeline (as of month, own charges left out, ≥ 3 users); reason templates.
-2. **Task:** `unusual_transactions` with user-grouped folds, `Thresholded`, metrics through the label contract, equal-volume baseline recall, diagnostics and the decision rule of §4.
+2. **Task:** `unusual_transactions` with user-grouped folds, validation profiles from train users, label-tuned parameters fitted within folds, `Thresholded`, metrics through the label contract, recall at the common flag rate, diagnostics and the decision rule of §4.
 3. **The round:** the baseline and the three candidates on validation, and the comparison report, with the new-merchant misses diagnosed.
 4. **Finalize and promote:** finalists scored once on test users; promote if the gates pass. Then the nightly flag job, `detect_anomalies` (the unusual-charges half), "Worth a look" and the demo bundle.
 5. **Docs:** the Technical Design (the batch-first contract, merchant profiles in the feature pipeline, the FR-7 row in model selection, the gate at equal flag volume), the PRD's FR-7 metric wording, and the Web App UI's gap 6.
@@ -381,16 +394,17 @@ One PR per milestone.
 - [ ] Merchant profiles from other users as a nightly feature table: ≥ 3 distinct users, the scored user's charges left out, as of the month; scores only, never shown in reasons (§2, option A-b).
 - [ ] Categories stay out of the v1 score; the predicted category is used in reason text only (§2).
 - [ ] Candidates: the baseline, rules, probabilistic, isolation forest (§3).
-- [ ] Decision rule: rank on out-of-fold recall at the tuned cutoff, user-bootstrap ties, then reason accuracy, flag rate, cost and explainability; no shipping twins (§4).
-- [ ] Tune to precision 0.80, gate at 0.70 on test users (§5, option B-b).
-- [ ] "Recall above the baseline" compared at equal flag volume (§5, option C-b).
+- [ ] Decision rule: rank on out-of-fold recall at a common flag rate (0.11 per user-month), with each run's own-cutoff precision reported; user-bootstrap ties, then reason accuracy, own-cutoff precision, cost and explainability; no shipping twins (§4; revised in review).
+- [x] Tune to precision 0.80, gate at 0.70 on test users (§5, option B-b) (owner, Oct 3, 2026, on #30).
+- [x] "Recall above the baseline": the Technical Design's per-user z at equal flag volume (§5, option C-b); baseline plus the duplicate rule reported, not gated (owner, Oct 3, 2026, on #30).
 - [ ] Reasons as templates over stored evidence (§7, option D-a).
 - [ ] Nightly scoring into flag files; `detect_anomalies` serves the unusual-charges half when FR-7 promotes (§8).
 - [ ] Flag actions and sensitivity in v1.1 with FR-9; v1 fixes the flag id and the per-user scope now (§8).
+- [ ] Label-tuned parameters fitted within folds; validation profiles from train users only; no 30-charge minimum (§2, §5, §8; from review).
 
 **Open questions**
 
-1. [ ] **The tuning target.** 0.80 is recommended. 0.75 keeps more recall (0.69 against 0.67 in the POC) with a thinner margin. The owner's call; the round reports both.
-2. [ ] **Fees and medical bills.** Overdraft and monthly service fees are among the most frequent false positives, and a user would plausibly want to see them. Leave it as measured (the contract calls them normal), or design a separate "fees" insight after launch? Changing the labels to suit a detector is ruled out (FR-2's principle).
-3. [ ] **The PRD's "simple rule-based alternative".** Is equal-volume comparison against the Technical Design's baseline what the PRD meant, or should the baseline include the duplicate rule (option C-c)?
-4. [ ] **Where the 60-day window for "Worth a look" comes from:** a fixed window, or since the user last looked? The latter needs per-user state, so it's v1.1 at the earliest.
+1. [x] **The tuning target. Decided (owner, Oct 3, 2026, on #30): tune to precision 0.80, gate at 0.70 on test users.** The same reasoning as FR-4's target: a model as good as the leader passes reliably, not on the draw. About 1.3 flags per user per year at the POC's 0.80 point. The round still reports the 0.75 point (0.69 recall against 0.67 in the POC) for comparison.
+2. [x] **Fees and medical bills. Decided (owner, Oct 3, 2026, on #30): left as measured for v1.** Under the label contract they're false positives, and labels aren't changed to suit a detector (FR-2's principle). A separate "fees" insight is a v1.1-or-later idea, outside this design's scope.
+3. [x] **The PRD's "simple rule-based alternative". Decided (owner, Oct 3, 2026, on #30): the Technical Design's per-user z baseline, at equal flag volume** (option C-b). Baseline plus the duplicate rule (C-c) is reported alongside, not gated: choosing the bar after seeing which rule works would move it.
+4. [x] **The "Worth a look" window. Decided (owner, Oct 3, 2026, on #30): a fixed 60 days in v1.** "Since you last looked" needs per-user state, so it goes to v1.1 with FR-9's flag actions.
