@@ -242,7 +242,7 @@ One PR per milestone.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
 5. **Docs:** the PRD's FR-4 success metric (0.66 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
 
-## Status and handoff (Oct 3, 2026)
+## Status and handoff (Oct 3, 2026; updated after milestone 3)
 
 Written for whoever continues FR-4, human or agent. It records where the work stands, what remains with the exact commands, the owner's decisions, and how the work has been done. Read it together with §1–§5 above, which define the rules being implemented.
 
@@ -253,55 +253,33 @@ Written for whoever continues FR-4, human or agent. It records where the work st
 | Design | #17 | This design, accepted by the owner; feasibility on POC branch `poc/fr-4-unseen-merchants` (pinned `2541dc6`) |
 | 1. Dataset | #20 | Default spec: holdout share 0.4, seed 8, `test_user_bias` 0.45 (115 holdout merchants). Schema 4: `truth_preferences` and label contract 2 (`Truth.user_categories()`), from #15's accepted data contract. Regenerated default dataset: data hash **`44781bc4e4a5`**, 23.5% of test spending at holdout merchants, all checks pass |
 | 2. Framework | #21 | Shipping twins (`ship:` in configs, `run_with_twin`, tag `sfc.twin_of`); `Task.shipping_params` (categorization: `label_noise`); tie-breaks on twins with the Brier tie test against the Brier leader; the reversal stop in `finalize`; `promote` requires explicit shipping params and logs them; twin columns in the report; `class_weight` in `linear_text` |
+| 3. The round | #27 | The FR-4 gate (`UNSEEN_GATE`, unseen ≥ 0.66 and above keyword); `Task.diagnostics` (per-category unseen confusions in the report); the round's configs (`configs/experiments/categorization/fr4/`); the round's report (`docs/reports/FR-4 Categorization — Round Results.md`). **Rank 1: `21_small_unweighted`** (bge-small, no class weights), twin `21_small_unweighted.ship` at 0.712 validation unseen; no reversal. The v1 gate was set to **0.66** (owner, Oct 3, 2026) on those validation results, before any test scoring (§4) |
 
-If #21 isn't merged when you read this, check it first: it's the base for everything below.
+If #27 isn't merged when you read this, check it first: milestone 4 builds on it.
 
 **Also in place:** the git tag `data/fr3-default` (on `bfc07ac`) reproduces FR-3's dataset (data hash `2f0e60a6`). The promoted model is still FR-3's bge-base `3f0ccc82-2f0e60a6`, trained on that old dataset; it keeps serving until milestone 4 promotes a replacement.
 
 ### Remaining
 
-**Milestone 3: the FR-4 round.** One branch from the latest `main`, one PR. Code first, then the run, then the report.
+**Milestone 3: done** (#27). The round's facts that milestone 4 needs:
 
-1. **Add the FR-4 gate before anything is test-scored.** `CategorizationTask.gates` (`evaluation/tasks/categorization.py`) checks only FR-3's gates today (known ≥ 0.90, above keyword). Add, per §5:
-   - `unseen_macro_f1`: `test_unseen_macro_f1 ≥ 0.70` (a constant like `KNOWN_GATE`, e.g. `UNSEEN_GATE = 0.70`);
-   - `beats_keyword_unseen`: `test_unseen_macro_f1` above the keyword baseline's `test_unseen_macro_f1`.
-
-   Tests: a twin at 0.69 unseen fails; one at 0.71 that's below keyword's unseen score fails; one above both passes. `test_gates_and_eligibility` in `tests/unit/evaluation/test_categorization_task.py` is the pattern.
-2. **Add per-category unseen-merchant confusions to the round's report** (owner decision: diagnose Health & Fitness and Entertainment now, fix after launch; "Metrics and why", point 3). For each spending category on validation unseen-merchant rows: its F1, where its errors go (top predicted categories for its true rows), and what lands in it (top true categories among rows predicted as it). Report it for rank 1's twin at least. `experiments/fr4_unseen/unseen_errors.py` on the POC branch is a working starting point (count merchants once, under their majority category).
-3. **Write the round's configs** in `configs/experiments/categorization/fr4/`, one file per run, each **with `ship: {task_params: {label_noise: 0}}`** except the baselines:
-   - baselines: `keyword`, `lookup`, `majority`, copied from `launch/` (no `ship`);
-   - `base_balanced`: bge-base, `class_weight: balanced`;
-   - `base_unweighted`: bge-base, `class_weight: none`;
-   - `small_balanced`: bge-small, `class_weight: balanced`;
-   - `small_unweighted`: bge-small, `class_weight: none`.
-
-   All four candidates: `categorization/calibrated` (`method: auto`, `by: familiarity`) around `categorization/linear_text` with `C: 1.0`, and `task_params: {k: 3}`, like the launch round and the POC (`configs/experiments/categorization/launch/20_linear_base.yaml` is the template). The task's default `label_noise` (0.02) applies to the comparison runs; the twins set 0 explicitly. Don't add other candidates: §2 fixed the list before the round.
-4. **Regenerate the dataset** if you don't have it (git-ignored): `uv run sfc-data generate --spec configs/data/default.yaml --out data/synthetic/default.sqlite --force` (about 40 s). Confirm the data hash is `44781bc4e4a5`.
-5. **Run the round** in the background, logging to a file (`PYTHONUNBUFFERED=1`):
-
-   ```sh
-   uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite
-   ```
-
-   Expect about 1.5 hours on a laptop CPU: each calibrated bge-base configuration took about 14 minutes on 3 folds in the POC and bge-small about 8, and every candidate trains twice (comparison run and twin). Use the default local MLflow store, not the POC's `mlruns/poc-fr4.db`.
-6. **Read the leaderboard and the report.** `uv run sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite` and `... report ... --out <file>`. Check:
-   - the order comes from comparison runs, with ties broken on twins (§5);
-   - **no reversal** is marked. If one is, stop: it's investigated, not resolved by promoting another twin (§1). Raise it with the owner;
-   - the twins' numbers look like the POC's (clean bge-base about 0.71–0.75 unseen on validation, on a different holdout seed now).
-7. **Re-measure the bootstrap SD on the leader's twin** before the 0.70 gate is relied on (§4): the merchant bootstrap of its validation unseen-merchant macro F1, as `experiments/fr4_unseen/holdout_size.py` on the POC branch does, but with replacement only and on the twin's run. Record the SD and the pass-rate estimate in the round's report.
-8. **Write the round's report** in `docs/reports/` (like `FR-3 Categorization — Launch Round Results.md`): the generated tables, the confusions, the SD, and findings. Open the PR with the configs, the code and the report. **Don't run `finalize` in this milestone.**
+- Data hash `44781bc4e4a5`, split hash `7c63ab9af542`, one code version.
+- Every run was trained at commit `f53643f`, with a clean tree. The git tag **`runs/fr4-round`** keeps that commit on GitHub (the milestone 3 branch was rebased after the runs), so a promotion tags its release at the training code.
+- Run IDs: comparison `21_small_unweighted` `f0215572…`, its twin `6bc58706…`; `11_base_unweighted` `7d2f2cfe…`, twin `204755f9…`; `10_base_balanced` `349c4a7a…`, twin `906658b4…`; `20_small_balanced` `41e821ea…`, twin `a128c3d5…`; baselines `keyword` `6228528b…`, `lookup` `aec58497…`, `majority` `3fe785fb…`.
+- **Where the runs are:** a local MLflow store (`mlruns/` with `mlflow.db`) in the worktree that ran them, `/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3`. MLflow records absolute artifact paths, so the store can't be moved. That path is a session scratchpad, so it may not survive.
+- **If the store is gone:** check out the tag `runs/fr4-round` in a worktree, regenerate the dataset (data hash `44781bc4e4a5`), and rerun `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour). The test set is still untouched, so a rerun loses nothing but time.
 
 **Milestone 4: finalize and promote.** After milestone 3 merges, on a new branch.
 
-1. `uv run sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite` scores the twins of the top three, and the baselines, on the fresh test set, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
-2. If rank 1's twin passes every gate (FR-3's and FR-4's): `uv run sfc-model promote --task categorization --run <rank-1 twin run ID> --note "<explainability, operations, retraining cost, known issues>"`. It publishes the model file to a GitHub Release (`gh` with write access), writes `PROMOTED`, the manifest and `promotions.jsonl` (with `"task_params": {"label_noise": 0.0}`), and the release is tagged at the training commit only if the run was trained from a clean tree. **If rank 1 fails a gate, investigate; don't promote #2 without an override reason and the owner.**
+1. From the worktree that has the round's MLflow store (above), `uv run sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite` scores the twins of the top three, and the baselines, on the fresh test set, **once**. A second round needs `--override "<reason>"`; don't spend it casually.
+2. If rank 1's twin passes every gate (FR-3's, and FR-4's: unseen ≥ 0.66 and above keyword): `uv run sfc-model promote --task categorization --run <rank-1 twin run ID> --note "<explainability, operations, retraining cost, known issues>"`. It publishes the model file to a GitHub Release (`gh` with write access), writes `PROMOTED`, the manifest and `promotions.jsonl` (with `"task_params": {"label_noise": 0.0}`), and the release is tagged at the training commit only if the run was trained from a clean tree. **If rank 1 fails a gate, investigate; don't promote #2 without an override reason and the owner.**
 3. `uv run sfc-model predict --task categorization --data data/synthetic/default.sqlite --out data/predictions/default.sqlite`, and record rows per second and peak memory.
 4. Update FR-3 Categorization Model Selection (what's selected now, why, what lost) and the round's report (the test table from `sfc-experiment report`).
 5. **If the promotion PR is rejected, delete its release:** `gh release delete categorization-<version> --cleanup-tag`.
 
 **Milestone 5: docs.**
 
-- **PRD:** FR-4's success metric becomes ≥ 0.70 on new merchants for v1, with 0.80 for v1.1 through feedback (owner decision, open question 1 below).
+- **PRD:** FR-4's success metric becomes ≥ 0.66 on new merchants for v1 (set after the round, §4), with 0.80 for v1.1 through feedback (owner decisions, open question 1 below).
 - **Technical Design:** shipping twins, the FR-4 gate, and the decision-rule changes (tie-breaks on twins, the Brier tie test, the reversal stop).
 - **This section:** update it to "complete".
 
