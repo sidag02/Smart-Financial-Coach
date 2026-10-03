@@ -146,7 +146,7 @@ v1 succeeds when every capability meets its target and each beats a simple rule-
 
 **Revisited after the first measurement:** the new-merchant target was 0.80 for v1. A cold model learns new brands only from text, and the best measured one scores about 0.71 on validation, so v1 gates at 0.66, a level a model that good passes reliably. 0.80 moves to v1.1, where corrections from users teach the model new merchants (FR-4 Unseen Merchant Categorization — Feature Design, §4). The v1 model scored 0.735 on new merchants.
 
-**Unusual transactions, first measurement:** a per-user z-score on amount, the simple alternative, can reach 0.70 precision only on a handful of alerts, so recall is compared at the same number of alerts: 0.11 per user-month (FR-7 Unusual Transactions — Feature Design, §5). The v1 model scored precision 0.834 at its cutoff, and recall 0.720 at that rate against the alternative's 0.051 (FR-7 Unusual Transactions — Round Results).
+**Unusual transactions, first measurement:** a per-user z-score on amount, the simple alternative, can reach 0.70 precision only on a handful of alerts, so recall is compared at the same number of alerts: 0.11 per user-month (FR-7 Unusual Transactions — Feature Design, §5). The v1 model scored precision 0.834 at its cutoff, and recall 0.720 at that rate against the alternative's 0.051, from a second scoring of the test users after a feature fix: the first promoted model's history rank was two-sided, so cheap first visits read as large. That model had scored 0.814 and 0.715 on the first scoring (FR-7 Unusual Transactions — Round Results).
 
 **Caveat:** v1 is measured on synthetic data, which is easier than real data. Targets must be re-validated on real data before launch.
 
