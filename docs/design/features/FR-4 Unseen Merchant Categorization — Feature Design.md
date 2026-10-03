@@ -255,15 +255,15 @@ FR-4 is implemented. This section records where things ended, and what someone c
 | 4. Finalize and promote | #28 | Promoted `20eea4fb-44781bc4-c0274576` (bge-small, no class weights, clean labels): test known 0.983, all test users 0.943, unseen **0.735** (0.67–0.81) |
 | 5. Docs | #29 | PRD target (0.66 in v1, 0.80 in v1.1), Technical Design, the gate's scope |
 
-**After #28 merges: check the demo deploy.** The `Deploy demo` workflow runs on merges that touch `artifacts/**`, so #28's merge rebuilds the Oct 6, 2026 demo with the new categorizer.
-- Confirm the run succeeded; its smoke test checks that `/healthz` returns `"status":"ok"`.
-- Sign in and check a page's categories.
-- Before the merge, a local `sfc-web build-demo` with the new model built cleanly: 3 users, 9,185 transactions, Travel 22.
+**The demo deploy after #28: done.** #28's merge rebuilt the Oct 6, 2026 demo with the new categorizer.
+- The `Deploy demo` run (37108889864) succeeded. Its bundle step logged "3 users, 9185 transactions, categorized by 20eea4fb-44781bc4-c0274576", and its smoke test passed.
+- The demo runs `sfc-web:7e7b3fc`, and `/healthz` returns `"status":"ok"` with 3 users.
+- **Still open:** sign in and check a page's categories (it needs the demo password).
 
 **What depends on FR-4:** FR-5/FR-6 (draft #15). Its simulated replay runs on the promoted model, and its Feasibility section is re-measured on it (owner decision on #15).
 
 **Notes for reruns and later rounds:**
-- **The round's MLflow runs** are in a local store in the worktree that ran them (`/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3/mlruns`). The store can't be moved (MLflow records absolute artifact paths), and that path was a session scratchpad. Nothing remaining needs it.
+- **The round's MLflow runs** were in a local store on the machine that ran them, which no longer exists. Nothing remaining needs it.
   - To rebuild: check out the tag `runs/fr4-round` (the clean-tree training commit `f53643f`), regenerate the dataset (data hash `44781bc4e4a5`), and run `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour).
   - Don't rerun `finalize` on that split without an override reason: its test set is used.
 - **Run a round on a quiet machine.** Batch cost is measured during the run, and it decides between runs tied on F1 and Brier (§5). In this round the gap (1.34 s against 3.73 s) was too large to flip.
