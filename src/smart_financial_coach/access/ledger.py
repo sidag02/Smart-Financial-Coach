@@ -3,7 +3,8 @@
 A `Ledger` is built for a single `user_id` and every read under it goes through the data store's
 user-scoped readers, so nothing built on it can reach another user's rows (Technical Design,
 "Security and data isolation", step 3). Categories come from the predictions file of the promoted
-model (FR-3); merchant display names from the shared normalizer, title-cased (Web App UI, gap 1).
+model (FR-3); merchant display names from the shared normalizer, title-cased (Web App UI, gap 1);
+unusual-charge flags from the promoted FR-7 model's flag file, when there is one (FR-7 §8).
 
     sources = DataSources.from_dir(settings.demo_dir)
     ledger = Ledger.load(sources, user_id)
@@ -22,6 +23,7 @@ import pandas as pd
 from smart_financial_coach.access.feedback import FeedbackStore, effective_categories
 from smart_financial_coach.data import store
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
+from smart_financial_coach.data.flags import load_flags
 from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
 
 INCOME = "Income"
@@ -48,10 +50,16 @@ _COLUMNS = [
 class DataSources:
     dataset: Path  # a generated dataset (model-visible tables are all that's read)
     predictions: Path  # the promoted categorizer's output for it
+    # The promoted FR-7 model's flags for it; None until a model is promoted, and unusual
+    # charges stay "not available yet" (the Delivery Plan's sync rule)
+    flags: Path | None = None
 
     @classmethod
     def from_dir(cls, root: Path) -> "DataSources":
-        return cls(root / "dataset.sqlite", root / "predictions.sqlite")
+        flags = root / "flags.sqlite"
+        return cls(
+            root / "dataset.sqlite", root / "predictions.sqlite", flags if flags.exists() else None
+        )
 
     def as_of(self) -> date:
         """The dataset's last day: the app's "today" (Web App UI, gap 8)."""
@@ -94,6 +102,8 @@ class Ledger:
     transactions: pd.DataFrame  # one row per transaction, newest first
     goals: pd.DataFrame
     as_of: date
+    # The user's unusual-charge flags (data.flags columns), or None when no model is promoted
+    flags: pd.DataFrame | None = None
 
     @classmethod
     def load(cls, sources: DataSources, user_id: str) -> "Ledger":
@@ -134,4 +144,5 @@ def _load(sources: DataSources, user_id: str) -> Ledger:
         transactions=merged,
         goals=store.load_goals(sources.dataset, user_id=user_id),
         as_of=sources.as_of(),
+        flags=load_flags(sources.flags, user_id=user_id) if sources.flags else None,
     )
