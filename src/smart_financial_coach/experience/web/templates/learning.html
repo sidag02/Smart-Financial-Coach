@@ -1,5 +1,12 @@
 {% extends "base.html" %}
 {% from "_macros.html" import cat_chip %}
+{% set gate_names = {
+  "macro_f1_view": "Better for people who gave no labels",
+  "familiar_no_regression": "Known merchants no worse",
+  "labelled_strings_improve": "Agreed merchants better",
+  "unfamiliar_brier": "Confidence still honest",
+  "truth_macro_f1 (reported, not gated)": "Against the true categories (shown, not a gate)",
+} %}
 {% macro pct(v) %}{% if v is none %}–{% else %}{{ (v * 100) | round(1) }}%{% endif %}{% endmacro %}
 {% block title %}How it learns · Smart Financial Coach{% endblock %}
 {% block main %}
@@ -62,7 +69,7 @@
         <td class="num">{{ s.month }}</td>
         <td>{{ s.labels }}{% if s.new_labels %} <span class="muted">(+{{ s.new_labels | length }}{% if s.revoked %}, −{{ s.revoked | length }}{% endif %})</span>{% endif %}</td>
         <td class="muted">{% if s.training_rows %}{{ "{:,}".format(s.training_rows) }} · {{ "{:,}".format(s.relabelled_rows) }} relabelled · {{ "{:,}".format(s.added_rows) }} from contributors{% else %}–{% endif %}</td>
-        <td>{% for g in s.gates or [] %}<div class="gate {{ 'pass' if g.passed else 'fail' }}">{{ "✓" if g.passed else "✗" }} {{ g.name | replace("_", " ") }} <span class="muted">{{ g.detail }}</span></div>{% endfor %}</td>
+        <td>{% for g in s.gates or [] %}<div class="gate {{ 'pass' if g.passed else 'fail' }}">{{ "✓" if g.passed else "✗" }} <span title="{{ g.name }}">{{ gate_names.get(g.name, g.name | replace("_", " ")) }}</span> <span class="muted">{{ g.detail }}</span></div>{% endfor %}</td>
         <td><b class="decision {{ s.decision.split(':')[0] }}">{{ s.decision }}</b></td>
       </tr>
     {% endfor %}
