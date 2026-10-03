@@ -1,0 +1,94 @@
+{
+  "baseline": "false",
+  "chosen_params": {},
+  "code_version": "2e03360620a69e9b",
+  "config": {
+    "baseline": false,
+    "complexity": 3,
+    "grid": {},
+    "model": {
+      "params": {
+        "base": {
+          "$model": {
+            "params": {
+              "one_sided_rank": true,
+              "seed": 0
+            },
+            "type": "unusual_transactions/isolation_forest"
+          }
+        },
+        "precision": 0.8
+      },
+      "type": "unusual_transactions/thresholded"
+    },
+    "name": "isolation_forest_one_sided",
+    "seed": 0,
+    "ship": null,
+    "tags": {
+      "added": "after-test-scoring",
+      "plan": "fr7-round"
+    },
+    "task": "unusual_transactions",
+    "task_params": {}
+  },
+  "config_hash": "e0b67433ec36af559d903b78ac0e80cb97c39ab8fe39423099a4974925a0a26e",
+  "data_hash": "8b9632e6c93584a847ac7e90bdbbc3bd9b57024b882394936e8be5c7c88bcda0",
+  "git_commit": "0c6f85709771f4c5d15b5f4fd63038d5d1948332",
+  "git_dirty": "false",
+  "kind": "experiment",
+  "metrics": {
+    "fit.cutoff": 0.7300466727044342,
+    "fit.train_flag_rate": 0.126489585450744,
+    "fit.train_precision": 0.8005982053838484,
+    "fit.train_recall": 0.7589792060491494,
+    "latency_batch_ms": 244.94945799233392,
+    "latency_batch_rows": 10000.0,
+    "latency_p50_ms": 11.171707985340618,
+    "latency_p95_ms": 12.06571874936344,
+    "latency_warm_p95_ms": 12.473597601638176,
+    "val_average_precision": 0.8090630484727359,
+    "val_cutoff_shortfall": 0.20812685827552035,
+    "val_flag_rate": 0.1291379217363528,
+    "val_flags_without_reason": 0.0,
+    "val_fn": 259.0,
+    "val_fp": 210.0,
+    "val_ignored": 80.0,
+    "val_precision": 0.7918731417244796,
+    "val_precision_at_rate": 0.8619883040935673,
+    "val_reason_accuracy": 0.9737171464330413,
+    "val_reason_error": 0.026282853566958697,
+    "val_recall": 0.7551984877126654,
+    "val_recall.amount_outlier": 0.5474254742547425,
+    "val_recall.duplicate": 1.0,
+    "val_recall.new_merchant_large": 0.7393767705382436,
+    "val_recall_at_rate": 0.6965973534971645,
+    "val_recall_clear": 0.7595057034220533,
+    "val_tp": 799.0
+  },
+  "mlflow_run_id": "e9d3923526ae42eeb1ead6d71ed04a22",
+  "model_sha256": "c55339be327575c8a752ee0a8a1bad4b489921ae4b4bffca8cdcf0ee343f2c99",
+  "model_type": "unusual_transactions/thresholded",
+  "name": "unusual_transactions/thresholded",
+  "params": {
+    "base": {
+      "$model": {
+        "params": {
+          "duplicate_minutes": 90.0,
+          "max_samples": 4096,
+          "min_spread": 0.25,
+          "n_estimators": 200,
+          "one_sided_rank": true,
+          "seed": 0
+        },
+        "type": "unusual_transactions/isolation_forest"
+      }
+    },
+    "precision": 0.8,
+    "rate": null,
+    "search": null,
+    "search_rate": 0.11
+  },
+  "split_hash": "8c4aef332cdb3d18dbd50ff67dadd2176637b1d4a3710a41c0ad7adbc4b78a49",
+  "task": "unusual_transactions",
+  "version": "e0b67433-8b9632e6-2e033606"
+}

@@ -1,6 +1,6 @@
 # FR-7 Unusual Transactions — Round Results
 
-Oct 3, 2026 · @Sidd · Milestone 3 of FR-7 Unusual Transactions — Feature Design (validation; test results are in milestone 4)
+Oct 3, 2026 · @Sidd · Milestones 3 and 4 of FR-7 Unusual Transactions — Feature Design (test results and promotion added in milestone 4)
 
 ## Summary
 
@@ -122,3 +122,47 @@ New-merchant recall by the number of *other* users with charges at the merchant 
    - search choices are recorded (#37).
 
    All six configs ran on the same splits. **Test users were scored a second time** by `finalize --override`, with the reason recorded on every run it scored (milestone 4, #39). The superseded promotion was never merged; its release is deleted.
+
+## Test results and promotion (Oct 3, 2026)
+
+**Test users were scored twice for FR-7.** Both scorings used `finalize`, on the 120 test users (533 planted charges). Test users' profiles come from every user, as serving's do.
+
+### Second scoring: this round (the one promoted)
+
+Run by `finalize --override`. The override reason is recorded on every run it scored: a design-conformance fix found in serving review (owner decision on #39).
+
+| Rank | Run | Precision at own cutoff (95% user-bootstrap) | Recall | Recall at 0.11/user-month (95%) | Flag rate | Reason accuracy | Duplicate | Amount outlier | New merchant |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | `isolation_forest_one_sided` | **0.834** (0.805–0.863) | 0.790 | **0.720** (0.68–0.76) | 0.129 | 0.974 | 1.000 | 0.554 | 0.804 |
+| 2 | `isolation_forest` | 0.814 (0.78–0.85) | 0.771 | 0.705 (0.67–0.75) | 0.129 | 0.976 | 1.000 | 0.524 | 0.778 |
+| 3 | `rules` | 0.808 (0.78–0.84) | 0.704 | 0.679 (0.64–0.72) | 0.119 | 0.973 | 1.000 | 0.268 | 0.815 |
+| base | `user_zscore` | 0.667 (0.33–1.00) | 0.011 | 0.051 (0.03–0.07) | 0.002 | 0.000 | 0.000 | 0.000 | 0.032 |
+| report only | `user_zscore_duplicate` | 0.759 (0.64–0.90) | 0.366 | 0.373 (0.34–0.41) | 0.067 | 0.903 | 1.000 | 0.000 | 0.101 |
+
+- **Rank 1 passes every gate** (#30 §5):
+  - precision 0.834 ≥ 0.70, with the whole interval above it;
+  - recall at the common rate 0.720 against the baseline's 0.051;
+  - every flag has a reason.
+- **Gate 2 at rank 1's own volume** (0.129 flags per user-month, 511 test flags; §6, review on #39): the baseline's recall there is **0.053** (precision 0.055), and the report-only duplicate baseline's is 0.377 (precision 0.400). Rank 1's recall at its own cutoff is 0.790.
+- **The two-sided forest reproduces its first scoring exactly at its own cutoff** (precision 0.814, recall 0.771), which checks the rerun. Its recall at the common rate moved from 0.715 to 0.705, because duplicate originals now count in the budget.
+- **Promoted: `isolation_forest_one_sided`, version `e0b67433-8b9632e6-2e033606`.** The model file is in the GitHub Release `unusual_transactions-e0b67433-8b9632e6-2e033606`, tagged at the training commit `0c6f857`.
+- **The superseded promotion** (`fb6dab21-8b9632e6-b5c5488f`, below) was never merged to `main`. Its artifacts are removed from the branch and its release is deleted (owner instruction on #39).
+
+### First scoring: the first round (superseded)
+
+Run by `finalize` with no override, on the first round's runs (commit `afeed9c`).
+
+| Rank | Run | Precision (95%) | Recall | Recall at 0.11/user-month (95%) | Reason accuracy |
+| --- | --- | --- | --- | --- | --- |
+| 1 | `isolation_forest` | 0.814 (0.78–0.85) | 0.771 | 0.715 (0.67–0.75) | 0.976 |
+| 2 | `rules` | 0.781 (0.75–0.81) | 0.717 | 0.674 (0.63–0.72) | 0.976 |
+| 3 | `probabilistic` | 0.836 (0.80–0.88) | 0.572 | 0.625 (0.58–0.67) | 0.980 |
+| base | `user_zscore` | 0.667 (0.33–1.00) | 0.011 | 0.051 (0.03–0.07) | 0.000 |
+
+### Serving, measured with the promoted model
+
+- **The nightly job** (`sfc-model predict --task unusual_transactions`) flags all 360 users in **33 s**: 1,602 flags, of which 549 duplicates, 431 unusual amounts and 622 new merchants.
+- **The cheap-first-visit flags** that prompted the fix: new-merchant flags on charges below the user's median went from **57 to 13**.
+  - **The 13 left are a different signal:** bank fees, ATM fees and parking at 3–6× what other users pay at the same merchant. That is the merchant-price signal working as designed.
+  - **Their reasons still read oddly** ("larger than 28% of your earlier charges"), because a reason can't quote what other users pay (NFR-2). Wording for that case is a follow-up for the owner.
+- **The demo bundle** scores its accounts against every user's profiles. It has 6 flags across the 3 accounts (1 in the 60-day window), and Overview, "Worth a look" and Transactions return 200 for every account, including one with no flags (the blocker found on #39).

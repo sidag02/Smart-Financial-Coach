@@ -192,3 +192,4 @@ def test_system_prompt_states_the_rules() -> None:
     assert "not_available" in prompt
     assert "needs_confirmation" in prompt  # bulk category changes are asked about first
     assert "only when the person asks" in prompt
+    assert "never call a charge fraud" in prompt

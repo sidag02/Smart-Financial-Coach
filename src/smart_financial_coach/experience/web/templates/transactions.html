@@ -53,7 +53,7 @@
       <tr>
         <td class="muted num" style="white-space:nowrap">{{ t.ts.strftime('%b') }} {{ t.ts.day }}</td>
         <td>
-          <div class="merchant">{{ t.merchant }}</div>
+          <div class="merchant">{{ t.merchant }}{% if t.transaction_id in flagged %} <a class="badge look" href="/worth-a-look" title="This charge looks different from your usual pattern">Worth a look</a>{% endif %}</div>
           <div class="raw">{{ t.merchant_raw }}</div>
           <div class="m-only">{{ edit_category(t, unsure, why) }}</div>
         </td>
