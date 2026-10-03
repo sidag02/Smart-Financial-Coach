@@ -3,6 +3,7 @@ numbers as the in-process tools (FR-19, key scenarios 5 and 6)."""
 
 import re
 import threading
+import time
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 from functools import partial
@@ -66,8 +67,9 @@ def mcp_tools(
     user: str,
     lifetime: timedelta = timedelta(minutes=5),
     app: ASGIApp | None = None,
+    feedback_subject: str | None = None,
 ) -> McpTools:
-    token = AccessTokens(SECRET, [user]).issue(user, lifetime)
+    token = AccessTokens(SECRET, [user]).issue(user, lifetime, feedback_subject=feedback_subject)
     return McpTools(app or client.app, token, as_of=AS_OF, loop=app_loop(client))
 
 
@@ -125,6 +127,11 @@ def test_the_server_lists_the_tools_with_no_user_argument(
     assert {s["name"] for s in specs} == {
         "get_spending_summary",
         "get_transactions",
+        "list_review_items",
+        "resolve_review_item",
+        "correct_category",
+        "undo_correction",
+        "list_corrections",
         "list_goals",
         "detect_anomalies",
         "forecast_goal",
@@ -201,3 +208,47 @@ def test_a_signed_out_visitor_gets_no_token(client: TestClient) -> None:
     reply = client.get("/connect", follow_redirects=False)
     assert reply.status_code == 303
     assert "sfc_" not in reply.text
+
+
+def test_feedback_follows_the_tokens_feedback_subject(client: TestClient, users: list[str]) -> None:
+    """Two visitors on one demo account (two sessions, two tokens): a correction made through one
+    assistant is invisible to the other, and changes the first one's numbers at once."""
+    mine = mcp_tools(client, users[0], feedback_subject="session-a")
+    theirs = mcp_tools(client, users[0], feedback_subject="session-b")
+
+    def scenario() -> tuple[dict[str, Any], ...]:
+        item = mine.call("list_review_items", {"limit": 1}).data["items"][0]
+        new = "Travel" if item["suggested_category"] != "Travel" else "Entertainment"
+        args = {"item_id": item["item_id"], "action": "correct", "category": new}
+        preview = mine.call("resolve_review_item", args).data
+        applied = mine.call("resolve_review_item", {**args, "confirm": True}).data
+        their_items = theirs.call("list_review_items", {"limit": 25}).data
+        my_items = mine.call("list_review_items", {"limit": 25}).data
+        return item, preview, applied, my_items, their_items
+
+    item, preview, applied, my_items, their_items = in_worker_thread(client, scenario)
+
+    if item["transaction_count"] > 1:
+        assert preview["status"] == "needs_confirmation"  # the coach asks before a bulk change
+    assert applied["status"] == "applied"
+    assert applied["correction"]["source"] == "coach"
+    assert item["item_id"] not in {i["item_id"] for i in my_items["items"]}
+    assert my_items["open_items"] == their_items["open_items"] - 1
+    assert item["item_id"] in {i["item_id"] for i in their_items["items"]}
+
+
+def test_a_token_from_before_feedback_gets_read_only_tools(
+    client: TestClient, users: list[str]
+) -> None:
+    """No `fb` claim: not the shared account's feedback, which every visitor would share."""
+    tokens = AccessTokens(SECRET, users)
+    expires = int(time.time()) + 300
+    old = "sfc_" + tokens._signer.dumps({"sub": users[0], "exp": expires, "client": "assistant"})
+    assert tokens.user(old) == users[0]
+    assert tokens.feedback_subject(old) is None
+    tools = McpTools(client.app, old, as_of=AS_OF, loop=app_loop(client))
+
+    listed = in_worker_thread(client, lambda: tools.call("list_review_items", {}).data)
+    assert listed["open_items"] > 0  # reading works
+    with pytest.raises(ToolError, match="isn't available"):
+        in_worker_thread(client, lambda: tools.call("list_corrections", {}))

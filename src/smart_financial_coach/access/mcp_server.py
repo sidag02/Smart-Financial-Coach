@@ -4,7 +4,8 @@ One contract for every client (Technical Design, "Tool interface"): the coach an
 such as Claude Desktop call the same tools here and get the same numbers (key scenario 6). Each
 tool wraps `access.tools.Tools`, built for the user named by the bearer token, never by a tool
 argument. Results are the tools' JSON plus a `source` (title, detail), which the coach shows as a
-source chip (FR-16).
+source chip (FR-16). Category feedback (FR-5, FR-6) is read and written for the token's feedback
+subject, as an assistant: changes to more than one transaction need `confirm` (#15 §3).
 
     server, asgi = build_mcp_server(sources, tokens, public_url="https://…")
     app.mount("/", asgi)  # serves /mcp; run `server.session_manager.run()` in the lifespan
@@ -22,9 +23,17 @@ from mcp.server.transport_security import TransportSecuritySettings
 from pydantic import Field
 from starlette.applications import Starlette
 
+from smart_financial_coach.access.feedback import FeedbackStore
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.tokens import AccessTokens
-from smart_financial_coach.access.tools import MAX_TRANSACTIONS, TOOL_SPECS, ToolError, Tools
+from smart_financial_coach.access.tools import (
+    MAX_ITEMS,
+    MAX_TRANSACTIONS,
+    TOOL_SPECS,
+    Feedback,
+    ToolError,
+    Tools,
+)
 
 PATH = "/mcp"
 # The host the coach uses to reach this server in-process (access.mcp_client)
@@ -44,6 +53,7 @@ def build_mcp_server(
     tokens: AccessTokens,
     *,
     public_url: str,
+    feedback: FeedbackStore | None = None,
     extra_hosts: Sequence[str] = (),
 ) -> tuple[MCPServer, Starlette]:
     """`extra_hosts` adds Host headers to accept beyond the public and in-process ones (tests)."""
@@ -63,7 +73,9 @@ def build_mcp_server(
         token = get_access_token()
         if token is None or token.subject is None:  # the transport requires one; belt and braces
             raise McpToolError("not signed in")
-        tools = Tools(Ledger.load(sources, token.subject))
+        subject = tokens.feedback_subject(token.token)
+        context = Feedback(feedback, subject, "coach") if feedback and subject else None
+        tools = Tools(Ledger.load(sources, token.subject), context)
         try:
             result = tools.call(name, {k: v for k, v in arguments.items() if v is not None})
         except ToolError as error:
@@ -95,6 +107,48 @@ def build_mcp_server(
             sort=sort,
             limit=limit,
         )
+
+    @server.tool(description=_DESCRIPTIONS["list_review_items"])
+    def list_review_items(limit: Annotated[int, Field(ge=1, le=MAX_ITEMS)] = 10) -> dict[str, Any]:
+        return run("list_review_items", limit=limit)
+
+    @server.tool(description=_DESCRIPTIONS["resolve_review_item"])
+    def resolve_review_item(
+        item_id: str,
+        action: Literal["confirm", "correct"],
+        category: Annotated[str | None, Field(description="the new category, for correct")] = None,
+        confirm: Annotated[bool, Field(description="the user agreed to the preview")] = False,
+    ) -> dict[str, Any]:
+        return run(
+            "resolve_review_item",
+            item_id=item_id,
+            action=action,
+            category=category,
+            confirm=confirm,
+        )
+
+    @server.tool(description=_DESCRIPTIONS["correct_category"])
+    def correct_category(
+        transaction_id: str,
+        category: Annotated[str, Field(description="one of the 13 categories")],
+        scope: Literal["merchant", "transaction"] = "merchant",
+        confirm: Annotated[bool, Field(description="the user agreed to the preview")] = False,
+    ) -> dict[str, Any]:
+        return run(
+            "correct_category",
+            transaction_id=transaction_id,
+            category=category,
+            scope=scope,
+            confirm=confirm,
+        )
+
+    @server.tool(description=_DESCRIPTIONS["undo_correction"])
+    def undo_correction(correction_id: str) -> dict[str, Any]:
+        return run("undo_correction", correction_id=correction_id)
+
+    @server.tool(description=_DESCRIPTIONS["list_corrections"])
+    def list_corrections(limit: Annotated[int, Field(ge=1, le=MAX_ITEMS)] = 10) -> dict[str, Any]:
+        return run("list_corrections", limit=limit)
 
     @server.tool(description=_DESCRIPTIONS["list_goals"])
     def list_goals() -> dict[str, Any]:

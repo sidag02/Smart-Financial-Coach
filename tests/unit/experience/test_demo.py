@@ -10,13 +10,13 @@ from smart_financial_coach.data import store
 from smart_financial_coach.data.predictions import CategoryWriter
 from smart_financial_coach.experience import demo
 from smart_financial_coach.intelligence.categorization.batch import BatchRun
-from tests.unit.conftest import stub_categories
+from tests.unit.conftest import STUB_META, stub_categories
 
 
 def fake_categorize(data: Path, out: Path, **_: object) -> BatchRun:
     """Write predictions the way the real batch does (through an owner-only temporary file)."""
     txns = store.load_transactions(data)
-    with CategoryWriter(out, {"model_version": "stub"}, overwrite=True) as writer:
+    with CategoryWriter(out, STUB_META, overwrite=True) as writer:
         writer.append(txns["user_id"], stub_categories(txns))
     return BatchRun("stub", len(txns), 0.0, 0.0)
 

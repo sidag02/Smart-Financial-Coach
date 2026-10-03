@@ -28,12 +28,13 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
-from smart_financial_coach.access.ledger import INCOME, REVIEW_BELOW, DataSources, Ledger
+from smart_financial_coach.access.feedback import FeedbackStore
+from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
 from smart_financial_coach.access.tokens import AccessTokens
-from smart_financial_coach.access.tools import Source, Tools, span_label
+from smart_financial_coach.access.tools import Feedback, Source, Tools, span_label
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
@@ -214,7 +215,11 @@ def create_app(
     # their bearer token names
     public_url = settings.public_url.rstrip("/")
     tokens = AccessTokens(settings.session_secret.get_secret_value(), by_user)
-    mcp_server, mcp_asgi = build_mcp_server(sources, tokens, public_url=public_url)
+    # Category feedback (FR-5, FR-6), keyed by browser session: visitors share demo accounts
+    feedback = FeedbackStore(settings.feedback_db, sources.categories())
+    mcp_server, mcp_asgi = build_mcp_server(
+        sources, tokens, public_url=public_url, feedback=feedback
+    )
 
     loop: dict[str, EventLoopToken] = {}  # the app's event loop, for the coach's MCP calls
 
@@ -252,7 +257,6 @@ def create_app(
         horizons=HORIZONS,
         colors=charts.colors,
         as_of=as_of.isoformat(),
-        review_below=REVIEW_BELOW,
     )
 
     @app.middleware("http")
@@ -273,8 +277,18 @@ def create_app(
             raise NotSignedInError
         return account
 
-    def tools_for(account: Account) -> Tools:
-        return Tools(Ledger.load(sources, account.user_id))
+    def feedback_id(request: Request) -> str:
+        """Whose category feedback this is: the browser session, not the shared account, so two
+        visitors on one demo account never see each other's corrections (owner, Oct 3, 2026).
+        Kept apart from the chat's id, which a new chat replaces."""
+        if not request.session.get("fid"):
+            request.session["fid"] = secrets.token_urlsafe(16)
+        return str(request.session["fid"])
+
+    def tools_for(account: Account, request: Request) -> Tools:
+        return Tools(
+            Ledger.load(sources, account.user_id), Feedback(feedback, feedback_id(request))
+        )
 
     def page(request: Request, name: str, account: Account | None, **context: Any) -> Response:
         theme = request.cookies.get("theme")
@@ -305,7 +319,9 @@ def create_app(
 
     def start_session(request: Request, account: Account) -> Response:
         request.session.clear()  # a new session id at every sign-in (no fixation)
-        request.session.update(uid=account.user_id, sid=secrets.token_urlsafe(16))
+        request.session.update(
+            uid=account.user_id, sid=secrets.token_urlsafe(16), fid=secrets.token_urlsafe(16)
+        )
         return RedirectResponse("/", status_code=303)
 
     # Health and sign-in
@@ -373,7 +389,7 @@ def create_app(
     @app.get("/")
     def overview(request: Request, month: str | None = None, horizon: str = "month") -> Response:
         account = signed_in(request)
-        tools = tools_for(account)
+        tools = tools_for(account, request)
         period = month_period(month, as_of)
         summary = tools.get_spending_summary(period.start.isoformat(), period.end.isoformat())
         year = tools.get_spending_summary(
@@ -402,7 +418,7 @@ def create_app(
 
     @app.get("/flow")
     def flow(request: Request, month: str | None = None, horizon: str = "month") -> Response:
-        tools = tools_for(signed_in(request))
+        tools = tools_for(signed_in(request), request)
         context = flow_context(tools, month_period(month, as_of), horizon)
         return page(request, "_flow.html", None, **context)
 
@@ -410,7 +426,7 @@ def create_app(
     def drill(
         request: Request, category: str, month: str | None = None, horizon: str = "month"
     ) -> Response:
-        tools = tools_for(signed_in(request))
+        tools = tools_for(signed_in(request), request)
         period = horizon_period(month_period(month, as_of), horizon)
         if category not in tools.categories:
             return Response(status_code=404)
@@ -439,11 +455,11 @@ def create_app(
         review: bool = False,
     ) -> Response:
         account = signed_in(request)
-        tools = tools_for(account)
+        tools = tools_for(account, request)
         period = month_period(month, as_of)
         category = category if category in tools.categories else None
         rows = tools.ledger.between(period.start, period.end)
-        not_sure = int((rows["confidence"] < REVIEW_BELOW).sum())
+        not_sure = int(rows["needs_review"].sum())
         if category:
             rows = rows[rows["category"] == category]
         if q.strip():
@@ -453,7 +469,7 @@ def create_app(
                 | rows["merchant_raw"].str.contains(text, case=False, regex=False)
             ]
         if review:
-            rows = rows[rows["confidence"] < REVIEW_BELOW]
+            rows = rows[rows["needs_review"]]
         return page(
             request,
             "transactions.html",
@@ -468,6 +484,11 @@ def create_app(
             categories=[c for c in tools.categories if c != INCOME] + [INCOME],
             q=q,
             review=review,
+            # The review policy the bundle was flagged with, read here rather than at start-up,
+            # so an unreadable bundle shows in /healthz instead of stopping the app
+            review_below=dict(
+                zip(("familiar", "unfamiliar"), sources.review_thresholds(), strict=True)
+            ),
         )
 
     # Chat (mockup 1d)
@@ -521,7 +542,12 @@ def create_app(
                 )
             else:
                 try:
-                    token = tokens.issue(account.user_id, COACH_TOKEN_LIFETIME, client="coach")
+                    token = tokens.issue(
+                        account.user_id,
+                        COACH_TOKEN_LIFETIME,
+                        client="coach",
+                        feedback_subject=feedback_id(request),
+                    )
                     tools = McpTools(app, token, as_of=as_of, loop=loop["token"])
                     reply = coach.answer(tools, convo, question)
                     context["reply"] = reply
@@ -560,7 +586,7 @@ def create_app(
     @app.get("/goals")
     def goals(request: Request) -> Response:
         account = signed_in(request)
-        listed = tools_for(account).list_goals().data["goals"]
+        listed = tools_for(account, request).list_goals().data["goals"]
         return page(request, "coming.html", account, active="goals", feature="goals", goals=listed)
 
     # Connect an assistant (FR-19): a personal access token for this user's MCP access
@@ -574,7 +600,7 @@ def create_app(
             "connect.html",
             account,
             active="connect",
-            token=tokens.issue(account.user_id, lifetime),
+            token=tokens.issue(account.user_id, lifetime, feedback_subject=feedback_id(request)),
             expires=(datetime.now() + lifetime).date(),
             mcp_url=f"{public_url}{MCP_PATH}",
         )
