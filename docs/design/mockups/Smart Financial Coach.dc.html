@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,600;12..96,700&family=Figtree:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+<style>body{margin:0;background:#EFE8E0;font-family:'Figtree',system-ui,sans-serif}a{color:#A9521C}a:hover{color:#2D2622}.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 8px}.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}.dv-group{font:600 12px/1.2 system-ui,sans-serif;color:rgba(0,0,0,.5);text-transform:uppercase;letter-spacing:.06em;margin:28px 0 14px}.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11px/1.3 system-ui,sans-serif;color:rgba(0,0,0,.55)}.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}.dv-next{margin:22px 0 0;font:12px/1.5 system-ui,sans-serif;color:rgba(0,0,0,.5)}.dv-intro{font:13px/1.55 system-ui,sans-serif;color:rgba(0,0,0,.62);max-width:820px;margin:0}</style>
+</helmet>
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Smart Financial Coach v1: dashboards, core screens, mobile</span></div>
+<p class="dv-intro">Soft, warm and calm: cream grounds, apricot accent, sage for good news, soft amber for "worth a look". Every number from the coach has a source chip, forecasts show a likely range, and low-confidence categories ask for review. Use the Persona tweak (internal only, never shown to customers) to swap in each synthetic profile's data. Data runs through Sep 30, 2026.</p>
+
+<div class="dv-group">Dashboard layouts</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Classic grid: ask bar on top, cards below</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0;position:relative">
+  <dc-import name="Sidebar" active="Overview" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:20px">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px">
+      <div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:30px;letter-spacing:-.01em">Good evening, {{ first }}</div>
+        <div style="font-size:15px;color:#6B5E55;margin-top:4px">Here's September 2026 at a glance.</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:99px;padding:8px 16px;font-size:14px;font-weight:600">September 2026 ▾</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      <div style="background:#FFFFFF;border:1.5px solid #F2C7A5;border-radius:20px;padding:10px 10px 10px 14px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(242,163,107,.14)">
+        <div style="width:32px;height:32px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px">{{ coachInitial }}</div>
+        <div style="flex:1;font-size:15.5px;color:#8C7E74">Ask {{ coachName }} anything about your money…</div>
+        <div style="background:#2D2622;color:#FFFFFF;border-radius:14px;padding:10px 18px;font-weight:600;font-size:14px">Ask</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <sc-for list="{{ askChips }}" as="c" hint-placeholder-count="3"><div style="background:#FDEBDD;color:#7A3A12;border-radius:99px;padding:6px 12px;font-size:13px;font-weight:500">{{ c }}</div></sc-for>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1.15fr 1.15fr;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:6px">
+        <div style="font-size:13.5px;color:#6B5E55;font-weight:500">Spent in September</div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:40px;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ spentFmt }}</div>
+        <div style="display:flex"><div style="background:{{ vsBg }};color:{{ vsFg }};border-radius:99px;padding:4px 10px;font-size:13px;font-weight:600">{{ vsText }}</div></div>
+        <div style="flex:1"></div>
+        <div style="display:flex;justify-content:space-between;font-size:13.5px;color:#6B5E55;border-top:1px solid #F3EAE0;padding-top:10px;margin-top:8px"><span>Income this month</span><span style="color:#2D2622;font-weight:600">{{ incomeFmt }}</span></div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13.5px;color:#6B5E55;font-weight:500">{{ goal.name }}</div><div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700">{{ goal.stLabel }}</div></div>
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:30px;font-variant-numeric:tabular-nums">{{ goal.savedFmt }}</span><span style="color:#6B5E55;font-size:14px">of {{ goal.targetFmt }} by {{ goal.byShort }}</span></div>
+        <div style="height:10px;background:#F3E8DC;border-radius:99px;overflow:hidden"><div style="height:100%;width:{{ goal.savedPct }};background:#F2A36B;border-radius:99px"></div></div>
+        <div style="font-size:13.5px;color:#2D2622;line-height:1.45;text-wrap:pretty">Likely <b>{{ goal.projFmt }}</b> by {{ goal.byShort }} <span style="color:#6B5E55">(range {{ goal.rangeFmt }})</span>. {{ goal.statusText }}.</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13.5px;color:#6B5E55;font-weight:500">Worth a look</div><div style="font-size:13px;color:#A9521C;font-weight:600">See all {{ flagCount }}</div></div>
+        <sc-for list="{{ flagList }}" as="f" hint-placeholder-count="2">
+          <div style="display:flex;gap:10px;align-items:flex-start;background:#FDF8EC;border-radius:14px;padding:10px 12px">
+            <div style="width:8px;height:8px;border-radius:99px;background:#E3B347;margin-top:6px;flex:none"></div>
+            <div style="flex:1;min-width:0"><div style="display:flex;justify-content:space-between;gap:8px;font-size:14px;font-weight:600"><span>{{ f.title }}</span><span style="font-variant-numeric:tabular-nums">{{ f.amt }}</span></div><div style="font-size:12.5px;color:#6B5E55;margin-top:2px;line-height:1.4">{{ f.reason }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:14px;flex:1;min-height:0">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+        <div><div style="font-weight:600;font-size:15px">Where your money went · {{ flowPeriod }}</div><div style="font-size:13px;color:#6B5E55;margin-top:2px">{{ flowSummary }}</div></div>
+        <div style="display:flex;background:#F3EAE0;border-radius:12px;padding:3px"><sc-for list="{{ horizons }}" as="h" hint-placeholder-count="4"><div onClick="{{ h.pick }}" style="padding:6px 13px;font-size:13px;font-weight:{{ h.w }};background:{{ h.bg }};color:{{ h.fg }};border-radius:9px;cursor:pointer;box-shadow:{{ h.sh }}">{{ h.label }}</div></sc-for></div>
+      </div>
+      <div style="position:relative;height:260px;margin-top:auto">
+        <svg viewBox="0 0 920 {{ flowH }}" preserveAspectRatio="none" style="position:absolute;inset:0;width:100%;height:100%">
+          <sc-for list="{{ flowRibbons }}" as="r"><path d="{{ r.d }}" fill="{{ r.fill }}" fill-opacity="{{ r.op }}"></path></sc-for>
+        </svg>
+        <sc-for list="{{ flowBlocks }}" as="b"><div style="position:absolute;left:{{ b.l }};width:{{ b.w }};top:{{ b.t }};height:{{ b.h }};background:{{ b.bg }};border-radius:12px;padding:6px 12px;box-sizing:border-box;display:flex;flex-direction:column;justify-content:center;overflow:hidden"><div style="font-size:12.5px;font-weight:600;color:{{ b.fg }};white-space:nowrap">{{ b.label }}</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:19px;font-variant-numeric:tabular-nums">{{ b.amt }}</div></div></sc-for>
+        <sc-for list="{{ flowCats }}" as="c"><div style="position:absolute;left:76.1%;width:0.9%;top:{{ c.t }};height:{{ c.h }};background:{{ c.color }};border-radius:3px"></div><div onClick="{{ c.open }}" style="position:absolute;left:77.6%;right:0;top:{{ c.t }};height:{{ c.h }};display:flex;align-items:center;gap:8px;font-size:12.5px;white-space:nowrap;cursor:pointer;padding:0 4px 0 6px;border-radius:6px" style-hover="background:#FBF3EA"><span style="color:#4A3F38;flex:1">{{ c.name }}</span><b style="font-variant-numeric:tabular-nums">{{ c.fmt }}</b><span style="color:#B8A99C;font-size:13px">›</span></div></sc-for>
+      </div>
+    </div>
+  </div>
+  <sc-if value="{{ hasDrill }}" hint-placeholder-val="{{ false }}">
+    <div onClick="{{ drill.close }}" style="position:absolute;inset:0;background:rgba(45,38,34,.28);display:flex;justify-content:flex-end">
+      <div onClick="{{ drill.stop }}" style="width:440px;height:100%;background:#FFFFFF;box-shadow:-20px 0 50px rgba(45,38,34,.18);padding:28px;box-sizing:border-box;display:flex;flex-direction:column;gap:18px">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div style="display:flex;align-items:center;gap:10px"><div style="width:12px;height:12px;border-radius:4px;background:{{ drill.color }}"></div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:24px">{{ drill.name }}</div></div>
+          <div onClick="{{ drill.close }}" style="width:34px;height:34px;border-radius:99px;background:#F6EFE7;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px;color:#6B5E55">✕</div>
+        </div>
+        <div style="background:#FBF6F0;border-radius:18px;padding:16px 18px;display:flex;justify-content:space-between;align-items:flex-end">
+          <div><div style="font-size:13px;color:#6B5E55">{{ drill.period }}</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:32px;font-variant-numeric:tabular-nums">{{ drill.total }}</div></div>
+          <div style="text-align:right;font-size:13px;color:#6B5E55;line-height:1.5"><div>{{ drill.count }}</div><div>{{ drill.share }}</div></div>
+        </div>
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column;border:1px solid #F3EAE0;border-radius:16px;overflow:hidden">
+          <sc-for list="{{ drill.rows }}" as="r" hint-placeholder-count="8"><div style="display:grid;grid-template-columns:64px 1fr auto;gap:10px;padding:11px 14px;border-bottom:1px solid #F3EAE0;font-size:14px;align-items:center"><span style="color:#6B5E55;font-size:13px">{{ r.date }}</span><span style="font-weight:600">{{ r.m }}</span><b style="font-variant-numeric:tabular-nums">{{ r.a }}</b></div></sc-for>
+          <sc-if value="{{ drill.more }}"><div style="padding:11px 14px;font-size:13px;color:#6B5E55">{{ drill.more }}</div></sc-if>
+        </div>
+        <div style="display:flex;gap:8px"><div style="flex:1;background:#2D2622;color:#FFFFFF;border-radius:12px;padding:11px;text-align:center;font-size:14px;font-weight:600">Open in Transactions</div><div style="flex:1;background:#FFFFFF;border:1px solid #EEE3D7;border-radius:12px;padding:11px;text-align:center;font-size:14px;font-weight:600">Ask {{ coachName }} about this</div></div>
+      </div>
+    </div>
+  </sc-if>
+</div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Coach-first: a plain-English summary leads, numbers follow</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Overview" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:18px">
+    <div style="background:#FDEBDD;border-radius:28px;padding:30px 32px;display:flex;flex-direction:column;gap:18px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:44px;height:44px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:20px">{{ coachInitial }}</div>
+        <div><div style="font-weight:700;font-size:15px">{{ coachName }}, your coach</div><div style="font-size:13px;color:#7A3A12">Your September check-in</div></div>
+      </div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:500;font-size:28px;line-height:1.35;letter-spacing:-.01em;max-width:860px;text-wrap:pretty">
+        <sc-for list="{{ summary }}" as="s" hint-placeholder-count="4"><span>{{ s.t }}</span><sc-if value="{{ s.n }}"><span style="font-weight:700;white-space:nowrap">{{ s.n }}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;margin-left:3px;border-radius:99px;background:#FFFFFF;color:#A9521C;font-family:'Figtree',sans-serif;font-size:11px;font-weight:700;vertical-align:super">{{ s.src }}</span></span></sc-if></sc-for>
+      </div>
+      <div style="background:#FFFFFF;border-radius:18px;padding:8px 8px 8px 18px;display:flex;align-items:center;gap:12px">
+        <div style="flex:1;font-size:15.5px;color:#8C7E74">Ask a follow-up…</div>
+        <sc-for list="{{ askChips2 }}" as="c" hint-placeholder-count="2"><div style="background:#FBF6F0;border:1px solid #EEE3D7;border-radius:99px;padding:7px 12px;font-size:13px">{{ c }}</div></sc-for>
+        <div style="background:#2D2622;color:#FFFFFF;border-radius:12px;padding:10px 18px;font-weight:600;font-size:14px">Ask</div>
+      </div>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline"><div style="font-weight:600;font-size:15px">{{ spentFmt }} spent in September</div><div style="background:{{ vsBg }};color:{{ vsFg }};border-radius:99px;padding:4px 10px;font-size:13px;font-weight:600">{{ vsText }}</div></div>
+      <div style="display:flex;height:22px;border-radius:99px;overflow:hidden;gap:3px"><sc-for list="{{ cats }}" as="c" hint-placeholder-count="8"><div style="flex-grow:{{ c.amt }};flex-basis:0;background:{{ c.color }}"></div></sc-for></div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px 18px"><sc-for list="{{ cats }}" as="c" hint-placeholder-count="8"><div style="display:flex;align-items:center;gap:6px;font-size:13px"><div style="width:9px;height:9px;border-radius:3px;background:{{ c.color }}"></div><span style="color:#6B5E55">{{ c.name }}</span><b style="font-variant-numeric:tabular-nums">{{ c.fmt }}</b></div></sc-for></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;flex:1;min-height:0">
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;gap:18px;align-items:center">
+        <div style="width:112px;height:112px;border-radius:99px;background:{{ goal.ring }};display:flex;align-items:center;justify-content:center;flex:none"><div style="width:84px;height:84px;border-radius:99px;background:#FFFFFF;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:22px">{{ goal.savedPct }}</div><div style="font-size:11px;color:#6B5E55">saved</div></div></div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div style="font-weight:600;font-size:15px">{{ goal.name }}</div>
+          <div style="font-size:13.5px;color:#6B5E55">{{ goal.savedFmt }} of {{ goal.targetFmt }}</div>
+          <div style="display:flex"><div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700">{{ goal.statusText }}</div></div>
+          <div style="font-size:12.5px;color:#6B5E55">Likely {{ goal.rangeFmt }} by {{ goal.byShort }}</div>
+        </div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-weight:600;font-size:15px">Worth a look · {{ flagCount }}</div>
+        <sc-for list="{{ flagList }}" as="f" hint-placeholder-count="2">
+          <div style="display:flex;justify-content:space-between;gap:8px;font-size:13.5px;padding-bottom:8px;border-bottom:1px solid #F3EAE0"><div><div style="font-weight:600">{{ f.title }}</div><div style="color:#6B5E55;font-size:12.5px">{{ f.kind }}</div></div><div style="font-weight:600;font-variant-numeric:tabular-nums">{{ f.amt }}</div></div>
+        </sc-for>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px 22px;display:flex;flex-direction:column;gap:10px">
+        <div style="font-weight:600;font-size:15px">Last 12 months</div>
+        <div style="flex:1;display:flex;align-items:flex-end;gap:5px;min-height:80px"><sc-for list="{{ trend }}" as="t" hint-placeholder-count="12"><div style="flex:1;height:{{ t.h }};background:{{ t.c }};border-radius:6px 6px 3px 3px"></div></sc-for></div>
+        <div style="font-size:12.5px;color:#6B5E55">{{ trendNote }}</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Mosaic: spending as proportional tiles, goal + flags in a right rail</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Overview" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;gap:20px">
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div><div style="font-size:14px;color:#6B5E55;font-weight:500">September 2026</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:44px;letter-spacing:-.02em;font-variant-numeric:tabular-nums">{{ spentFmt }}</div></div>
+        <div style="text-align:right"><div style="background:{{ vsBg }};color:{{ vsFg }};border-radius:99px;padding:5px 12px;font-size:13.5px;font-weight:600">{{ vsText }}</div><div style="font-size:13px;color:#6B5E55;margin-top:6px">Income {{ incomeFmt }}</div></div>
+      </div>
+      <div style="flex:1;display:flex;flex-direction:column;gap:8px;min-height:0">
+        <sc-for list="{{ mosaic }}" as="row" hint-placeholder-count="3">
+          <div style="display:flex;gap:8px;flex-grow:{{ row.grow }};flex-basis:0;min-height:0">
+            <sc-for list="{{ row.tiles }}" as="c">
+              <div style="flex-grow:{{ c.amt }};flex-basis:0;min-width:0;background:{{ c.soft }};border-radius:18px;padding:12px;display:flex;flex-direction:column;justify-content:space-between;overflow:hidden">
+                <div style="font-size:12px;font-weight:600;color:#2D2622;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ c.name }}</div>
+                <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:{{ c.fs }};font-variant-numeric:tabular-nums">{{ c.fmt }}</div><div style="font-size:11.5px;color:#5A4E46;white-space:nowrap">{{ c.share }}</div></div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-for>
+      </div>
+      <div style="background:#FFFFFF;border:1.5px solid #F2C7A5;border-radius:20px;padding:10px 10px 10px 14px;display:flex;align-items:center;gap:12px">
+        <div style="width:32px;height:32px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:15px">{{ coachInitial }}</div>
+        <div style="flex:1;font-size:15px;color:#8C7E74">“{{ chat0q }}”</div>
+        <div style="background:#2D2622;color:#FFFFFF;border-radius:14px;padding:10px 18px;font-weight:600;font-size:14px">Ask {{ coachName }}</div>
+      </div>
+    </div>
+    <div style="width:300px;flex:none;display:flex;flex-direction:column;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:22px;display:flex;flex-direction:column;align-items:center;gap:12px;text-align:center">
+        <div style="font-size:13.5px;color:#6B5E55;font-weight:500">{{ goal.name }} · by {{ goal.byShort }}</div>
+        <div style="width:150px;height:150px;border-radius:99px;background:{{ goal.ring }};display:flex;align-items:center;justify-content:center"><div style="width:118px;height:118px;border-radius:99px;background:#FFFFFF;display:flex;flex-direction:column;align-items:center;justify-content:center"><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:26px">{{ goal.savedFmt }}</div><div style="font-size:12px;color:#6B5E55">of {{ goal.targetFmt }}</div></div></div>
+        <div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:4px 12px;font-size:13px;font-weight:700">{{ goal.statusText }}</div>
+        <div style="font-size:13px;color:#6B5E55;line-height:1.45">Likely {{ goal.projFmt }}, range {{ goal.rangeFmt }}</div>
+      </div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:20px;display:flex;flex-direction:column;gap:10px;flex:1">
+        <div style="font-weight:600;font-size:15px">Worth a look</div>
+        <sc-for list="{{ flagsAll }}" as="f" hint-placeholder-count="3">
+          <div style="background:#FDF8EC;border-radius:14px;padding:10px 12px;display:flex;flex-direction:column;gap:3px">
+            <div style="display:flex;justify-content:space-between;font-size:13.5px;font-weight:600"><span>{{ f.title }}</span><span>{{ f.amt }}</span></div>
+            <div style="font-size:12.5px;color:#6B5E55;line-height:1.4">{{ f.reason }}</div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div></div>
+</div>
+
+<div class="dv-group">Core screens</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Coach chat: ask bar expanded, sources panel on the right</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Ask" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 32px;border-bottom:1px solid #EEE3D7;background:#FFFFFF">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="font-size:13.5px;color:#A9521C;font-weight:600">← Overview</div>
+        <div style="width:1px;height:18px;background:#EEE3D7"></div>
+        <div style="width:30px;height:30px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px">{{ coachInitial }}</div>
+        <div style="font-weight:700;font-size:15px">{{ coachName }}</div>
+      </div>
+      <div style="font-size:13px;color:#6B5E55">Answers use only your own numbers</div>
+    </div>
+    <div style="flex:1;min-height:0;display:flex">
+      <div style="flex:1;min-width:0;padding:28px 40px;display:flex;flex-direction:column;gap:22px;overflow:hidden">
+        <sc-for list="{{ chat }}" as="ex" hint-placeholder-count="2">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="align-self:flex-end;max-width:70%;background:#2D2622;color:#FFFFFF;border-radius:20px 20px 6px 20px;padding:12px 16px;font-size:15px">{{ ex.q }}</div>
+            <div style="display:flex;gap:12px;align-items:flex-start;max-width:640px">
+              <div style="width:30px;height:30px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px;flex:none">{{ coachInitial }}</div>
+              <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:6px 20px 20px 20px;padding:16px 18px;display:flex;flex-direction:column;gap:12px">
+                <div style="font-size:15px;line-height:1.6;text-wrap:pretty"><sc-for list="{{ ex.segs }}" as="s"><span>{{ s.t }}</span><sc-if value="{{ s.n }}"><span style="font-weight:700;white-space:nowrap">{{ s.n }}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:16px;height:16px;margin-left:2px;border-radius:99px;background:#FDEBDD;color:#A9521C;font-size:10.5px;font-weight:700;vertical-align:super">{{ s.src }}</span></span></sc-if></sc-for></div>
+                <sc-if value="{{ ex.hasTiles }}"><div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px"><sc-for list="{{ ex.tiles }}" as="tl"><div style="background:#FBF6F0;border-radius:12px;padding:10px 12px"><div style="font-size:12px;color:#6B5E55">{{ tl.l }}</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:17px;font-variant-numeric:tabular-nums">{{ tl.v }}</div></div></sc-for></div></sc-if>
+                <sc-if value="{{ ex.hasDrivers }}"><div style="display:flex;flex-direction:column;border:1px solid #F3EAE0;border-radius:12px;overflow:hidden"><sc-for list="{{ ex.drivers }}" as="d"><div style="display:flex;justify-content:space-between;gap:10px;padding:9px 12px;font-size:14px;border-bottom:1px solid #F3EAE0"><span>{{ d.m }} <span style="color:#8C7E74">· {{ d.d }}</span></span><b style="font-variant-numeric:tabular-nums">{{ d.a }}</b></div></sc-for></div></sc-if>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;padding-left:42px"><sc-for list="{{ suggestions }}" as="c" hint-placeholder-count="3"><div style="background:#FDEBDD;color:#7A3A12;border-radius:99px;padding:7px 13px;font-size:13px;font-weight:500">{{ c }}</div></sc-for></div>
+        <div style="flex:1"></div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="background:#FFFFFF;border:1.5px solid #F2C7A5;border-radius:20px;padding:10px 10px 10px 18px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 20px rgba(242,163,107,.14)">
+            <div style="flex:1;font-size:15px;color:#8C7E74">Ask a follow-up…</div>
+            <div style="background:#2D2622;color:#FFFFFF;border-radius:14px;padding:10px 18px;font-weight:600;font-size:14px">Send</div>
+          </div>
+          <div style="font-size:12.5px;color:#6B5E55;text-align:center">{{ coachName }} explains your own numbers. It isn't investment advice; for that, talk to a licensed professional.</div>
+        </div>
+      </div>
+      <div style="width:290px;flex:none;border-left:1px solid #EEE3D7;background:#FFFFFF;padding:24px 22px;display:flex;flex-direction:column;gap:14px">
+        <div style="font-weight:700;font-size:14.5px">Where these numbers come from</div>
+        <sc-for list="{{ sources }}" as="src" hint-placeholder-count="4">
+          <div style="display:flex;gap:10px;align-items:flex-start">
+            <div style="min-width:22px;height:22px;border-radius:99px;background:#FDEBDD;color:#A9521C;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center">{{ src.id }}</div>
+            <div style="font-size:13.5px;line-height:1.4"><div style="font-weight:600">{{ src.title }}</div><div style="color:#6B5E55">{{ src.detail }}</div></div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Transactions: clean names over raw text, low-confidence review (P1)</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Transactions" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:30px">Transactions</div><div style="font-size:14.5px;color:#6B5E55;margin-top:4px">September 2026 · {{ txnCount }} transactions, sorted into 13 categories</div></div>
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:14px;padding:9px 14px;width:240px;font-size:14px;color:#8C7E74">Search merchants</div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div style="background:#2D2622;color:#FFFFFF;border-radius:99px;padding:6px 14px;font-size:13.5px;font-weight:600">All</div>
+      <div style="background:#FFFFFF;border:1.5px dashed #E3B347;color:#8A5C00;border-radius:99px;padding:5px 13px;font-size:13.5px;font-weight:600">Not sure · {{ reviewCount }}</div>
+      <sc-for list="{{ catsTop }}" as="c" hint-placeholder-count="6"><div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:99px;padding:6px 13px;font-size:13.5px;display:flex;align-items:center;gap:6px"><div style="width:8px;height:8px;border-radius:3px;background:{{ c.color }}"></div>{{ c.name }}</div></sc-for>
+    </div>
+    <div style="flex:1;min-height:0;display:flex;gap:18px">
+      <div style="flex:1;min-width:0;background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;overflow:hidden;display:flex;flex-direction:column">
+        <div style="display:grid;grid-template-columns:64px 1fr 210px 110px;gap:12px;padding:12px 20px;font-size:12.5px;font-weight:600;color:#6B5E55;border-bottom:1px solid #EEE3D7;background:#FDFAF6"><div>Date</div><div>Merchant</div><div>Category</div><div style="text-align:right">Amount</div></div>
+        <sc-for list="{{ txns }}" as="t" hint-placeholder-count="10">
+          <div style="display:grid;grid-template-columns:64px 1fr 210px 110px;gap:12px;padding:11px 20px;align-items:center;border-bottom:1px solid #F5EEE6;background:{{ t.rowBg }}">
+            <div style="font-size:13px;color:#6B5E55">{{ t.date }}</div>
+            <div style="min-width:0"><div style="font-size:14.5px;font-weight:600;display:flex;align-items:center;gap:8px">{{ t.clean }}<sc-if value="{{ t.flag }}"><span style="background:#FCF2D9;color:#8A5C00;font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px">Worth a look</span></sc-if></div><div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8C7E74;margin-top:2px">{{ t.raw }}</div></div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <div style="display:flex;align-items:center;gap:6px;background:{{ t.soft }};border-radius:99px;padding:4px 10px;font-size:12.5px;font-weight:600;white-space:nowrap;border:{{ t.border }}"><div style="width:7px;height:7px;border-radius:2px;background:{{ t.color }}"></div>{{ t.cat }}</div>
+              <sc-if value="{{ t.low }}"><span style="font-size:11.5px;font-weight:700;color:#8A5C00">Not sure?</span></sc-if>
+            </div>
+            <div style="text-align:right;font-weight:600;font-size:14.5px;font-variant-numeric:tabular-nums;color:{{ t.amtC }}">{{ t.amt }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="width:290px;flex:none;display:flex;flex-direction:column;gap:12px">
+        <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:18px;display:flex;flex-direction:column;gap:14px">
+          <div><div style="font-weight:700;font-size:15px">Help us get these right</div><div style="font-size:13px;color:#6B5E55;margin-top:3px;line-height:1.4">We weren't confident about {{ reviewCount }} merchants. Your pick teaches the coach.</div></div>
+          <sc-for list="{{ review }}" as="r" hint-placeholder-count="2">
+            <div style="background:#FBF6F0;border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;justify-content:space-between;font-size:14px;font-weight:600"><span>{{ r.clean }}</span><span>{{ r.amt }}</span></div>
+              <div style="font-family:'JetBrains Mono',monospace;font-size:11px;color:#8C7E74">{{ r.raw }}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">
+                <div style="background:#2D2622;color:#FFFFFF;border-radius:99px;padding:5px 10px;font-size:12.5px;font-weight:600">✓ {{ r.cat }}</div>
+                <sc-for list="{{ r.alts }}" as="a"><div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:99px;padding:5px 10px;font-size:12.5px">{{ a }}</div></sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="font-size:12.5px;color:#6B5E55;line-height:1.45;padding:0 6px">Changing a category updates your totals, goal forecast and anything {{ coachName }} tells you.</div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Worth a look: spike with drivers, single charges, sensitivity (P1)</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Worth a look" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:18px">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:20px">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:30px">Worth a look</div><div style="font-size:14.5px;color:#6B5E55;margin-top:4px;max-width:520px">Things that look different from your usual pattern. Nothing here means something is wrong.</div></div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px">
+        <div style="font-size:12.5px;color:#6B5E55;font-weight:600">How often should we point things out?</div>
+        <div style="display:flex;background:#F3EAE0;border-radius:12px;padding:3px">
+          <div style="padding:7px 14px;font-size:13.5px;color:#6B5E55">Less often</div>
+          <div style="padding:7px 14px;font-size:13.5px;font-weight:700;background:#FFFFFF;border-radius:10px;box-shadow:0 1px 2px rgba(60,40,20,.08)">Balanced</div>
+          <div style="padding:7px 14px;font-size:13.5px;color:#6B5E55">More often</div>
+        </div>
+      </div>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:24px;display:grid;grid-template-columns:1fr 1fr;gap:28px">
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;gap:8px;align-items:center"><div style="background:#FCF2D9;color:#8A5C00;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700">Spending spike</div><div style="font-size:13px;color:#6B5E55">{{ spike.month }} 2026</div></div>
+        <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:24px;line-height:1.25;text-wrap:pretty">{{ spike.cat }} was {{ spike.amtFmt }} in {{ spike.month }}, about {{ spike.pct }} above your usual {{ spike.usualFmt }}.</div>
+        <div style="font-size:14px;color:#6B5E55;line-height:1.5">{{ spike.note }}</div>
+        <div style="position:relative;height:130px;display:flex;align-items:flex-end;gap:10px;margin-top:6px">
+          <div style="position:absolute;left:0;right:0;bottom:{{ spike.usualPct }};border-top:1.5px dashed #CDBFB2"></div>
+          <sc-for list="{{ spike.series }}" as="b" hint-placeholder-count="6"><div style="flex:1;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:6px"><div style="width:100%;height:{{ b.h }};background:{{ b.c }};border-radius:8px 8px 4px 4px"></div><div style="font-size:11.5px;color:#8C7E74">{{ b.m }}</div></div></sc-for>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">
+        <div style="font-weight:600;font-size:14px">What's driving it</div>
+        <div style="border:1px solid #F3EAE0;border-radius:14px;overflow:hidden">
+          <sc-for list="{{ spike.drivers }}" as="d" hint-placeholder-count="4"><div style="display:flex;justify-content:space-between;gap:10px;padding:11px 14px;font-size:14px;border-bottom:1px solid #F3EAE0"><span>{{ d.m }} <span style="color:#8C7E74">· {{ d.d }}</span></span><b style="font-variant-numeric:tabular-nums">{{ d.a }}</b></div></sc-for>
+        </div>
+        <div style="flex:1"></div>
+        <div style="display:flex;gap:8px">
+          <div style="background:#2D2622;color:#FFFFFF;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600">Ask {{ coachName }} about this</div>
+          <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:12px;padding:10px 16px;font-size:14px;font-weight:600">Expected, all good</div>
+        </div>
+      </div>
+    </div>
+    <div style="font-weight:600;font-size:15px;margin-top:4px">Single charges</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <sc-for list="{{ charges }}" as="f" hint-placeholder-count="2">
+        <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:18px 20px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="background:#FCF2D9;color:#8A5C00;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:700">{{ f.kind }}</div><div style="font-size:13px;color:#6B5E55">{{ f.date }}</div></div>
+          <div style="display:flex;justify-content:space-between;font-size:17px;font-weight:700"><span>{{ f.title }}</span><span style="font-variant-numeric:tabular-nums">{{ f.amt }}</span></div>
+          <div style="font-size:14px;color:#6B5E55;line-height:1.45">{{ f.reason }}</div>
+          <div style="display:flex;gap:14px;margin-top:4px;font-size:13.5px;font-weight:600"><span style="color:#A9521C">I recognize this</span><span style="color:#6B5E55">Not me — what now?</span></div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>Goal detail: history, likely range, what would close the gap</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0">
+  <dc-import name="Sidebar" active="Goals" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:18px">
+    <div style="font-size:13.5px;color:#6B5E55"><span style="color:#A9521C;font-weight:600">Goals</span> / {{ goal.name }}</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:34px">{{ goal.name }}</div><div style="font-size:15px;color:#6B5E55;margin-top:4px">{{ goal.targetFmt }} by {{ goal.by }} · {{ goal.note }}</div></div>
+      <div style="display:flex;gap:8px"><div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:12px;padding:9px 14px;font-size:14px;font-weight:600">Edit goal</div><div style="background:#2D2622;color:#FFFFFF;border-radius:12px;padding:9px 14px;font-size:14px;font-weight:600">Ask {{ coachName }}</div></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1.6fr 1fr;gap:16px;flex:1;min-height:0">
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:22px 24px;display:flex;flex-direction:column;gap:14px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-weight:600;font-size:15px">Saved so far, and where it's heading</div>
+          <div style="display:flex;gap:14px;font-size:12.5px;color:#6B5E55"><span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:#F2A36B"></span>Saved</span><span style="display:flex;align-items:center;gap:6px"><span style="width:10px;height:10px;border-radius:3px;background:rgba(242,163,107,.22);border:1px dashed #C9865A"></span>Likely range</span></div></div>
+        <div style="position:relative;flex:1;min-height:260px;display:flex;gap:12px;border-bottom:1px solid #EEE3D7">
+          <div style="position:absolute;left:0;right:0;bottom:{{ goal.targetPct }};border-top:2px dashed #2D2622;opacity:.55"></div>
+          <div style="position:absolute;right:0;bottom:{{ goal.targetPct }};transform:translateY(-4px);font-size:12px;font-weight:700;background:#FFFFFF;padding:0 0 0 6px">Goal {{ goal.targetFmt }}</div>
+          <sc-for list="{{ goal.chart }}" as="b" hint-placeholder-count="10">
+            <div style="position:relative;flex:1;height:100%">
+              <div style="position:absolute;left:0;right:0;bottom:0;height:{{ b.barH }};background:#F2A36B;border-radius:8px 8px 3px 3px"></div>
+              <div style="position:absolute;left:0;right:0;bottom:{{ b.bandB }};height:{{ b.bandH }};background:rgba(242,163,107,.2);border:{{ b.bandBorder }};border-radius:8px"></div>
+              <div style="position:absolute;left:3px;right:3px;bottom:{{ b.markB }};height:3px;background:{{ b.markC }};border-radius:2px"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:12px;margin-top:-6px"><sc-for list="{{ goal.chart }}" as="b" hint-placeholder-count="10"><div style="flex:1;text-align:center;font-size:11.5px;color:{{ b.lblC }};font-weight:{{ b.lblW }}">{{ b.label }}</div></sc-for></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:16px;min-height:0">
+        <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:22px;display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13.5px;color:#6B5E55;font-weight:500">Likely by {{ goal.byShort }}</div><div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700">{{ goal.stLabel }}</div></div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:40px;font-variant-numeric:tabular-nums">{{ goal.projFmt }}</div>
+          <div style="font-size:14px;line-height:1.5;color:#2D2622">{{ goal.statusText }}. We're fairly confident you'll land between <b>{{ goal.lowFmt }}</b> and <b>{{ goal.highFmt }}</b> (8 in 10 chance).</div>
+        </div>
+        <div style="background:{{ goal.stBg }};border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:6px">
+          <div style="font-size:12.5px;font-weight:700;color:{{ goal.stFg }}">{{ goal.tipHead }}</div>
+          <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:20px;line-height:1.25">{{ goal.tipTitle }}</div>
+          <div style="font-size:14px;line-height:1.45;color:#4A3F38">{{ goal.tipBody }}</div>
+        </div>
+        <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:20px 22px;display:flex;flex-direction:column;gap:10px;flex:1">
+          <div style="font-weight:600;font-size:14.5px">What the forecast accounts for</div>
+          <sc-for list="{{ goal.accounted }}" as="a" hint-placeholder-count="3"><div style="display:flex;gap:10px;font-size:13.5px;line-height:1.45"><div style="width:6px;height:6px;border-radius:99px;background:#F2A36B;margin-top:7px;flex:none"></div><div>{{ a }}</div></div></sc-for>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1h"><div class="dv-olabel"><a class="dv-oid" href="#1h">1h</a>Goal setup: a reality check while you type</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;display:flex;background:#FBF6F0;position:relative">
+  <dc-import name="Sidebar" active="Goals" coach-name="{{ coachName }}" persona-name="{{ name }}" persona-label="{{ email }}" initials="{{ initials }}" flag-count="{{ flagCount }}" hint-size="232px,880px"></dc-import>
+  <div style="flex:1;min-width:0;padding:32px 36px;display:flex;flex-direction:column;gap:18px">
+    <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:30px">Goals</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:20px;padding:22px;height:150px"><div style="font-weight:600">{{ goal.name }}</div><div style="font-size:14px;color:#6B5E55;margin-top:4px">{{ goal.savedFmt }} of {{ goal.targetFmt }}</div></div>
+      <div style="border:2px dashed #E3D5C7;border-radius:20px;height:150px"></div>
+    </div>
+  </div>
+  <div style="position:absolute;inset:0;background:rgba(45,38,34,.32);display:flex;align-items:center;justify-content:center">
+    <div style="width:560px;background:#FFFFFF;border-radius:28px;padding:30px 32px;box-shadow:0 24px 60px rgba(45,38,34,.25);display:flex;flex-direction:column;gap:18px">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:26px">New savings goal</div><div style="font-size:14px;color:#6B5E55;margin-top:4px">Pick an amount and a date. We'll tell you how it fits.</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600">What are you saving for?</div><div style="border:1.5px solid #F2A36B;border-radius:14px;padding:12px 14px;font-size:15px;box-shadow:0 0 0 4px #FDEBDD">{{ newGoal.name }}</div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600">Amount</div><div style="border:1px solid #E3D5C7;border-radius:14px;padding:12px 14px;font-size:15px;font-variant-numeric:tabular-nums">{{ newGoal.amount }}</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600">By</div><div style="border:1px solid #E3D5C7;border-radius:14px;padding:12px 14px;font-size:15px">{{ newGoal.date }}</div></div>
+      </div>
+      <div style="background:#FBF6F0;border-radius:18px;padding:16px 18px;display:flex;flex-direction:column;gap:8px">
+        <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;color:#6B5E55;font-weight:600">How it fits</div><div style="background:{{ newGoal.fitBg }};color:{{ newGoal.fitFg }};border-radius:99px;padding:3px 10px;font-size:12.5px;font-weight:700">{{ newGoal.fit }}</div></div>
+        <div style="display:flex;align-items:baseline;gap:6px"><span style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:26px">{{ newGoal.monthly }}</span><span style="font-size:14px;color:#6B5E55">a month to get there</span></div>
+        <div style="font-size:13.5px;line-height:1.5;color:#4A3F38">{{ newGoal.fitNote }}</div>
+      </div>
+      <div style="display:flex;justify-content:flex-end;gap:10px"><div style="padding:11px 16px;font-size:14.5px;font-weight:600;color:#6B5E55">Cancel</div><div style="background:#F2A36B;color:#2D2622;border-radius:14px;padding:11px 20px;font-size:14.5px;font-weight:700">Create goal</div></div>
+    </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1i"><div class="dv-olabel"><a class="dv-oid" href="#1i">1i</a>Sign in</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:1280px;height:880px;background:#FBF6F0;display:flex;align-items:center;justify-content:center;padding:40px;box-sizing:border-box">
+  <div style="width:420px;display:flex;flex-direction:column;gap:26px">
+    <div style="display:flex;align-items:center;gap:10px;justify-content:center"><div style="width:34px;height:34px;border-radius:11px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:18px">S</div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:18px">Smart Financial Coach</div></div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:28px;padding:32px;display:flex;flex-direction:column;gap:18px;box-shadow:0 10px 30px rgba(60,40,20,.06)">
+      <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:28px">Welcome back</div><div style="font-size:14.5px;color:#6B5E55;margin-top:4px">Sign in to see your money, in plain English.</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="font-size:13px;font-weight:600">Email</div><div style="border:1.5px solid #F2A36B;border-radius:14px;padding:12px 14px;font-size:15px;box-shadow:0 0 0 4px #FDEBDD">{{ email }}</div></div>
+      <div style="display:flex;flex-direction:column;gap:6px"><div style="display:flex;justify-content:space-between"><div style="font-size:13px;font-weight:600">Password</div><div style="font-size:13px;font-weight:600;color:#A9521C">Forgot?</div></div><div style="border:1px solid #E3D5C7;border-radius:14px;padding:12px 14px;font-size:15px;letter-spacing:.2em">••••••••••</div></div>
+      <div style="background:#F2A36B;color:#2D2622;border-radius:14px;padding:13px;text-align:center;font-weight:700;font-size:15px">Sign in</div>
+    </div>
+    <div style="font-size:13px;color:#6B5E55;text-align:center;line-height:1.5">Your data is private to your account.</div>
+  </div>
+</div></div>
+</div>
+
+<div class="dv-group">Mobile (390px)</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1j"><div class="dv-olabel"><a class="dv-oid" href="#1j">1j</a>Mobile overview</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:390px;height:844px;border-radius:36px;background:#FBF6F0;display:flex;flex-direction:column;position:relative">
+  <div style="padding:18px 20px 10px;display:flex;justify-content:space-between;align-items:center"><div style="width:30px;height:30px;border-radius:10px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700">S</div><div style="font-size:13.5px;font-weight:600">September ▾</div><div style="width:32px;height:32px;border-radius:99px;background:#E4F0E5;color:#3F6E4C;font-weight:700;font-size:12px;display:flex;align-items:center;justify-content:center">{{ initials }}</div></div>
+  <div style="flex:1;padding:6px 18px 0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+    <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:24px">Hi {{ first }}</div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:18px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;color:#6B5E55">Spent in September</div><div style="background:{{ vsBg }};color:{{ vsFg }};border-radius:99px;padding:3px 9px;font-size:12px;font-weight:600">{{ vsShort }}</div></div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:36px;font-variant-numeric:tabular-nums">{{ spentFmt }}</div>
+      <div style="display:flex;height:12px;border-radius:99px;overflow:hidden;gap:2px"><sc-for list="{{ cats }}" as="c" hint-placeholder-count="8"><div style="flex-grow:{{ c.amt }};flex-basis:0;background:{{ c.color }}"></div></sc-for></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 12px"><sc-for list="{{ catsTop4 }}" as="c" hint-placeholder-count="4"><div style="display:flex;align-items:center;gap:6px;font-size:12.5px"><div style="width:8px;height:8px;border-radius:2px;background:{{ c.color }}"></div><span style="color:#6B5E55;flex:1;white-space:nowrap;overflow:hidden">{{ c.name }}</span><b>{{ c.fmt }}</b></div></sc-for></div>
+    </div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:16px 18px;display:flex;gap:14px;align-items:center">
+      <div style="width:64px;height:64px;border-radius:99px;background:{{ goal.ring }};display:flex;align-items:center;justify-content:center;flex:none"><div style="width:48px;height:48px;border-radius:99px;background:#FFFFFF;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px">{{ goal.savedPct }}</div></div>
+      <div style="flex:1;min-width:0"><div style="font-weight:600;font-size:15px">{{ goal.name }}</div><div style="font-size:13px;color:#6B5E55">{{ goal.savedFmt }} of {{ goal.targetFmt }}</div><div style="display:flex;margin-top:6px"><div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:2px 9px;font-size:12px;font-weight:700">{{ goal.statusText }}</div></div></div>
+    </div>
+    <div style="background:#FDF8EC;border-radius:22px;padding:16px 18px;display:flex;flex-direction:column;gap:4px">
+      <div style="display:flex;justify-content:space-between"><div style="font-size:12.5px;font-weight:700;color:#8A5C00">Worth a look · {{ flagCount }}</div><div style="font-size:12.5px;font-weight:600;color:#A9521C">See all</div></div>
+      <div style="display:flex;justify-content:space-between;font-size:15px;font-weight:600;margin-top:4px"><span>{{ flag0.title }}</span><span>{{ flag0.amt }}</span></div>
+      <div style="font-size:13px;color:#6B5E55;line-height:1.4">{{ flag0.reason }}</div>
+    </div>
+  </div>
+  <div style="padding:10px 14px 0;background:linear-gradient(rgba(251,246,240,0),#FBF6F0 30%)"><div style="background:#FFFFFF;border:1.5px solid #F2C7A5;border-radius:18px;padding:8px 8px 8px 12px;display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(242,163,107,.18)"><div style="width:28px;height:28px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:13px">{{ coachInitial }}</div><div style="flex:1;font-size:14.5px;color:#8C7E74">Ask {{ coachName }}…</div><div style="background:#2D2622;color:#FFFFFF;border-radius:12px;padding:8px 14px;font-weight:600;font-size:13.5px">Ask</div></div></div>
+  <div style="display:flex;justify-content:space-around;padding:12px 10px 22px;font-size:12px;color:#6B5E55"><div style="font-weight:700;color:#2D2622;display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:22px;height:4px;border-radius:9px;background:#F2A36B"></div>Overview</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:22px;height:4px"></div>Activity</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:22px;height:4px"></div>Goals</div><div style="display:flex;flex-direction:column;align-items:center;gap:4px"><div style="width:22px;height:4px"></div>Profile</div></div>
+</div></div>
+
+<div class="dv-opt" id="1k"><div class="dv-olabel"><a class="dv-oid" href="#1k">1k</a>Mobile chat: the ask bar opens as a full sheet</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:390px;height:844px;border-radius:36px;background:#FBF6F0;display:flex;flex-direction:column">
+  <div style="padding:18px 18px 12px;display:flex;align-items:center;gap:10px;border-bottom:1px solid #EEE3D7;background:#FFFFFF"><div style="font-size:20px;color:#6B5E55;width:28px">↓</div><div style="width:30px;height:30px;border-radius:99px;background:#F2A36B;display:flex;align-items:center;justify-content:center;font-family:'Bricolage Grotesque',sans-serif;font-weight:700;font-size:14px">{{ coachInitial }}</div><div style="flex:1"><div style="font-weight:700;font-size:15px">{{ coachName }}</div><div style="font-size:12px;color:#6B5E55">Uses only your numbers</div></div></div>
+  <div style="flex:1;min-height:0;padding:16px;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+    <div style="align-self:flex-end;max-width:80%;background:#2D2622;color:#FFFFFF;border-radius:18px 18px 6px 18px;padding:10px 14px;font-size:14.5px">{{ chat0q }}</div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:6px 18px 18px 18px;padding:14px;display:flex;flex-direction:column;gap:10px">
+      <div style="font-size:14.5px;line-height:1.55;text-wrap:pretty"><sc-for list="{{ chat0segs }}" as="s" hint-placeholder-count="4"><span>{{ s.t }}</span><sc-if value="{{ s.n }}"><span style="font-weight:700;white-space:nowrap">{{ s.n }}<span style="display:inline-flex;align-items:center;justify-content:center;min-width:15px;height:15px;margin-left:2px;border-radius:99px;background:#FDEBDD;color:#A9521C;font-size:10px;font-weight:700;vertical-align:super">{{ s.src }}</span></span></sc-if></sc-for></div>
+      <sc-if value="{{ chat0.hasTiles }}"><div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{ chat0.tiles }}" as="tl"><div style="display:flex;justify-content:space-between;background:#FBF6F0;border-radius:10px;padding:8px 10px;font-size:13px"><span style="color:#6B5E55">{{ tl.l }}</span><b>{{ tl.v }}</b></div></sc-for></div></sc-if>
+      <sc-if value="{{ chat0.hasDrivers }}"><div style="display:flex;flex-direction:column;gap:6px"><sc-for list="{{ chat0.drivers }}" as="d"><div style="display:flex;justify-content:space-between;gap:8px;background:#FBF6F0;border-radius:10px;padding:8px 10px;font-size:13px"><span>{{ d.m }}</span><b>{{ d.a }}</b></div></sc-for></div></sc-if>
+      <div style="font-size:12.5px;font-weight:600;color:#A9521C">View {{ sourceCount }} sources</div>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap"><sc-for list="{{ suggestions }}" as="c" hint-placeholder-count="3"><div style="background:#FDEBDD;color:#7A3A12;border-radius:99px;padding:6px 11px;font-size:12.5px;font-weight:500">{{ c }}</div></sc-for></div>
+  </div>
+  <div style="padding:10px 14px 22px;display:flex;flex-direction:column;gap:8px"><div style="background:#FFFFFF;border:1.5px solid #F2C7A5;border-radius:18px;padding:8px 8px 8px 14px;display:flex;align-items:center;gap:10px"><div style="flex:1;font-size:14.5px;color:#8C7E74">Ask a follow-up…</div><div style="background:#2D2622;color:#FFFFFF;border-radius:12px;padding:8px 14px;font-weight:600;font-size:13.5px">Send</div></div><div style="font-size:11.5px;color:#6B5E55;text-align:center">Not investment advice.</div></div>
+</div></div>
+
+<div class="dv-opt" id="1l"><div class="dv-olabel"><a class="dv-oid" href="#1l">1l</a>Mobile goal detail</div>
+<div class="dv-card" style="color:#2D2622;font-family:'Figtree',system-ui,sans-serif;width:390px;height:844px;border-radius:36px;background:#FBF6F0;display:flex;flex-direction:column">
+  <div style="padding:18px 20px 8px;font-size:14px;font-weight:600;color:#A9521C">← Goals</div>
+  <div style="flex:1;min-height:0;padding:4px 18px 0;display:flex;flex-direction:column;gap:12px;overflow:hidden">
+    <div><div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:26px">{{ goal.name }}</div><div style="font-size:13.5px;color:#6B5E55;margin-top:2px">{{ goal.targetFmt }} by {{ goal.by }}</div></div>
+    <div style="background:#FFFFFF;border:1px solid #EEE3D7;border-radius:22px;padding:16px;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;justify-content:space-between;align-items:center"><div style="font-size:13px;color:#6B5E55">Likely by {{ goal.byShort }}</div><div style="background:{{ goal.stBg }};color:{{ goal.stFg }};border-radius:99px;padding:3px 9px;font-size:12px;font-weight:700">{{ goal.stLabel }}</div></div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:34px">{{ goal.projFmt }}</div>
+      <div style="font-size:13px;color:#6B5E55">Range {{ goal.rangeFmt }} · {{ goal.statusText }}</div>
+      <div style="position:relative;height:150px;display:flex;gap:6px;border-bottom:1px solid #EEE3D7;margin-top:6px">
+        <div style="position:absolute;left:0;right:0;bottom:{{ goal.targetPct }};border-top:1.5px dashed #2D2622;opacity:.5"></div>
+        <sc-for list="{{ goal.chart }}" as="b" hint-placeholder-count="10"><div style="position:relative;flex:1;height:100%"><div style="position:absolute;left:0;right:0;bottom:0;height:{{ b.barH }};background:#F2A36B;border-radius:5px 5px 2px 2px"></div><div style="position:absolute;left:0;right:0;bottom:{{ b.bandB }};height:{{ b.bandH }};background:rgba(242,163,107,.2);border:{{ b.bandBorder }};border-radius:5px"></div><div style="position:absolute;left:2px;right:2px;bottom:{{ b.markB }};height:2px;background:{{ b.markC }}"></div></div></sc-for>
+      </div>
+      <div style="display:flex;gap:6px"><sc-for list="{{ goal.chart }}" as="b" hint-placeholder-count="10"><div style="flex:1;text-align:center;font-size:10px;color:{{ b.lblC }}">{{ b.labelShort }}</div></sc-for></div>
+    </div>
+    <div style="background:{{ goal.stBg }};border-radius:22px;padding:16px 18px;display:flex;flex-direction:column;gap:4px">
+      <div style="font-size:12px;font-weight:700;color:{{ goal.stFg }}">{{ goal.tipHead }}</div>
+      <div style="font-family:'Bricolage Grotesque',sans-serif;font-weight:600;font-size:18px;line-height:1.25">{{ goal.tipTitle }}</div>
+      <div style="font-size:13.5px;line-height:1.45;color:#4A3F38">{{ goal.tipBody }}</div>
+    </div>
+  </div>
+  <div style="padding:12px 18px 24px"><div style="background:#2D2622;color:#FFFFFF;border-radius:16px;padding:14px;text-align:center;font-weight:600;font-size:15px">Ask {{ coachName }} about this goal</div></div>
+</div></div>
+</div>
+
+<p class="dv-next">Try next: "go with <a class="dv-oid" href="#1b">1b</a> but add the trend chart from <a class="dv-oid" href="#1a">1a</a>" · "show <a class="dv-oid" href="#1d">1d</a> when the coach is unavailable" · "add a first-run empty state for short histories"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;persona&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;young_professional&quot;,&quot;family_budgeter&quot;,&quot;freelancer&quot;],&quot;default&quot;:&quot;young_professional&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;coachName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Wren&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  data() {
+    return {
+      young_professional: {
+        name: 'Maya Chen', first: 'Maya', initials: 'MC', label: 'Young professional', blurb: 'Salaried, dines out a lot, takes rideshares, saving for a trip to Lisbon.',
+        spent: 3840, usual: 3690, income: 5200, txnCount: 142,
+        cats: [['Housing',1650],['Dining',610],['Transportation',342],['Groceries',298],['Shopping',260],['Travel',245],['Utilities',142],['Entertainment',120],['Health & Fitness',89],['Subscriptions',84]],
+        trend: [3520,3610,4210,3480,3390,3550,3600,3720,3810,3690,4480,3840], hl: 10, trendNote: 'August stood out: dining roughly doubled that month.',
+        summary: [['September was a fairly steady month. You spent ','$3,840','5'],[', about ','$150','5'],[' more than usual, mostly dining. Your vacation fund is on course to land about ','$220','3'],[' short, which is easy to close.','','']],
+        sources: [['Vacation fund balance','Sep 30, 2026'],['Goal settings','$3,000 by Dec 31, 2026'],['Savings forecast','21 months of saving & spending'],['Dining transactions','Aug 2026 · 31 charges'],['September transactions','142 charges']],
+        chat: [
+          { q: 'Am I on track for my vacation fund?', segs: [["You're close. You've saved ",'$2,140','1'],[' toward your ','$3,000','2'],[' goal. At your usual pace you\u2019ll likely reach about ','$2,780','3'],[' by December 31, roughly ','$220','3'],[' short. December usually runs higher for you, so saving slows near the end. Setting aside about ','$75','3'],[' more a month would close the gap.','','']], tiles: [['Saved so far','$2,140'],['Likely by Dec 31','$2,780'],['Likely range','$2,610–$2,950']], drivers: [] },
+          { q: 'Why was August so high?', segs: [['Dining was ','$1,120','4'],[' in August, about ','93%','4'],[' above your usual ','$580','4'],['. Four charges did most of it:','','']], tiles: [], drivers: [['Sakura Omakase','Aug 22','$212.50'],['Tavern on Fifth','Aug 9','$186.40'],['Blue Bottle Coffee · 19 visits','Aug','$131.60'],['Bar Lucia','Aug 15','$128.75']] }
+        ],
+        suggestions: ['What would close the gap fastest?','Compare to last September','Show my subscriptions'],
+        spike: { cat: 'Dining', month: 'August', amt: 1120, usual: 580, pct: '93%', note: 'Mostly a few big dinners plus more coffee runs than usual. September is back near normal at $610.', series: [['Mar',560],['Apr',600],['May',590],['Jun',570],['Jul',610],['Aug',1120]], drivers: [['Sakura Omakase','Aug 22','$212.50'],['Tavern on Fifth','Aug 9','$186.40'],['Blue Bottle Coffee · 19 visits','Aug','$131.60'],['Bar Lucia','Aug 15','$128.75']] },
+        charges: [{ title: 'Apple.com/bill', amt: '$189.00', date: 'Sep 14', kind: 'Larger than usual', reason: 'About 9× your usual charge from this merchant ($20.99).' },{ title: 'Lyft', amt: '$38.20 × 2', date: 'Sep 21', kind: 'Possible duplicate', reason: 'Same amount, same merchant, 6 minutes apart.' }],
+        txns: [['Sep 28','Blue Bottle Coffee','SQ *BLUE BOTTLE #4321','Dining','−$6.75'],['Sep 27','Whole Foods Market','WHOLEFDS MKT 10234 SEA','Groceries','−$64.18'],['Sep 26','Lyft','LYFT *RIDE SUN 8PM','Transportation','−$23.40'],['Sep 25','Northwind Labs · paycheck','NORTHWIND LABS DIR DEP','Income','+$2,600.00'],['Sep 24','KEXP Merch','PAYPAL *KEXPMERCH 4029','Shopping','−$42.00',1,0,['Entertainment','Subscriptions']],['Sep 22','Equinox','EQUINOX #118 FITNESS','Health & Fitness','−$89.00'],['Sep 21','Lyft','LYFT *RIDE SAT 11PM','Transportation','−$38.20',0,1],['Sep 21','Lyft','LYFT *RIDE SAT 11PM','Transportation','−$38.20',0,1],['Sep 19','La Marzocco Café','TST* LA MARZOCCO CAFE','Dining','−$11.50'],['Sep 14','Apple.com/bill','APL*ITUNES.COM/BILL','Subscriptions','−$189.00',0,1],['Sep 12','Tinyfields','SP * TINYFIELDS GOODS','Groceries','−$58.00',1,0,['Shopping','Dining']]],
+        goal: { name: 'Vacation fund', note: 'Lisbon in the spring', target: 3000, by: 'Dec 31, 2026', byShort: 'Dec 31', saved: 2140, proj: 2780, low: 2610, high: 2950, status: 'close', statusText: 'About $220 short', tipTitle: 'Set aside $75 more a month', tipBody: 'That\u2019s roughly one fewer dinner out each week through December.', accounted: ['December spending usually runs about 15% higher for you.','Your paycheck is steady: $2,600 twice a month.','Based on 21 months of your history.'], hist: [['Jan',380],['Feb',610],['Mar',840],['Apr',1080],['May',1310],['Jun',1540],['Jul',1780],['Aug',1880],['Sep',2140]], projPts: [['Oct',2360,2310,2410],['Nov',2590,2480,2700],['Dec',2780,2610,2950]] },
+        newGoal: { name: 'Emergency cushion', amount: '$3,000', date: 'Dec 31, 2027', monthly: '$250', fit: 'Within reach', fitNote: 'Once your vacation fund wraps up in December, your usual $220 a month covers most of it.' }
+      },
+      family_budgeter: {
+        name: 'Ada Okafor', first: 'Ada', initials: 'AO', label: 'Family budgeter', blurb: 'Two incomes, two kids. Groceries and childcare, with big school-year swings.',
+        spent: 8920, usual: 7450, income: 11400, txnCount: 211,
+        cats: [['Housing',2850],['Childcare & Education',1980],['Groceries',1240],['Shopping',780],['Transportation',610],['Insurance & Fees',520],['Utilities',410],['Dining',310],['Health & Fitness',220]],
+        trend: [7380,7520,8640,7210,7150,7330,7290,7410,6980,7060,8410,8920], hl: 11, trendNote: 'September is your highest month, as it usually is when school starts.',
+        summary: [['September was your most expensive month this year at ','$8,920','1'],[', mostly the usual back-to-school costs. Childcare & Education alone was ','$1,980','2'],['. Your emergency fund is still on track, likely ','$600','5'],[' ahead by June.','','']],
+        sources: [['September transactions','211 charges'],['Childcare & Education','Sep 2026 · 4 charges'],['Childcare & Education','Sep 2025 · 5 charges'],['Emergency fund balance','Sep 30, 2026'],['Savings forecast','24 months of saving & spending']],
+        chat: [
+          { q: 'Why was this month so expensive?', segs: [['September came in at ','$8,920','1'],[', about ','$1,470','1'],[' above your usual month. Most of that is back-to-school: Childcare & Education was ','$1,980','2'],[' against a usual ','$1,150','2'],['. This happens every September; last year it was ','$1,860','3'],['. Here\u2019s what drove it:','','']], tiles: [], drivers: [['Little Oaks Montessori','Sep 1','$920.00'],['Brightwater Elementary · fall fees','Sep 3','$640.00'],['Camp Sunrise after-school','Sep 8','$240.00'],['Kumon tutoring','Sep 12','$180.00']] },
+          { q: 'Are we still on track for the emergency fund?', segs: [["Yes. You've saved ",'$9,400','4'],[' toward ','$12,500','4'],['. Even with this September, you\u2019ll likely reach about ','$13,100','5'],[' by June 30, around ','$600','5'],[' ahead.','','']], tiles: [['Saved so far','$9,400'],['Likely by Jun 30','$13,100'],['Likely range','$12,400–$13,800']], drivers: [] }
+        ],
+        suggestions: ['How does December usually compare?','Where did groceries go up?','School costs for the whole year'],
+        spike: { cat: 'Childcare & Education', month: 'September', amt: 1980, usual: 1150, pct: '72%', note: 'This happens every September; last year it was $1,860. It should ease off in October.', series: [['Apr',1120],['May',1140],['Jun',980],['Jul',860],['Aug',1240],['Sep',1980]], drivers: [['Little Oaks Montessori','Sep 1','$920.00'],['Brightwater Elementary · fall fees','Sep 3','$640.00'],['Camp Sunrise after-school','Sep 8','$240.00'],['Kumon tutoring','Sep 12','$180.00']] },
+        charges: [{ title: 'Target', amt: '$412.60', date: 'Sep 6', kind: 'Larger than usual', reason: 'About 4× your usual Target trip ($98).' },{ title: 'PG&E', amt: '$286.00', date: 'Sep 18', kind: 'Larger than usual', reason: 'About 2.3× your usual monthly bill ($124).' }],
+        txns: [['Sep 28','Safeway','SAFEWAY #1432 OAKLAND','Groceries','−$182.34'],['Sep 27','Chevron','CHEVRON 0098812','Transportation','−$61.20'],['Sep 25','Acme Health · payroll','ACME HEALTH PAYROLL PPD','Income','+$3,850.00'],['Sep 24','Amazon','AMZN MKTP US*2K4LM1','Shopping','−$37.99',1,0,['Childcare & Education','Groceries']],['Sep 22','Costco','COSTCO WHSE #0482','Groceries','−$246.10'],['Sep 20','Juniper Kids Art','SQ *JUNIPER KIDS ART','Childcare & Education','−$75.00',1,0,['Entertainment','Shopping']],['Sep 18','PG&E','PGANDE WEB ONLINE','Utilities','−$286.00',0,1],['Sep 12','Kumon','KUMON 2231 TUTOR','Childcare & Education','−$180.00'],['Sep 8','Camp Sunrise','CAMP SUNRISE AFTERSCH','Childcare & Education','−$240.00'],['Sep 6','Target','TARGET 00021455','Shopping','−$412.60',0,1],['Sep 3','Brightwater Elementary','BRIGHTWATER ELEM FEES','Childcare & Education','−$640.00']],
+        goal: { name: 'Emergency fund', note: 'Three months of essentials', target: 12500, by: 'Jun 30, 2027', byShort: 'Jun 30', saved: 9400, proj: 13100, low: 12400, high: 13800, status: 'on', statusText: 'About $600 ahead', tipTitle: 'You have room to breathe', tipBody: 'Even a December like last year\u2019s keeps you on track.', accounted: ['School costs peak every September and January.','Two steady incomes, paid on the 10th and 25th.','Based on 24 months of your history.'], hist: [['Apr',7420],['May',7880],['Jun',8350],['Jul',8840],['Aug',9050],['Sep',9400]], projPts: [['Dec',10600,10350,10850],["Mar '27",11850,11400,12300],["Jun '27",13100,12400,13800]] },
+        newGoal: { name: 'Family summer trip', amount: '$4,000', date: 'Jul 1, 2027', monthly: '$445', fit: 'A stretch', fitNote: 'Together with your emergency fund that\u2019s about $1,160 a month in savings. You\u2019ve averaged $820.' }
+      },
+      freelancer: {
+        name: 'Jordan Reyes', first: 'Jordan', initials: 'JR', label: 'Freelancer', blurb: 'Irregular invoices, lumpy spending, putting money aside for quarterly taxes.',
+        spent: 4570, usual: 4300, income: 3100, txnCount: 97,
+        cats: [['Housing',1900],['Shopping',1412],['Insurance & Fees',340],['Groceries',330],['Dining',210],['Utilities',168],['Subscriptions',124],['Transportation',86]],
+        trend: [4120,4380,4960,3980,4050,4610,4240,4190,4450,4020,4310,4570], hl: -1, trendNote: 'Spending is steady. Income is what swings: September brought in $3,100.',
+        summary: [['Income was light in September at ','$3,100','1'],[', about half your usual month. You spent ','$4,570','5'],[', mostly one camera purchase. Your tax reserve is behind pace, likely ','$1,300','3'],[' short by January 15.','','']],
+        sources: [['Income deposits','Last 12 months · 38 deposits'],['Balance after bills','Last 6 months'],['Tax reserve forecast','18 months of history'],['Shopping transactions','Sep 2026 · 3 charges'],['September transactions','97 charges']],
+        chat: [
+          { q: 'Can I afford a $900 trip in November?', segs: [['Probably, but it would slow your tax reserve. Over the last 12 months your income averaged ','$6,200','1'],[' a month, ranging from ','$2,400','1'],[' to ','$9,800','1'],['. Spending $900 in November would lower your likely tax reserve on January 15 from ','$6,700','3'],[' to about ','$5,800','3'],[', leaving it ','$2,200','3'],[' short of $8,000.','','']], tiles: [['Avg monthly income','$6,200'],['Lowest month','$2,400'],['Tax reserve if you go','$5,800']], drivers: [] },
+          { q: 'Why was Shopping so high?', segs: [['Shopping was ','$1,412','4'],[' in September, compared with a usual ','$260','4'],['. One charge drives most of it:','','']], tiles: [], drivers: [['Adorama · camera body','Sep 10','$1,249.00'],['Blick Art Materials','Sep 17','$84.20'],['Muji','Sep 23','$78.80']] }
+        ],
+        suggestions: ['What if I save 30% of each invoice?','Show income month by month','Which bills are fixed?'],
+        spike: { cat: 'Shopping', month: 'September', amt: 1412, usual: 260, pct: '443%', note: 'Almost all from one purchase at a merchant you haven\u2019t used before.', series: [['Apr',240],['May',310],['Jun',220],['Jul',270],['Aug',250],['Sep',1412]], drivers: [['Adorama · camera body','Sep 10','$1,249.00'],['Blick Art Materials','Sep 17','$84.20'],['Muji','Sep 23','$78.80']] },
+        charges: [{ title: 'Adorama', amt: '$1,249.00', date: 'Sep 10', kind: 'New merchant, large amount', reason: 'First purchase here, and your largest Shopping charge in 2 years.' },{ title: 'Adobe', amt: '$59.99 × 2', date: 'Sep 3', kind: 'Possible duplicate', reason: 'Same amount, same merchant, 2 minutes apart.' }],
+        txns: [['Sep 29','Studio Kite · invoice','STRIPE TRANSFER ST-8812','Income','+$1,850.00'],['Sep 27',"Trader Joe's",'TRADER JOE S #552','Groceries','−$58.40'],['Sep 24','Hatch Coworking','HATCH CWRK MBRSHP','Subscriptions','−$95.00',1,0,['Housing','Utilities']],['Sep 23','Muji','MUJI USA 0231','Shopping','−$78.80'],['Sep 20','State Farm','STATE FARM RO 27 INS','Insurance & Fees','−$340.00'],['Sep 17','Blick Art Materials','BLICK ART 1180','Shopping','−$84.20'],['Sep 15','Linden Lofts','LINDEN LOFTS RENT ACH','Housing','−$1,900.00'],['Sep 12','Pho Saigon','TST* PHO SGN 2','Dining','−$24.60',1,0,['Groceries','Entertainment']],['Sep 10','Adorama','ADORAMA CAMERA NY','Shopping','−$1,249.00',0,1],['Sep 3','Adobe','ADOBE *CREATIVE CLD','Subscriptions','−$59.99',0,1],['Sep 3','Adobe','ADOBE *CREATIVE CLD','Subscriptions','−$59.99',0,1]],
+        goal: { name: 'Tax reserve', note: 'Q4 estimated taxes', target: 8000, by: 'Jan 15, 2027', byShort: 'Jan 15', saved: 4900, proj: 6700, low: 5900, high: 7600, status: 'off', statusText: 'About $1,300 short', tipTitle: 'Set aside 30% of each invoice', tipBody: 'Moving it as each payment lands, rather than at month end, would close most of the gap.', accounted: ['Your income swings a lot, so the range is wider.','Invoices tend to cluster in October and December.','Based on 18 months of your history.'], hist: [['Apr',2100],['May',2650],['Jun',3050],['Jul',3900],['Aug',4350],['Sep',4900]], projPts: [['Oct',5500,5200,5800],['Nov',6050,5550,6550],['Dec',6400,5750,7050],['Jan',6700,5900,7600]] },
+        newGoal: { name: 'New laptop', amount: '$2,400', date: 'Jun 1, 2027', monthly: '$300', fit: 'Within reach', fitNote: 'Lean months will make it tight, but your average income covers it alongside the tax reserve.' }
+      }
+    };
+  }
+  renderVals() {
+    const coachName = this.props.coachName || 'Wren';
+    const D = this.data();
+    const key = D[this.props.persona] ? this.props.persona : 'young_professional';
+    const P = D[key];
+    const $ = n => '$' + Math.round(n).toLocaleString('en-US');
+    const COL = { 'Housing':['#8FA9C9','#E3EAF3'], 'Dining':['#F2A36B','#FDE6D4'], 'Transportation':['#8EC3AE','#E0F0E9'], 'Groceries':['#AFCB8C','#EAF2DF'], 'Shopping':['#E3A6BF','#F8E5EC'], 'Travel':['#A3B3E6','#E6EAF8'], 'Utilities':['#D8BE7E','#F5EDD7'], 'Entertainment':['#C2A3DE','#EFE6F7'], 'Health & Fitness':['#86C4BB','#DFF0ED'], 'Subscriptions':['#E59A8F','#F9E2DE'], 'Childcare & Education':['#EDC27A','#FBEFD8'], 'Insurance & Fees':['#B6ACA1','#EDE9E4'], 'Income':['#7FB38A','#E4F0E5'] };
+    const maxCat = P.cats[0][1];
+    const cats = P.cats.map(([name, amt]) => ({ name, amt, fmt: $(amt), color: COL[name][0], soft: COL[name][1], w: (amt / maxCat * 100).toFixed(1) + '%', share: Math.round(amt / P.spent * 100) + '%' }));
+    const rest = cats.slice(7); const otherAmt = rest.reduce((s, c) => s + c.amt, 0);
+    const row3 = cats.slice(5, 7).concat(rest.length ? [{ name: 'Other · ' + rest.length, amt: otherAmt, fmt: $(otherAmt), soft: '#EFE9E2', share: Math.round(otherAmt / P.spent * 100) + '%' }] : []);
+    const mosaic = [cats.slice(0, 2), cats.slice(2, 5), row3].map((tiles, i) => ({ grow: [5,3,2][i], tiles: tiles.map(c => ({ ...c, fs: i === 0 ? '30px' : i === 1 ? '22px' : '17px' })) }));
+    const months = ['Oct','Nov','Dec','Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep'];
+    const maxT = Math.max(...P.trend) * 1.08;
+    const trend = P.trend.map((v, i) => { const last = i === 11; const hl = i === P.hl; return { m: months[i], h: (v / maxT * 100).toFixed(1) + '%', c: hl ? '#E9BE58' : last ? '#F2A36B' : '#EADFD3', lbl: (hl || last) ? '$' + (v / 1000).toFixed(1) + 'k' : '' }; });
+    const diff = P.spent - P.usual;
+    const vsText = $(Math.abs(diff)) + (diff >= 0 ? ' more than your usual month' : ' less than your usual month');
+    const vsShort = (diff >= 0 ? '+' : '−') + $(Math.abs(diff)) + ' vs usual';
+    const vsBg = diff > 1000 ? '#FCF2D9' : diff > 0 ? '#F6EFE7' : '#E4F0E5';
+    const vsFg = diff > 1000 ? '#8A5C00' : diff > 0 ? '#5A4E46' : '#3F6E4C';
+    const ST = { close: ['Close','#FDEBDD','#A9521C','Close the gap'], on: ['On track','#E4F0E5','#3F6E4C','Good news'], off: ['Behind pace','#FCF2D9','#8A5C00','One change that helps'] };
+    const g = P.goal; const st = ST[g.status];
+    const scale = Math.max(g.target, ...g.projPts.map(p => p[3])) * 1.1;
+    const pc = v => (v / scale * 100).toFixed(1) + '%';
+    const chart = [
+      ...g.hist.map(([label, v], i) => ({ label, labelShort: i % 2 === g.hist.length % 2 ? '' : label.charAt(0), barH: pc(v), bandB: '0%', bandH: '0%', bandBorder: 'none', markB: '0%', markC: 'transparent', lblC: '#8C7E74', lblW: 400 })),
+      ...g.projPts.map(([label, v, lo, hi]) => ({ label, labelShort: label.charAt(0), barH: '0%', bandB: pc(lo), bandH: ((hi - lo) / scale * 100).toFixed(1) + '%', bandBorder: '1.5px dashed rgba(169,82,28,.35)', markB: pc(v), markC: '#A9521C', lblC: '#A9521C', lblW: 600 }))
+    ];
+    const savedPctN = Math.round(g.saved / g.target * 100);
+    const goal = { ...g, targetFmt: $(g.target), savedFmt: $(g.saved), projFmt: $(g.proj), lowFmt: $(g.low), highFmt: $(g.high), rangeFmt: $(g.low) + '–' + $(g.high), savedPct: savedPctN + '%', ring: 'conic-gradient(#F2A36B 0 ' + savedPctN + '%, #F3E8DC ' + savedPctN + '% 100%)', stLabel: st[0], stBg: st[1], stFg: st[2], tipHead: st[3], targetPct: pc(g.target), chart };
+    const FIT = { 'Within reach': ['#E4F0E5','#3F6E4C'], 'A stretch': ['#FCF2D9','#8A5C00'] };
+    const newGoal = { ...P.newGoal, fitBg: FIT[P.newGoal.fit][0], fitFg: FIT[P.newGoal.fit][1] };
+    const sp = P.spike; const maxS = Math.max(...sp.series.map(s => s[1])) * 1.1;
+    const spike = { ...sp, amtFmt: $(sp.amt), usualFmt: $(sp.usual), usualPct: (sp.usual / maxS * 100).toFixed(1) + '%', series: sp.series.map(([m, v], i) => ({ m, h: (v / maxS * 100).toFixed(1) + '%', c: i === sp.series.length - 1 ? '#E9BE58' : '#EADFD3' })), drivers: sp.drivers.map(([m,d,a]) => ({ m, d, a })) };
+    const spikeFlag = { title: sp.cat + ' in ' + sp.month, amt: $(sp.amt), kind: 'Spending spike', reason: 'About ' + sp.pct + ' above your usual ' + $(sp.usual) + '.' };
+    const flagsAll = [spikeFlag, ...P.charges];
+    const txns = P.txns.map(([date, clean, raw, cat, amt, low, flag, alts]) => ({ date, clean, raw, cat, amt, low: !!low, flag: !!flag, alts: alts || [], color: COL[cat][0], soft: low ? '#FFFFFF' : COL[cat][1], border: low ? '1.5px dashed #E3B347' : '1.5px solid transparent', rowBg: flag ? '#FFFBF1' : '#FFFFFF', amtC: amt[0] === '+' ? '#3F6E4C' : '#2D2622' }));
+    const review = txns.filter(t => t.low);
+    const chat = P.chat.map(ex => ({ q: ex.q, segs: ex.segs.map(([t, n, src]) => ({ t, n, src })), tiles: ex.tiles.map(([l, v]) => ({ l, v })), drivers: ex.drivers.map(([m, d, a]) => ({ m, d, a })), hasTiles: ex.tiles.length > 0, hasDrivers: ex.drivers.length > 0 }));
+    const sources = P.sources.map(([title, detail], i) => ({ id: String(i + 1), title, detail }));
+    const people = Object.entries(D).map(([k, p]) => { const on = k === key; return { name: p.name, initials: p.initials, label: p.label, blurb: p.blurb, q: p.chat[0].q, border: on ? '2px solid #F2A36B' : '1px solid #EEE3D7', shadow: on ? '0 10px 30px rgba(242,163,107,.22)' : '0 1px 2px rgba(60,40,20,.04)', avBg: on ? '#FDEBDD' : '#F6EFE7', btnBg: on ? '#F2A36B' : '#FFFFFF', btn: on ? 'Continue as ' + p.first : 'Explore as ' + p.first }; });
+    const hz = this.state?.horizon || 'month';
+    const IA = { young_professional: 5200, family_budgeter: 11400, freelancer: 6200 }[key];
+    const sumT = n => P.trend.slice(12 - n).reduce((a, b) => a + b, 0);
+    const HZ = { week: { label: 'Week', period: 'Sep 24–30', f: 7 / 30, inc: IA * 7 / 30, start: '2026-09-24', months: 0 }, month: { label: 'Month', period: 'September 2026', f: 1, inc: P.income, start: '2026-09-01', months: 1 }, quarter: { label: 'Quarter', period: 'Jul–Sep 2026', f: sumT(3) / P.spent, inc: IA * 3, start: '2026-07-01', months: 3 }, year: { label: 'Year', period: 'Oct 2025–Sep 2026', f: sumT(12) / P.spent, inc: IA * 12, start: '2025-10-01', months: 12 } };
+    const H = HZ[hz];
+    const MONTHLY = ['Housing', 'Insurance & Fees', 'Childcare & Education'];
+    const catsH = cats.map(c => { const amt = hz === 'week' && MONTHLY.includes(c.name) ? 0 : Math.round(c.amt * H.f); return { ...c, amt, fmt: $(amt) }; }).filter(c => c.amt > 0).sort((a, b) => b.amt - a.amt);
+    const spentH = catsH.reduce((s, c) => s + c.amt, 0), incH = Math.round(H.inc);
+    const FH = 260, FW = 920, xA1 = 150, xB0 = 350, xB1 = 520, xC0 = 700, pX = x => (x / FW * 100).toFixed(2) + '%';
+    const ESS = ['Housing','Utilities','Groceries','Insurance & Fees','Childcare & Education'];
+    const ess = catsH.filter(c => ESS.includes(c.name)), oth = catsH.filter(c => !ESS.includes(c.name));
+    const sum = a => a.reduce((s, c) => s + (c.amt ?? c.v), 0);
+    const left = incH - spentH;
+    const A = [{ label: 'Came in', v: incH, bg: '#E4F0E5', fg: '#3F6E4C' }].concat(left < 0 ? [{ label: 'From savings', v: -left, bg: '#FCF2D9', fg: '#8A5C00' }] : []);
+    const B = [{ label: 'Essentials', v: sum(ess), bg: '#E3EAF3', fg: '#3E5A7E', rib: '#8FA9C9', kids: ess }, { label: 'Everything else', v: sum(oth), bg: '#FDE6D4', fg: '#A9521C', rib: '#F2A36B', kids: oth }].filter(b => b.v > 0).concat(left > 0 ? [{ label: 'Left over', v: left, bg: '#E4F0E5', fg: '#3F6E4C', rib: '#7FB38A', kids: [] }] : []);
+    const T = sum(A), k = (FH - 8 * (Math.max(A.length, B.length) - 1)) / T;
+    [A, B].forEach(col => { let u = 0; col.forEach((n, i) => { n.u0 = u; u += n.v; n.u1 = u; n.i = i; }); });
+    const y = (n, u) => u * k + 8 * n.i;
+    const rib = (x0, a0, a1, x1, b0, b1, fill, op) => { const xm = (x0 + x1) / 2; return { d: 'M' + x0 + ',' + a0 + ' C' + xm + ',' + a0 + ' ' + xm + ',' + b0 + ' ' + x1 + ',' + b0 + ' L' + x1 + ',' + b1 + ' C' + xm + ',' + b1 + ' ' + xm + ',' + a1 + ' ' + x0 + ',' + a1 + ' Z', fill, op }; };
+    const flowRibbons = [];
+    A.forEach(a => B.forEach(b => { const lo = Math.max(a.u0, b.u0), hi = Math.min(a.u1, b.u1); if (hi > lo) flowRibbons.push(rib(xA1, y(a, lo), y(a, hi), xB0, y(b, lo), y(b, hi), b.rib, 0.38)); }));
+    const items = B.flatMap(b => b.kids.map(c => ({ ...c, parent: b })));
+    const avail = FH - 4 * (items.length - 1), MIN = 18; let fixed = new Set(), kc = 1;
+    for (let it = 0; it < 5; it++) { const free = items.filter(c => !fixed.has(c.name)); kc = (avail - MIN * fixed.size) / sum(free); free.forEach(c => { if (c.amt * kc < MIN) fixed.add(c.name); }); }
+    let ty = 0; items.forEach(c => { c.hh = fixed.has(c.name) ? MIN : c.amt * kc; c.tt = ty; ty += c.hh + 4; });
+    B.forEach(b => { let u = b.u0; b.kids.forEach(kid => { const c = items.find(x => x.name === kid.name); flowRibbons.push(rib(xB1, y(b, u), y(b, u + c.amt), xC0, c.tt, c.tt + c.hh, c.color, 0.42)); u += c.amt; }); });
+    const blk = (n, x0, x1) => ({ l: pX(x0), w: pX(x1 - x0), t: y(n, n.u0) + 'px', h: (n.v * k) + 'px', bg: n.bg, fg: n.fg, label: n.label, amt: $(n.v) });
+    const flowBlocks = A.map(n => blk(n, 0, xA1)).concat(B.map(n => blk(n, xB0, xB1)));
+    const flowCats = items.map(c => ({ name: c.name, fmt: c.fmt, color: c.color, t: c.tt + 'px', h: c.hh + 'px', open: () => this.setState({ drillCat: c.name }) }));
+    const flowSummary = 'Came in ' + $(incH) + ' · Spent ' + $(spentH) + ' · ' + (left >= 0 ? 'Left over ' + $(left) : $(-left) + ' from savings');
+    const horizons = Object.entries(HZ).map(([id, h]) => { const on = id === hz; return { label: h.label, bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#2D2622' : '#6B5E55', w: on ? 700 : 500, sh: on ? '0 1px 2px rgba(60,40,20,.08)' : 'none', pick: () => this.setState({ horizon: id }) }; });
+    // drill-down
+    const dc = this.state?.drillCat; let drill = null;
+    if (dc) {
+      const c = catsH.find(x => x.name === dc) || { name: dc, amt: 0, color: COL[dc][0] };
+      const TICK = { 'Housing': 0, 'Utilities': 70, 'Groceries': 60, 'Dining': 25, 'Transportation': 28, 'Shopping': 60, 'Travel': 240, 'Entertainment': 40, 'Health & Fitness': 45, 'Subscriptions': 15, 'Childcare & Education': 300, 'Insurance & Fees': 170 };
+      const GEN = { 'Housing': ['Rent payment'], 'Utilities': ['City Power & Light', 'Sonic Fiber Internet', 'Metro Water'], 'Groceries': ['Whole Foods Market', "Trader Joe's", 'Safeway', 'Farmers market'], 'Dining': ['Blue Bottle Coffee', 'Tavern on Fifth', 'Pho Saigon', 'Bar Lucia'], 'Transportation': ['Lyft', 'Uber', 'Chevron', 'City parking'], 'Shopping': ['Target', 'Amazon', 'Muji', 'REI'], 'Travel': ['Alaska Airlines', 'Hotel Zephyr'], 'Entertainment': ['AMC Theatres', 'Bowl & Barrel', 'City Museum'], 'Health & Fitness': ['Equinox', 'CVS Pharmacy'], 'Subscriptions': ['Netflix', 'Spotify', 'iCloud+'], 'Childcare & Education': ['Little Oaks Montessori', 'Kumon', 'Camp Sunrise'], 'Insurance & Fees': ['State Farm', 'Account fee'] };
+      const own = [...new Set(P.txns.filter(t => t[3] === dc).map(t => t[1]))];
+      const merch = own.concat(GEN[dc].filter(m => !own.includes(m)));
+      let seed = [...(dc + hz + key)].reduce((a, ch) => (a * 31 + ch.charCodeAt(0)) >>> 0, 7);
+      const rnd = () => { seed = (seed * 1103515245 + 12345) >>> 0; return (seed % 10000) / 10000; };
+      const n = dc === 'Housing' ? Math.max(1, H.months) : Math.max(1, Math.min(90, Math.round(c.amt / TICK[dc])));
+      const w = Array.from({ length: n }, () => 0.4 + rnd()); const ws = w.reduce((a, b) => a + b, 0);
+      const startD = new Date(H.start + 'T12:00:00'), endD = new Date('2026-09-30T12:00:00'), span = endD - startD;
+      const rows = w.map((wi, i) => { const d = dc === 'Housing' ? new Date(2026, 8 - i, 1) : new Date(startD.getTime() + span * ((i + rnd() * 0.9) / n)); return { d, m: merch[Math.floor(rnd() * merch.length)], a: c.amt * wi / ws }; }).sort((a, b) => b.d - a.d);
+      const fmtD = d => d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + (H.months === 12 ? ", '" + String(d.getFullYear()).slice(2) : '');
+      drill = { name: dc, color: c.color, total: $(c.amt), period: H.period, count: n + (n === 1 ? ' transaction' : ' transactions'), share: Math.round(c.amt / spentH * 100) + '% of spending', rows: rows.slice(0, 9).map(r => ({ date: fmtD(r.d), m: r.m, a: '−$' + r.a.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) })), more: n > 9 ? '+ ' + (n - 9) + ' more' : '', close: () => this.setState({ drillCat: null }), stop: e => e.stopPropagation() };
+    }
+    return {
+      flowRibbons, flowBlocks, flowCats, flowSummary, flowH: FH, horizons, flowPeriod: H.period, drill, hasDrill: !!drill,
+      coachName, coachInitial: coachName.charAt(0).toUpperCase(),
+      name: P.name, first: P.first, initials: P.initials, label: P.label, txnCount: P.txnCount,
+      spentFmt: $(P.spent), usualFmt: $(P.usual), incomeFmt: $(P.income), vsText, vsShort, vsBg, vsFg,
+      usualPct: (P.usual / maxT * 100).toFixed(1) + '%',
+      cats, catsTop: cats.slice(0, 6), catsTop4: cats.slice(0, 4), mosaic, trend, trendNote: P.trendNote,
+      summary: P.summary.map(([t, n, src]) => ({ t, n, src })),
+      askChips: [P.chat[0].q, P.chat[1].q, P.suggestions[0]], askChips2: [P.chat[1].q, P.suggestions[0]],
+      chat, chat0: chat[0], chat0q: chat[0].q, chat0segs: chat[0].segs, suggestions: P.suggestions, sources, sourceCount: sources.length,
+      goal, newGoal, spike, charges: P.charges, flagsAll, flagList: flagsAll.slice(0, 2), flag0: flagsAll[0], flagCount: flagsAll.length,
+      txns, review, reviewCount: review.length, email: P.first.toLowerCase() + '@example.com'
+    };
+  }
+}
+</script>
+</body>
+</html>
