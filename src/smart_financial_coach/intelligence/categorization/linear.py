@@ -10,6 +10,10 @@ Feature blocks (FR-3 §3), each switchable from config so experiments can ablate
 - channel: one-hot.
 - hour: 3-hour bins of the local timestamp; kept only if the ablation shows it helps.
 
+Class weights are `balanced` (FR-3's default) or `none`, a candidate dimension in FR-4: under the
+injected label noise, balanced weights gave the rarest class (Travel) the most weight and made it
+the fallback for unfamiliar strings.
+
 Familiarity (a normalized string seen in training) is recorded from all training rows before
 the per-class cap, so a known merchant isn't "unseen" just because the cap sampled it out.
 """
@@ -62,6 +66,7 @@ class LinearText(CategorizerModel):
         channel: bool = True,
         hour: bool = True,
         max_rows_per_class: int | None = 20_000,
+        class_weight: str = "balanced",  # or "none"
         normalizer: str = "v1",
         seed: int = 0,
         max_iter: int = 500,
@@ -77,6 +82,7 @@ class LinearText(CategorizerModel):
             channel=channel,
             hour=hour,
             max_rows_per_class=max_rows_per_class,
+            class_weight=class_weight,
             normalizer=normalizer,
             seed=seed,
             max_iter=max_iter,
@@ -89,6 +95,9 @@ class LinearText(CategorizerModel):
         self.embedding_model = embeddings
         self.side = {"amount": amount, "sign": sign, "channel": channel, "hour": hour}
         self.max_rows_per_class = max_rows_per_class
+        if class_weight not in ("balanced", "none"):
+            raise ValueError(f"class_weight must be 'balanced' or 'none', got {class_weight!r}")
+        self.class_weight = None if class_weight == "none" else class_weight
         self.normalize = NORMALIZERS[normalizer]
         self.seed = seed
         self.max_iter = max_iter
@@ -154,7 +163,7 @@ class LinearText(CategorizerModel):
         if self.embedder is not None:
             self.embedding_file = self.embedder.fingerprint()
         self.classifier = LogisticRegression(
-            C=self.C, max_iter=self.max_iter, class_weight="balanced"
+            C=self.C, max_iter=self.max_iter, class_weight=self.class_weight
         ).fit(self._features(rows, kept_text), kept_labels)
         self.categories = tuple(str(c) for c in self.classifier.classes_)
         return self

@@ -13,7 +13,7 @@ import pytest
 from smart_financial_coach.config import PROJECT_ROOT
 from smart_financial_coach.evaluation.experiment import ExperimentConfig, load_experiment
 from smart_financial_coach.evaluation.promote import finalize, promote
-from smart_financial_coach.evaluation.runner import run_experiment
+from smart_financial_coach.evaluation.runner import run_experiment, run_with_twin
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.categorization.contract import Categorizer
 from smart_financial_coach.intelligence.service import load_service
@@ -39,11 +39,17 @@ def test_real_embedder_trains_promotes_and_serves(small_sqlite: Path, tmp_path: 
                 "params": {"base": {"$model": {"type": "categorization/linear_text"}}},
             },
             "task_params": {"k": 3},
+            "ship": {"task_params": {"label_noise": 0.0}},
         }
     )
-    run = run_experiment(config, small_sqlite, tracker)
-    finalize("categorization", small_sqlite, tracker)
-    promote("categorization", run.run_id, "linear weights", tracker, tmp_path / "artifacts")
+    _, twin = run_with_twin(config, small_sqlite, tracker)
+    assert twin is not None
+    run = twin
+    finalize("categorization", small_sqlite, tracker)  # scores the shipping twin
+    entry = promote(
+        "categorization", twin.run_id, "linear weights", tracker, tmp_path / "artifacts"
+    )
+    assert entry["task_params"] == {"label_noise": 0.0}
 
     categorizer = load_service("categorization", tmp_path / "artifacts")  # verifies the file
     assert isinstance(categorizer, Categorizer)

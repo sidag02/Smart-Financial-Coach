@@ -3,7 +3,9 @@
 - `leaderboard` orders comparable runs (same data and splits) by the decision rule, on
   validation metrics only.
 - `finalize` scores the leaderboard's top three on the test sets, plus the round 0 baselines,
-  once per split.
+  once per split. When the task requires shipping twins (`Task.shipping_params`), the leaderboard
+  ranks comparison runs, breaks ties on their twins' validation metrics, and `finalize` scores
+  the twins; a twin that beats rank 1's twin on validation stops the round (FR-4 §1, §5).
 - `promote` checks the rank-1 finalist against the task's gates, exports it to
   `artifacts/<task>/`, publishes the model file (a GitHub Release, see `publish`), points the
   MLflow `champion` alias and `PROMOTED` at it, and appends to `promotions.jsonl`.
@@ -27,6 +29,7 @@ from smart_financial_coach.evaluation.runner import (
     CONFIG_FILE,
     PREDICTIONS_FILE,
     PREDICTIONS_PATH,
+    TWIN_TAG,
     prepare,
 )
 from smart_financial_coach.evaluation.selection import MAX_FINALISTS, Candidate, rank
@@ -63,6 +66,9 @@ class Standing:
     eligible: bool
     tied_with_leader: bool
     code: str  # the code version that produced the run (see `runner.code_version`)
+    twin_id: str | None = None  # its shipping twin, when the task requires twins
+    twin_estimate: float = float("nan")  # the twin's validation selection metric
+    reverses: bool = False  # its twin beats rank 1's twin on validation (paired interval > 0)
 
 
 def _config(tracker: Tracker, run: RunRecord, tmp: Path) -> ExperimentConfig:
@@ -114,21 +120,45 @@ def baseline_runs(runs: list[RunRecord]) -> list[RunRecord]:
     return [r for r in runs if r.tags.get("sfc.baseline") == "true"]
 
 
+def is_twin(run: RunRecord) -> bool:
+    return TWIN_TAG in run.tags
+
+
+def twins_of(runs: list[RunRecord]) -> dict[str, RunRecord]:
+    """Comparison run ID -> its latest finished shipping twin."""
+    out: dict[str, RunRecord] = {}
+    for run in runs:  # oldest first, so the latest twin wins
+        if is_twin(run) and run.status == "FINISHED":
+            out[run.tags[TWIN_TAG]] = run
+    return out
+
+
 def leaderboard(
     task_name: str, data: Path, tracker: Tracker, split_hash: str | None = None
 ) -> list[Standing]:
-    """Candidate runs in decision-rule order (baselines are the floor, not candidates)."""
+    """Candidate runs in decision-rule order (baselines are the floor, not candidates).
+
+    With shipping twins (FR-4): eligibility, ranking and the F1 tie set come from comparison
+    runs; tie-breaks come from their twins' validation metrics, the first with its own tie test;
+    and each eligible run is marked if its twin beats rank 1's twin on validation.
+    """
     task = get_task(task_name)
     runs = comparable_runs(tracker, task, split_hash)
     if any(r.tags.get("sfc.baseline") != "true" for r in runs):
         _require_baselines(task, runs)
     baselines = {r.name: r.metrics for r in baseline_runs(runs)}
-    candidates = [r for r in runs if r.tags.get("sfc.baseline") != "true"]
+    candidates = [r for r in runs if r.tags.get("sfc.baseline") != "true" and not is_twin(r)]
     if not candidates:
         return []
+    shipping = bool(task.shipping_params)
+    twins = twins_of(runs) if shipping else {}
     metric = f"val_{task.selection_metric}"
-    keys = (*task.tiebreak_metrics, "complexity")
     by_id = {r.run_id: r for r in candidates}
+
+    def breaker(run: RunRecord) -> RunRecord | None:
+        """Whose metrics break ties: the twin's when the task ships twins (none: sinks)."""
+        return twins.get(run.run_id) if shipping else run
+
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
         examples, _ = rebuild_splits(task, data, tracker, candidates[0], tmp)
@@ -151,31 +181,61 @@ def leaderboard(
                 return True
             return False
 
+        def tiebreak_tied(first: str, other: str) -> bool:
+            a, b = breaker(by_id[first]), breaker(by_id[other])
+            if a is None or b is None:
+                return False
+            return task.tiebreak_tied(examples, pooled(a.run_id), pooled(b.run_id))
+
+        def tiebreak(run: RunRecord) -> tuple[float, ...]:
+            source = breaker(run)
+            values = source.metrics if source is not None else {}
+            return (
+                *(values.get(k, float("inf")) for k in task.tiebreak_metrics),
+                run.metrics.get("complexity", float("inf")),
+            )
+
         order = rank(
             [
                 Candidate(
                     run_id=r.run_id,
                     estimate=r.metrics.get(metric, float("nan")),
                     eligible=metric in r.metrics and task.eligible(r.metrics, baselines),
-                    tiebreak=tuple(r.metrics.get(k, float("inf")) for k in keys),
+                    tiebreak=tiebreak(r),
                 )
                 for r in candidates
             ],
             tied_with_leader,
+            tiebreak_tied,
         )
+        reversing: set[str] = set()
+        if shipping and order and (top := twins.get(order[0])) is not None:
+            for run_id in order[1:]:
+                twin = twins.get(run_id)
+                if twin is None or twin.metrics.get(metric, 0.0) <= top.metrics.get(metric, 0.0):
+                    continue  # can only reverse if its twin's point estimate is higher
+                lo, _ = task.difference_interval(examples, pooled(twin.run_id), pooled(top.run_id))
+                if lo > 0:
+                    reversing.add(run_id)
     ranked = [by_id[i] for i in order]
     unranked = [r for r in candidates if r.run_id not in order]
-    return [
-        Standing(
-            run_id=r.run_id,
-            name=r.name,
-            estimate=r.metrics.get(metric, float("nan")),
-            eligible=r.run_id in order,
-            tied_with_leader=i == 0 or r.run_id in tied,
-            code=r.tags.get("sfc.code_version", "unknown"),
+    standings = []
+    for i, r in enumerate(ranked + unranked):
+        twin = twins.get(r.run_id)
+        standings.append(
+            Standing(
+                run_id=r.run_id,
+                name=r.name,
+                estimate=r.metrics.get(metric, float("nan")),
+                eligible=r.run_id in order,
+                tied_with_leader=i == 0 or r.run_id in tied,
+                code=r.tags.get("sfc.code_version", "unknown"),
+                twin_id=twin.run_id if twin else None,
+                twin_estimate=twin.metrics.get(metric, float("nan")) if twin else float("nan"),
+                reverses=r.run_id in reversing,
+            )
         )
-        for i, r in enumerate(ranked + unranked)
-    ]
+    return standings
 
 
 def finalize(
@@ -192,6 +252,11 @@ def finalize(
     The finalists are the leaderboard's first `MAX_FINALISTS`, tagged with their rank. A split whose
     candidates were already test-scored is refused. Naming other runs, or a second round on the
     same split, needs `override`: a reason, recorded on every run it scores.
+
+    When the task requires shipping twins, the finalists' twins are scored, and a finalist
+    without a finished twin is refused. If any eligible run's twin beats rank 1's twin on
+    validation, nothing is finalized without an override reason: the reversal is investigated,
+    not resolved by promoting another twin (FR-4 §1).
     """
     task = get_task(task_name)
     reason = (override or "").strip()
@@ -202,13 +267,33 @@ def finalize(
     if run_ids:
         split_hash = tracker.get(run_ids[0]).tags.get("sfc.split_hash")
     _require_baselines(task, comparable_runs(tracker, task, split_hash))  # else nothing is eligible
-    order = [s.run_id for s in leaderboard(task_name, data, tracker, split_hash) if s.eligible]
+    standings = leaderboard(task_name, data, tracker, split_hash)
+    order = [s.run_id for s in standings if s.eligible]
+    if (reversed_by := [s.name for s in standings if s.eligible and s.reverses]) and not reason:
+        raise SelectionError(
+            f"the shipping twin of {', '.join(reversed_by)} beats rank 1's twin on validation; "
+            "investigate before finalizing (an override needs a reason)"
+        )
     chosen = run_ids or order[:MAX_FINALISTS]
     if not chosen:
         raise SelectionError("no eligible candidate runs on these splits; see `leaderboard`")
     if not 0 < len(chosen) <= MAX_FINALISTS:
         raise SelectionError(f"finalize takes 1 to {MAX_FINALISTS} runs, got {len(chosen)}")
     finalists = [tracker.get(r) for r in chosen]
+    compared = {r.run_id: r.run_id for r in finalists}  # finalist -> the run it is ranked as
+    if task.shipping_params:
+        twins = twins_of(comparable_runs(tracker, task, finalists[0].tags.get("sfc.split_hash")))
+        shipped = []
+        for run in finalists:
+            found = run if is_twin(run) else twins.get(run.run_id)
+            if found is None:
+                raise SelectionError(
+                    f"{run.name} has no finished shipping twin; run its config again "
+                    "(`sfc-experiment run`) so the twin is trained"
+                )
+            shipped.append(found)
+            compared[found.run_id] = found.tags[TWIN_TAG]
+        finalists = shipped
     for run in finalists:
         if run.status != "FINISHED" or run.tags.get("sfc.kind") != "experiment":
             raise SelectionError(f"{run.run_id} is not a finished experiment run")
@@ -252,7 +337,8 @@ def finalize(
             metrics = {f"test_{k}": v for k, v in test.items()}
             tags = {TEST_SCORED_TAG: "true"}
             if run in finalists:
-                rank = order.index(run.run_id) + 1 if run.run_id in order else "unranked"
+                source = compared[run.run_id]
+                rank = order.index(source) + 1 if source in order else "unranked"
                 tags |= {FINALIST_TAG: "true", RANK_TAG: str(rank)}
             if reason:
                 tags[OVERRIDE_TAG] = reason
@@ -283,6 +369,10 @@ def promote(
 
     `publisher` makes the model file downloadable and its URL goes in the log. Without one, the
     file stays on this machine, and other clones can't load the promoted model.
+
+    When the task requires shipping params (e.g. `label_noise`), the run's config must set each
+    one explicitly, so a promotion can't silently train with or without noise; their values go
+    in the log.
     """
     task = get_task(task_name)
     run = tracker.get(run_id)
@@ -296,6 +386,16 @@ def promote(
         )
     if not note.strip():
         raise SelectionError("a promotion needs a note on explainability and operations")
+    shipped: dict[str, Any] = {}
+    if task.shipping_params:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            config = _config(tracker, run, Path(tmp_dir))
+        if missing := [p for p in task.shipping_params if p not in config.task_params]:
+            raise SelectionError(
+                f"{run.name} leaves {', '.join(missing)} to the task default; promote a run whose "
+                "config sets it explicitly (its shipping twin)"
+            )
+        shipped = {p: config.task_params[p] for p in task.shipping_params}
     gates = check_gates(task, run, tracker)
     if failed := [g for g in gates if not g.passed]:
         raise SelectionError("gates failed: " + "; ".join(f"{g.name} ({g.detail})" for g in failed))
@@ -344,6 +444,7 @@ def promote(
         "promoted_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "gates": [{"name": g.name, "passed": g.passed, "detail": g.detail} for g in gates],
         "note": note.strip(),
+        **({"task_params": shipped} if shipped else {}),
         **({URL_KEY: url} if url else {}),
         **({"override": reason} if reason else {}),
     }

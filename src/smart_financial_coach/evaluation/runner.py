@@ -15,6 +15,7 @@ import hashlib
 import json
 import subprocess
 import tempfile
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -37,6 +38,7 @@ CONFIG_FILE = "config.json"
 PREDICTIONS_PATH = "validation"
 PREDICTIONS_FILE = "predictions.parquet"
 LATENCY_ROWS = 10_000
+TWIN_TAG = "sfc.twin_of"  # on a shipping twin: the comparison run it was trained alongside
 
 
 class LeakError(ValueError):
@@ -170,6 +172,7 @@ def run_experiment(
     *,
     force: bool = False,
     reproduce_poc: bool = False,
+    extra_tags: Mapping[str, str] | None = None,
 ) -> RunResult:
     task = get_task(config.task)
     if reproduce_poc and config.config_hash() not in task.reproduction_configs():
@@ -192,6 +195,7 @@ def run_experiment(
         "sfc.git_commit": git_commit(),
         "sfc.git_dirty": str(git_dirty()).lower(),
         **{f"user.{k}": v for k, v in config.tags.items()},
+        **dict(extra_tags or {}),
     }
     with tracker.run(task.name, config.name, tags) as run_id:
         tracker.log(
@@ -279,3 +283,24 @@ def run_experiment(
             tags={"sfc.version": model.version},
         )
     return RunResult(run_id, False, chosen, metrics)
+
+
+def run_with_twin(
+    config: ExperimentConfig, data: Path, tracker: Tracker, *, force: bool = False
+) -> tuple[RunResult, RunResult | None]:
+    """The comparison run, then its shipping twin if the config declares one (FR-4 §1).
+
+    The twin is tagged with the comparison run it belongs to. When the comparison run is new,
+    its twin is retrained too, so a twin never points at a superseded comparison run.
+    """
+    result = run_experiment(config, data, tracker, force=force)
+    if config.ship is None:
+        return result, None
+    twin = run_experiment(
+        config.twin(),
+        data,
+        tracker,
+        force=force or not result.skipped,
+        extra_tags={TWIN_TAG: result.run_id},
+    )
+    return result, twin

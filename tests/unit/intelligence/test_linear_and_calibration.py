@@ -71,6 +71,19 @@ def test_needs_some_text_features() -> None:
         linear(ngrams=False, embeddings=None)
 
 
+def test_class_weight_is_balanced_or_none(data: tuple[pd.DataFrame, pd.Series]) -> None:
+    x, y = data
+    balanced = linear().fit(x, y)
+    unweighted = linear(class_weight="none").fit(x, y)
+
+    assert balanced.classifier is not None
+    assert unweighted.classifier is not None
+    assert balanced.classifier.class_weight == "balanced"
+    assert unweighted.classifier.class_weight is None
+    with pytest.raises(ValueError, match="class_weight"):
+        linear(class_weight="inverse")
+
+
 def test_familiarity_is_recorded_before_the_cap(data: tuple[pd.DataFrame, pd.Series]) -> None:
     x, y = data
     model = linear(max_rows_per_class=5).fit(x, y)  # the cap keeps 5 rows per class
