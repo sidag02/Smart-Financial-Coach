@@ -81,6 +81,8 @@ uv run sfc-web build-demo --data data/synthetic/default.sqlite   # -> build/demo
 uv run sfc-web serve --dev        # http://127.0.0.1:8000, password demo-password, one-click sign-in
 ```
 
+The tools are also an MCP server at `/mcp` (Streamable HTTP, bearer tokens): Wren uses it, and the "Connect an assistant" page gives a signed-in user a token and setup for Claude Code or Claude Desktop.
+
 `--dev` makes throwaway secrets for plain http. A hosted run needs `SFC_DEMO_PASSWORD` and `SFC_SESSION_SECRET`, and `SFC_LLM_API_KEY` (or `ANTHROPIC_API_KEY`) for chat; without a key, chat says it's unavailable and the rest works. The `Dockerfile` packages the app with `build/demo`. Design: [Smart Financial Coach — Web App UI.md](<docs/design/Smart Financial Coach — Web App UI.md>) and the mockups in `docs/design/mockups/`.
 
 ### Demo deployment (Azure)

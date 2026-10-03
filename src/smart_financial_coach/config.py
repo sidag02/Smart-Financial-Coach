@@ -60,6 +60,10 @@ class Settings(BaseSettings):
     chat_messages_per_hour_total: int = 200
     signin_attempts_per_minute: int = 10
     signin_attempts_per_minute_total: int = 60
+    # The app's public address, for the MCP server's URL and auth metadata (FR-19), and the
+    # lifetime of the personal access tokens the "Connect an assistant" page hands out
+    public_url: str = "http://127.0.0.1:8000"
+    mcp_token_days: int = 7
     # Proxies in front of the app that append to X-Forwarded-For: 1 behind Azure Container Apps'
     # ingress, 0 when serving directly (the header is then ignored)
     trusted_proxy_hops: int = 0

@@ -10,6 +10,19 @@
     root.dataset.theme = next;
     document.cookie = "theme=" + next + "; path=/; max-age=31536000; samesite=lax";
   });
+  // Copy buttons on the "Connect an assistant" page
+  document.addEventListener("click", async (event) => {
+    const button = event.target.closest("[data-copy]");
+    if (!button) return;
+    const text = document.getElementById(button.dataset.copy)?.textContent ?? "";
+    try {
+      await navigator.clipboard.writeText(text);
+      button.textContent = "Copied";
+      setTimeout(() => (button.textContent = "Copy"), 1500);
+    } catch {
+      button.textContent = "Select and copy";
+    }
+  });
   // Close the drill-down drawer with Escape or a click on the backdrop
   document.addEventListener("keydown", (event) => {
     if (event.key === "Escape") document.getElementById("drawer")?.replaceChildren();

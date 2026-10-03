@@ -299,7 +299,9 @@ def test_two_sessions_as_the_same_user_keep_separate_chats(
     fake = FakeClient(response(text("Answer for the first visitor.")))
     wren = Coach(fake, coach_name="Wren", model="m")
     app = create_app(settings(), sources=sources, accounts=accounts, coach=wren)
-    with TestClient(app) as first, TestClient(app) as second:
+    # One client runs the app's startup; the second is another browser on the same server
+    with TestClient(app) as first:
+        second = TestClient(app)
         sign_in(first)
         sign_in(second)  # the same demo user, another browser
         first.post("/chat", data={"question": "My private question"})

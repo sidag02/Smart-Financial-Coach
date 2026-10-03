@@ -1,7 +1,8 @@
 """The coach: answers questions in plain English using only numbers the tools return.
 
-Claude calls the same tools as the dashboard (`access.tools`), built for the signed-in user, so it
-can't read anyone else's data however it's asked (NFR-2). Each tool result carries a source id
+Claude calls the same tools as the dashboard and outside assistants, through the MCP server with a
+token for the signed-in user (`access.mcp_client`), so it can't read anyone else's data however
+it's asked (NFR-2). Each tool result carries a source id
 (S1, S2, …) and the coach tags every number with one, which the chat shows as a chip (FR-16). It
 gives no investment advice (FR-15, NFR-4). With no API key, or when the API fails, chat says so
 and the dashboard is unaffected (NFR-6).
@@ -22,7 +23,12 @@ from typing import Any
 
 import anthropic
 
-from smart_financial_coach.access.tools import TOOL_SPECS, Source, ToolError, Tools
+from smart_financial_coach.access.tools import (
+    Source,
+    ToolError,
+    ToolGateway,
+    ToolsUnavailableError,
+)
 from smart_financial_coach.config import Settings
 
 log = logging.getLogger(__name__)
@@ -118,7 +124,7 @@ class Coach:
     def system_prompt(self, as_of: date) -> str:
         return SYSTEM.format(coach_name=self.coach_name, as_of=as_of)
 
-    def answer(self, tools: Tools, conversation: Conversation, question: str) -> Reply:
+    def answer(self, tools: ToolGateway, conversation: Conversation, question: str) -> Reply:
         started = perf_counter()
         turn_start, first_source = len(conversation.messages), len(conversation.sources)
         conversation.messages.append({"role": "user", "content": question})
@@ -131,7 +137,7 @@ class Coach:
 
         try:
             text, complete = self._loop(tools, conversation)
-        except anthropic.APIError as error:
+        except (anthropic.APIError, ToolsUnavailableError) as error:
             log.warning("coach unavailable: %s", type(error).__name__)
             roll_back()
             raise CoachUnavailableError(str(error)) from error
@@ -145,12 +151,12 @@ class Coach:
         }
         return Reply(text, cited, perf_counter() - started)
 
-    def _loop(self, tools: Tools, conversation: Conversation) -> tuple[str, bool]:
+    def _loop(self, tools: ToolGateway, conversation: Conversation) -> tuple[str, bool]:
         """The answer, and whether the turn ended cleanly (kept in the history)."""
         system = [
             {
                 "type": "text",
-                "text": self.system_prompt(tools.ledger.as_of),
+                "text": self.system_prompt(tools.as_of),
                 "cache_control": {"type": "ephemeral"},
             }
         ]
@@ -159,7 +165,7 @@ class Coach:
                 model=self.model,
                 max_tokens=MAX_TOKENS,
                 system=system,
-                tools=TOOL_SPECS,
+                tools=tools.specs,
                 messages=conversation.messages,
                 output_config={"effort": self.effort},
                 betas=[FALLBACK_BETA],
@@ -181,9 +187,11 @@ class Coach:
         return TOO_MANY_STEPS, False
 
     @staticmethod
-    def _run(tools: Tools, conversation: Conversation, call: Any) -> dict[str, Any]:
+    def _run(tools: ToolGateway, conversation: Conversation, call: Any) -> dict[str, Any]:
         try:
             result = tools.call(call.name, dict(call.input))
+        except ToolsUnavailableError:
+            raise
         except Exception as error:  # reported to the model, which can retry in the same turn
             if not isinstance(error, ToolError):
                 log.exception("tool %s failed", call.name)

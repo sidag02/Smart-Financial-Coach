@@ -59,12 +59,21 @@ az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" -o
   az identity create --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" -o none
 CLIENT_ID="$(az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" --query clientId -o tsv)"
 PRINCIPAL_ID="$(az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" --query principalId -o tsv)"
-az identity federated-credential show --name github-demo --identity-name "$DEPLOY_IDENTITY" \
-  --resource-group "$RESOURCE_GROUP" -o none 2>/dev/null ||
-  az identity federated-credential create --name github-demo --identity-name "$DEPLOY_IDENTITY" \
-    --resource-group "$RESOURCE_GROUP" --issuer https://token.actions.githubusercontent.com \
-    --subject "repo:$GITHUB_REPO:environment:$GITHUB_ENVIRONMENT" \
-    --audiences api://AzureADTokenExchange -o none
+# GitHub's OIDC subject comes in two formats: by name, and with the owner's and repository's
+# immutable IDs ("repo:owner@<id>/name@<id>:…"), which this repository sends. Trust both, for the
+# same environment only
+OWNER_ID="$(gh api "repos/$GITHUB_REPO" --jq .owner.id)"
+REPO_ID="$(gh api "repos/$GITHUB_REPO" --jq .id)"
+for credential in \
+  "github-demo=repo:$GITHUB_REPO:environment:$GITHUB_ENVIRONMENT" \
+  "github-demo-ids=repo:${GITHUB_REPO%%/*}@$OWNER_ID/${GITHUB_REPO#*/}@$REPO_ID:environment:$GITHUB_ENVIRONMENT"; do
+  az identity federated-credential show --name "${credential%%=*}" --identity-name "$DEPLOY_IDENTITY" \
+    --resource-group "$RESOURCE_GROUP" -o none 2>/dev/null ||
+    az identity federated-credential create --name "${credential%%=*}" \
+      --identity-name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" \
+      --issuer https://token.actions.githubusercontent.com --subject "${credential#*=}" \
+      --audiences api://AzureADTokenExchange -o none
+done
 # Contributor on this resource group only: build images and update the app, nothing else
 RG_ID="$(az group show --name "$RESOURCE_GROUP" --query id -o tsv)"
 az role assignment list --assignee "$PRINCIPAL_ID" --scope "$RG_ID" --role Contributor \
@@ -90,4 +99,7 @@ done
 
 FQDN="$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn -o tsv)"
+# The app's own address: the MCP server's URL and auth metadata ("Connect an assistant")
+az containerapp update --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+  --set-env-vars "SFC_PUBLIC_URL=https://$FQDN" -o none
 echo "== Up: https://$FQDN"

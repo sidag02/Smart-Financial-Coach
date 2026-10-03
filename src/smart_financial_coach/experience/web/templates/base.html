@@ -37,6 +37,7 @@
         <div class="me-email">{{ account.email }}</div>
       </div>
     </div>
+    <a class="connect-link" href="/connect"{% if active == "connect" %} aria-current="page"{% endif %}>Connect an assistant</a>
     <div class="side-actions">
       <form method="post" action="/signout"><button class="link-btn" type="submit">Sign out</button></form>
       <button class="theme-btn" type="button" data-theme-toggle>Theme</button>
