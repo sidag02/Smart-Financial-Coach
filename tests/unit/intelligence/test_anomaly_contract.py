@@ -186,3 +186,26 @@ def test_every_reason_code_has_a_kind_label() -> None:
     from smart_financial_coach.intelligence.anomaly.contract import REASON_CODES
 
     assert set(KIND_LABELS) == set(REASON_CODES)
+
+
+@pytest.mark.parametrize(
+    ("extra", "text"),
+    [
+        ({"category_largest_since": None}, "your largest Shopping charge yet."),
+        ({"category_largest_since": "2024-10-02"}, "your largest Shopping charge since Oct 2024."),
+        # A recent "since" says little: the whole-history wording is used instead
+        ({"category_largest_since": "2026-08-01"}, "your largest charge yet."),
+    ],
+)
+def test_new_merchant_reasons_use_the_category_when_given(extra: dict[str, Any], text: str) -> None:
+    evidence = {**NEW, "category": "Shopping", "date": "2026-09-10", **extra}
+
+    assert reason("new_merchant", evidence).endswith(text)
+
+
+def test_short_histories_ignore_the_category() -> None:
+    evidence = {**NEW, "prior_charges": 5, "category": "Shopping", "date": "2026-09-10"}
+
+    assert "one of your first charges" in reason(
+        "new_merchant", evidence | {"category_largest_since": None}
+    )

@@ -22,7 +22,7 @@ transaction is previewed, not applied, until the call says `confirm` (#15 \u00a7
 """
 
 import json
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Protocol
@@ -690,6 +690,7 @@ class Tools:
             )
         rows = self.ledger.between(start, end)
         rows = rows.merge(flags[["transaction_id", "reason_code", "evidence"]], on="transaction_id")
+        rows = rows.assign(evidence=[self._with_category(r) for r in rows.to_dict("records")])
         data = {
             "currency": CURRENCY,
             "start_date": start.isoformat(),
@@ -716,6 +717,26 @@ class Tools:
         }
         title = f"Unusual charges · {span_label(start, end)}"
         return ToolResult(data, Source(title, f"{len(rows)} flagged"))
+
+    def _with_category(self, flag: Mapping[Hashable, Any]) -> str:
+        """A new-merchant flag's evidence with its predicted category and the latest earlier
+        charge in that category at least as large, from the user's own ledger (FR-7 §7)."""
+        evidence = json.loads(flag["evidence"])
+        if flag["reason_code"] != "new_merchant":
+            return str(flag["evidence"])
+        t = self.ledger.transactions
+        earlier = t[
+            (t["category"] == flag["category"])
+            & (t["ts"] < flag["ts"])
+            & (t["amount"] <= flag["amount"])  # outflows: at least as large
+        ]
+        latest = earlier["ts"].max() if len(earlier) else None
+        evidence |= {
+            "category": flag["category"],
+            "date": flag["day"].isoformat(),
+            "category_largest_since": latest.strftime("%Y-%m-%d") if latest is not None else None,
+        }
+        return json.dumps(evidence)
 
     def forecast_goal(self, goal_name: str) -> ToolResult:
         return self._not_available("Goal forecast", goal_name, "FR-10 to FR-12")

@@ -173,3 +173,18 @@ def test_detect_anomalies_returns_only_the_users_flags_with_reasons(
         }
         assert f["amount"] < 0
     assert found["spending_spikes"]["status"] == "not_available"
+
+
+def test_new_merchant_reasons_name_the_category_from_the_users_ledger(
+    flagged_sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    for user in two_users:
+        tools = Tools(Ledger.load(flagged_sources, user))
+        found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+        for f in found["unusual_transactions"]:
+            if f["reason_code"] != "new_merchant":
+                continue
+            assert f["evidence"]["category"] == f["category"]
+            assert f["evidence"]["date"] == f["date"]
+            since = f["evidence"]["category_largest_since"]
+            assert since is None or since < f["date"]
