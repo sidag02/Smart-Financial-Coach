@@ -146,3 +146,14 @@ def test_baseline_is_point_in_time_and_builds_from_a_spec() -> None:
 
     early = UserZScore().scores(x.iloc[:11])
     assert early["score"].tolist() == UserZScore().scores(x)["score"].tolist()[:11]
+
+
+def test_baseline_with_repeats_scores_exact_repeats_as_duplicates() -> None:
+    x = rows(3).assign(merchant_raw="LYFT")
+    x.loc[2, "ts"] = str(x.loc[1, "ts"])[:-2] + "30"  # 30 minutes after the second charge
+
+    s = UserZScore(min_history=0, repeats=True).scores(x)
+    assert s["reason_code"].tolist()[2] == "duplicate"
+    assert np.isinf(s["score"].to_numpy()[2])
+    assert s["original_transaction_id"].tolist()[2] == "t1"
+    assert UserZScore(min_history=0).scores(x)["reason_code"].tolist()[2] != "duplicate"

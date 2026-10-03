@@ -9,8 +9,9 @@ scorer and uses them only to find the deepest cutoff with that precision on the 
 `Thresholded(base, rate=0.11)` needs no labels: it flags the top `rate` charges per user-month,
 which is how a cutoff carries to real data without labels (v2).
 
-Labels, when given, are `anomaly`, `normal` or `ignored` per row (the label contract's ignore
-rules: warm-up and duplicate originals); ignored rows don't count towards precision.
+Labels, when given, are `anomaly`, `normal`, `warmup` or `ignored` per row. The last two are the
+label contract's ignore set (the warm-up, and duplicate originals) and don't count towards
+precision; flag-rate budgets and month counts leave out only the warm-up, a date rule.
 """
 
 import math
@@ -24,7 +25,10 @@ from smart_financial_coach.intelligence.anomaly.contract import EVIDENCE, Anomal
 from smart_financial_coach.intelligence.models.base import Model
 from smart_financial_coach.intelligence.models.registry import register
 
-ANOMALY, NORMAL, IGNORED = "anomaly", "normal", "ignored"
+ANOMALY, NORMAL, IGNORED, WARMUP = "anomaly", "normal", "ignored", "warmup"
+# Neither right nor wrong when flagged (the label contract's ignore set): the warm-up, a date rule,
+# and duplicate originals, known only from truth. Flag-rate budgets exclude only the warm-up
+UNSCORED = (IGNORED, WARMUP)
 DAYS_PER_MONTH = 30.4
 SCORE_COLUMNS = ("transaction_id", "score", "reason_code")
 
@@ -57,7 +61,7 @@ def precision_cutoff(
 ) -> float:
     """The lowest score whose flags (score >= it) have at least `target` precision, ignored rows
     left out; +inf when no cutoff reaches it, so only +inf scores (exact repeats) are flagged."""
-    keep = labels != IGNORED
+    keep = ~np.isin(labels, UNSCORED)
     s, hit = score[keep], labels[keep] == ANOMALY
     order = np.argsort(-s, kind="mergesort")
     s, hit = s[order], hit[order]
@@ -116,14 +120,16 @@ class Thresholded(AnomalyModel):
         labels = y.to_numpy()
         self.cutoff = precision_cutoff(score, labels, self.precision or 0.0)
         flagged = (score >= self.cutoff) & scored["reason_code"].notna().to_numpy()
-        kept = labels != IGNORED
+        kept = ~np.isin(labels, UNSCORED)
         hits = flagged & kept & (labels == ANOMALY)
         self.report = {
             "cutoff": self.cutoff,
             "train_precision": float(hits.sum() / max((flagged & kept).sum(), 1)),
             "train_recall": float(hits.sum() / max((kept & (labels == ANOMALY)).sum(), 1)),
             # Per post-warm-up user-month: the rows the label contract scores
-            "train_flag_rate": float((flagged & kept).sum() / max(user_months(x[kept]), 1e-9)),
+            "train_flag_rate": float(
+                (flagged & kept).sum() / max(user_months(x[labels != WARMUP]), 1e-9)
+            ),
         }
         return self
 
@@ -132,6 +138,8 @@ class Thresholded(AnomalyModel):
         score = scored["score"].to_numpy(dtype=np.float64)
         has_reason = scored["reason_code"].notna().to_numpy()
         if self.rate is not None:
+            # Over the batch's whole span: a nightly job that scores a window of new charges must
+            # pass rows whose span matches the rate it was given (per post-warm-up user-month)
             k = round(self.rate * user_months(x)) if len(x) else 0
             flagged = top_k(np.where(has_reason, score, -np.inf), x["transaction_id"].to_numpy(), k)
             flagged &= has_reason

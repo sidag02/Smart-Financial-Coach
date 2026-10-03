@@ -7,6 +7,10 @@ score 0.
 
 Its reasons say `amount_unusual` with the user's mean as the usual amount. That reads "here" for a
 whole history, which is one reason the baseline is never shipped.
+
+With `repeats`, an exact repeat (same raw text and amount within `duplicate_minutes`) scores +inf
+as a `duplicate`: the "baseline plus the duplicate rule", reported alongside, never gated (owner
+decision on #30).
 """
 
 from typing import Any, Self
@@ -14,6 +18,7 @@ from typing import Any, Self
 import numpy as np
 import pandas as pd
 
+from smart_financial_coach.data.features.history import history_features
 from smart_financial_coach.intelligence.anomaly.contract import AnomalyModel
 from smart_financial_coach.intelligence.models.registry import register
 
@@ -22,9 +27,15 @@ EVIDENCE_COLUMNS = ("usual_amount", "ratio", "prior_charges")
 
 @register("unusual_transactions/user_zscore")
 class UserZScore(AnomalyModel):
-    def __init__(self, min_history: int = 10) -> None:
-        super().__init__(min_history=min_history)
+    def __init__(
+        self, min_history: int = 10, repeats: bool = False, duplicate_minutes: float = 90.0
+    ) -> None:
+        super().__init__(
+            min_history=min_history, repeats=repeats, duplicate_minutes=duplicate_minutes
+        )
         self.min_history = min_history
+        self.repeats = repeats
+        self.duplicate_minutes = duplicate_minutes
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self:
         return self  # nothing to learn: every statistic is the user's own history
@@ -52,7 +63,17 @@ class UserZScore(AnomalyModel):
             },
             index=order,
         )
-        return out.loc[x.index].reset_index(drop=True)
+        out = out.loc[x.index].reset_index(drop=True)
+        if self.repeats:
+            h = history_features(x)  # one row per outflow, in input order
+            minutes = h["minutes_since_repeat"].to_numpy(dtype=float)
+            repeat = np.nan_to_num(minutes, nan=np.inf) <= self.duplicate_minutes
+            out.loc[repeat, "score"] = np.inf
+            out.loc[repeat, "reason_code"] = "duplicate"
+            out["original_transaction_id"] = h["repeat_of"].where(pd.Series(repeat), None)
+            out["minutes_apart"] = np.where(repeat, minutes, np.nan)
+            out["amount"] = (-x["amount"].to_numpy(dtype=float)).round(2)
+        return out
 
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
         """Scores only; flags come from a cutoff (`Thresholded`)."""

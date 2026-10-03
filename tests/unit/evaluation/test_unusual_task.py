@@ -64,7 +64,7 @@ def test_examples_are_outflows_with_labels(examples: Examples) -> None:
     f = examples.frame
 
     assert (f["amount"] < 0).all()
-    assert set(f["label"]) == {"anomaly", "normal", "ignored"}
+    assert set(f["label"]) == {"anomaly", "normal", "ignored", "warmup"}
     assert (f.loc[f["label"] == "anomaly", "anomaly_kind"].notna()).all()
     assert f["anomaly_kind"].notna().sum() == (f["label"] == "anomaly").sum()
 
@@ -94,6 +94,18 @@ def test_splits_hold_out_whole_users(task: UnusualTransactionsTask, examples: Ex
     assert set(f.loc[splits.sets[TEST].tolist(), "split"]) == {"test"}
 
 
+def test_leak_check_catches_test_users_in_validation_profiles(
+    task: UnusualTransactionsTask, examples: Examples
+) -> None:
+    frame = examples.frame.copy()
+    train = frame["split"] == "train"
+    frame.loc[train, "profile_users"] = frame.loc[train, "profile_users"] + 1  # as if one more
+    leaky = Examples(frame, examples.labels, "transaction_id", examples.model_columns, "x")
+
+    errors = task.leak_errors(leaky, task.split(leaky, {}, seed=0))
+    assert any("isn't built from train users alone" in e for e in errors)
+
+
 def test_leak_check_catches_profiles_from_the_wrong_pool(
     task: UnusualTransactionsTask, examples: Examples
 ) -> None:
@@ -120,7 +132,7 @@ def test_perfect_predictions_score_perfectly(
         assert m[f"recall.{kind}"] == 1.0
     # At the common rate, a perfect scorer finds what fits in the budget
     rows = examples.frame.set_index("transaction_id").loc[train.tolist()]
-    budget = round(FLAG_RATE * user_months(rows[rows["label"] != "ignored"].reset_index()))
+    budget = round(FLAG_RATE * user_months(rows[rows["label"] != "warmup"].reset_index()))
     positives = int((rows["label"] == "anomaly").sum())
     assert m["recall_at_rate"] == pytest.approx(min(budget, positives) / positives)
 
@@ -174,3 +186,11 @@ def test_baseline_runs_through_the_framework(small_sqlite: Path, tmp_path: Path)
     assert 0 <= result.metrics["val_recall_at_rate"] <= 1
     assert result.metrics["val_flags_without_reason"] == 0
     assert leaderboard("unusual_transactions", small_sqlite, tracker) == []  # baselines only
+
+
+def test_the_budget_leaves_out_only_the_warm_up(
+    task: UnusualTransactionsTask, examples: Examples
+) -> None:
+    f = examples.frame
+    assert (f.loc[f["label"] == "warmup", "ts"] < f.loc[f["label"] == "ignored", "ts"].min()).all()
+    assert (f["label"] == "ignored").any()  # duplicate originals stay in the budget

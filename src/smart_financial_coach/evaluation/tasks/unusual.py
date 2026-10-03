@@ -27,6 +27,7 @@ import numpy.typing as npt
 import pandas as pd
 
 from smart_financial_coach.data.features.history import history_features
+from smart_financial_coach.data.features.merchant_profiles import profile_features
 from smart_financial_coach.data.labels import Truth, load_truth
 from smart_financial_coach.data.labels import metrics as outcome_metrics
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
@@ -46,6 +47,8 @@ from smart_financial_coach.intelligence.anomaly.threshold import (
     ANOMALY,
     IGNORED,
     NORMAL,
+    UNSCORED,
+    WARMUP,
     top_k,
     user_months,
 )
@@ -68,7 +71,12 @@ def labels_for(truth: Truth, transaction_ids: pd.Series) -> pd.Series:
     """`anomaly`, `ignored` or `normal` per transaction, by the label contract."""
     kind = transaction_ids.map(truth.transactions.set_index("transaction_id")["anomaly_kind"])
     ignored = transaction_ids.isin(truth.ignored_transaction_ids())
-    values = np.where(kind.notna(), ANOMALY, np.where(ignored, IGNORED, NORMAL))
+    warmup = transaction_ids.map(truth.transactions.set_index("transaction_id")["ts"]) < (
+        truth.warmup_end_day
+    )
+    values = np.where(
+        kind.notna(), ANOMALY, np.where(warmup, WARMUP, np.where(ignored, IGNORED, NORMAL))
+    )
     return pd.Series(values, index=transaction_ids.index, name="label")
 
 
@@ -181,7 +189,26 @@ class UnusualTransactionsTask:
             f.loc[splits.sets[TEST].tolist(), "user_id"]
         ):
             errors.append(f"users in both train and test: {sorted(shared)[:5]}")
+        errors += self._validation_profile_errors(examples, splits)
         return errors
+
+    @staticmethod
+    def _validation_profile_errors(examples: Examples, splits: Splits) -> list[str]:
+        """Checked from the data, not the `profile_pool` tag: rebuilding the train rows' profiles
+        from train users' outflows alone must give exactly the loaded values, so no test user
+        shaped a validation score (review on #34). Leaving the user out and the as-of-month rule
+        are covered by `profile_features`' brute-force tests."""
+        f = examples.frame
+        train = f[f["transaction_id"].isin(set(splits.sets[TRAIN]))].reset_index(drop=True)
+        rebuilt = profile_features(train, train)
+        for column in ("profile_users", "profile_typical", "profile_spread"):
+            if not np.allclose(
+                train[column].to_numpy(dtype=float),
+                rebuilt[column].to_numpy(dtype=float),
+                equal_nan=True,
+            ):
+                return [f"validation {column} isn't built from train users alone"]
+        return []
 
     def training_rows(
         self, examples: Examples, which: Ids, params: Mapping[str, Any], seed: int
@@ -216,8 +243,10 @@ class UnusualTransactionsTask:
         flagged = np.zeros(len(rows), dtype=bool)
         for _, idx in rows.groupby("fold").indices.items():
             part = rows.iloc[idx]
-            k = round(FLAG_RATE * user_months(part[part["label"] != IGNORED]))
-            score = np.where(part["label"] == IGNORED, -np.inf, part["score"].to_numpy(dtype=float))
+            # The budget excludes the warm-up by date only; duplicate originals (from truth) stay
+            # in it, as a deployed cutoff can't know them (review on #34)
+            k = round(FLAG_RATE * user_months(part[part["label"] != WARMUP]))
+            score = np.where(part["label"] == WARMUP, -np.inf, part["score"].to_numpy(dtype=float))
             flagged[idx] = top_k(score, part["transaction_id"].to_numpy(), k)
         return flagged
 
@@ -230,7 +259,7 @@ class UnusualTransactionsTask:
 
     def _per_user(self, rows: pd.DataFrame, flagged: npt.NDArray[np.bool_]) -> pd.DataFrame:
         """Per user: flags, true positives, labels, and reasons right among true positives."""
-        scored = rows["label"] != IGNORED
+        scored = ~rows["label"].isin(UNSCORED)
         hit = flagged & scored.to_numpy() & (rows["label"] == ANOMALY).to_numpy()
         want = rows["anomaly_kind"].map(
             {
@@ -263,8 +292,8 @@ class UnusualTransactionsTask:
             out[f"recall.{kind}"] = (
                 float((of_kind & found).sum() / total) if total else float("nan")
             )
-        months = user_months(rows[rows["label"] != IGNORED])  # after the warm-up (§6)
-        out["flag_rate"] = float((flagged & (rows["label"] != IGNORED).to_numpy()).sum() / months)
+        months = user_months(rows[rows["label"] != WARMUP])  # after the warm-up (§6)
+        out["flag_rate"] = float((flagged & (rows["label"] != WARMUP).to_numpy()).sum() / months)
         out["flags_without_reason"] = float((flagged & rows["reason_code"].isna().to_numpy()).sum())
         out["cutoff_shortfall"] = 1.0 - out["precision"]
         out["reason_error"] = 1.0 - out.get("reason_accuracy", float("nan"))
@@ -272,7 +301,7 @@ class UnusualTransactionsTask:
         at_rate = outcome_metrics(self._outcomes(rows, self._at_rate(rows)))
         out["precision_at_rate"], out["recall_at_rate"] = at_rate["precision"], at_rate["recall"]
 
-        scored = rows[rows["label"] != IGNORED]
+        scored = rows[~rows["label"].isin(UNSCORED)]
         order = np.argsort(-scored["score"].to_numpy(dtype=float), kind="mergesort")
         hits = (scored["label"] == ANOMALY).to_numpy()[order]
         if hits.any():
