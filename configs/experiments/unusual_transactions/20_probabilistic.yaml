@@ -1,0 +1,12 @@
+# FR-7 round: the Probabilistic candidate (design §3), a Student-t per (user, merchant) shrunk
+# from the merchant profile. The prior's weight and the new-merchant floor are searched per fold.
+name: probabilistic
+task: unusual_transactions
+model:
+  type: unusual_transactions/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: unusual_transactions/probabilistic}}
+    search: {prior_weight: [1.0, 3.0, 10.0], min_amount: [0.0, 250.0]}
+complexity: 2
+tags: {plan: fr7-round}

@@ -139,7 +139,10 @@ class Task(Protocol):
 
 _TASKS: dict[str, Callable[[], Task]] = {}
 # Modules whose import registers the product's tasks; tests register their own
-TASK_MODULES: tuple[str, ...] = ("smart_financial_coach.evaluation.tasks.categorization",)
+TASK_MODULES: tuple[str, ...] = (
+    "smart_financial_coach.evaluation.tasks.categorization",
+    "smart_financial_coach.evaluation.tasks.unusual",
+)
 
 
 def register_task(name: str, factory: Callable[[], Task]) -> None:

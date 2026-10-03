@@ -1,0 +1,11 @@
+# FR-7 round: the Isolation forest candidate (design §3), one forest across users on one-sided
+# relative features. Nothing is label-tuned beyond the cutoff.
+name: isolation_forest
+task: unusual_transactions
+model:
+  type: unusual_transactions/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: unusual_transactions/isolation_forest, params: {seed: 0}}}
+complexity: 3
+tags: {plan: fr7-round}

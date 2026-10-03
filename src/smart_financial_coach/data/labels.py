@@ -172,6 +172,10 @@ class Truth:
         p = self.periods[self.periods["granularity"] == granularity]
         return p if tier is None else p[p["tier"] == tier]
 
+    def ignored_transaction_ids(self) -> set[str]:
+        """Charges the contract neither rewards nor punishes: duplicate originals, the warm-up."""
+        return self._ignored_transaction_ids()
+
     def _ignored_transaction_ids(self) -> set[str]:
         tx = self.transactions
         originals = tx.loc[tx["anomaly_kind"] == "duplicate", "related_transaction_id"]
