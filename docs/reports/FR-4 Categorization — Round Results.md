@@ -8,7 +8,7 @@ Oct 3, 2026 · @Sidd · Milestone 3 of FR-4 Unseen Merchant Categorization — F
 - **Rank 1: `21_small_unweighted`** (bge-small, no class weights). Its twin scores **0.712** (0.63–0.78) on validation unseen merchants, with known merchants at 0.982. It reached rank 1 through the tie-break the owner adopted before the round: tied with bge-base on F1 (comparison runs) and on unseen Brier (twins, 0.140 against 0.137), it wins on batch cost, 1.34 s against 3.73 s per 10k transactions. The design said in advance that this rule would likely favour bge-small.
 - **No reversal:** no eligible twin beats rank 1's twin on validation. bge-base's twin scores 0.719, inside the paired interval.
 - **No class weights wins again,** as in the POC: twins at 0.712–0.719 against 0.671–0.686 with balanced weights.
-- **Decision needed before milestone 4: the 0.70 gate is now close to a coin flip.** Rank 1's twin sits 0.012 above the gate. With the re-measured spread, it would score at least 0.70 on a fresh 115-merchant test set about **63%** of the time (about **53%** allowing for its being the best of four). The 0.70 target was accepted when the POC's leader stood at 0.745, with a pass rate of "roughly eight to nine draws in ten". Under the rule, a gate failure is investigated, not resolved by promoting #2. Options are under [For the owner](#for-the-owner-before-milestone-4).
+- **The v1 gate was lowered from 0.70 to 0.66 (owner, Oct 3, 2026), on these validation results and before any test scoring.** Rank 1's twin sits 0.012 above 0.70: with the re-measured spread it would pass 0.70 on a fresh 115-merchant test set only about **63%** of the time (about **53%** allowing for its being the best of four). The 0.70 target was accepted when the POC's leader stood at 0.745, with a pass rate of "roughly eight to nine draws in ten"; 0.66 restores that rate for today's leader. It is recorded in the FR-4 design (§4) as a rule change made after seeing validation results. [Details](#the-owners-decision-before-milestone-4).
 - **Health & Fitness is the weakest category** (F1 0.105). The model rarely predicts it (554 rows predicted against 3,372 true), sending its rows to Utilities (32%) and Shopping (27%). Entertainment (0.492) loses rows to Dining and draws Dining's in turn.
 
 ## Setup
@@ -83,16 +83,21 @@ The merchant bootstrap of each top twin's validation unseen-merchant macro F1 (w
 
 The SD matches the POC's estimate (0.038). What changed is the point estimate: 0.712 on this holdout, against the POC leader's 0.745 on the old one. The holdout seed changed, and so did the 112 merchants the folds hold out. The pass rate uses a normal approximation; "0.01 lower" allows for rank 1 being the best of four candidates.
 
-## For the owner, before milestone 4
+## The owner's decision, before milestone 4
 
-`finalize` scores the test sets once. A gate failure there is investigated under the rule, not resolved by promoting #2. Whatever is chosen should be decided now, before any test score is seen:
+`finalize` scores the test sets once, and a gate failure there is investigated under the rule, not resolved by promoting #2. So the gate was settled now, before any test score was seen. The options were:
 
-1. **Proceed as designed.** Finalize; promote rank 1 if it passes; if it fails the 0.70 gate (about a 40–50% chance), investigate and come back to the owner.
-2. **Revisit the v1 target now,** on validation evidence only, before the test set is touched. The design's own reasoning ("passes on roughly eight to nine draws in ten") would point to about 0.66 at today's leader (0.66–0.67 for an 85–90% pass rate at 0.712; 0.65–0.66 allowing for best-of-four). This would be a rule change made after seeing validation results, and would be recorded as such.
-3. **Keep 0.70 and accept that FR-4's v1 gate may not be met** at launch: the cold model ships on FR-3's gates, and FR-4's 0.70 is reached through feedback with 0.80 (v1.1). This is a scope decision, not a rule tweak.
+1. proceed at 0.70 (about a 40–50% chance of failing on the draw);
+2. **revisit the v1 target on validation evidence only;**
+3. keep 0.70 and ship the cold model on FR-3's gates, reaching 0.70 through feedback.
 
-No change was made to the target or the rule.
+**Decided (owner, Oct 3, 2026): option 2, a v1 gate of 0.66.**
+- It applies the reasoning that set 0.70: a gate a model as good as the leader passes on roughly eight to nine draws in ten. At 0.712 with SD 0.038, that's 0.66–0.67, or 0.65–0.66 allowing for best-of-four.
+- It rejects a model like the old noisy configuration (about 0.45 here). The balanced-weights twins (0.67–0.69) would sit just above it, so the gate separates clean-label models from noisy ones; the decision rule chooses among clean candidates.
+- **0.80 stays the goal for v1.1**, through feedback (FR-5/FR-6).
+
+It's a rule change made after seeing validation results, and it's labelled as such in the FR-4 design (§4) and in the code (`UNSEEN_GATE`). No test data was involved.
 
 ## Next (milestone 4)
 
-After the owner's decision: `sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite` (twins of the top three and the baselines, once), then promotion of rank 1's twin if it passes FR-3's and FR-4's gates.
+Once this PR merges: `sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite` (twins of the top three and the baselines, once), then promotion of rank 1's twin if it passes FR-3's gates and FR-4's (unseen-merchant macro F1 ≥ 0.66 and above keyword).

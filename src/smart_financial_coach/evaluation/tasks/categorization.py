@@ -61,7 +61,11 @@ POC_RESULTS = {
     "poc_both": (0.988, 0.929, 0.638),
 }
 KNOWN_GATE = 0.90
-UNSEEN_GATE = 0.70  # FR-4's v1 target (owner, Oct 2, 2026); 0.80 is v1.1's, through feedback
+# FR-4's v1 gate. Accepted at 0.70 (Oct 2, 2026) when the POC's leader stood at 0.745; set to 0.66
+# (owner, Oct 3, 2026) after the FR-4 round's validation results, before any test scoring: the
+# round's leader scores 0.712, and 0.66 keeps the design's pass rate of about 85-90% for a model
+# that good. 0.80 stays the goal for v1.1, through feedback (FR-5/FR-6)
+UNSEEN_GATE = 0.66
 KEYWORD_BASELINE = "keyword"  # the run name the "beats the baseline" rule compares against
 BOOTSTRAP_REPS = 1000
 AMBIGUOUS_CLASSES = ("Groceries", "Shopping")
@@ -471,7 +475,8 @@ class CategorizationTask:
         (decision Oct 2, 2026; FR-3 "Metrics and why", point 7).
 
         FR-3: known-merchant macro F1 at least 0.90 and above the keyword baseline's. FR-4: unseen-
-        merchant macro F1 at least 0.70 and above the keyword baseline's unseen score.
+        merchant macro F1 at least `UNSEEN_GATE` (0.66) and above the keyword baseline's unseen
+        score.
         """
         keyword = baselines.get(KEYWORD_BASELINE, {})
 

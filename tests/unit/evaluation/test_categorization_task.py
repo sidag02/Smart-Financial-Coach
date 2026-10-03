@@ -134,7 +134,7 @@ def test_gates_and_eligibility(task: CategorizationTask) -> None:
         "keyword": {
             "val_known_macro_f1": 0.5,
             "test_known_macro_f1": 0.5,
-            "test_unseen_macro_f1": 0.72,
+            "test_unseen_macro_f1": 0.70,
         }
     }
     good = {
@@ -148,12 +148,12 @@ def test_gates_and_eligibility(task: CategorizationTask) -> None:
         return [g.name for g in task.gates(metrics, baselines) if not g.passed]
 
     assert failed(good) == []
-    # FR-4: unseen-merchant macro F1 at least 0.70, and above keyword's unseen score
-    assert failed(good | {"test_unseen_macro_f1": 0.69}) == [
+    # FR-4: unseen-merchant macro F1 at least 0.66, and above keyword's unseen score
+    assert failed(good | {"test_unseen_macro_f1": 0.65}) == [
         "unseen_macro_f1",
         "beats_keyword_unseen",
     ]
-    assert failed(good | {"test_unseen_macro_f1": 0.71}) == ["beats_keyword_unseen"]
+    assert failed(good | {"test_unseen_macro_f1": 0.67}) == ["beats_keyword_unseen"]
     assert task.eligible(good, baselines)
     assert not task.eligible({"val_known_macro_f1": 0.89}, baselines)
     assert not task.gates(good, {})[1].passed  # no keyword baseline: the gate can't pass

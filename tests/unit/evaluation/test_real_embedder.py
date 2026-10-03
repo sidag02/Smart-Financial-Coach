@@ -26,7 +26,7 @@ def test_real_embedder_trains_promotes_and_serves(
     small_sqlite: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     # The plumbing, not the quality: the small spec's 6 test users can't measure FR-4's unseen
-    # gate (0.70), which the FR-4 round judges on the default dataset. The gate still runs
+    # gate (0.66), which the FR-4 round judges on the default dataset. The gate still runs
     monkeypatch.setattr(categorization, "UNSEEN_GATE", 0.0)
     tracker = Tracker(f"sqlite:///{tmp_path / 'mlflow.db'}", artifact_root=tmp_path / "art")
     for name in ("keyword", "lookup"):  # the committed round 0 configs, on this test's 3 folds
