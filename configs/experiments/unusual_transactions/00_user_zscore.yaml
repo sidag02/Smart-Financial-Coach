@@ -1,0 +1,12 @@
+# FR-7 round 0: the Technical Design's baseline, a per-user z-score on amount (no merchants).
+# The floor every candidate must beat at the common flag rate (FR-7 §4, §5). Its cutoff is placed
+# like every candidate's: the deepest with precision 0.80 on the training users.
+name: user_zscore
+task: unusual_transactions
+model:
+  type: unusual_transactions/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: unusual_transactions/user_zscore}}
+baseline: true
+tags: {plan: fr7-round}
