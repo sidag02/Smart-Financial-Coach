@@ -22,11 +22,11 @@ import calendar
 import sqlite3
 import threading
 import uuid
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, DecimalException, Inexact, localcontext
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -45,6 +45,8 @@ AMOUNT_MIN_CENTS = 50_00
 AMOUNT_MAX_CENTS = 1_000_000_00
 MONTHS_MAX = 120
 ACTIVE_MAX = 10
+# Longer text isn't an amount a person typed; refusing it keeps parsing cheap (review on #42)
+AMOUNT_TEXT_MAX = 32
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS goal_revisions (
@@ -104,21 +106,41 @@ def months_left(today: date, target: date) -> int:
     return count + (0 if today == month_end(today) else 1)
 
 
+class FractionOfCentError(ValueError):
+    pass
+
+
+class AmountTooLargeError(ValueError):
+    pass
+
+
 def to_cents(amount: Any) -> int:
     """Dollars to integer cents, exactly: through `Decimal(str(x))`, never `x * 100`, which turns
-    19.99 into 1998.999…. Raises ValueError for anything that isn't a whole number of cents."""
+    19.99 into 1998.999…. Raises ValueError for anything that isn't a number,
+    `FractionOfCentError` for a fraction of a cent, and `AmountTooLargeError` past a quadrillion
+    dollars (far beyond any limit), so a huge exponent never reaches the arithmetic."""
     if isinstance(amount, bool) or not isinstance(amount, int | float | str | Decimal):
         raise ValueError(f"not an amount: {amount!r}")
+    text = str(amount).strip()
+    if len(text) > AMOUNT_TEXT_MAX:
+        raise ValueError("not an amount: too long")
     try:
-        value = Decimal(str(amount).strip())
-    except InvalidOperation as error:
+        value = Decimal(text)
+        if not value.is_finite():
+            raise ValueError(f"not an amount: {amount!r}")
+        if value.adjusted() > 15:
+            raise AmountTooLargeError(f"{amount!r} is too large")
+        if value != 0 and value.adjusted() < -2:  # below a cent, however many zeros
+            raise FractionOfCentError(f"{amount!r} has a fraction of a cent")
+        with localcontext() as exact:
+            exact.prec = 2 * AMOUNT_TEXT_MAX  # enough for every digit of the text, and the cents
+            exact.traps[Inexact] = True  # so nothing below is ever rounded
+            cents = value.scaleb(2)
+            if cents != cents.to_integral_value():
+                raise FractionOfCentError(f"{amount!r} has a fraction of a cent")
+            return int(cents)
+    except DecimalException as error:
         raise ValueError(f"not an amount: {amount!r}") from error
-    if not value.is_finite():
-        raise ValueError(f"not an amount: {amount!r}")
-    cents = value * 100
-    if cents != cents.to_integral_value():
-        raise ValueError(f"{amount!r} has a fraction of a cent")
-    return int(cents)
 
 
 def _money(cents: int) -> str:
@@ -226,6 +248,24 @@ class Checked:
         return not self.problems
 
 
+def edited_draft(goal: Goal, changes: dict[str, Any]) -> GoalDraft:
+    """The draft an edit makes: `changes` (any of name, target_amount, target_date, saved) over
+    the goal's current values."""
+    _check_changes(changes)
+    return GoalDraft(
+        name=changes.get("name", goal.name),
+        target_amount=changes.get("target_amount", Decimal(goal.target_cents) / 100),
+        target_date=changes.get("target_date", goal.target_date),
+        saved=changes.get("saved", Decimal(goal.saved_cents) / 100),
+    )
+
+
+def _check_changes(changes: dict[str, Any]) -> None:
+    unknown = set(changes) - {"name", "target_amount", "target_date", "saved"}
+    if unknown:
+        raise GoalError(f"can't change {', '.join(sorted(unknown))}")
+
+
 def _parse_date(value: Any) -> date:
     if isinstance(value, datetime):
         return value.date()
@@ -261,12 +301,11 @@ def check_draft(
 
     target_cents = _amount(draft.target_amount, "target_amount", problems)
     if target_cents is not None and not AMOUNT_MIN_CENTS <= target_cents <= AMOUNT_MAX_CENTS:
-        message = (
-            f"Goals start at {_money(AMOUNT_MIN_CENTS)}."
-            if target_cents < AMOUNT_MIN_CENTS
-            else f"Goals go up to {_money(AMOUNT_MAX_CENTS)}."
-        )
-        problems.append(Problem("target_amount", "amount_range", message))
+        if target_cents < AMOUNT_MIN_CENTS:
+            message = f"Goals start at {_money(AMOUNT_MIN_CENTS)}."
+            problems.append(Problem("target_amount", "amount_range", message))
+        else:
+            problems.append(_too_large("target_amount"))
         target_cents = None
 
     target: date | None = None
@@ -274,7 +313,9 @@ def check_draft(
         target = month_end(_parse_date(draft.target_date))
     except (TypeError, ValueError):
         problems.append(Problem("target_date", "date_invalid", "Use a date like 2027-06-30."))
-    if target is not None:
+    # An edit that keeps the date isn't held to today's window: a goal due this month can still be
+    # renamed when today isn't a month end (review on #42)
+    if target is not None and not (editing is not None and target == editing.target_date):
         ahead = _month_index(target) - _month_index(today)
         if ahead < 1:
             first = _month_name(_month_index(today) + 1)
@@ -285,6 +326,9 @@ def check_draft(
     saved_cents = _amount(draft.saved, "saved", problems)
     if saved_cents is not None and saved_cents < 0:
         problems.append(Problem("saved", "saved_range", "The saved amount can't be negative."))
+    elif saved_cents is not None and saved_cents > AMOUNT_MAX_CENTS:
+        problems.append(_too_large("saved"))
+        saved_cents = None
     elif (
         editing is None
         and saved_cents is not None
@@ -318,12 +362,19 @@ def check_draft(
 def _amount(value: Any, field: str, problems: list[Problem]) -> int | None:
     try:
         return to_cents(value)
-    except ValueError as error:
-        if "fraction of a cent" in str(error):
-            problems.append(Problem(field, "amount_cents", "Use dollars and cents."))
-        else:
-            problems.append(Problem(field, "amount_invalid", "Enter an amount in dollars."))
-        return None
+    except FractionOfCentError:
+        problems.append(Problem(field, "amount_cents", "Use dollars and cents."))
+    except AmountTooLargeError:
+        problems.append(_too_large(field))
+    except ValueError:
+        problems.append(Problem(field, "amount_invalid", "Enter an amount in dollars."))
+    return None
+
+
+def _too_large(field: str) -> Problem:
+    if field == "saved":
+        return Problem(field, "saved_range", f"Saved amounts go up to {_money(AMOUNT_MAX_CENTS)}.")
+    return Problem(field, "amount_range", f"Goals go up to {_money(AMOUNT_MAX_CENTS)}.")
 
 
 # The store (§2)
@@ -437,23 +488,19 @@ class GoalStore:
     # Writes
 
     def create(self, ledger: "Ledger", subject: str, draft: GoalDraft, *, source: str) -> Revision:
-        return self._write_checked(ledger, subject, draft, None, "create", source)
+        return self._write_checked(ledger, subject, lambda _: draft, None, "create", source)
 
     def update(
         self, ledger: "Ledger", subject: str, goal_id: str, changes: dict[str, Any], *, source: str
     ) -> Revision:
         """Change any of `name`, `target_amount`, `target_date`, `saved`; the rest stay. A new
-        saved amount is recorded as of today."""
-        unknown = set(changes) - {"name", "target_amount", "target_date", "saved"}
-        if unknown:
-            raise GoalError(f"can't change {', '.join(sorted(unknown))}")
-        current = self.goal(ledger, subject, goal_id)
-        draft = GoalDraft(
-            name=changes.get("name", current.name),
-            target_amount=changes.get("target_amount", Decimal(current.target_cents) / 100),
-            target_date=changes.get("target_date", current.target_date),
-            saved=changes.get("saved", Decimal(current.saved_cents) / 100),
-        )
+        saved amount is recorded as of today. The fields left out come from the goal as it is
+        inside the write lock, so two edits at once never undo each other (review on #42)."""
+        _check_changes(changes)
+
+        def draft(goals: list[Goal]) -> GoalDraft:
+            return edited_draft(_find(goals, goal_id), changes)
+
         return self._write_checked(ledger, subject, draft, goal_id, "update", source)
 
     def archive(self, ledger: "Ledger", subject: str, goal_id: str, *, source: str) -> Revision:
@@ -505,14 +552,17 @@ class GoalStore:
         self,
         ledger: "Ledger",
         subject: str,
-        draft: GoalDraft,
+        draft: Callable[[list[Goal]], GoalDraft],
         goal_id: str | None,
         op: str,
         source: str,
     ) -> Revision:
+        """Validate and record a change. `draft` makes it from the goals as they are inside the
+        lock, so it's checked and stored against the same state."""
         _check_source(source)
         with self._write, self._connect() as conn:
-            checked = _check(self._replay(conn, ledger, subject), draft, goal_id, ledger.as_of)
+            goals = self._replay(conn, ledger, subject)
+            checked = _check(goals, draft(goals), goal_id, ledger.as_of)
             if checked.goal is None:
                 raise GoalError(checked.problems[0].message, checked.problems)
             return self._insert(conn, subject, ledger.user_id, op, checked.goal, source)
