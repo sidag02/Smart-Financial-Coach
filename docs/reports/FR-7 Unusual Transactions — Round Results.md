@@ -9,7 +9,7 @@ Oct 3, 2026 · @Sidd · Milestone 3 of FR-7 Unusual Transactions — Feature Des
 - **Its lead is unusual amounts.** Recall on `amount_outlier` is 0.53 against the rules' 0.32. The kinds are otherwise level: every candidate finds every duplicate, and new merchants sit at 0.72–0.73.
 - **Every candidate holds its tuned cutoff out of fold:** own-cutoff precision is 0.791–0.801 against the 0.80 tuning target. That is well clear of the 0.70 gate, which is the margin the owner chose the 0.80 target for. At its own cutoff the forest flags 0.125 charges per user-month, about 1.5 a year, with recall 0.743.
 - **The baseline finds 4.4%** of planted charges at the same flag rate, as the POC measured (4.5%).
-- **One design question for the owner** ([below](#small-merchant-profiles)): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed (0.21 recall). The likely cause is a profile built from few users being inflated by their own planted charges.
+- **A known limit** ([below](#small-merchant-profiles)): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed (0.21 recall). The two profile-rule fixes considered didn't help on validation, so the accepted design stands.
 - **This round replaces a first one, discarded before any test scoring.** A correctness review of the evaluation code found two issues, fixed on #33 and #34:
   - flag rates counted the 90-day warm-up, so the operating point was about 0.12, not 0.11;
   - a duplicate in the same minute as its original was missed when its ID sorted first.
@@ -99,6 +99,18 @@ Counts at each run's own cutoff (out of fold): `isolation_forest` 786 true and 2
   - accept it for v1 and report it.
 
   Any of these is a rule change made after seeing validation results, and should be labelled as one.
+
+**Measured before any test scoring** (rank 1 on the same splits, validation only, in a scratch store off the leaderboard):
+
+| Rank 1, validation | Recall at 0.11/user-month | New-merchant recall | Amount recall | Own-cutoff precision |
+| --- | --- | --- | --- | --- |
+| As accepted (#30) | 0.708 | 0.722 | 0.528 | 0.791 |
+| A: typical price only from users with 2+ charges | 0.715 | 0.700 | 0.556 | 0.804 |
+| B: profiles need 6+ other users | 0.698 | 0.714 | 0.512 | 0.801 |
+
+- **Neither option helps.** Both move overall recall by about ±0.01, inside the noise, and neither lifts new-merchant recall.
+- **So inflated small profiles aren't the main cause:** a rare merchant's few users don't pin its price down.
+- **No rule change; the accepted design stands.** A category-level price prior for thin profiles is the follow-up to try in a later round (v1.1).
 
 ## Next (milestone 4)
 
