@@ -13,6 +13,7 @@
   override reason, recorded on the run and in the promotion log.
 """
 
+import hashlib
 import shutil
 import tempfile
 from dataclasses import dataclass
@@ -42,6 +43,7 @@ from smart_financial_coach.intelligence.models.artifact import (
     URL_KEY,
     load_artifact,
     read_manifest,
+    record_attachment,
     record_promotion,
 )
 from smart_financial_coach.intelligence.models.base import Model
@@ -466,17 +468,24 @@ def attach_serving_files(
     data: Path,
     tracker: Tracker,
     artifacts_dir: Path | None = None,
+    *,
+    note: str,
 ) -> list[Path]:
     """Give a promoted model the serving files its task now requires, from a run reproducing it.
 
     For models promoted before the task required them (FR-5's review policy for the FR-4 model).
     The run must have the promoted model's config and data, and match its validation metrics,
     so its pooled predictions are the promoted model's; it is usually a rerun of the same config
-    on newer code. The files are derived for `version`, recording the run they came from.
+    on newer code. The files are derived for `version`, recording the run they came from and
+    `note` (what a reader of the files should know), and each attachment is logged with the
+    file's SHA-256, since the model's manifest doesn't cover it.
     """
+    if not note.strip():
+        raise SelectionError("an attachment needs a note: why, and what a reader should know")
     task = get_task(task_name)
     run = tracker.get(run_id)
-    target = (artifacts_dir or get_settings().artifacts_dir) / task.name / version
+    service_dir = (artifacts_dir or get_settings().artifacts_dir) / task.name
+    target = service_dir / version
     manifest = read_manifest(target)
     for key in ("config_hash", "data_hash"):
         if manifest.get(key) != run.tags.get(f"sfc.{key}"):
@@ -495,7 +504,7 @@ def attach_serving_files(
         examples, _ = rebuild_splits(task, data, tracker, run, tmp)
         path = tracker.download(run_id, f"{PREDICTIONS_PATH}/{PREDICTIONS_FILE}", tmp / "pooled")
         pooled = pd.read_parquet(path)
-    source = {"mlflow_run_id": run_id, "reproduces": version}
+    source = {"mlflow_run_id": run_id, "reproduces": version, "note": note.strip()}
     files = task.serving_files(examples, pooled, version, source)
     if missing := [n for n in task.serving_files_required if n not in files]:
         raise SelectionError(f"run {run_id}'s predictions give no {', '.join(missing)}")
@@ -503,4 +512,15 @@ def attach_serving_files(
     for name in task.serving_files_required:
         (target / name).write_text(files[name], encoding="utf-8")
         written.append(target / name)
+        record_attachment(
+            service_dir,
+            {
+                "version": version,
+                "file": name,
+                "sha256": hashlib.sha256(files[name].encode("utf-8")).hexdigest(),
+                "mlflow_run_id": run_id,
+                "attached_at": datetime.now(UTC).isoformat(timespec="seconds"),
+                "note": note.strip(),
+            },
+        )
     return written

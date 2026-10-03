@@ -1,5 +1,6 @@
 """End to end on the toy task: run -> leaderboard -> finalize -> promote -> load_service."""
 
+import hashlib
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -27,6 +28,7 @@ from smart_financial_coach.intelligence.models.artifact import (
     POINTER_FILE,
     URL_KEY,
     ArtifactError,
+    attachments,
     promotion_errors,
     promotions,
 )
@@ -429,13 +431,26 @@ def test_an_earlier_promotion_gets_its_serving_files_from_a_reproducing_run(
     other = run_experiment(make_config("memory_hint_complex", complexity=3), toy_data, tracker)
 
     with pytest.raises(SelectionError, match="different config_hash"):
-        attach_serving_files("toy", other.run_id, entry["version"], toy_data, tracker, artifacts)
+        attach_serving_files(
+            "toy", other.run_id, entry["version"], toy_data, tracker, artifacts, note="n"
+        )
+    with pytest.raises(SelectionError, match="needs a note"):
+        attach_serving_files(
+            "toy", rerun.run_id, entry["version"], toy_data, tracker, artifacts, note=" "
+        )
     written = attach_serving_files(
-        "toy", rerun.run_id, entry["version"], toy_data, tracker, artifacts
+        "toy", rerun.run_id, entry["version"], toy_data, tracker, artifacts, note="backfill"
     )
 
     assert [p.name for p in written] == ["policy.json"]
     assert written[0].read_text() == f"{entry['version']} from {rerun.run_id}"
+    (logged,) = attachments(artifacts / "toy")
+    assert logged["version"] == entry["version"]
+    assert logged["file"] == "policy.json"
+    assert logged["mlflow_run_id"] == rerun.run_id
+    assert logged["note"] == "backfill"
+    assert logged["sha256"] == hashlib.sha256(written[0].read_bytes()).hexdigest()
+    assert promotion_errors(artifacts / "toy") == []  # the promotion log is untouched
 
 
 def test_broken_model_fails_in_validation(

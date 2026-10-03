@@ -123,6 +123,7 @@
     "source": {
       "data_hash": "44781bc4e4a597ff231928de566000a85914c9ddbf0b19b05cebf04fd34ee85f",
       "mlflow_run_id": "29bcc4ff1ba04e08a60b0d2eec45b6ea",
+      "note": "Review policy (FR-5 \u00a71) for a model promoted before policies existed, from a rerun of its config reproducing every validation metric. The familiar group's 11.4% validation error rate is dominated by one normalizer collision: held-out Uber Eats rows normalize to the familiar string 'uber' (Uber rides) and are wrong at 0.99 confidence; other familiar rows are about 3% wrong. Known issue, fixed with the first retrained model (#15).",
       "reproduces": "20eea4fb-44781bc4-c0274576",
       "rows": "pooled out-of-fold validation predictions, spending rows"
     },

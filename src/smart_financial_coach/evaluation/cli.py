@@ -13,7 +13,7 @@ Departing from the decision rule (naming finalists, a second round on the same s
 a finalist other than #1) needs --override "<reason>", recorded on the run and in the log.
 sfc-model show --task categorization
 sfc-model attach-serving-files --task categorization --run ID --version VERSION \
-    --data data/synthetic/default.sqlite   # e.g. a review policy for an earlier promotion
+    --data data/synthetic/default.sqlite --note "..."   # e.g. a review policy, after promotion
 sfc-model predict --task categorization --data data/synthetic/default.sqlite \
     --out data/predictions/default.sqlite
 """
@@ -44,6 +44,7 @@ from smart_financial_coach.intelligence.categorization.batch import (
 from smart_financial_coach.intelligence.models.artifact import (
     URL_KEY,
     ArtifactError,
+    attachments,
     promoted_version,
     promotions,
 )
@@ -148,7 +149,13 @@ def _promote(args: argparse.Namespace) -> int:
 
 def _attach(args: argparse.Namespace) -> int:
     written = attach_serving_files(
-        args.task, args.run, args.version, args.data, Tracker(args.tracking_uri), args.artifacts_dir
+        args.task,
+        args.run,
+        args.version,
+        args.data,
+        Tracker(args.tracking_uri),
+        args.artifacts_dir,
+        note=args.note,
     )
     for path in written:
         print(f"wrote {path}")
@@ -160,6 +167,11 @@ def _show(args: argparse.Namespace) -> int:
     print(f"promoted: {promoted_version(service_dir)}")
     for entry in promotions(service_dir):
         print(f"  {entry['promoted_at']}  {entry['version']}  run {entry['mlflow_run_id']}")
+    for entry in attachments(service_dir):
+        print(
+            f"  {entry['attached_at']}  {entry['version']}  + {entry['file']} "
+            f"(run {entry['mlflow_run_id']})"
+        )
     return 0
 
 
@@ -275,6 +287,9 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     att.add_argument("--run", required=True, help="a run reproducing the promoted model")
     att.add_argument("--version", required=True, help="the promoted model version")
     att.add_argument("--data", type=Path, required=True, help="the run's dataset")
+    att.add_argument(
+        "--note", required=True, help="why, and what a reader of the files should know"
+    )
     att.set_defaults(handler=_attach)
 
     show = commands.add_parser("show", help="the promoted version and promotion history")
