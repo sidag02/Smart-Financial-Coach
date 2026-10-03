@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% from "_macros.html" import cat_chip %}
+{% macro pct(v) %}{% if v is none %}–{% else %}{{ (v * 100) | round(1) }}%{% endif %}{% endmacro %}
+{% block title %}How it learns · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div>
+    <h1 class="page-title">How it learns</h1>
+    <div class="page-sub">Your corrections fix your own categories at once. When enough people agree, they teach the model, and everyone else gets the fix.</div>
+  </div>
+</div>
+
+{% if replay %}
+{% set months = replay.months %}
+<p class="learn-intro">A replay of {{ months | length }} months ({{ months[0].month }} to {{ months[-1].month }}) with {{ replay.users.feedback + replay.users.evaluation }} simulated people who see some categories their own way. {{ replay.users.feedback }} of them reviewed and corrected categories{% if replay.users.adversarial %}, {{ replay.users.adversarial }} of those at random, on purpose{% endif %}; the other {{ replay.users.evaluation }} never touched a category, and they are who the gain is measured on.</p>
+
+<div class="grid-3">
+  <section class="card stack" style="gap:6px">
+    <div class="card-label">Right, for people who never corrected anything</div>
+    <div class="big">{{ pct(last_q) }}</div>
+    <div class="muted" style="font-size:13.5px">in the last quarter, against how they see their money; {{ pct(first_q) }} in the first. New merchants: {{ pct(unseen_first) }} → {{ pct(unseen_last) }} (macro F1)</div>
+  </section>
+  <section class="card stack" style="gap:6px">
+    <div class="card-label">Agreed and learned</div>
+    <div class="big">{{ replay.summary.global_labels }}</div>
+    <div class="muted" style="font-size:13.5px">merchants where at least {{ replay.config.rule.n }} people agreed, from {{ replay.summary.corrections }} corrections; {{ replay.summary.labels_matching_truth }} fixed real model errors, the rest are shared preferences</div>
+  </section>
+  <section class="card stack" style="gap:6px">
+    <div class="card-label">Retrained</div>
+    <div class="big">{{ replay.summary.promotions }} of {{ replay.retrainings | selectattr("gates") | list | length }}</div>
+    <div class="muted" style="font-size:13.5px">candidates passed the gates and were promoted · about {{ "%.1f" | format(replay.summary.items_shown_per_user_month) }} review items per person a month</div>
+  </section>
+</div>
+
+<section class="card stack">
+  <div class="card-head"><div class="card-title">Month by month</div>
+    <div class="legend"><span class="key evaluation"></span>People who never corrected <span class="key personal"></span>People who corrected (what they see) <span class="key mark"></span>Promoted</div>
+  </div>
+  <svg class="line-chart" viewBox="0 0 {{ chart.width }} {{ chart.height }}" role="img" aria-label="Share of transactions in the category each person sees, by month">
+    {% for t in chart.ticks %}<line x1="28" x2="{{ chart.width - 28 }}" y1="{{ t.y }}" y2="{{ t.y }}" class="grid-line"/><text x="0" y="{{ t.y + 4 }}" class="tick">{{ t.label }}</text>{% endfor %}
+    {% for m in chart.markers %}<line x1="{{ m.x }}" x2="{{ m.x }}" y1="18" y2="{{ chart.height - 28 }}" class="promo"><title>Promoted {{ m.month }}</title></line>{% endfor %}
+    {% for name, points in chart.series.items() %}<polyline points="{{ points }}" class="series {{ name }}"/>{% endfor %}
+    <text x="28" y="{{ chart.height - 6 }}" class="tick">{{ chart.first }}</text>
+    <text x="{{ chart.width - 28 }}" y="{{ chart.height - 6 }}" class="tick" text-anchor="end">{{ chart.last }}</text>
+  </svg>
+</section>
+
+<section class="card stack">
+  <div class="card-title">The loop, step by step</div>
+  <ol class="steps">
+    <li><b>Corrections fix your view at once.</b> A correction applies to that person straight away, with no retraining, and stays theirs.</li>
+    <li><b>Agreement turns corrections into labels.</b> A merchant's category becomes a training label only when at least {{ replay.config.rule.n }} different people hold a view on it, two thirds agree, and at least one of them chose the category rather than accepting a suggestion.</li>
+    <li><b>Retraining.</b> Every {{ replay.config.every }} months, with new labels, a candidate model is trained on them, plus the original training data.</li>
+    <li><b>Gates.</b> The candidate must do at least as well as the current model for people who supplied no labels, on data it never saw, without hurting merchants it already knew or its confidence.</li>
+    <li><b>Promoted or rejected.</b> A model that passes replaces the current one; one that fails is set aside.</li>
+  </ol>
+  <table class="retrain">
+    <thead><tr><th>Month</th><th>Labels</th><th>Training rows</th><th>Gates</th><th>Decision</th></tr></thead>
+    <tbody>
+    {% for s in replay.retrainings %}
+      <tr>
+        <td class="num">{{ s.month }}</td>
+        <td>{{ s.labels }}{% if s.new_labels %} <span class="muted">(+{{ s.new_labels | length }}{% if s.revoked %}, −{{ s.revoked | length }}{% endif %})</span>{% endif %}</td>
+        <td class="muted">{% if s.training_rows %}{{ "{:,}".format(s.training_rows) }} · {{ "{:,}".format(s.relabelled_rows) }} relabelled · {{ "{:,}".format(s.added_rows) }} from contributors{% else %}–{% endif %}</td>
+        <td>{% for g in s.gates or [] %}<div class="gate {{ 'pass' if g.passed else 'fail' }}">{{ "✓" if g.passed else "✗" }} {{ g.name | replace("_", " ") }} <span class="muted">{{ g.detail }}</span></div>{% endfor %}</td>
+        <td><b class="decision {{ s.decision.split(':')[0] }}">{{ s.decision }}</b></td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<div class="grid-2">
+  <section class="card stack">
+    <div class="card-title">What people agreed on</div>
+    <table class="retrain">
+      <thead><tr><th>Merchant</th><th>Agreed</th><th>Was</th><th>People</th></tr></thead>
+      <tbody>
+      {% for l in labels %}
+        <tr><td>{{ l.merchant_key | title }}</td><td>{{ cat_chip(l.category) }}</td><td>{% if l.true_category != l.category %}{{ cat_chip(l.true_category) }}{% else %}<span class="muted">model error fixed</span>{% endif %}</td><td class="num">{{ l.agreeing }} of {{ l.voters }}</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </section>
+  <section class="card stack">
+    <div class="card-title">Preferences: shared ones teach, personal ones stay personal</div>
+    {% for r in replay.remaps %}
+    <div class="remap">
+      <div><b>{{ r.subtype | title }}</b>: {{ r.default }} → {{ r.remapped_to }} <span class="muted">for {{ r.holders }} of {{ replay.users.feedback + replay.users.evaluation }} people</span></div>
+      <div class="muted" style="font-size:13px">{% if r.labels_now %}Learned: {% for c, n in r.labels_now.items() %}{{ n }} merchant{{ "s" if n != 1 }} as {{ c }}{{ ", " if not loop.last }}{% endfor %}.{% else %}Not learned: it stays with the people who see it that way.{% endif %} {{ r.label_changes | selectattr("category", "none") | list | length }} label{{ "s" if (r.label_changes | selectattr("category", "none") | list | length) != 1 }} revoked as more people answered.</div>
+    </div>
+    {% endfor %}
+  </section>
+</div>
+{% else %}
+<section class="card"><div class="empty">The replay hasn't been run for this build yet.</div></section>
+{% endif %}
+
+<section class="card stack">
+  <div class="card-title">Demo visitors' agreement, live</div>
+  <p class="muted" style="margin:0;font-size:13.5px">How visitors' corrections in this demo count toward agreement. Illustrative only: each sign-in is a new session here, so the demo doesn't retrain from it; the model learns from the replay above.</p>
+  {% if visitors %}
+  {% for v in visitors %}
+  <div class="row-split"><span>{{ v.merchant }} → {{ v.category }}</span><b class="num">{{ v.agreeing }} of {{ v.voters }} agree · {% if v.label %}agreed{% else %}{{ v.needed }} people needed{% endif %}</b></div>
+  {% endfor %}
+  {% else %}
+  <div class="muted" style="font-size:13.5px">No corrections yet. Fix a category on the Transactions page and it shows up here.</div>
+  {% endif %}
+</section>
+{% endblock %}
