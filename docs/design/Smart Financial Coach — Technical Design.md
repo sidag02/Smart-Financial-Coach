@@ -143,7 +143,7 @@ No model is chosen in this doc. Once each interface and feature set is fixed, ca
 
 | Problem | Candidate families to evaluate | Decided by |
 | --- | --- | --- |
-| Categorization | Linear models on n-gram text features · gradient-boosted trees · sentence-embedding classifiers · small fine-tuned transformer | Experiment, incl. the unseen-merchant test. **Decided (Oct 2, 2026):** logistic regression over character n-grams and frozen `bge-base-en-v1.5` embeddings, calibrated per familiarity group (FR-3 Categorization Model Selection) |
+| Categorization | Linear models on n-gram text features · gradient-boosted trees · sentence-embedding classifiers · small fine-tuned transformer | Experiment, incl. the unseen-merchant test. **Decided (Oct 3, 2026, FR-4):** logistic regression over character n-grams and frozen `bge-small-en-v1.5` embeddings, without class weights, trained on clean labels and calibrated per familiarity group. It replaced FR-3's Oct 2 choice (bge-base, trained under the injected noise) (FR-3 Categorization Model Selection; FR-4 Categorization — Round Results) |
 | Unusual transactions | Isolation-based ensembles · one-class boundary methods · density methods · robust statistical rules | Experiment on precision / recall at a fixed alert rate |
 | Spending spikes | Robust per-user statistics on aggregates · seasonal decomposition residuals · forecast-residual methods | Experiment; theory narrows to seasonality-aware options |
 | Goal forecasting | Additive trend + seasonality models · ARIMA-family models · exponential smoothing | Experiment via rolling backtest; theory rules out options needing long history |
@@ -157,7 +157,7 @@ Every model is scored against planted ground truth and a simple baseline, with o
 
 | Problem | Data split | Baseline | Metrics |
 | --- | --- | --- | --- |
-| Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training. Hyperparameters and calibrators come from grouped cross-fitting over merchants within train users | Keyword rules | Macro F1 over the 12 spending categories (Income on its own line), per-class F1, confusion matrix; a merchant-level bootstrap interval for unseen merchants; calibration (Brier, ECE) on every test set |
+| Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training. Hyperparameters and calibrators come from grouped cross-fitting over merchants within train users | Keyword rules | Macro F1 over the 12 spending categories (Income on its own line), per-class F1, confusion matrix; a merchant-level bootstrap interval for unseen merchants; calibration (Brier, ECE) on every test set. Gates: known ≥ 0.90 and unseen ≥ 0.66 in v1, each above keyword |
 | Unusual transactions | All transactions scored; labels hidden from training; thresholds tuned on train users, reported on test users | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate, reason accuracy |
 | Spending spikes | Monthly aggregates of all spend on true categories; labels hidden; thresholds tuned on train users, reported on test users | Per-user mean ± k·std per category | Period-level precision and recall (all and `clear` labels); excess coverage of driving transactions vs. a top-5-by-amount baseline |
 | Goal forecasting | Rolling-origin backtest: train on months 1..k, predict k+1..k+3 | Seasonal-naive | RMSE, MAPE; Brier score for P(goal met) |
@@ -169,12 +169,17 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Composable splitters with leak checks that stop a run before any fit. A task owns each problem's examples, labels, splits, metrics, baseline and gates.
 - An experiment runner that logs every run's config, data hash, split hashes, code version and validation metrics to MLflow. A run is skipped on resume only if all of them match.
 - **Experiments are compared on validation data.** Each task writes its decision rule before the runs; test sets are scored once, for at most three finalists plus the baselines, enforced in code. Departing from the rule needs a recorded override reason.
+- **Comparison runs and shipping twins** (FR-4). Candidates are compared under the injected label noise. Each also trains a twin with the task's shipping params (`label_noise: 0`) written out, and only twins are finalized and promoted. Promotion refuses a config that leaves a shipping param implicit, and records its value.
+- **The decision rule** (FR-4 §5):
+  - ranking and the F1 tie set come from comparison runs;
+  - ties are broken on the twins' validation metrics, the first tie-breaker (calibration) with its own paired tie test, so cost decides between runs tied on both;
+  - a twin that beats rank 1's twin on validation stops `finalize` until it's investigated.
 - Promotion checks the task's gates in the selection criteria's order, exports the model, records it in a committed promotion log, and is the only way a model reaches callers. Callers load "the promoted model" for a service, never a model class.
 
 **Controls against flattering results**
 
 - Ambiguous merchants and messy merchant text generated into the data.
-- Label noise applied by the training pipeline to loaded training data; the generator itself only generates.
+- Label noise applied by the training pipeline to loaded training data, for runs that compare candidates; shipped models train on clean labels, as shipping twins (owner, Oct 2, 2026). The generator itself only generates.
 - Separate seeds for training and test users.
 - Anomaly thresholds tuned on train users and reported on test users, never both on the same users.
 - Spike metrics scored on true categories, so categorizer errors don't leak into FR-8.

@@ -1,6 +1,6 @@
 # FR-4 Unseen Merchant Categorization — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 2, 2026; PR #17)
+Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 2, 2026; PR #17) · **Implemented** (Oct 3, 2026: #20, #21, #27, #28 and milestone 5's docs)
 
 ## Summary
 
