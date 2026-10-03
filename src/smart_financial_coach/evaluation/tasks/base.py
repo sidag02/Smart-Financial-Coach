@@ -55,6 +55,9 @@ class Task(Protocol):
     required_baselines: tuple[str, ...]  # baseline run names eligibility and gates compare to
     report_metrics: tuple[str, ...]  # logged metrics shown in the comparison report
     test_report_metrics: tuple[str, ...]  # test metrics shown for finalists and baselines
+    # Task params a promoted config must set explicitly, e.g. ("label_noise",). Non-empty: runs
+    # are compared, and their shipping twins finalized and promoted (FR-4 §1). Empty: no twins
+    shipping_params: tuple[str, ...]
 
     def load(self, data: Path) -> Examples: ...
 
@@ -82,6 +85,14 @@ class Task(Protocol):
 
     def tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         """Whether two runs' pooled validation predictions are statistically tied."""
+        ...
+
+    def tiebreak_tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
+        """Whether two runs are statistically tied on the first tie-break metric (FR-4 §5).
+
+        Judged against that metric's leader, as F1 ties are. A task that returns False keeps
+        the first tie-break strict.
+        """
         ...
 
     def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:

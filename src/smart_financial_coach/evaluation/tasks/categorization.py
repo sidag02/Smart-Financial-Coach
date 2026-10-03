@@ -104,6 +104,9 @@ class CategorizationTask:
     tuning_metric = "tuning_macro_f1"  # picks C within a run: mean of known and unseen
     # Among tied runs: better confidence, then cheaper batch serving (ms for a fixed 10k-row batch)
     tiebreak_metrics: tuple[str, ...] = ("val_unseen_brier", "latency_batch_ms")
+    # Promoted configs set these explicitly; the leaderboard ranks comparison runs under the
+    # injected noise, and their `label_noise: 0` shipping twins are finalized (FR-4 §1)
+    shipping_params: tuple[str, ...] = ("label_noise",)
     # Columns of the comparison report (`sfc-experiment report`), after the selection metric
     report_metrics: tuple[str, ...] = (
         "val_known_macro_f1",
@@ -387,6 +390,36 @@ class CategorizationTask:
     def tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
         """Paired merchant bootstrap of the unseen macro-F1 difference: tied if its CI holds 0."""
         lo, hi = self.difference_interval(examples, leader, other)
+        return lo <= 0 <= hi
+
+    def _unseen_brier_stack(
+        self, examples: Examples, pooled: pd.DataFrame
+    ) -> tuple[list[str], npt.NDArray[np.float64], npt.NDArray[np.int64]]:
+        """Per merchant: squared error of the top-class confidence (summed) and row count, over
+        the pooled unseen-merchant rows, as `val_unseen_brier` scores them."""
+        rows = self._join(examples, pooled[pooled["held_out"] == UNSEEN].reset_index(drop=True))
+        correct = (rows["category"] == rows["predicted"]).to_numpy(dtype=float)
+        rows = rows.assign(sse=(rows["confidence"].to_numpy(dtype=float) - correct) ** 2, n=1.0)
+        by = rows.groupby("merchant_id")
+        sums = by[["sse", "n"]].sum()
+        majority = by["category"].agg(lambda c: c.mode().iloc[0])
+        codes = {c: i for i, c in enumerate(sorted(set(majority)))}
+        return (
+            [str(m) for m in sums.index],
+            sums.to_numpy(dtype=float),
+            majority.map(codes).to_numpy(dtype=np.int64),
+        )
+
+    def tiebreak_tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
+        """Paired merchant bootstrap of the unseen Brier difference: tied if its CI holds 0."""
+        names_a, a, majority = self._unseen_brier_stack(examples, leader)
+        names_b, b, _ = self._unseen_brier_stack(examples, other)
+        if names_a != names_b:
+            raise ValueError("runs held out different merchants; they aren't comparable")
+        weights = bootstrap_weights(majority, self.reps, np.random.default_rng(0))
+        brier_a = (weights @ a[:, 0]) / (weights @ a[:, 1])
+        brier_b = (weights @ b[:, 0]) / (weights @ b[:, 1])
+        lo, hi = interval(brier_a - brier_b)
         return lo <= 0 <= hi
 
     def gates(

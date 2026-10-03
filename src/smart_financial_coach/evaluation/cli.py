@@ -31,7 +31,7 @@ from smart_financial_coach.evaluation.promote import (
 )
 from smart_financial_coach.evaluation.publish import GitHubReleases, PublishError
 from smart_financial_coach.evaluation.report import comparison_report
-from smart_financial_coach.evaluation.runner import LeakError, run_experiment
+from smart_financial_coach.evaluation.runner import LeakError, run_experiment, run_with_twin
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.categorization.batch import (
     DEFAULT_BATCH_ROWS,
@@ -54,14 +54,26 @@ def _run(args: argparse.Namespace) -> int:
     tracker = Tracker(args.tracking_uri)
     for path in experiment_files(args.configs):
         config = load_experiment(path)
-        result = run_experiment(
-            config, args.data, tracker, force=args.force, reproduce_poc=args.reproduce_poc
-        )
-        status = "skipped (already run)" if result.skipped else f"chose {result.chosen}"
-        print(f"{config.name}: run {result.run_id} {status}")
-        print(f"  {_metrics(result.metrics, 'val_')}")
         if args.reproduce_poc:
-            print(f"  {_metrics(result.metrics, 'test_')}")
+            results = [
+                (
+                    config.name,
+                    run_experiment(
+                        config, args.data, tracker, force=args.force, reproduce_poc=True
+                    ),
+                )
+            ]
+        else:
+            result, twin = run_with_twin(config, args.data, tracker, force=args.force)
+            results = [(config.name, result)]
+            if twin is not None:
+                results.append((config.twin().name, twin))
+        for name, run in results:
+            status = "skipped (already run)" if run.skipped else f"chose {run.chosen}"
+            print(f"{name}: run {run.run_id} {status}")
+            print(f"  {_metrics(run.metrics, 'val_')}")
+            if args.reproduce_poc:
+                print(f"  {_metrics(run.metrics, 'test_')}")
     return 0
 
 
@@ -75,7 +87,9 @@ def _leaderboard(args: argparse.Namespace) -> int:
     for i, s in enumerate(standings, start=1):
         place = f"{i:>2}." if s.eligible else " - "
         tie = " (tied with leader)" if s.tied_with_leader and s.eligible else ""
-        print(f"{place} {s.estimate:.4f}  {s.name}  {s.run_id}{tie}")
+        twin = f"  twin {s.twin_estimate:.4f}" if s.twin_id else ""
+        stop = "  REVERSAL: its twin beats rank 1's twin" if s.reverses else ""
+        print(f"{place} {s.estimate:.4f}  {s.name}  {s.run_id}{tie}{twin}{stop}")
     return 0
 
 

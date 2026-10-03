@@ -101,6 +101,19 @@ def test_ties(task: CategorizationTask, examples: Examples) -> None:
     assert not task.tied(examples, keyword, lookup)
 
 
+def test_brier_ties(task: CategorizationTask, examples: Examples) -> None:
+    """FR-4 §5: the first tie-break (unseen Brier) gets a paired merchant-bootstrap tie test."""
+    splits = task.split(examples, {}, 0)
+    configs = {c.name: c for c in baselines()}
+    lookup = cross_fit(task, examples, splits, configs["lookup"], {}).predictions
+    nudged = lookup.assign(confidence=(lookup["confidence"] * 0.999).clip(0, 1))
+    certain = lookup.assign(confidence=1.0)  # confidently wrong on most unseen merchants
+
+    assert task.tiebreak_tied(examples, lookup, lookup)
+    assert task.tiebreak_tied(examples, lookup, nudged)
+    assert not task.tiebreak_tied(examples, lookup, certain)
+
+
 def test_gates_and_eligibility(task: CategorizationTask) -> None:
     baselines = {"keyword": {"val_known_macro_f1": 0.5, "test_known_macro_f1": 0.5}}
     good = {"test_known_macro_f1": 0.95, "latency_p95_ms": 1.0, "val_known_macro_f1": 0.95}

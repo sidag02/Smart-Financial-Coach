@@ -59,3 +59,20 @@ def test_grid_points_are_the_product() -> None:
     assert ExperimentConfig.model_validate(
         {"name": "x", "task": "toy", "model": {"type": "t"}}
     ).grid_points() == [{}]
+
+
+def test_a_tied_first_tiebreak_lets_cost_decide() -> None:
+    """FR-4 §5: A, B, C tie on F1. Tie-breakers are (Brier, cost). B's Brier is tied with the Brier
+    leader A, so the cheaper B goes first; C's Brier isn't, so it follows by Brier."""
+    candidates = [c("A", 0.75, 0.10, 5.0), c("B", 0.74, 0.11, 1.0), c("C", 0.74, 0.20, 0.0)]
+    brier_ties = ties(("A", "B"))
+
+    def f1_tie(leader: str, other: str) -> bool:
+        return True
+
+    def brier_tie(leader: str, other: str) -> bool:
+        assert leader == "A"  # judged against the Brier leader, not pair by pair
+        return frozenset((leader, other)) in brier_ties
+
+    assert rank(candidates, f1_tie) == ["A", "B", "C"]  # strict Brier: cost never decides
+    assert rank(candidates, f1_tie, brier_tie) == ["B", "A", "C"]

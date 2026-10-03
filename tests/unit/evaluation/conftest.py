@@ -96,6 +96,31 @@ class MemoryAlt(Memory):
         super().__init__(confidence=0.75)
 
 
+@register("toy/pattern")
+class Pattern(Memory):
+    """Learns the rule behind group labels (label = LABELS[group number % 3]), but only from clean
+    labels: with any disagreement inside a group it falls back to the majority for new groups.
+    So it loses under injected noise and wins without it: a ranking reversal on demand."""
+
+    def __init__(self) -> None:
+        super().__init__(trust_hint=False)
+        self.clean = False
+
+    def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self:
+        super().fit(x, y)
+        assert y is not None
+        frame = x.assign(label=y.to_numpy())
+        self.clean = bool((frame.groupby("group")["label"].nunique() == 1).all())
+        return self
+
+    def predict(self, x: pd.DataFrame) -> pd.DataFrame:
+        out = super().predict(x)
+        if self.clean:
+            rule = x["group"].str.slice(1).astype(int).map(lambda g: LABELS[g % 3])
+            out["label"] = x["group"].map(self.groups).fillna(rule)
+        return out
+
+
 @register("toy/broken")
 class Broken(Memory):
     """Drops the last row: breaks the contract."""
@@ -120,6 +145,7 @@ class ToyTask:
     required_baselines: tuple[str, ...] = ("majority",)
     report_metrics: tuple[str, ...] = ("val_seen_accuracy", "latency_p95_ms")
     test_report_metrics: tuple[str, ...] = ("test_known_accuracy", "test_unseen_accuracy")
+    shipping_params: tuple[str, ...] = ()  # no twins: runs are finalized as they are
     reproduction = ExperimentConfig(name="poc", task="toy", model={"type": "toy/memory"})
 
     def load(self, data: Path) -> Examples:
@@ -196,6 +222,9 @@ class ToyTask:
 
         return abs(unseen(leader) - unseen(other)) < 0.02
 
+    def tiebreak_tied(self, examples: Examples, leader: pd.DataFrame, other: pd.DataFrame) -> bool:
+        return False  # strict first tie-break
+
     def selection_interval(self, examples: Examples, pooled: pd.DataFrame) -> tuple[float, float]:
         value = accuracy(pooled[pooled["held_out"] == UNSEEN], examples)
         return value - 0.05, value + 0.05
@@ -225,6 +254,33 @@ class ToyTask:
 
 
 register_task("toy", ToyTask)
+
+TOY_SHIP = register_service(
+    Contract("toy_ship", "id", ("id", "label", "confidence"), _confidence_check)
+)
+
+
+class ToyShipTask(ToyTask):
+    """The toy task with shipping twins: training labels get injected noise (`noise`, default
+    0.2: every fifth training label moves to the next label) unless a config sets it."""
+
+    name = "toy_ship"
+    shipping_params: tuple[str, ...] = ("noise",)
+
+    def training_rows(
+        self, examples: Examples, which: Ids, params: Mapping[str, Any], seed: int
+    ) -> tuple[pd.DataFrame, pd.Series | None]:
+        x, y = examples.rows(which), examples.labels_for(which)
+        assert y is not None
+        if float(params.get("noise", 0.2)) > 0:
+            labels = y.to_numpy().copy()
+            for i in range(0, len(labels), 5):
+                labels[i] = LABELS[(LABELS.index(labels[i]) + 1) % 3]
+            y = pd.Series(labels, name=y.name)
+        return x, y
+
+
+register_task("toy_ship", ToyShipTask)
 
 
 def toy_frame(seed: int = 0) -> pd.DataFrame:

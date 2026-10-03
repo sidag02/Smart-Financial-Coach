@@ -5,7 +5,11 @@ task: categorization
 model: {type: categorization/linear_text, params: {ngrams: true, embeddings: true}}
 grid: {C: [1.0, 3.0, 10.0]}  # chosen on validation folds; merged into model params
 task_params: {label_noise: 0.02, max_rows_per_class: 20000}
+ship: {task_params: {label_noise: 0}}  # the shipping twin: what is finalized and promoted
 complexity: 2  # components and dependencies; lower is simpler (last tie-breaker)
+
+Comparison runs are ranked; their shipping twins (the same config with `ship` applied, FR-4 §1)
+are what gets finalized and promoted, when the task requires twins (`Task.shipping_params`).
 """
 
 import copy
@@ -16,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from smart_financial_coach.intelligence.models.registry import MODEL_MARKER
 
@@ -30,6 +34,13 @@ class ModelSpec(_Model):
     params: dict[str, Any] = {}
 
 
+class ShipSpec(_Model):
+    task_params: dict[str, Any] = {}
+
+
+TWIN_SUFFIX = ".ship"
+
+
 class ExperimentConfig(_Model):
     name: str
     task: str
@@ -40,6 +51,25 @@ class ExperimentConfig(_Model):
     baseline: bool = False  # round 0: always scored with the finalists
     complexity: int = Field(default=0, ge=0)
     tags: dict[str, str] = {}
+    ship: ShipSpec | None = None  # the shipping twin's overrides; None: no twin
+
+    @model_validator(mode="after")
+    def _baselines_have_no_twin(self) -> "ExperimentConfig":
+        if self.baseline and self.ship is not None:
+            raise ValueError(f"{self.name}: baselines are scored as they are; they have no twin")
+        return self
+
+    def twin(self) -> "ExperimentConfig":
+        """The shipping twin: this config with `ship`'s task params applied, written explicitly."""
+        if self.ship is None:
+            raise ValueError(f"{self.name} declares no shipping twin (`ship:`)")
+        return self.model_copy(
+            update={
+                "name": self.name + TWIN_SUFFIX,
+                "task_params": {**self.task_params, **self.ship.task_params},
+                "ship": None,
+            }
+        )
 
     def config_hash(self) -> str:
         """Everything that changes the result; `tags` are annotations and don't count."""

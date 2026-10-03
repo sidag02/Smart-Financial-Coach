@@ -55,6 +55,8 @@ def comparison_report(
     baselines = baseline_runs(list(runs.values()))
     selection = f"val_{task.selection_metric}"
     keys = task.report_metrics
+    shipping = bool(task.shipping_params)  # comparison runs ranked; twins break ties and ship
+    twin_breaker = task.tiebreak_metrics[0] if task.tiebreak_metrics else selection
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         tmp = Path(tmp_dir)
@@ -80,12 +82,21 @@ def comparison_report(
                 diff = f"{d_lo:+.3f} to {d_hi:+.3f}"
             rank = str(place) if s.eligible else DASH
             tie = " (tied)" if s.tied_with_leader and s.eligible else ""
+            twin_cells = []
+            if shipping:
+                twin = runs.get(s.twin_id) if s.twin_id else None
+                stop = " **reversal**" if s.reverses else ""
+                twin_cells = [
+                    f"{_cell(s.twin_estimate)}{stop}",
+                    _cell(twin.metrics.get(twin_breaker)) if twin else DASH,
+                ]
             rows.append(
                 [
                     rank,
                     f"`{s.name}`{tie}",
                     f"{_cell(s.estimate)} ({lo:.2f}{DASH}{hi:.2f})",
                     diff,
+                    *twin_cells,
                     *_metric_row(run, keys),
                 ]
             )
@@ -100,12 +111,27 @@ def comparison_report(
         "which are ordered by "
         + ", then ".join(f"`{k}`" for k in (*task.tiebreak_metrics, "complexity"))
         + ".",
+        *(
+            [
+                "- Shipping twins (`label_noise` and other shipping params set explicitly) are "
+                "what gets finalized. Ties among comparison runs are broken on the twins: "
+                f"`{twin_breaker}` with its own tie test, then the remaining tie-breakers. "
+                "**reversal** marks a twin that beats rank 1's twin on validation, which stops "
+                "`finalize`.",
+            ]
+            if shipping
+            else []
+        ),
         "",
         "| Rank | Run | "
         + f"`{selection}` (95% CI) | vs leader | "
+        + (f"twin `{selection}` | twin `{twin_breaker}` | " if shipping else "")
         + " | ".join(f"`{k}`" for k in keys)
         + " |",
-        "| --- | --- | --- | --- | " + " | ".join("---" for _ in keys) + " |",
+        "| --- | --- | --- | --- | "
+        + ("--- | --- | " if shipping else "")
+        + " | ".join("---" for _ in keys)
+        + " |",
         *("| " + " | ".join(r) + " |" for r in rows),
         "",
         "**Baselines** (the floor, not candidates):",
