@@ -76,7 +76,12 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 
 **Retraining evidence from FR-4's feasibility work:** the same configuration trained without the injected 2% label noise reaches **0.714** validation unseen-merchant macro F1, against 0.512 with it, and 0.988 against 0.969 on known merchants. Clean labels matter far more than anything else measured so far. This bears on what retraining from feedback can achieve and on [open question 3](#open-questions).
 
-**Still to measure:** the simulated replay ([Simulation](#7-simulation-and-replay)): personal accuracy after feedback, global gain on users who supplied no corrections, entrenched errors, and robustness to wrong corrections.
+**The simulated replay** ([Simulation](#7-simulation-and-replay); `docs/reports/FR-5 Feedback Replay — Results.md`, #44), run once with N = 3 and the defaults, nothing chosen from it:
+- **Global gain** for the 51 test users who never corrected anything: new-merchant macro F1 against the true categories 0.751 → 0.872 (own view 0.612 → 0.800); accuracy against their own view 0.904 → 0.938; all-merchant macro F1 against the truth 0.946 → 0.937, the cost of learning the 70% streaming preference.
+- **Personal accuracy** for the 69 feedback users: 0.908 → 0.942; burden about 0.7 review items a month.
+- **Retraining:** 3 of 10 candidates promoted; the gates caught a bad first batch (accuracy at labelled merchants 0.70 → 0.52).
+- **Entrenched errors:** of 65 global labels, 50 fix model errors, 11 are the 70% streaming preference, and 4 came from 30% preferences or an ambiguous merchant that met N = 3 (open question 1).
+- **Robustness** at 20% adversarial users wasn't run; the run had 3 adversarial users of 69 (about 5%).
 
 - **Sequencing** (owner decision, Oct 2, 2026): FR-4's milestone 1 regenerates the default dataset once, with this design's `truth_preferences` (schema 4). The replay is built after FR-4's milestone 2 (shipping twins and explicit `label_noise`) and runs on FR-4's promoted twin, so its numbers describe the model that ships.
 - The data contract (§7) was accepted on Oct 2 so FR-4's milestone 1 could build it; the rest of the design was accepted on Oct 3, with N, the majority and the cadence provisional until the replay.
@@ -446,7 +451,7 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 
 **Open questions**
 
-1. [ ] **N and the majority** for global labels: the replay measures how fast global gain arrives against how often a personal preference or an adversarial user leaks.
+1. [ ] **N and the majority** for global labels: the replay measures how fast global gain arrives against how often a personal preference or an adversarial user leaks. *Evidence (#44):* at N = 3, three minority-preference labels (Walgreens ×2, Costco) and one ambiguous-merchant label (a Target store) got through, and every candidate after them scored below the incumbent for users who see those merchants the default way; rideshare labels formed and were revoked six times. To tune on a separate half of the test users (owner, Oct 3, 2026).
 2. [ ] **Retraining cadence** and the minimum number of new labels per retraining. Quarterly in the replay for now.
 3. [x] **Should retraining (and the shipped model) train on injected label noise?** **Decided (owner, Oct 2, 2026): no.** Injected noise stays for experiments that compare candidates, the Technical Design's control against flattering results. The shipped model and models retrained from feedback train on clean labels, with `label_noise: 0` explicit in the promoted configuration (§5). Robustness to the natural noise in feedback labels is measured in the replay instead. Basis: without the injected noise, validation unseen-merchant macro F1 is 0.714 against 0.512 (known 0.988 against 0.969; FR-4 feasibility), and the Travel fallback is the noise's most visible cost in the shipped model. This refines the Oct 1 decision to keep noise, which was about comparing candidates; that discipline is unchanged.
 4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): deferred past the demo (owner, Oct 3, 2026); the replay records retraining time per cycle.
