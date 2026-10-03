@@ -417,6 +417,7 @@ Later milestones and reviews:
 - **Label-tuned parameters are searched inside `Thresholded`'s fit** (§5): each point is a fresh scorer fitted without labels, so the search runs per fold.
 - **The test gate against the baseline uses the common flag rate** (§5), which is equal volume by construction, because gates see only logged metrics (#34).
 - **New-merchant reasons get per-category wording at serving time,** from the user's own ledger (#39).
+- **A cheap first visit above its merchant's usual price** (owner decision on #40) reads "First charge here, and more than this merchant usually charges." It applies when the charge is below the user's median and above the merchant profile's typical price. The scorer records only a yes/no for the comparison (`above_merchant_usual`), never a price, so no other user's number reaches a reason (NFR-2), and a test checks that the text contains no digit. The key is optional, so flag files written before it still render. On the default dataset it applies to exactly the 13 such flags, and the set of flags is unchanged.
 
 ## Status (Oct 3, 2026): complete
 
@@ -429,11 +430,11 @@ Later milestones and reviews:
 | 4. Finalize, promote, serve | #39 | Test, second scoring (override recorded): precision 0.834 (0.805–0.863), recall at the rate 0.720 against the baseline's 0.051. Promoted `e0b67433-8b9632e6-2e033606`. Flag files, the nightly job, `detect_anomalies`, "Worth a look", Transactions and the demo bundle serve its flags |
 | 5. Docs | #40 | Technical Design, PRD, Web App UI |
 
-**Settled (owner, Oct 3, 2026, on #39):** the forest's history rank is now one-sided, and the model was re-finalized with a recorded override. Cheap first-visit flags fell from 57 to 13. The 13 left are fees and parking at 3–6× what other users pay at the merchant (the merchant-price signal). Their reason wording, which can't quote other users' prices (NFR-2), is a follow-up.
+**Settled (owner, Oct 3, 2026, on #39):** the forest's history rank is now one-sided, and the model was re-finalized with a recorded override. Cheap first-visit flags fell from 57 to 13. The 13 left are fees and parking at 3–6× what other users pay at the merchant (the merchant-price signal). Their reason now names the merchant-price signal without a number (below).
 
 **Deployed:** #39's merge rebuilt the Oct 6 demo with the promoted model. The `Deploy demo` run (37160849349) succeeded, including its smoke test, and its bundle step logged "6 unusual charges flagged by e0b67433-8b9632e6-2e033606". A signed-in look at "Worth a look" on the live demo needs the demo password.
 
-**Open, for the owner:** wording for the 13 new-merchant flags on charges below the user's median (fees and parking at 3–6× the merchant's usual price). A reason can't quote other users' prices (NFR-2).
+**Settled (owner, Oct 3, 2026, on #40):** a new-merchant charge below the user's median but above its merchant profile's typical price reads "First charge here, and more than this merchant usually charges." (the 13 flags above).
 
 **Known limit** (Round Results): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed. Neither profile-rule option measured on validation helped. A category-level price prior is the v1.1 idea.
 
