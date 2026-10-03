@@ -242,6 +242,40 @@ One PR per milestone.
 4. **Finalize and promote:** twins of the top three scored once on the fresh test set; promote rank 1 if it passes both features' gates; `sfc-model predict`; FR-3 Categorization Model Selection updated.
 5. **Docs:** the PRD's FR-4 success metric (0.66 for v1, 0.80 for v1.1 through feedback), the Technical Design (twins, the gate, the decision-rule changes).
 
+## Status (Oct 3, 2026): complete
+
+FR-4 is implemented. This section records where things ended, and what someone continuing the work, or rerunning it, needs to know.
+
+| Milestone | PR | Outcome |
+| --- | --- | --- |
+| Design | #17 | Accepted; feasibility on POC branch `poc/fr-4-unseen-merchants` (pinned `2541dc6`) |
+| 1. Dataset | #20 | 40% holdout (seed 8, 115 merchants) and schema 4 preferences; data hash `44781bc4e4a5`. The tag `data/fr3-default` reproduces FR-3's dataset |
+| 2. Framework | #21 | Shipping twins, tie-breaks on twins with the Brier tie test, the reversal stop, explicit `label_noise` at promotion, `class_weight` |
+| 3. The round | #27 | The FR-4 gate (0.66, §4), per-category diagnostics, the round (`docs/reports/FR-4 Categorization — Round Results.md`) |
+| 4. Finalize and promote | #28 | Promoted `20eea4fb-44781bc4-c0274576` (bge-small, no class weights, clean labels): test known 0.983, all test users 0.943, unseen **0.735** (0.67–0.81) |
+| 5. Docs | #29 | PRD target (0.66 in v1, 0.80 in v1.1), Technical Design, the gate's scope |
+
+**After #28 merges: check the demo deploy.** The `Deploy demo` workflow runs on merges that touch `artifacts/**`, so #28's merge rebuilds the Oct 6, 2026 demo with the new categorizer.
+- Confirm the run succeeded; its smoke test checks that `/healthz` returns `"status":"ok"`.
+- Sign in and check a page's categories.
+- Before the merge, a local `sfc-web build-demo` with the new model built cleanly: 3 users, 9,185 transactions, Travel 22.
+
+**What depends on FR-4:** FR-5/FR-6 (draft #15). Its simulated replay runs on the promoted model, and its Feasibility section is re-measured on it (owner decision on #15).
+
+**Notes for reruns and later rounds:**
+- **The round's MLflow runs** are in a local store in the worktree that ran them (`/private/tmp/claude-501/-Volumes-Sidd-Projects-PaloAltoNetworks-Smart-Financial-Coach/2952f469-9d3e-4553-ac62-2821651a08af/scratchpad/wt-fr4m3/mlruns`). The store can't be moved (MLflow records absolute artifact paths), and that path was a session scratchpad. Nothing remaining needs it.
+  - To rebuild: check out the tag `runs/fr4-round` (the clean-tree training commit `f53643f`), regenerate the dataset (data hash `44781bc4e4a5`), and run `uv run sfc-experiment run configs/experiments/categorization/fr4/ --data data/synthetic/default.sqlite` (about an hour).
+  - Don't rerun `finalize` on that split without an override reason: its test set is used.
+- **Run a round on a quiet machine.** Batch cost is measured during the run, and it decides between runs tied on F1 and Brier (§5). In this round the gap (1.34 s against 3.73 s) was too large to flip.
+- **Retraining from feedback uses FR-5/FR-6's gates,** not this design's 0.66 (owner, on #15; see the comment on `UNSEEN_GATE`).
+- **Working practice:**
+  - one PR per milestone from the latest `main`;
+  - review comments are addressed before each push;
+  - rule changes go through the owner and are labelled when made after seeing results;
+  - test sets only through `finalize`;
+  - a rejected promotion's release is deleted (`gh release delete categorization-<version> --cleanup-tag`);
+  - branch work happens in a separate git worktree, since other sessions use the main checkout.
+
 ## Decisions and open questions
 
 **Decisions** (all approved by the owner, Oct 2, 2026, on PR #17)
