@@ -1,6 +1,6 @@
 # FR-5 and FR-6 Review, Corrections and Retraining — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Proposed** · Branch: `docs/fr-5-design`
+Oct 2, 2026 · @Sidd · Status: **Proposed**; the data contract in §7 is **Accepted** (owner, Oct 2, 2026) · Branch: `docs/fr-5-design`
 
 ## Summary
 
@@ -71,7 +71,7 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 **Still to measure:** the simulated replay ([Simulation](#7-simulation-and-replay)): personal accuracy after feedback, global gain on users who supplied no corrections, entrenched errors, and robustness to wrong corrections.
 
 - **Sequencing** (owner decision, Oct 2, 2026): FR-4's milestone 1 regenerates the default dataset once, with this design's `truth_preferences` (schema 4). The replay is built after FR-4's milestone 2 (shipping twins and explicit `label_noise`) and runs on FR-4's promoted twin, so its numbers describe the model that ships.
-- This design stays in draft until the replay and the re-measured Feasibility are in.
+- This design stays in draft until the replay and the re-measured Feasibility are in, **except its data contract** (§7: `truth_preferences` and the preference-aware label contract), which the owner accepted ahead of the rest so FR-4's milestone 1 can build it.
 
 ## Goals and non-goals
 
@@ -240,6 +240,8 @@ The loop is measured on synthetic users before any real user sees it.
 
   A new truth table, `truth_preferences(user_id, merchant_id, category)`, holds each user's view (schema version 4; default datasets regenerate). The label contract gains a "user's category": the preference where there is one, otherwise the true category.
 
+  > **Accepted (owner, Oct 2, 2026): this data contract**, the `truth_preferences` table (schema 4) and the preference-aware label contract, is accepted ahead of the rest of this design. FR-4's milestone 1 implements it in its single regeneration. Any later change to it needs a new regeneration, so changes go through review like an accepted design. The preference profiles (which subtypes remap, and how often) are part of the simulator, not of this contract, and stay in draft.
+
 - **Behavior:** each month, each simulated user opens the review queue with some probability (engagement). For each item they resolve, they confirm if the suggestion matches their view and correct otherwise, slipping to a wrong category with a small probability. Some users **accept the suggestion without checking** at a set rate (automation bias), confirming wrong suggestions too. Some users also correct unflagged errors they notice, more often for large amounts. A small share of users correct at random (adversarial).
 - **Replay:** month by month over the test users' history: ingest, categorize, flag, simulate responses, update overrides, and retrain on the schedule when the agreement rule produces enough labels.
 - **Measures** (Technical Design, "What good will mean"):
@@ -320,7 +322,7 @@ One PR per milestone.
 1. **Contract and review policy:** `familiar` in the categorizer output, `review_policy` in the manifest, chosen at promotion; `needs_review` and `review_reason` in the predictions file.
 2. **Feedback store and effective categories:** tables, precedence, undo, per-user effective categories in the data-access layer, isolation tests.
 3. **Tools:** `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`, `list_corrections`; effective categories in `get_transactions` and `get_spending_summary`; JSON schemas and contract tests against the web app and coach stubs.
-4. **Preferences and the simulator:** the preference-aware label contract and simulated review and correction behavior. `truth_preferences` (schema 4) lands with FR-4's milestone 1, in the same regeneration as FR-4's new holdout.
+4. **The simulator:** preference profiles and simulated review and correction behavior. The data contract they write into (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted and lands with FR-4's milestone 1, in the same regeneration as FR-4's new holdout.
 5. **Global labels and retraining:** the agreement rule (with the correction requirement), a feedback-aware training task, time-forward evaluation on non-contributing users scored against their own view, a leak check on training rows (no evaluation user, nothing after the cutoff), gates, policy re-derivation, and an explicit `label_noise` required at promotion.
 6. **Replay and decisions:** the replay on FR-4's promoted twin and the regenerated dataset; the Feasibility section re-measured on that model; settle N and the cadence; Technical Design updates.
 
@@ -341,6 +343,7 @@ One PR per milestone.
 - [ ] Spike baselines and periods always use the current effective categories (from review).
 - [x] The shipped model and retrained models train on clean labels; injected noise only for comparing candidates (owner, Oct 2, 2026).
 - [x] The replay runs after FR-4, on its promoted twin and the dataset regenerated once with schema 4 (owner, Oct 2, 2026).
+- [x] The data contract in §7 (`truth_preferences`, schema 4, and the preference-aware label contract) is accepted now; the rest stays in draft until the replay (owner, Oct 2, 2026). This breaks the loop where FR-4's milestone 1 would build a schema from an unaccepted design.
 
 **Open questions**
 
