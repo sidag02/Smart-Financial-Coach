@@ -24,6 +24,9 @@ class Contract:
     id_column: str
     columns: tuple[str, ...]  # output columns, in order, starting with `id_column`
     check: Callable[[pd.DataFrame], list[str]] | None = None  # service-specific rules
+    # Columns that may be missing on some rows (e.g. an anomaly's reason when it isn't flagged);
+    # `check` says when. Every other column must be set on every row.
+    nullable: tuple[str, ...] = ()
 
     def violations(self, x: pd.DataFrame, out: pd.DataFrame) -> list[str]:
         if list(out.columns) != list(self.columns):
@@ -34,7 +37,8 @@ class Contract:
         returned = out[self.id_column].astype(str).to_numpy()
         if not np.array_equal(returned, x[self.id_column].astype(str).to_numpy()):
             errors.append(f"{self.id_column} doesn't match the input rows in order")
-        if nulls := [c for c in self.columns if out[c].isna().any()]:
+        required = [c for c in self.columns if c not in self.nullable]
+        if nulls := [c for c in required if out[c].isna().any()]:
             errors.append(f"missing values in {nulls}")
         if self.check is not None and not errors:
             errors += self.check(out)

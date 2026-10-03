@@ -24,7 +24,10 @@ from smart_financial_coach.intelligence.models.artifact import (
 from smart_financial_coach.intelligence.models.contract import Checked, Contract
 
 # Modules whose import registers the product's services; tests register their own
-SERVICE_MODULES: tuple[str, ...] = ("smart_financial_coach.intelligence.categorization.contract",)
+SERVICE_MODULES: tuple[str, ...] = (
+    "smart_financial_coach.intelligence.categorization.contract",
+    "smart_financial_coach.intelligence.anomaly.contract",
+)
 
 
 @dataclass(frozen=True)
