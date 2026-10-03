@@ -215,7 +215,7 @@ class UnusualTransactionsTask:
         flagged = np.zeros(len(rows), dtype=bool)
         for _, idx in rows.groupby("fold").indices.items():
             part = rows.iloc[idx]
-            k = round(FLAG_RATE * user_months(part))
+            k = round(FLAG_RATE * user_months(part[part["label"] != IGNORED]))
             score = np.where(part["label"] == IGNORED, -np.inf, part["score"].to_numpy(dtype=float))
             flagged[idx] = top_k(score, part["transaction_id"].to_numpy(), k)
         return flagged
@@ -262,7 +262,7 @@ class UnusualTransactionsTask:
             out[f"recall.{kind}"] = (
                 float((of_kind & found).sum() / total) if total else float("nan")
             )
-        months = user_months(rows)
+        months = user_months(rows[rows["label"] != IGNORED])  # after the warm-up (§6)
         out["flag_rate"] = float((flagged & (rows["label"] != IGNORED).to_numpy()).sum() / months)
         out["flags_without_reason"] = float((flagged & rows["reason_code"].isna().to_numpy()).sum())
         out["cutoff_shortfall"] = 1.0 - out["precision"]

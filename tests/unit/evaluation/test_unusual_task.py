@@ -120,7 +120,7 @@ def test_perfect_predictions_score_perfectly(
         assert m[f"recall.{kind}"] == 1.0
     # At the common rate, a perfect scorer finds what fits in the budget
     rows = examples.frame.set_index("transaction_id").loc[train.tolist()]
-    budget = round(FLAG_RATE * user_months(rows.reset_index()))
+    budget = round(FLAG_RATE * user_months(rows[rows["label"] != "ignored"].reset_index()))
     positives = int((rows["label"] == "anomaly").sum())
     assert m["recall_at_rate"] == pytest.approx(min(budget, positives) / positives)
 

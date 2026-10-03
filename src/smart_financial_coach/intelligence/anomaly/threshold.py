@@ -35,7 +35,10 @@ class Scorer(Protocol):
 
 
 def user_months(x: pd.DataFrame) -> float:
-    """The span of each user's rows in months, summed over users: the denominator of flag rates."""
+    """The span of each user's rows in months, summed over users: the denominator of flag rates.
+
+    Flag rates are per user-month after the warm-up (FR-7 §6), so callers with labels pass only
+    the rows the label contract scores."""
     ts = pd.to_datetime(x["ts"])
     span = ts.groupby(x["user_id"].to_numpy()).agg(lambda t: (t.max() - t.min()).days)
     return float(span.sum() / DAYS_PER_MONTH)
@@ -53,7 +56,7 @@ def precision_cutoff(
     score: npt.NDArray[np.float64], labels: npt.NDArray[Any], target: float
 ) -> float:
     """The lowest score whose flags (score >= it) have at least `target` precision, ignored rows
-    left out; +inf when no cutoff reaches it (nothing is flagged)."""
+    left out; +inf when no cutoff reaches it, so only +inf scores (exact repeats) are flagged."""
     keep = labels != IGNORED
     s, hit = score[keep], labels[keep] == ANOMALY
     order = np.argsort(-s, kind="mergesort")
@@ -119,7 +122,8 @@ class Thresholded(AnomalyModel):
             "cutoff": self.cutoff,
             "train_precision": float(hits.sum() / max((flagged & kept).sum(), 1)),
             "train_recall": float(hits.sum() / max((kept & (labels == ANOMALY)).sum(), 1)),
-            "train_flag_rate": float(flagged.sum() / max(user_months(x), 1e-9)),
+            # Per post-warm-up user-month: the rows the label contract scores
+            "train_flag_rate": float((flagged & kept).sum() / max(user_months(x[kept]), 1e-9)),
         }
         return self
 
