@@ -717,7 +717,7 @@ def create_app(
             "worth_a_look.html",
             account,
             active="flags",
-            flags=recent_flags(tools_for(account)),
+            flags=recent_flags(tools_for(account, request)),
             start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
             end=as_of.isoformat(),
             window_days=FLAG_WINDOW_DAYS,
