@@ -1,6 +1,6 @@
 # FR-7 Unusual Transactions — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Proposed**; owner decisions on the open questions recorded (Oct 3, 2026, on #30) · Branch: `docs/fr-7-design`
+Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026, on #30) · Branch: `docs/fr-7-design`
 
 ## Summary
 
@@ -165,7 +165,7 @@ All features come from model-visible columns. Nothing reads `truth_*`, and the i
 | Exact repeat | Same user, raw text and amount as an earlier charge, minutes apart | Duplicates |
 | The user's history at the key | Count, running median and spread of log amount, earlier charges only | Unusual amounts |
 | The user's history overall | Rank of the amount among the user's earlier charges; largest earlier charge per predicted category | Reason text for new merchants; a fallback score without a profile |
-| **Merchant profile** | Per key: the typical log amount (median of users' medians), the typical spread within a user, and the number of distinct users | Unusual amounts (spread), new merchants (typical price) |
+| **Merchant profile** | Per key: the typical log amount (median of users' medians), the typical spread within a user (the median over users of each user's median absolute deviation, from users with 2+ charges there), and the number of distinct users | Unusual amounts (spread), new merchants (typical price) |
 
 **Merchant profiles are a feature table, not model parameters.**
 
@@ -386,21 +386,30 @@ One PR per milestone.
 4. **Finalize and promote:** finalists scored once on test users; promote if the gates pass. Then the nightly flag job, `detect_anomalies` (the unusual-charges half), "Worth a look" and the demo bundle.
 5. **Docs:** the Technical Design (the batch-first contract, merchant profiles in the feature pipeline, the FR-7 row in model selection, the gate at equal flag volume), the PRD's FR-7 metric wording, and the Web App UI's gap 6.
 
+## Implementation notes
+
+Departures recorded from milestone 1 (#33), each reviewed there:
+
+- **The profile spread is the median over users of each user's median absolute deviation** (§2), not the POC's MAD over pooled charges. Leaving the scored user out is then exact and cheap, and a spread needs at least 3 other users with 2 or more charges each.
+- **The new-merchant reason uses the user's whole history** ("your largest charge since Oct 2024", §7). The per-category wording in the mockup ("your largest Shopping charge …") needs the predicted category, which exists only at serving time, so it moves to milestone 4's flag job.
+- **"One of your first charges" applies below 30 earlier charges,** as wording only. It never decides whether a charge is flagged (§8; the 30-charge flagging rule was dropped in review).
+- **`×` in user-facing reason text:** ruff's ambiguous-character rule (RUF001, RUF002) is ignored for the reasons module and its test only.
+
 ## Decisions and open questions
 
 **Decisions for review**
 
-- [ ] Point-in-time scoring, batch-first across users; the Technical Design's per-user signature becomes a thin wrapper (§1).
-- [ ] Merchant profiles from other users as a nightly feature table: ≥ 3 distinct users, the scored user's charges left out, as of the month; scores only, never shown in reasons (§2, option A-b).
-- [ ] Categories stay out of the v1 score; the predicted category is used in reason text only (§2).
-- [ ] Candidates: the baseline, rules, probabilistic, isolation forest (§3).
-- [ ] Decision rule: rank on out-of-fold recall at a common flag rate (0.11 per user-month), with each run's own-cutoff precision reported; user-bootstrap ties, then reason accuracy, own-cutoff precision, cost and explainability; no shipping twins (§4; revised in review).
+- [x] Point-in-time scoring, batch-first across users; the Technical Design's per-user signature becomes a thin wrapper (§1) (owner, Oct 3, 2026, on #30).
+- [x] Merchant profiles from other users as a nightly feature table: ≥ 3 distinct users, the scored user's charges left out, as of the month; scores only, never shown in reasons (§2, option A-b) (owner, Oct 3, 2026, on #30).
+- [x] Categories stay out of the v1 score; the predicted category is used in reason text only (§2) (owner, Oct 3, 2026, on #30).
+- [x] Candidates: the baseline, rules, probabilistic, isolation forest (§3) (owner, Oct 3, 2026, on #30).
+- [x] Decision rule: rank on out-of-fold recall at a common flag rate (0.11 per user-month), with each run's own-cutoff precision reported; user-bootstrap ties, then reason accuracy, own-cutoff precision, cost and explainability; no shipping twins (§4; revised in review) (owner, Oct 3, 2026, on #30).
 - [x] Tune to precision 0.80, gate at 0.70 on test users (§5, option B-b) (owner, Oct 3, 2026, on #30).
 - [x] "Recall above the baseline": the Technical Design's per-user z at equal flag volume (§5, option C-b); baseline plus the duplicate rule reported, not gated (owner, Oct 3, 2026, on #30).
-- [ ] Reasons as templates over stored evidence (§7, option D-a).
-- [ ] Nightly scoring into flag files; `detect_anomalies` serves the unusual-charges half when FR-7 promotes (§8).
-- [ ] Flag actions and sensitivity in v1.1 with FR-9; v1 fixes the flag id and the per-user scope now (§8).
-- [ ] Label-tuned parameters fitted within folds; validation profiles from train users only; no 30-charge minimum (§2, §5, §8; from review).
+- [x] Reasons as templates over stored evidence (§7, option D-a) (owner, Oct 3, 2026, on #30).
+- [x] Nightly scoring into flag files; `detect_anomalies` serves the unusual-charges half when FR-7 promotes (§8) (owner, Oct 3, 2026, on #30).
+- [x] Flag actions and sensitivity in v1.1 with FR-9; v1 fixes the flag id and the per-user scope now (§8) (owner, Oct 3, 2026, on #30).
+- [x] Label-tuned parameters fitted within folds; validation profiles from train users only; no 30-charge minimum (§2, §5, §8; from review) (owner, Oct 3, 2026, on #30).
 
 **Open questions**
 
