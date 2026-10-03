@@ -146,6 +146,7 @@ class ToyTask:
     report_metrics: tuple[str, ...] = ("val_seen_accuracy", "latency_p95_ms")
     test_report_metrics: tuple[str, ...] = ("test_known_accuracy", "test_unseen_accuracy")
     shipping_params: tuple[str, ...] = ()  # no twins: runs are finalized as they are
+    serving_files_required: tuple[str, ...] = ()
     reproduction = ExperimentConfig(name="poc", task="toy", model={"type": "toy/memory"})
 
     def load(self, data: Path) -> Examples:
@@ -254,6 +255,15 @@ class ToyTask:
 
     def reproduction_configs(self) -> set[str]:
         return {self.reproduction.config_hash()}
+
+    def serving_files(
+        self,
+        examples: Examples,
+        pooled: pd.DataFrame,
+        model_version: str,
+        source: Mapping[str, str],
+    ) -> dict[str, str]:
+        return {}
 
 
 register_task("toy", ToyTask)

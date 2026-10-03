@@ -97,6 +97,16 @@ def test_lookup_memorizes_normalized_strings() -> None:
     assert out["category"].tolist()[4] == "Transportation"  # store number differs
     assert out.loc[1, "category"] == "Dining"  # never seen: the majority category
     assert out.loc[0, "confidence"] == 1.0
+    assert out["familiar"].tolist() == [True, False, False, False, True]
+
+
+@pytest.mark.parametrize("kind", ["majority", "keyword", "lookup"])
+def test_familiar_means_the_normalized_string_was_in_training(kind: str) -> None:
+    spec = KEYWORD if kind == "keyword" else {"type": f"categorization/{kind}"}
+    model = build(spec).fit(TX, Y)
+    out = model.predict(TX.assign(merchant_raw=["POS DEBIT DRIFTWOOD COFFEE CO", *["NEW"] * 4]))
+
+    assert out["familiar"].tolist() == [True, False, False, False, False]
 
 
 @pytest.mark.parametrize("kind", ["majority", "keyword", "lookup"])

@@ -32,6 +32,7 @@ def stub_categories(txns: pd.DataFrame) -> pd.DataFrame:
             ],
             "confidence": [0.4 if i % 5 == 0 else 0.9 for i in rows],
             "model_version": "stub",
+            "familiar": [i % 3 != 0 for i in rows],
         }
     )
 

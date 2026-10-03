@@ -58,6 +58,10 @@ class Task(Protocol):
     # Task params a promoted config must set explicitly, e.g. ("label_noise",). Non-empty: runs
     # are compared, and their shipping twins finalized and promoted (FR-4 §1). Empty: no twins
     shipping_params: tuple[str, ...]
+    # Files a promoted model must carry next to it, derived from its run's validation
+    # predictions by `serving_files` (e.g. FR-5's review policy). Promotion refuses a run
+    # without them
+    serving_files_required: tuple[str, ...]
 
     def load(self, data: Path) -> Examples: ...
 
@@ -118,6 +122,18 @@ class Task(Protocol):
 
     def reproduction_configs(self) -> set[str]:
         """Config hashes allowed to score test sets outside `finalize` (`--reproduce-poc`)."""
+        ...
+
+    def serving_files(
+        self,
+        examples: Examples,
+        pooled: pd.DataFrame,
+        model_version: str,
+        source: Mapping[str, str],
+    ) -> dict[str, str]:
+        """Files (name -> text) saved with a run's model and promoted with it, derived from its
+        pooled validation predictions; `source` says where they came from (e.g. the run).
+        Empty when the task has none or they can't be derived."""
         ...
 
 

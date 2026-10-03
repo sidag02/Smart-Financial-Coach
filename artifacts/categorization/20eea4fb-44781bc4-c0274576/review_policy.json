@@ -1,0 +1,259 @@
+{
+  "evidence": {
+    "familiar": {
+      "error_rate": 0.11405824958597434,
+      "rows": 150353,
+      "table": [
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.05
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.1
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.15
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.2
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.25
+        },
+        {
+          "errors_caught": 5.831243804303458e-05,
+          "flagged": 1.3302029224558206e-05,
+          "flags_wrong": 0.5,
+          "threshold": 0.3
+        },
+        {
+          "errors_caught": 0.0002915621902151729,
+          "flagged": 4.655710228595372e-05,
+          "flags_wrong": 0.7142857142857143,
+          "threshold": 0.35
+        },
+        {
+          "errors_caught": 0.0004664995043442766,
+          "flagged": 6.651014612279103e-05,
+          "flags_wrong": 0.8,
+          "threshold": 0.4
+        },
+        {
+          "errors_caught": 0.0008163741326024841,
+          "flagged": 0.00011971826302102386,
+          "flags_wrong": 0.7777777777777778,
+          "threshold": 0.45
+        },
+        {
+          "errors_caught": 0.0027989970260656597,
+          "flagged": 0.0006118933443296775,
+          "flags_wrong": 0.5217391304347826,
+          "threshold": 0.5
+        },
+        {
+          "errors_caught": 0.08466966003848621,
+          "flagged": 0.0191283180249147,
+          "flags_wrong": 0.5048678720445062,
+          "threshold": 0.55
+        },
+        {
+          "errors_caught": 0.13131961047291388,
+          "flagged": 0.029789894448398104,
+          "flags_wrong": 0.502790801518196,
+          "threshold": 0.6
+        },
+        {
+          "errors_caught": 0.15592745932707447,
+          "flagged": 0.03558957919030548,
+          "flags_wrong": 0.49971967856475424,
+          "threshold": 0.65
+        },
+        {
+          "errors_caught": 0.17563706338562016,
+          "flagged": 0.040524632032616574,
+          "flags_wrong": 0.49433776464795665,
+          "threshold": 0.7
+        },
+        {
+          "errors_caught": 0.2165140824537874,
+          "flagged": 0.051086443236915795,
+          "flags_wrong": 0.48340059888035414,
+          "threshold": 0.75
+        },
+        {
+          "errors_caught": 0.22339495014286548,
+          "flagged": 0.05318816385439599,
+          "flags_wrong": 0.4790546454920595,
+          "threshold": 0.8
+        },
+        {
+          "errors_caught": 0.22706863373957664,
+          "flagged": 0.05433878938232027,
+          "flags_wrong": 0.4766217870257038,
+          "threshold": 0.85
+        },
+        {
+          "errors_caught": 0.22724357105370577,
+          "flagged": 0.054884172580527156,
+          "flags_wrong": 0.47224915172079496,
+          "threshold": 0.9
+        },
+        {
+          "errors_caught": 0.2273018834917488,
+          "flagged": 0.056786362759638984,
+          "flags_wrong": 0.45654720074959004,
+          "threshold": 0.95
+        }
+      ]
+    },
+    "source": {
+      "data_hash": "44781bc4e4a597ff231928de566000a85914c9ddbf0b19b05cebf04fd34ee85f",
+      "mlflow_run_id": "29bcc4ff1ba04e08a60b0d2eec45b6ea",
+      "note": "Review policy (FR-5 \u00a71) for a model promoted before policies existed, from a rerun of its config reproducing every validation metric. The familiar group's 11.4% validation error rate is dominated by one normalizer collision: held-out Uber Eats rows normalize to the familiar string 'uber' (Uber rides) and are wrong at 0.99 confidence; other familiar rows are about 3% wrong. Known issue, fixed with the first retrained model (#15).",
+      "reproduces": "20eea4fb-44781bc4-c0274576",
+      "rows": "pooled out-of-fold validation predictions, spending rows"
+    },
+    "unfamiliar": {
+      "error_rate": 0.1482684244965223,
+      "rows": 288841,
+      "table": [
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.05
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.1
+        },
+        {
+          "errors_caught": 0.0,
+          "flagged": 0.0,
+          "flags_wrong": null,
+          "threshold": 0.15
+        },
+        {
+          "errors_caught": 2.3350301218885723e-05,
+          "flagged": 6.9242247464868215e-06,
+          "flags_wrong": 0.5,
+          "threshold": 0.2
+        },
+        {
+          "errors_caught": 0.002194928314575258,
+          "flagged": 0.000851679643817879,
+          "flags_wrong": 0.3821138211382114,
+          "threshold": 0.25
+        },
+        {
+          "errors_caught": 0.015084294587400177,
+          "flagged": 0.004099141049920198,
+          "flags_wrong": 0.5456081081081081,
+          "threshold": 0.3
+        },
+        {
+          "errors_caught": 0.0421939943025265,
+          "flagged": 0.009770081117292904,
+          "flags_wrong": 0.6403260099220411,
+          "threshold": 0.35
+        },
+        {
+          "errors_caught": 0.09309765095969738,
+          "flagged": 0.020751901565221005,
+          "flags_wrong": 0.6651651651651652,
+          "threshold": 0.4
+        },
+        {
+          "errors_caught": 0.17986737028907673,
+          "flagged": 0.04314138228298614,
+          "flags_wrong": 0.61816868630126,
+          "threshold": 0.45
+        },
+        {
+          "errors_caught": 0.28912342969224303,
+          "flagged": 0.07562292056875582,
+          "flags_wrong": 0.566863526072426,
+          "threshold": 0.5
+        },
+        {
+          "errors_caught": 0.40620184000373605,
+          "flagged": 0.12251377055196458,
+          "flags_wrong": 0.491592957865883,
+          "threshold": 0.55
+        },
+        {
+          "errors_caught": 0.5117452015130995,
+          "flagged": 0.16463729179721714,
+          "flags_wrong": 0.4608655423308239,
+          "threshold": 0.6
+        },
+        {
+          "errors_caught": 0.6160276467566431,
+          "flagged": 0.21919672068716006,
+          "flags_wrong": 0.4166916746955602,
+          "threshold": 0.65
+        },
+        {
+          "errors_caught": 0.6978938028300565,
+          "flagged": 0.26916885068255547,
+          "flags_wrong": 0.3844264087360284,
+          "threshold": 0.7
+        },
+        {
+          "errors_caught": 0.7437537944239481,
+          "flagged": 0.3071274507427962,
+          "flags_wrong": 0.3590535559288025,
+          "threshold": 0.75
+        },
+        {
+          "errors_caught": 0.7936533881287069,
+          "flagged": 0.34585810186227023,
+          "flags_wrong": 0.34023704178261827,
+          "threshold": 0.8
+        },
+        {
+          "errors_caught": 0.8352636249007612,
+          "flagged": 0.3893387711578342,
+          "flags_wrong": 0.31808602399139224,
+          "threshold": 0.85
+        },
+        {
+          "errors_caught": 0.8720169990192873,
+          "flagged": 0.4500780706340166,
+          "flags_wrong": 0.2872670210229152,
+          "threshold": 0.9
+        },
+        {
+          "errors_caught": 0.9294353897165274,
+          "flagged": 0.5587191569063948,
+          "flags_wrong": 0.24664613554259796,
+          "threshold": 0.95
+        }
+      ]
+    }
+  },
+  "familiar_threshold": 0.95,
+  "model_version": "20eea4fb-44781bc4-c0274576",
+  "rule": {
+    "familiar_cap": 0.95,
+    "familiar_flags_wrong": 0.25,
+    "unfamiliar_errors_caught": 0.6
+  },
+  "unfamiliar_threshold": 0.65
+}

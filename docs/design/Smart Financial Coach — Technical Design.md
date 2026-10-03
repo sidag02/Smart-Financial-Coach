@@ -75,7 +75,7 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 
 **Service contracts** (each model service implements one of these)
 
-- `categorize(transactions) → [{transaction_id, category, confidence, model_version}]`: batch-first over model-visible transaction rows (`transaction_id, user_id, ts, amount, currency, merchant_raw, channel`), one output row per input in order. Whole rows keep the contract stable whichever features a model uses; a single transaction is a one-row batch. Every service's output is checked against its contract at runtime (FR-3)
+- `categorize(transactions) → [{transaction_id, category, confidence, model_version, familiar}]`: batch-first over model-visible transaction rows (`transaction_id, user_id, ts, amount, currency, merchant_raw, channel`), one output row per input in order. Whole rows keep the contract stable whichever features a model uses; a single transaction is a one-row batch. Every service's output is checked against its contract at runtime (FR-3). `familiar` says whether the row's normalized merchant string occurs in the model's training rows; the review policy uses it (FR-5 and FR-6 design, §1)
 - `score_transactions(user_id, transactions) → [{transaction_id, score, is_flagged, reason_code, reason}]` (`reason_code` is `duplicate`, `amount_unusual` or `new_merchant`, so reason accuracy can be scored)
 - `detect_spikes(user_id, period, granularity) → [{category, period, actual, expected, deviation, top_transactions}]` (v1: `granularity="month"` only; at most 5 `top_transactions`)
 - `forecast_goal(user_id, goal_id) → {projected_balance, interval, p_goal_met, gap, monthly_forecast[]}`

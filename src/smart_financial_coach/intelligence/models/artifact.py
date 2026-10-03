@@ -28,6 +28,7 @@ from smart_financial_coach.intelligence.models.base import Model, describe
 MODEL_FILE = "model.joblib"
 MANIFEST_FILE = "manifest.json"
 POINTER_FILE = "PROMOTED"
+ATTACHMENTS_FILE = "attachments.jsonl"  # files added to a version after its promotion
 LOG_FILE = "promotions.jsonl"
 URL_KEY = "model_url"  # where a promotion log entry says the model file can be downloaded
 DOWNLOAD_TIMEOUT_S = 60
@@ -150,6 +151,21 @@ def record_promotion(service_dir: Path, entry: Mapping[str, Any]) -> None:
 
 def promotions(service_dir: Path) -> list[dict[str, Any]]:
     path = service_dir / LOG_FILE
+    if not path.exists():
+        return []
+    lines = path.read_text(encoding="utf-8").splitlines()
+    return [json.loads(line) for line in lines if line.strip()]
+
+
+def record_attachment(service_dir: Path, entry: Mapping[str, Any]) -> None:
+    """Append to the attachment log: files given to an exported version after its promotion
+    (e.g. a review policy), which its manifest's checksum doesn't cover."""
+    with (service_dir / ATTACHMENTS_FILE).open("a", encoding="utf-8") as log:
+        log.write(json.dumps(dict(entry), sort_keys=True) + "\n")
+
+
+def attachments(service_dir: Path) -> list[dict[str, Any]]:
+    path = service_dir / ATTACHMENTS_FILE
     if not path.exists():
         return []
     lines = path.read_text(encoding="utf-8").splitlines()

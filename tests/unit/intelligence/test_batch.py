@@ -46,6 +46,8 @@ def test_every_transaction_is_categorized_once(
     assert (categories["user_id"] == transactions["user_id"]).all()
     assert set(categories["category"]) == {"Dining"}
     assert set(categories["model_version"]) == {run.model_version}
+    assert categories["familiar"].dtype == bool
+    assert categories["familiar"].all()  # the model was fitted on these very strings
     meta = load_prediction_meta(out)
     assert meta["model_version"] == run.model_version
     assert meta["rows"] == str(run.rows)
@@ -82,6 +84,7 @@ def test_a_failed_run_leaves_no_file(tmp_path: Path) -> None:
             "category": ["Dining"],
             "confidence": [0.9],
             "model_version": ["v1"],
+            "familiar": [True],
         }
     )
 
@@ -107,6 +110,7 @@ def test_overlapping_runs_keep_their_own_partial_files(tmp_path: Path) -> None:
                 "category": ["Dining"],
                 "confidence": [0.9],
                 "model_version": [version],
+                "familiar": [True],
             }
         )
 

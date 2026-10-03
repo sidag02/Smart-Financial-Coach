@@ -49,6 +49,11 @@ from smart_financial_coach.evaluation.splits import (
 )
 from smart_financial_coach.evaluation.tasks.base import Examples, Gate, register_task
 from smart_financial_coach.intelligence.categorization.contract import INPUT_COLUMNS
+from smart_financial_coach.intelligence.categorization.review import (
+    POLICY_FILE,
+    PolicyError,
+    derive_review_policy,
+)
 from smart_financial_coach.intelligence.models.contract import Checked
 
 MIN_SCHEMA = 3  # truth_merchants.holdout_eligible
@@ -115,6 +120,8 @@ class CategorizationTask:
     # Promoted configs set these explicitly; the leaderboard ranks comparison runs under the
     # injected noise, and their `label_noise: 0` shipping twins are finalized (FR-4 §1)
     shipping_params: tuple[str, ...] = ("label_noise",)
+    # A promoted categorizer carries its review policy (FR-5 §1)
+    serving_files_required: tuple[str, ...] = (POLICY_FILE,)
     # Columns of the comparison report (`sfc-experiment report`), after the selection metric
     report_metrics: tuple[str, ...] = (
         "val_known_macro_f1",
@@ -503,6 +510,37 @@ class CategorizationTask:
     def reproduction_configs(self) -> set[str]:
         """The POC's three configurations (feasibility at commit 55d4197), by config hash."""
         return {load_experiment(p).config_hash() for p in sorted(POC_CONFIGS.glob("*.yaml"))}
+
+    # --- Serving ---------------------------------------------------------------------------
+
+    def serving_files(
+        self,
+        examples: Examples,
+        pooled: pd.DataFrame,
+        model_version: str,
+        source: Mapping[str, str],
+    ) -> dict[str, str]:
+        """The review policy (FR-5 §1), chosen on the pooled out-of-fold predictions' spending
+        rows, grouped by the model's own `familiar` flag as production groups them. A run whose
+        predictions can't meet the rule gets none, and can't be promoted."""
+        pooled = pooled.reset_index(drop=True)
+        rows = self._join(examples, pooled).assign(familiar=pooled["familiar"].to_numpy())
+        rows = rows[rows["category"] != INCOME]
+        try:
+            policy = derive_review_policy(
+                model_version,
+                rows["confidence"],
+                rows["familiar"],
+                rows["category"] != rows["predicted"],
+                source={
+                    **source,
+                    "data_hash": examples.data_hash,
+                    "rows": "pooled out-of-fold validation predictions, spending rows",
+                },
+            )
+        except PolicyError:
+            return {}
+        return {POLICY_FILE: policy.to_json()}
 
 
 register_task("categorization", CategorizationTask)

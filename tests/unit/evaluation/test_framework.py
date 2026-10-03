@@ -1,5 +1,6 @@
 """End to end on the toy task: run -> leaderboard -> finalize -> promote -> load_service."""
 
+import hashlib
 import shutil
 from collections.abc import Callable
 from pathlib import Path
@@ -14,6 +15,7 @@ from smart_financial_coach.evaluation.promote import (
     OVERRIDE_TAG,
     RANK_TAG,
     SelectionError,
+    attach_serving_files,
     finalize,
     leaderboard,
     promote,
@@ -26,11 +28,13 @@ from smart_financial_coach.intelligence.models.artifact import (
     POINTER_FILE,
     URL_KEY,
     ArtifactError,
+    attachments,
     promotion_errors,
     promotions,
 )
 from smart_financial_coach.intelligence.models.registry import model_class
 from smart_financial_coach.intelligence.service import load_service
+from tests.unit.evaluation.conftest import ToyTask
 
 MakeConfig = Callable[..., ExperimentConfig]
 NOTE = "group lookup with a hint fallback; no external dependencies"
@@ -355,6 +359,98 @@ def test_promote_refusals(
     with pytest.raises(SelectionError, match="unseen_accuracy"):  # unseen falls to majority
         promote("toy", runs["memory_no_hint"], NOTE, tracker, artifacts, override="try #3")
     assert not (artifacts / "toy").exists()
+
+
+def test_promotion_carries_the_runs_serving_files(
+    toy_data: Path,
+    tracker: Tracker,
+    make_config: MakeConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Files a task derives from a run's validation predictions (FR-5's review policy) are saved
+    with its model and promoted next to it."""
+    monkeypatch.setattr(ToyTask, "serving_files_required", ("policy.json",))
+    monkeypatch.setattr(
+        ToyTask,
+        "serving_files",
+        lambda self, examples, pooled, version, source: {
+            "policy.json": f"{version}: {len(pooled)} rows from {source['mlflow_run_id']}"
+        },
+    )
+    run_experiment(make_config("majority", "toy/majority", baseline=True), toy_data, tracker)
+    run = run_experiment(make_config("memory_hint"), toy_data, tracker)
+    finalize("toy", toy_data, tracker)
+
+    entry = promote("toy", run.run_id, NOTE, tracker, tmp_path / "artifacts")
+
+    text = (tmp_path / "artifacts" / "toy" / entry["version"] / "policy.json").read_text()
+    assert text.startswith(f"{entry['version']}: ")
+    assert f"rows from {run.run_id}" in text
+    assert ": 0 rows" not in text
+
+
+def test_promotion_refuses_a_run_without_its_serving_files(
+    toy_data: Path,
+    tracker: Tracker,
+    runs: dict[str, str],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    finalize("toy", toy_data, tracker)
+    monkeypatch.setattr(ToyTask, "serving_files_required", ("policy.json",))
+
+    with pytest.raises(SelectionError, match=r"has no policy\.json; rerun it"):
+        promote("toy", runs["memory_hint"], NOTE, tracker, tmp_path / "artifacts")
+    assert not (tmp_path / "artifacts" / "toy").exists()
+
+
+def test_an_earlier_promotion_gets_its_serving_files_from_a_reproducing_run(
+    toy_data: Path,
+    tracker: Tracker,
+    runs: dict[str, str],
+    make_config: MakeConfig,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A model promoted before its task required a file: a rerun of its config on the same data,
+    reproducing its validation metrics, supplies the file, derived for the promoted version."""
+    artifacts = tmp_path / "artifacts"
+    finalize("toy", toy_data, tracker)
+    entry = promote("toy", runs["memory_hint"], NOTE, tracker, artifacts)
+    monkeypatch.setattr(ToyTask, "serving_files_required", ("policy.json",))
+    monkeypatch.setattr(
+        ToyTask,
+        "serving_files",
+        lambda self, examples, pooled, version, source: {
+            "policy.json": f"{version} from {source['mlflow_run_id']}"
+        },
+    )
+    config = make_config("memory_hint", grid={"confidence": [0.7, 0.9]})
+    rerun = run_experiment(config, toy_data, tracker, force=True)
+    other = run_experiment(make_config("memory_hint_complex", complexity=3), toy_data, tracker)
+
+    with pytest.raises(SelectionError, match="different config_hash"):
+        attach_serving_files(
+            "toy", other.run_id, entry["version"], toy_data, tracker, artifacts, note="n"
+        )
+    with pytest.raises(SelectionError, match="needs a note"):
+        attach_serving_files(
+            "toy", rerun.run_id, entry["version"], toy_data, tracker, artifacts, note=" "
+        )
+    written = attach_serving_files(
+        "toy", rerun.run_id, entry["version"], toy_data, tracker, artifacts, note="backfill"
+    )
+
+    assert [p.name for p in written] == ["policy.json"]
+    assert written[0].read_text() == f"{entry['version']} from {rerun.run_id}"
+    (logged,) = attachments(artifacts / "toy")
+    assert logged["version"] == entry["version"]
+    assert logged["file"] == "policy.json"
+    assert logged["mlflow_run_id"] == rerun.run_id
+    assert logged["note"] == "backfill"
+    assert logged["sha256"] == hashlib.sha256(written[0].read_bytes()).hexdigest()
+    assert promotion_errors(artifacts / "toy") == []  # the promotion log is untouched
 
 
 def test_broken_model_fails_in_validation(
