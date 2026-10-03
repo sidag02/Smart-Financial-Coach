@@ -259,15 +259,19 @@ def _one_per_pair(flags: pd.DataFrame) -> pd.DataFrame:
     so both can be flagged. The user sees one "Possible duplicate", on the charge with the later
     ID; the stored flags keep both."""
     duplicates = flags[flags["reason_code"] == "duplicate"]
-    evidence = duplicates["evidence"].map(json.loads)
-    original = evidence.map(lambda e: e["original_transaction_id"])
-    same_minute = evidence.map(lambda e: e["minutes_apart"] == 0)
-    flagged = set(duplicates["transaction_id"])
-    hidden = duplicates.loc[
-        same_minute & original.isin(flagged) & (duplicates["transaction_id"] < original),
-        "transaction_id",
-    ]
-    return flags[~flags["transaction_id"].isin(set(hidden))]
+    if duplicates.empty:  # an empty .map is string-typed under pandas 3, and & would raise
+        return flags
+    evidence = [json.loads(e) for e in duplicates["evidence"]]
+    ids = duplicates["transaction_id"].to_numpy()
+    flagged = set(ids)
+    hidden = {
+        t
+        for t, e in zip(ids, evidence, strict=True)
+        if e["minutes_apart"] == 0
+        and e["original_transaction_id"] in flagged
+        and t < e["original_transaction_id"]
+    }
+    return flags[~flags["transaction_id"].isin(hidden)]
 
 
 class ToolGateway(Protocol):

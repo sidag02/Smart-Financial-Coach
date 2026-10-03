@@ -216,3 +216,24 @@ def test_a_same_minute_duplicate_pair_is_shown_once(
     found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
 
     assert {f["transaction_id"] for f in found["unusual_transactions"]} == {b, c}
+
+
+@pytest.mark.parametrize("kinds", [[], ["amount_unusual"]], ids=["no flags", "no duplicates"])
+def test_detect_anomalies_without_duplicate_flags(
+    sources: DataSources, two_users: tuple[str, str], kinds: list[str]
+) -> None:
+    from dataclasses import replace
+
+    import pandas as pd
+
+    ledger = Ledger.load(sources, two_users[0])
+    ids = ledger.transactions["transaction_id"].head(len(kinds)).tolist()
+    evidence = json.dumps({"usual_amount": 5.0, "ratio": 9.0, "prior_charges": 14})
+    flags = pd.DataFrame(
+        {"transaction_id": ids, "reason_code": kinds, "evidence": [evidence] * len(kinds)},
+        dtype=object,
+    )
+    tools = Tools(replace(ledger, flags=flags))
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+
+    assert found["count"] == len(kinds)

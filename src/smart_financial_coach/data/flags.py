@@ -102,6 +102,9 @@ class FlagWriter:
         finally:
             self.conn.close()
         if kind is None:
+            # Readable by everyone, like any data file: the temporary file is owner-only, and
+            # serving may run as another user (the pattern behind #26)
+            self.partial.chmod(0o644)
             self.partial.replace(self.path)
         else:
             self.partial.unlink(missing_ok=True)

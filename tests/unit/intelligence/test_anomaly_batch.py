@@ -69,3 +69,10 @@ def test_predict_cli_flags_a_dataset(
     flagged = load_flags(out)
     assert set(flagged["user_id"]) <= set(store.load_users(small_sqlite)["user_id"])
     assert all(json.loads(e) for e in flagged["evidence"])
+
+
+def test_the_flag_file_is_readable_by_everyone(flagged_sources: DataSources) -> None:
+    import stat
+
+    assert flagged_sources.flags is not None
+    assert stat.S_IMODE(flagged_sources.flags.stat().st_mode) & 0o044 == 0o044

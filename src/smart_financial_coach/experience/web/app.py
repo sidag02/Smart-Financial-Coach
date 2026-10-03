@@ -543,6 +543,9 @@ def create_app(
             changes=tools.list_corrections(limit=CHANGES_SHOWN).data["corrections"],
             flash=request.session.pop("flash", None),
             back=str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
+            # Unusual charges are marked in the list (FR-7 §8), one per same-minute pair as in
+            # "Worth a look"
+            flagged=flagged_ids(tools, period),
         )
 
     def back_to(back: str) -> RedirectResponse:
@@ -690,6 +693,12 @@ def create_app(
         return RedirectResponse("/chat", status_code=303)
 
     # Coming next (Delivery Plan sync rule): real data where it exists, mockups for the rest
+
+    def flagged_ids(tools: Tools, period: Period) -> set[str]:
+        if not flags_live:
+            return set()
+        found = tools.detect_anomalies(period.start.isoformat(), period.end.isoformat()).data
+        return {f["transaction_id"] for f in found.get("unusual_transactions", [])}
 
     def recent_flags(tools: Tools) -> list[dict[str, Any]]:
         """The last `FLAG_WINDOW_DAYS` days' unusual charges, newest first (FR-7 §8)."""
