@@ -22,6 +22,9 @@ MODEL_MODULES: tuple[str, ...] = (
     "smart_financial_coach.intelligence.categorization.calibration",
     "smart_financial_coach.intelligence.anomaly.baseline",
     "smart_financial_coach.intelligence.anomaly.threshold",
+    "smart_financial_coach.intelligence.anomaly.rules",
+    "smart_financial_coach.intelligence.anomaly.probabilistic",
+    "smart_financial_coach.intelligence.anomaly.forest",
 )
 
 _REGISTRY: dict[str, type[Model]] = {}
