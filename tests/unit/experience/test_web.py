@@ -195,6 +195,24 @@ def test_chat_answers_with_source_chips(sources: DataSources, accounts: list[Acc
         assert "couldn&#39;t be reached" in failed
 
 
+def test_two_sessions_as_the_same_user_keep_separate_chats(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    """Visitors share demo accounts, so chat is per session, never per user (NFR-2)."""
+    fake = FakeClient(response(text("Answer for the first visitor.")))
+    wren = Coach(fake, coach_name="Wren", model="m")
+    app = create_app(settings(), sources=sources, accounts=accounts, coach=wren)
+    with TestClient(app) as first, TestClient(app) as second:
+        sign_in(first)
+        sign_in(second)  # the same demo user, another browser
+        first.post("/chat", data={"question": "My private question"})
+
+        assert "My private question" in first.get("/chat").text
+        other = second.get("/chat").text
+        assert "My private question" not in other
+        assert "Answer for the first visitor." not in other
+
+
 def test_chat_is_rate_limited(sources: DataSources, accounts: list[Account]) -> None:
     fake = FakeClient(response(text("One.")), response(text("Two.")))
     wren = Coach(fake, coach_name="Wren", model="m")
