@@ -28,7 +28,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
-from smart_financial_coach.access.ledger import INCOME, REVIEW_BELOW, DataSources, Ledger
+from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
@@ -252,7 +252,6 @@ def create_app(
         horizons=HORIZONS,
         colors=charts.colors,
         as_of=as_of.isoformat(),
-        review_below=REVIEW_BELOW,
     )
 
     @app.middleware("http")
@@ -443,7 +442,7 @@ def create_app(
         period = month_period(month, as_of)
         category = category if category in tools.categories else None
         rows = tools.ledger.between(period.start, period.end)
-        not_sure = int((rows["confidence"] < REVIEW_BELOW).sum())
+        not_sure = int(rows["needs_review"].sum())
         if category:
             rows = rows[rows["category"] == category]
         if q.strip():
@@ -453,7 +452,7 @@ def create_app(
                 | rows["merchant_raw"].str.contains(text, case=False, regex=False)
             ]
         if review:
-            rows = rows[rows["confidence"] < REVIEW_BELOW]
+            rows = rows[rows["needs_review"]]
         return page(
             request,
             "transactions.html",
@@ -468,6 +467,11 @@ def create_app(
             categories=[c for c in tools.categories if c != INCOME] + [INCOME],
             q=q,
             review=review,
+            # The review policy the bundle was flagged with, read here rather than at start-up,
+            # so an unreadable bundle shows in /healthz instead of stopping the app
+            review_below=dict(
+                zip(("familiar", "unfamiliar"), sources.review_thresholds(), strict=True)
+            ),
         )
 
     # Chat (mockup 1d)

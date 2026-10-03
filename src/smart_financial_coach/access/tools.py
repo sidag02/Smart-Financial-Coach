@@ -21,7 +21,7 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from smart_financial_coach.access.ledger import INCOME, REVIEW_BELOW, Ledger
+from smart_financial_coach.access.ledger import INCOME, Ledger
 
 CURRENCY = "USD"
 DASH = "\u2013"  # en dash, for date ranges
@@ -286,7 +286,8 @@ class Tools:
                     "amount": money(r["amount"]),
                     "category": r["category"],
                     "confidence": round(float(r["confidence"]), 2),
-                    "needs_review": bool(r["confidence"] < REVIEW_BELOW),
+                    "needs_review": bool(r["needs_review"]),
+                    "review_reason": r["review_reason"] or None,
                 }
                 for r in shown.to_dict("records")
             ],
