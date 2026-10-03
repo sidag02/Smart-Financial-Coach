@@ -251,6 +251,24 @@ def test_pages_render_quickly(client: TestClient) -> None:
     assert headers["X-Content-Type-Options"] == "nosniff"
 
 
+def test_not_sure_follows_the_review_flags_from_the_batch(
+    sources: DataSources, accounts: list[Account], client: TestClient
+) -> None:
+    """FR-5: the page shows the flags the model's review policy set, not its own threshold."""
+    sign_in(client)
+    ledger = Ledger.load(sources, accounts[0].user_id)
+    month = ledger.between(ledger.as_of.replace(day=1), ledger.as_of)
+    flagged = int(month["needs_review"].sum())
+    assert 0 < flagged < len(month)
+
+    page = client.get("/transactions").text
+    only_flagged = client.get("/transactions?review=1").text
+
+    assert f"Not sure · {flagged}" in page
+    assert "below 95% confidence for a merchant it hasn't seen before, below 50%" in page
+    assert only_flagged.count('class="raw"') == flagged
+
+
 def test_a_user_never_sees_another_users_transactions(
     sources: DataSources, accounts: list[Account], client: TestClient
 ) -> None:

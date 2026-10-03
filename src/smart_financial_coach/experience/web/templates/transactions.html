@@ -29,7 +29,8 @@
     <thead><tr><th>Date</th><th>Merchant</th><th class="cat">Category</th><th class="amount">Amount</th></tr></thead>
     <tbody>
     {% for t in rows %}
-      {% set unsure = t.confidence < review_below %}
+      {% set unsure = t.needs_review %}
+      {% set why = "New merchant" if t.review_reason == "new_merchant" else "Not sure" %}
       <tr>
         <td class="muted num" style="white-space:nowrap">{{ t.ts.strftime('%b') }} {{ t.ts.day }}</td>
         <td>
@@ -37,7 +38,7 @@
           <div class="raw">{{ t.merchant_raw }}</div>
           <div class="m-only">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure">Not sure?</span>{% endif %}</div>
         </td>
-        <td class="cat">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure" title="Confidence {{ (t.confidence * 100) | round | int }}%">Not sure?</span>{% endif %}</td>
+        <td class="cat">{{ cat_chip(t.category, unsure) }}{% if unsure %}<span class="not-sure" title="{{ why }} · confidence {{ (t.confidence * 100) | round | int }}%">Not sure?</span>{% endif %}</td>
         <td class="amount num{% if t.amount > 0 %} in{% endif %}">{{ t.amount | money(cents=True, sign=True) }}</td>
       </tr>
     {% endfor %}
@@ -47,5 +48,5 @@
   <div class="empty">No transactions match.</div>
   {% endif %}
 </section>
-<p class="disclaimer">"Not sure?" marks categories the model is less than {{ (review_below * 100) | round | int }}% confident about. Reviewing and correcting them is coming next.</p>
+<p class="disclaimer">"Not sure?" marks categories the model is unsure about: below {{ (review_below.unfamiliar * 100) | round | int }}% confidence for a merchant it hasn't seen before, below {{ (review_below.familiar * 100) | round | int }}% for one it has. Reviewing and correcting them is coming next.</p>
 {% endblock %}

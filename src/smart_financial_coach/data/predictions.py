@@ -5,8 +5,11 @@ version's output for one dataset, and every row carries that version.
 
     transaction_categories  transaction_id (PK), user_id (indexed), category, confidence,
                             model_version, familiar (0/1: the string occurs in the model's
-                            training rows)
-    meta                    model_version, data_spec_hash, data_spec_name, created_at, rows
+                            training rows), needs_review (0/1) and review_reason
+                            ("new_merchant", "low_confidence" or ""), from the model's review
+                            policy (FR-5 §1)
+    meta                    model_version, data_spec_hash, data_spec_name, created_at, rows,
+                            review_familiar_below, review_unfamiliar_below
 
 A run writes to its own temporary file next to the target and renames it into place when complete,
 so readers never see half a run, and overlapping runs (a retried job, two workers) don't share or
@@ -27,7 +30,17 @@ from typing import Self
 import pandas as pd
 
 CATEGORIES_TABLE = "transaction_categories"
-COLUMNS = ("transaction_id", "user_id", "category", "confidence", "model_version", "familiar")
+COLUMNS = (
+    "transaction_id",
+    "user_id",
+    "category",
+    "confidence",
+    "model_version",
+    "familiar",
+    "needs_review",
+    "review_reason",
+)
+FLAGS = ("familiar", "needs_review")  # stored as 0/1, read back as bool
 _SCHEMA = f"""
 CREATE TABLE {CATEGORIES_TABLE} (
     transaction_id TEXT PRIMARY KEY,
@@ -35,7 +48,9 @@ CREATE TABLE {CATEGORIES_TABLE} (
     category TEXT NOT NULL,
     confidence REAL NOT NULL,
     model_version TEXT NOT NULL,
-    familiar INTEGER NOT NULL CHECK (familiar IN (0, 1))
+    familiar INTEGER NOT NULL CHECK (familiar IN (0, 1)),
+    needs_review INTEGER NOT NULL CHECK (needs_review IN (0, 1)),
+    review_reason TEXT NOT NULL CHECK (review_reason IN ('', 'new_merchant', 'low_confidence'))
 );
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
@@ -66,9 +81,10 @@ class CategoryWriter:
         return self
 
     def append(self, user_ids: pd.Series, categories: pd.DataFrame) -> None:
-        """Store one batch: the contract's output, plus each row's user (the input's order)."""
+        """Store one batch: the contract's output and its review flags, plus each row's user
+        (the input's order)."""
         frame = categories.assign(user_id=user_ids.to_numpy())[list(COLUMNS)]
-        frame = frame.assign(familiar=frame["familiar"].astype(int))
+        frame = frame.assign(**{c: frame[c].astype(int) for c in FLAGS})
         frame.to_sql(CATEGORIES_TABLE, self.conn, if_exists="append", index=False)
         self.rows += len(frame)
 
@@ -103,7 +119,7 @@ def load_categories(path: str | Path, user_id: str | None = None) -> pd.DataFram
         frame = pd.read_sql_query(sql, conn, params=params)
     finally:
         conn.close()
-    return frame.assign(familiar=frame["familiar"].astype(bool))
+    return frame.assign(**{c: frame[c].astype(bool) for c in FLAGS})
 
 
 def load_prediction_meta(path: str | Path) -> dict[str, str]:
