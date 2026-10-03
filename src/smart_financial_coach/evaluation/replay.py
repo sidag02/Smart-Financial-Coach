@@ -224,7 +224,10 @@ def run_replay(
     users = sorted(tx["user_id"].unique())
     feedback = [u for u in users if _half(u, "replay-group") < 0.5]
     evaluation = [u for u in users if u not in set(feedback)]
-    adversarial = {u for u in feedback if _half(u, "replay-adversarial") < b.adversarial}
+    # Exactly round(share x feedback users), lowest hash first: a threshold on the hash gave 6 of
+    # 69 users at a 20% share; at 5% both pick the same 3
+    by_hash = sorted(feedback, key=lambda u: _half(u, "replay-adversarial"))
+    adversarial = set(by_hash[: round(b.adversarial * len(feedback))])
     result = ReplayResult(
         config=asdict(config) | {"experiment": shipped.name},
         users={
