@@ -131,6 +131,8 @@ No tool takes a `user_id`; identity comes from the session (Technical Design, "S
 
 All outputs are structured JSON with units and currency, like the existing tools. Categories are validated against the taxonomy; an unknown category is rejected, not stored.
 
+**As built (#36, review notes):** `resolve_review_item` has no `scope`: an item is a merchant, so it settles the merchant, and a single transaction is changed with `correct_category`. `list_review_items` has no `status`: it returns open items, and settled ones appear in `list_corrections`. Bulk confirmation follows this design's wording (the coach sets `confirm` only after the user agrees); a stricter version, where the preview returns a short-lived nonce that `confirm` must echo, is a hardening option if the coach ever confirms without asking.
+
 ### Service contract change
 
 The categorizer's output gains one column:
@@ -190,6 +192,8 @@ flowchart LR
   | `review_items` | `item_id` | `user_id`, `merchant_key`, `first_seen`, `suggested_category`, `confidence`, `reason`, `status` (`open`, `confirmed`, `corrected`, `superseded`), `model_version` |
 
 - **Precedence:** transaction override, then merchant override, then the model's prediction. A transaction override handles the ambiguous merchants (a warehouse club where one purchase was electronics) without overriding the merchant.
+  - **A later merchant-wide change supersedes earlier single-transaction changes at that merchant** (review on #35): "every <merchant> transaction" means every one. A single-transaction change made after it still wins for its row.
+  - **Merchant overrides leave rows predicted as Income alone** (review on #35, following the owner's spending-only decision on #32): settling a spending flag never moves a refund or a transfer at the same merchant. Income rows can be changed one at a time.
 - **Effective categories are computed per user, after the shared inference.** The data-access layer joins that user's predictions to that user's overrides, scoped by the session's `user_id`. Overrides never enter the batch's shared work, so one user's override can't reach another user's rows (Technical Design, feedback constraints).
 - **Undo** marks the event undone and rebuilds that user's affected overrides. Nothing is deleted, so the log stays an audit trail.
 - **Coach-initiated bulk changes** (more than one transaction) are confirmed in the chat before the tool applies them; the tool takes a `confirm` flag the coach sets only after the user agrees.
@@ -446,4 +450,5 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 2. [ ] **Retraining cadence** and the minimum number of new labels per retraining. Quarterly in the replay for now.
 3. [x] **Should retraining (and the shipped model) train on injected label noise?** **Decided (owner, Oct 2, 2026): no.** Injected noise stays for experiments that compare candidates, the Technical Design's control against flattering results. The shipped model and models retrained from feedback train on clean labels, with `label_noise: 0` explicit in the promoted configuration (§5). Robustness to the natural noise in feedback labels is measured in the replay instead. Basis: without the injected noise, validation unseen-merchant macro F1 is 0.714 against 0.512 (known 0.988 against 0.969; FR-4 feasibility), and the Travel fallback is the noise's most visible cost in the shipped model. This refines the Oct 1 decision to keep noise, which was about comparing candidates; that discipline is unchanged.
 4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): deferred past the demo (owner, Oct 3, 2026); the replay records retraining time per cycle.
+6. [ ] **Agreement in the demo: what counts as a distinct user** (review on #38). The demo counts each browser session as a user (owner, Oct 3, 2026), and each sign-in starts a new session, so one visitor signing in three times could meet N = 3 alone, including the required independent correction. Options before the agreement-rule milestone: count one subject per browser cookie or client address for agreement; or show visitors' agreement as illustrative only and keep global labels to the replay's simulated users. *Proposed: the latter for the demo.*
 5. [x] **Coach answers during review:** should the coach mention open review items when they affect an answer ("$120 of this is still unconfirmed")? **Yes** (owner, Oct 3, 2026), using `unreviewed_spend`.
