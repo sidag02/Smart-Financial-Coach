@@ -1,6 +1,6 @@
 # FR-7 Unusual Transactions — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026, on #30) · Branch: `docs/fr-7-design`
+Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026, on #30) · Implementation in review: #33, #34, #37, #39, #40 ([Status](#status-oct-3-2026))
 
 ## Summary
 
@@ -394,6 +394,32 @@ Departures recorded from milestone 1 (#33), each reviewed there:
 - **The new-merchant reason uses the user's whole history** ("your largest charge since Oct 2024", §7). The per-category wording in the mockup ("your largest Shopping charge …") needs the predicted category, which exists only at serving time, so it moves to milestone 4's flag job.
 - **"One of your first charges" applies below 30 earlier charges,** as wording only. It never decides whether a charge is flagged (§8; the 30-charge flagging rule was dropped in review).
 - **`×` in user-facing reason text:** ruff's ambiguous-character rule (RUF001, RUF002) is ignored for the reasons module and its test only.
+
+Later milestones and reviews:
+
+- **Point in time, with a same-minute exception** (§1; #33's re-review). Timestamps have minute resolution, so the order of two identical charges in one minute is unknowable. Each counts as the other's repeat. Rows in *later minutes* never change a charge's score; a same-minute row can.
+  - Planted duplicates in their original's minute were otherwise missed whenever the copy's ID sorted first: 10 of 512.
+  - On the default dataset, 24 pairs end up with both members flagged: 23 planted pairs, whose originals the contract ignores, and 1 real repeat, which adds one false positive.
+  - `detect_anomalies` shows one flag per such pair (#39).
+- **Flag rates are per post-warm-up user-month** (§4, §6): the common rate, reported rates and the search budget count only rows the label contract scores. A correctness review before the round found the warm-up being counted (#34), and the first round was discarded.
+- **Label-tuned parameters are searched inside `Thresholded`'s fit** (§5): each point is a fresh scorer fitted without labels, so the search runs per fold.
+- **The test gate against the baseline uses the common flag rate** (§5), which is equal volume by construction, because gates see only logged metrics (#34).
+- **New-merchant reasons get per-category wording at serving time,** from the user's own ledger (#39).
+
+## Status (Oct 3, 2026)
+
+| Milestone | PR | Outcome |
+| --- | --- | --- |
+| Design | #30 | Accepted (owner); feasibility on `poc/fr-7-unusual-charges` (pinned `7e0d092`) |
+| 1. Contract and features | #33 | The contract with runtime checks; point-in-time history; merchant profiles (as of month, leave-user-out, ≥ 3 users); reasons |
+| 2. Task | #34 | `unusual_transactions`: labels from the contract, user-grouped folds, train-only validation profiles, ranking at 0.11 flags per user-month, gates; `Thresholded`; the baseline |
+| 3. The round | #37 | `isolation_forest` ranks first on validation, at 0.708 against rules 0.659, probabilistic 0.610 and baseline 0.044 (FR-7 Unusual Transactions — Round Results) |
+| 4. Finalize, promote, serve | #39 | Test, scored once: precision 0.814 (0.78–0.85), recall at the rate 0.715 against the baseline's 0.051. Promoted `fb6dab21-8b9632e6-b5c5488f`. Flag files, the nightly job, `detect_anomalies`, "Worth a look" and the demo bundle serve its flags |
+| 5. Docs | #40 | Technical Design, PRD, Web App UI |
+
+**Open, for the owner (#39):** the forest's history-rank feature is two-sided, contrary to §3. 57 of 1,597 flags (3.6%) call a cheap first visit "large". A one-sided rank costs nothing measurable on validation. Fixing it means re-finalizing on the used test set with a recorded override.
+
+**Known limit** (Round Results): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed. Neither profile-rule option measured on validation helped. A category-level price prior is the v1.1 idea.
 
 ## Decisions and open questions
 
