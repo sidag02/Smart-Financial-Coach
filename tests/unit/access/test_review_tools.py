@@ -105,6 +105,7 @@ def test_the_coach_previews_a_bulk_change_until_the_user_agrees(
     applied = coach.call("resolve_review_item", {**args, "confirm": True}).data
     assert applied["status"] == "applied"
     assert applied["correction"]["source"] == "coach"
+    assert applied["transactions_changed"] == preview["transactions_changing"]  # FR-14
 
 
 def test_correcting_one_transaction_leaves_the_rest_of_its_merchant(

@@ -536,6 +536,10 @@ class Tools:
         covered = self._covered(merchant_key, transaction_id)
         rows = self.ledger.transactions[covered]
         name = str(rows["merchant"].iloc[0])
+        if transaction_id is None:  # a merchant override leaves Income rows alone (review on #36)
+            rows = rows[rows["model_category"] != INCOME]
+            if rows.empty:
+                raise ToolError(f"{name} has only income; change its transactions one at a time")
         if feedback.source == "coach" and len(rows) > 1 and not confirm:
             moving = rows[rows["category"] != target]
             data = {
