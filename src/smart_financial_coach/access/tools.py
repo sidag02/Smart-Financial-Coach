@@ -50,7 +50,10 @@ TOOL_SPECS: list[ToolSpec] = [
         "description": (
             "The signed-in user's categorized transactions in a date range, optionally filtered "
             "by category or merchant text, newest or largest first. Returns the match count and "
-            f"total as well as up to {MAX_TRANSACTIONS} rows. Amounts are negative for money out."
+            f"total as well as up to {MAX_TRANSACTIONS} rows. Amounts are negative for money out. "
+            "Each row has `needs_review` and `review_reason` (`new_merchant` or "
+            "`low_confidence`), from the categorization model's review policy: whether its "
+            "category is one the model is unsure about."
         ),
         "input_schema": {
             "type": "object",

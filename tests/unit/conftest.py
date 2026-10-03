@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -45,7 +46,10 @@ def stub_categories(txns: pd.DataFrame) -> pd.DataFrame:
         }
     )
     needs_review, reason = STUB_POLICY.flag(out["confidence"], out["familiar"])
-    return out.assign(needs_review=needs_review, review_reason=reason)
+    spending = (out["category"] != "Income").to_numpy()  # as the batch flags them
+    return out.assign(
+        needs_review=needs_review & spending, review_reason=np.where(spending, reason, "")
+    )
 
 
 @pytest.fixture(scope="session")

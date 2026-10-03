@@ -66,6 +66,26 @@ def test_rows_are_flagged_by_the_promoted_models_review_policy(
     assert (meta["review_familiar_below"], meta["review_unfamiliar_below"]) == ("0.5", "0.8")
 
 
+def test_rows_predicted_income_are_never_flagged(small_sqlite: Path, tmp_path: Path) -> None:
+    """The policy's thresholds were chosen on spending rows only (owner, on #32)."""
+    transactions = load_transactions(small_sqlite)
+    half = transactions.iloc[: len(transactions) // 2]
+    labels = (["Income"] * 3 + ["Shopping"]) * (len(half) // 4 + 1)
+    model = Majority().fit(half, pd.Series(labels[: len(half)]))  # Income everywhere, at 0.75
+    root = tmp_path / "artifacts" / "categorization"
+    save_artifact(model, root / model.version, {})
+    save_review_policy(ReviewPolicy(model.version, 0.95, 0.95), root / model.version)
+    record_promotion(root, {"version": model.version})
+    out = tmp_path / "predictions.sqlite"
+
+    categorize_dataset(small_sqlite, out, artifacts_dir=tmp_path / "artifacts")
+
+    cats = load_categories(out)
+    assert set(cats["category"]) == {"Income"}
+    assert not cats["needs_review"].any()
+    assert (cats["review_reason"] == "").all()
+
+
 def test_a_model_without_a_review_policy_isnt_served(
     artifacts: Path, small_sqlite: Path, tmp_path: Path
 ) -> None:
