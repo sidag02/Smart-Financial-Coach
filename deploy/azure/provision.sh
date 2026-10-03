@@ -59,11 +59,18 @@ az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" -o
   az identity create --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" -o none
 CLIENT_ID="$(az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" --query clientId -o tsv)"
 PRINCIPAL_ID="$(az identity show --name "$DEPLOY_IDENTITY" --resource-group "$RESOURCE_GROUP" --query principalId -o tsv)"
-az identity federated-credential show --name github-demo --identity-name "$DEPLOY_IDENTITY" \
+# The subject GitHub's OIDC token carries. Repos with immutable subjects send owner and repo IDs
+# (repo:owner@123/name@456:...), so ask GitHub for the prefix instead of assuming repo:owner/name
+SUB_PREFIX="$(gh api "repos/$GITHUB_REPO/actions/oidc/customization/sub" \
+  --jq '.sub_claim_prefix // empty' 2>/dev/null || true)"
+SUB_PREFIX="${SUB_PREFIX:-repo:$GITHUB_REPO}"
+CREDENTIAL="github-demo"
+[ "$SUB_PREFIX" = "repo:$GITHUB_REPO" ] || CREDENTIAL="github-demo-ids"
+az identity federated-credential show --name "$CREDENTIAL" --identity-name "$DEPLOY_IDENTITY" \
   --resource-group "$RESOURCE_GROUP" -o none 2>/dev/null ||
-  az identity federated-credential create --name github-demo --identity-name "$DEPLOY_IDENTITY" \
+  az identity federated-credential create --name "$CREDENTIAL" --identity-name "$DEPLOY_IDENTITY" \
     --resource-group "$RESOURCE_GROUP" --issuer https://token.actions.githubusercontent.com \
-    --subject "repo:$GITHUB_REPO:environment:$GITHUB_ENVIRONMENT" \
+    --subject "$SUB_PREFIX:environment:$GITHUB_ENVIRONMENT" \
     --audiences api://AzureADTokenExchange -o none
 # Contributor on this resource group only: build images and update the app, nothing else
 RG_ID="$(az group show --name "$RESOURCE_GROUP" --query id -o tsv)"
