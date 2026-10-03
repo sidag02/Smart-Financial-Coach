@@ -1,0 +1,104 @@
+{
+  "baseline": "false",
+  "chosen_params": {},
+  "code_version": "c0274576ca6a4474",
+  "config": {
+    "baseline": false,
+    "complexity": 1,
+    "grid": {},
+    "model": {
+      "params": {
+        "base": {
+          "$model": {
+            "params": {
+              "C": 1.0,
+              "class_weight": "none",
+              "embeddings": "BAAI/bge-small-en-v1.5"
+            },
+            "type": "categorization/linear_text"
+          }
+        },
+        "by": "familiarity",
+        "method": "auto"
+      },
+      "type": "categorization/calibrated"
+    },
+    "name": "21_small_unweighted.ship",
+    "seed": 0,
+    "ship": null,
+    "tags": {
+      "plan": "fr4-round"
+    },
+    "task": "categorization",
+    "task_params": {
+      "k": 3,
+      "label_noise": 0
+    }
+  },
+  "config_hash": "20eea4fbaac3d877c1a958cfb9b82b62ce03fa417b0ea61aa19dab520b3571b0",
+  "data_hash": "44781bc4e4a597ff231928de566000a85914c9ddbf0b19b05cebf04fd34ee85f",
+  "git_commit": "f53643f8b7a850410bb6bdeaa5fe1945f318b24e",
+  "git_dirty": "false",
+  "kind": "experiment",
+  "metrics": {
+    "held_out.familiar.chosen_none": 1.0,
+    "held_out.familiar.isotonic_brier": 0.11812730268587736,
+    "held_out.familiar.none_brier": 0.09784998825459394,
+    "held_out.familiar.temperature_brier": 0.10633099418229129,
+    "held_out.unfamiliar.chosen_temperature": 1.0,
+    "held_out.unfamiliar.isotonic_brier": 0.10444805560852304,
+    "held_out.unfamiliar.none_brier": 0.10998718907998091,
+    "held_out.unfamiliar.temperature_brier": 0.10093956664244265,
+    "latency_batch_ms": 1352.087166000274,
+    "latency_batch_rows": 10000.0,
+    "latency_p50_ms": 2.4753339966991916,
+    "latency_p95_ms": 2.930068399291485,
+    "latency_warm_p95_ms": 1.2104839472158346,
+    "val_known_acc_at_90": 1.0,
+    "val_known_brier": 0.014817763009858483,
+    "val_known_coverage_at_90": 0.9425024888437146,
+    "val_known_ece": 0.008282313452063714,
+    "val_known_macro_f1": 0.9816446145181049,
+    "val_known_misallocated_spend": 0.030424530097682555,
+    "val_tuning_macro_f1": 0.8470704613478663,
+    "val_unseen_acc_at_90": 0.8909058084955216,
+    "val_unseen_brier": 0.14034924150464803,
+    "val_unseen_coverage_at_90": 0.5691396979861323,
+    "val_unseen_ece": 0.077957771874005,
+    "val_unseen_macro_f1": 0.7124963081776278,
+    "val_unseen_misallocated_spend": 0.13520623572810758
+  },
+  "mlflow_run_id": "6bc58706a55343b8abd03927a870621d",
+  "model_sha256": "4931b4264a15d2cebb1e15bb830e2cb4dd287aa3894d4f1a26e353dc7c8f30d9",
+  "model_type": "categorization/calibrated",
+  "name": "categorization/calibrated",
+  "params": {
+    "base": {
+      "$model": {
+        "params": {
+          "C": 1.0,
+          "amount": true,
+          "channel": true,
+          "class_weight": "none",
+          "embeddings": "BAAI/bge-small-en-v1.5",
+          "hour": true,
+          "max_iter": 500,
+          "max_rows_per_class": 20000,
+          "ngram_max": 4,
+          "ngram_min": 2,
+          "ngrams": true,
+          "normalizer": "v1",
+          "seed": 0,
+          "sign": true
+        },
+        "type": "categorization/linear_text"
+      }
+    },
+    "by": "familiarity",
+    "method": "auto"
+  },
+  "split_hash": "7c63ab9af542e8448a7e2437d9a36f3c48f93cf2602d29c1cdd246fea78ec66e",
+  "task": "categorization",
+  "twin_of": "f0215572d26c4e2eb69e68d7c9d898b3",
+  "version": "20eea4fb-44781bc4-c0274576"
+}

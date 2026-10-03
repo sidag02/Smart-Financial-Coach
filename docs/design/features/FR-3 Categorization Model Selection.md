@@ -1,6 +1,23 @@
 # FR-3 Categorization Model Selection
 
-Oct 1, 2026 (decided Oct 2) · @Sidd · Status: **Accepted** · Companion to FR-3 Transaction Categorization — Feature Design
+Oct 1, 2026 (decided Oct 2; superseded Oct 3) · @Sidd · Status: **Accepted, superseded by FR-4's promotion** · Companion to FR-3 Transaction Categorization — Feature Design
+
+## Current selection (Oct 3, 2026): superseded by FR-4
+
+FR-4's round replaced the model below. The rest of this note records FR-3's choice as it was made.
+
+- **Promoted:** `21_small_unweighted.ship`, version `20eea4fb-44781bc4-c0274576`, in the GitHub Release `categorization-20eea4fb-44781bc4-c0274576`. It is the same family: calibrated logistic regression over character n-grams, frozen embeddings, amount, sign, channel and hour.
+- **What changed:**
+  - **bge-small** instead of bge-base: tied on quality, about a third of the batch cost;
+  - **no class weights**;
+  - **clean training labels** (`label_noise: 0`; injected noise stays for comparing candidates);
+  - trained on the default dataset with FR-4's 40% holdout (data hash `44781bc4e4a5`).
+- **Test set** (scored once, by FR-4's `finalize`): known merchants 0.983, all test users 0.943, unseen merchants **0.735** (0.67–0.81). It passes FR-3's gates and FR-4's (unseen ≥ 0.66 and above keyword).
+- **The known issues below are resolved:**
+  - Travel is no longer the fallback for unfamiliar merchants (158 predictions against 142 true at test users' unseen merchants);
+  - known-merchant confidence is calibrated (ECE 0.009, 95% of rows at 0.9 or more).
+- **New known issue:** on unseen merchants, Health & Fitness is barely predicted (validation F1 0.105) and Entertainment is confused with Dining (0.49). It's diagnosed in the round's report, to be fixed after launch through feedback.
+- **Evidence:** FR-4 Unseen Merchant Categorization — Feature Design, and `docs/reports/FR-4 Categorization — Round Results.md`.
 
 ## Summary
 
