@@ -1,6 +1,6 @@
 # FR-7 Unusual Transactions — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026, on #30) · Implementation in review: #33, #34, #37, #39, #40 ([Status](#status-oct-3-2026))
+Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026, on #30) · **Implemented** (Oct 3, 2026: #33, #34, #37, #39, #40; [Status](#status-oct-3-2026))
 
 ## Summary
 
@@ -418,7 +418,7 @@ Later milestones and reviews:
 - **The test gate against the baseline uses the common flag rate** (§5), which is equal volume by construction, because gates see only logged metrics (#34).
 - **New-merchant reasons get per-category wording at serving time,** from the user's own ledger (#39).
 
-## Status (Oct 3, 2026)
+## Status (Oct 3, 2026): complete
 
 | Milestone | PR | Outcome |
 | --- | --- | --- |
@@ -430,6 +430,10 @@ Later milestones and reviews:
 | 5. Docs | #40 | Technical Design, PRD, Web App UI |
 
 **Settled (owner, Oct 3, 2026, on #39):** the forest's history rank is now one-sided, and the model was re-finalized with a recorded override. Cheap first-visit flags fell from 57 to 13. The 13 left are fees and parking at 3–6× what other users pay at the merchant (the merchant-price signal). Their reason wording, which can't quote other users' prices (NFR-2), is a follow-up.
+
+**Deployed:** #39's merge rebuilt the Oct 6 demo with the promoted model. The `Deploy demo` run (37160849349) succeeded, including its smoke test, and its bundle step logged "6 unusual charges flagged by e0b67433-8b9632e6-2e033606". A signed-in look at "Worth a look" on the live demo needs the demo password.
+
+**Open, for the owner:** wording for the 13 new-merchant flags on charges below the user's median (fees and parking at 3–6× the merchant's usual price). A reason can't quote other users' prices (NFR-2).
 
 **Known limit** (Round Results): new-merchant charges at merchants that fewer than 6 other users have visited are mostly missed. Neither profile-rule option measured on validation helped. A category-level price prior is the v1.1 idea.
 
