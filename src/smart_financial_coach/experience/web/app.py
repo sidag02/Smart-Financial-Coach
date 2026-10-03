@@ -25,7 +25,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
-from smart_financial_coach.access.ledger import ESSENTIALS, INCOME, DataSources, Ledger
+from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.tools import Source, Tools, span_label
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
@@ -178,6 +178,10 @@ def create_app(
     by_user = {a.user_id: a for a in accounts}
     password = SharedPassword(settings.demo_password.get_secret_value())
     as_of = sources.as_of()
+    essentials = frozenset(settings.essentials)
+    unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
+    if unknown:
+        raise ValueError(f"SFC_ESSENTIALS names categories that can't be essentials: {unknown}")
     conversations: OrderedDict[str, Conversation] = OrderedDict()
     chat_limit = RateLimit(settings.chat_messages_per_hour, 3600)
     signin_limit = RateLimit(settings.signin_attempts_per_minute, 60)
@@ -311,7 +315,7 @@ def create_app(
             "month_key": month_key(month.start),
             "flow_period": period,
             "flow_summary": data,
-            "flow": charts.money_flow(data["income"], by_category),
+            "flow": charts.money_flow(data["income"], by_category, essentials),
         }
 
     @app.get("/")
@@ -324,8 +328,8 @@ def create_app(
             add_months(period.start, -11).isoformat(), period.end.isoformat()
         )
         months = [(m["month"], m["spending"]) for m in year.data["by_month"]]
-        essentials = sum(
-            c["amount"] for c in summary.data["by_category"] if c["category"] in ESSENTIALS
+        essential_spend = sum(
+            c["amount"] for c in summary.data["by_category"] if c["category"] in essentials
         )
         return page(
             request,
@@ -336,7 +340,7 @@ def create_app(
             month=period,
             month_options=month_options(),
             summary=summary.data,
-            essentials=essentials,
+            essentials=essential_spend,
             active_goals=[
                 g for g in tools.list_goals().data["goals"] if g["target_date"] >= as_of.isoformat()
             ],

@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     quick_signin: bool = False  # one-click "Continue as …": local only, never the hosted demo
     secure_cookies: bool = True  # HTTPS-only session cookie; off only for local http
     coach_name: str = "Wren"
+    # Essentials: the bare minimum to live on, shown apart from everything else in the money-flow
+    # chart (Web App UI, decision 3). A display grouping only; names must be taxonomy categories,
+    # checked at startup. Env: a JSON list, e.g. SFC_ESSENTIALS='["Housing", "Groceries"]'
+    essentials: tuple[str, ...] = (
+        "Housing",
+        "Utilities",
+        "Groceries",
+        "Insurance & Fees",
+        "Childcare & Education",
+    )
     chat_messages_per_hour: int = 30  # per signed-in session; caps LLM spend (NFR-9)
     signin_attempts_per_minute: int = 10  # per client address
 

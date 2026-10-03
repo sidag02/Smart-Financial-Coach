@@ -7,8 +7,6 @@ Positions are percentages of the chart box; ribbons are SVG paths in a 920 x 260
 from dataclasses import dataclass, field
 from typing import Any
 
-from smart_financial_coach.access.ledger import ESSENTIALS
-
 WIDTH, HEIGHT = 920.0, 260.0
 GAP_COLUMN, GAP_ITEM, MIN_ITEM, SLIM_BLOCK = 8.0, 4.0, 18.0, 44.0
 X_A1, X_B0, X_B1, X_C0 = 150.0, 350.0, 520.0, 700.0
@@ -58,15 +56,17 @@ def _ribbon(x0: float, a0: float, a1: float, x1: float, b0: float, b1: float) ->
     )
 
 
-def money_flow(income: float, by_category: list[tuple[str, float]]) -> dict[str, Any]:
+def money_flow(
+    income: float, by_category: list[tuple[str, float]], essentials: frozenset[str]
+) -> dict[str, Any]:
     """Came in -> essentials / everything else / left over -> categories.
 
     `by_category` is spending per category (positive); categories with no net spending are left
     out. When spending exceeds income, the difference shows as "From savings".
     """
     cats = [(c, a) for c, a in by_category if a > 0]
-    essentials = [(c, a) for c, a in cats if c in ESSENTIALS]
-    others = [(c, a) for c, a in cats if c not in ESSENTIALS]
+    needed = [(c, a) for c, a in cats if c in essentials]
+    others = [(c, a) for c, a in cats if c not in essentials]
     spent = sum(a for _, a in cats)
     income = max(income, 0.0)
     left = income - spent
@@ -76,7 +76,7 @@ def money_flow(income: float, by_category: list[tuple[str, float]]) -> dict[str,
     column_b = [
         node
         for node in (
-            _Node("Essentials", sum(a for _, a in essentials), "essentials", essentials),
+            _Node("Essentials", sum(a for _, a in needed), "essentials", needed),
             _Node("Everything else", sum(a for _, a in others), "other", others),
             _Node("Left over", max(left, 0.0), "left"),
         )

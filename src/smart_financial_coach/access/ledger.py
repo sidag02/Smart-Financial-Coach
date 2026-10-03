@@ -10,6 +10,7 @@ model (FR-3); merchant display names from the shared normalizer, title-cased (We
     ledger.transactions  # ts, amount, merchant, merchant_raw, category, confidence, ...
 """
 
+import json
 from dataclasses import dataclass
 from datetime import date
 from functools import lru_cache
@@ -22,8 +23,6 @@ from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.predictions import load_categories
 
 INCOME = "Income"
-# Web App UI decision 3: a display grouping for the money-flow chart, not a taxonomy change
-ESSENTIALS = ("Housing", "Utilities", "Groceries", "Insurance & Fees", "Childcare & Education")
 # Below this calibrated confidence a category shows "Not sure?". A stand-in for FR-5's
 # per-familiarity review policy (#15), which isn't built yet
 REVIEW_BELOW = 0.6
@@ -52,8 +51,12 @@ class DataSources:
         return cls(root / "dataset.sqlite", root / "predictions.sqlite")
 
     def as_of(self) -> date:
-        """The dataset's last day: the app's "today" (Web App UI, gap 7)."""
+        """The dataset's last day: the app's "today" (Web App UI, gap 8)."""
         return date.fromisoformat(store.load_meta(self.dataset)["calendar_end"])
+
+    def categories(self) -> list[str]:
+        """The dataset's taxonomy, Income included."""
+        return list(json.loads(store.load_meta(self.dataset)["categories"]))
 
 
 def display_name(merchant_raw: str) -> str:

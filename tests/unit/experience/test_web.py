@@ -63,6 +63,22 @@ def test_serving_needs_a_password_and_a_session_secret(
         create_app(Settings(_env_file=None), sources=sources, accounts=accounts)
 
 
+def test_essentials_are_a_setting_checked_against_the_taxonomy(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    for bad in (("Housing", "Crypto"), ("Housing", "Income")):
+        with pytest.raises(ValueError, match="can't be essentials"):
+            create_app(settings(essentials=bad), sources=sources, accounts=accounts)
+
+    with make_client(sources, accounts, essentials=("Dining",)) as c:
+        sign_in(c)
+        page = c.get("/").text
+    dining = Ledger.load(sources, accounts[0].user_id)
+    month = dining.between(dining.as_of.replace(day=1), dining.as_of)
+    spent = -month[month["category"] == "Dining"]["amount"].sum()
+    assert f"{money(spent)} on essentials" in page
+
+
 def test_pages_need_a_signed_in_user(client: TestClient) -> None:
     for path in ("/", "/transactions", "/chat", "/goals", "/worth-a-look", "/flow"):
         reply = client.get(path, follow_redirects=False)
@@ -235,7 +251,8 @@ def test_money_formatting() -> None:
 
 def test_money_flow_balances() -> None:
     cats = [("Housing", 1650.0), ("Dining", 610.0), ("Shopping", 260.0), ("Travel", -20.0)]
-    flow = money_flow(5200.0, cats)
+    essentials = frozenset({"Housing", "Groceries"})
+    flow = money_flow(5200.0, cats, essentials)
     blocks = {b["label"]: b["amount"] for b in flow["blocks"]}
 
     assert blocks == {
@@ -246,11 +263,11 @@ def test_money_flow_balances() -> None:
     }
     assert [c["name"] for c in flow["categories"]] == ["Housing", "Dining", "Shopping"]
 
-    overspent = money_flow(1000.0, cats)
+    overspent = money_flow(1000.0, cats, essentials)
     labels = [b["label"] for b in overspent["blocks"]]
     assert "From savings" in labels
     assert "Left over" not in labels
-    assert money_flow(0.0, [])["empty"] is True
+    assert money_flow(0.0, [], essentials)["empty"] is True
 
 
 def test_trend_marks_the_selected_month_and_the_peak() -> None:
