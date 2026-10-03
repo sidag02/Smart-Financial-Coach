@@ -135,7 +135,7 @@ class Calibrated(CategorizerModel):
         proba, familiar = self.base.scores(x)
         top, _ = _top(proba)
         category = np.asarray(self.categories)[top]
-        return self._output(x, category, self._confidence(proba, familiar))
+        return self._output(x, category, self._confidence(proba, familiar), familiar)
 
     # --- Held-out fitting (called by the runner) -------------------------------------------
 

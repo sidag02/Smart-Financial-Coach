@@ -180,9 +180,10 @@ class LinearText(CategorizerModel):
         return proba, familiar
 
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
-        proba, _ = self.scores(x)
+        proba, familiar = self.scores(x)
         top = proba.argmax(axis=1)
-        return self._output(x, np.asarray(self.categories)[top], proba[np.arange(len(top)), top])
+        category = np.asarray(self.categories)[top]
+        return self._output(x, category, proba[np.arange(len(top)), top], familiar)
 
     def reset_caches(self) -> None:
         """Drop process-wide caches, so the next calls cost what a fresh server's would."""

@@ -12,6 +12,8 @@ URL, so other clones download it on first use. --no-publish keeps it on this mac
 Departing from the decision rule (naming finalists, a second round on the same splits, promoting
 a finalist other than #1) needs --override "<reason>", recorded on the run and in the log.
 sfc-model show --task categorization
+sfc-model attach-serving-files --task categorization --run ID --version VERSION \
+    --data data/synthetic/default.sqlite   # e.g. a review policy for an earlier promotion
 sfc-model predict --task categorization --data data/synthetic/default.sqlite \
     --out data/predictions/default.sqlite
 """
@@ -25,6 +27,7 @@ from smart_financial_coach.config import get_settings
 from smart_financial_coach.evaluation.experiment import experiment_files, load_experiment
 from smart_financial_coach.evaluation.promote import (
     SelectionError,
+    attach_serving_files,
     finalize,
     leaderboard,
     promote,
@@ -143,6 +146,15 @@ def _promote(args: argparse.Namespace) -> int:
     return 0
 
 
+def _attach(args: argparse.Namespace) -> int:
+    written = attach_serving_files(
+        args.task, args.run, args.version, args.data, Tracker(args.tracking_uri), args.artifacts_dir
+    )
+    for path in written:
+        print(f"wrote {path}")
+    return 0
+
+
 def _show(args: argparse.Namespace) -> int:
     service_dir = (args.artifacts_dir or get_settings().artifacts_dir) / args.task
     print(f"promoted: {promoted_version(service_dir)}")
@@ -254,6 +266,17 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     )
     pro.set_defaults(handler=_promote)
 
+    att = commands.add_parser(
+        "attach-serving-files",
+        help="give a promoted model the serving files its task now requires, from a run that "
+        "reproduces it (same config and data, same validation metrics)",
+    )
+    att.add_argument("--task", required=True)
+    att.add_argument("--run", required=True, help="a run reproducing the promoted model")
+    att.add_argument("--version", required=True, help="the promoted model version")
+    att.add_argument("--data", type=Path, required=True, help="the run's dataset")
+    att.set_defaults(handler=_attach)
+
     show = commands.add_parser("show", help="the promoted version and promotion history")
     show.add_argument("--task", required=True)
     show.set_defaults(handler=_show)
@@ -269,7 +292,8 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     pred.set_defaults(handler=_predict)
 
     _common(pro)
-    for sub in (pro, show, pred):
+    _common(att)
+    for sub in (pro, att, show, pred):
         sub.add_argument(
             "--artifacts-dir", type=Path, help="default: SFC_ARTIFACTS_DIR or artifacts/"
         )

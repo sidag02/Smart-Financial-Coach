@@ -405,13 +405,20 @@ def promote(
         model = _model(tracker, run, Path(tmp_dir))  # verifies the checksum before export
         source = Path(tmp_dir) / run_id / MODEL_PATH
         target = service_dir / model.version
-        if target.exists():
-            if read_manifest(target)["model_sha256"] != read_manifest(source)["model_sha256"]:
-                raise SelectionError(f"{target} exists with a different model")
-        else:
+        if target.exists() and (
+            read_manifest(target)["model_sha256"] != read_manifest(source)["model_sha256"]
+        ):
+            raise SelectionError(f"{target} exists with a different model")
+        if missing := [n for n in task.serving_files_required if not (source / n).exists()]:
+            raise SelectionError(
+                f"run {run_id} has no {', '.join(missing)}; rerun it with the current code"
+            )
+        if not target.exists():
             target.mkdir(parents=True)
             for name in (MODEL_FILE, MANIFEST_FILE):
                 shutil.copy2(source / name, target / name)
+        for name in task.serving_files_required:
+            shutil.copy2(source / name, target / name)
 
     url = None
     if publisher is not None:
@@ -450,3 +457,50 @@ def promote(
     }
     record_promotion(service_dir, entry)
     return entry
+
+
+def attach_serving_files(
+    task_name: str,
+    run_id: str,
+    version: str,
+    data: Path,
+    tracker: Tracker,
+    artifacts_dir: Path | None = None,
+) -> list[Path]:
+    """Give a promoted model the serving files its task now requires, from a run reproducing it.
+
+    For models promoted before the task required them (FR-5's review policy for the FR-4 model).
+    The run must have the promoted model's config and data, and match its validation metrics,
+    so its pooled predictions are the promoted model's; it is usually a rerun of the same config
+    on newer code. The files are derived for `version`, recording the run they came from.
+    """
+    task = get_task(task_name)
+    run = tracker.get(run_id)
+    target = (artifacts_dir or get_settings().artifacts_dir) / task.name / version
+    manifest = read_manifest(target)
+    for key in ("config_hash", "data_hash"):
+        if manifest.get(key) != run.tags.get(f"sfc.{key}"):
+            raise SelectionError(f"run {run_id} has a different {key} from {version}")
+    promoted = {k: float(v) for k, v in manifest.get("metrics", {}).items() if k.startswith("val_")}
+    if not promoted:
+        raise SelectionError(f"{version}'s manifest records no validation metrics to compare")
+    if differ := [
+        k for k, v in promoted.items() if abs(run.metrics.get(k, float("nan")) - v) > 1e-9
+    ]:
+        raise SelectionError(
+            f"run {run_id} doesn't reproduce {version}'s validation metrics ({', '.join(differ)})"
+        )
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        tmp = Path(tmp_dir)
+        examples, _ = rebuild_splits(task, data, tracker, run, tmp)
+        path = tracker.download(run_id, f"{PREDICTIONS_PATH}/{PREDICTIONS_FILE}", tmp / "pooled")
+        pooled = pd.read_parquet(path)
+    source = {"mlflow_run_id": run_id, "reproduces": version}
+    files = task.serving_files(examples, pooled, version, source)
+    if missing := [n for n in task.serving_files_required if n not in files]:
+        raise SelectionError(f"run {run_id}'s predictions give no {', '.join(missing)}")
+    written = []
+    for name in task.serving_files_required:
+        (target / name).write_text(files[name], encoding="utf-8")
+        written.append(target / name)
+    return written

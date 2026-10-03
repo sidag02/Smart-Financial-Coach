@@ -4,7 +4,8 @@
 2. For each grid point, fit a model per validation fold and pool its held-out predictions.
    The grid point with the best selection metric wins.
 3. Fit the final model on all of `train` with the winning params; measure latency.
-4. Log params, tags, `val_*` metrics, the pooled validation predictions and the model.
+4. Log params, tags, `val_*` metrics, the pooled validation predictions and the model, with the
+   serving files the task derives from those predictions (e.g. FR-5's review policy).
 
 Test sets are not scored here; `finalize` does that once, for finalists. The one exemption is
 `reproduce_poc`, which accepts only the task's published POC configurations and keeps the run off
@@ -275,6 +276,12 @@ def run_experiment(
                 **{k.removeprefix("sfc."): v for k, v in tags.items() if k.startswith("sfc.")},
             }
             save_artifact(model, out / MODEL_PATH, manifest)
+            if pooled:
+                served = task.serving_files(
+                    examples, pooled[best].predictions, model.version, {"mlflow_run_id": run_id}
+                )
+                for name, text in served.items():
+                    (out / MODEL_PATH / name).write_text(text, encoding="utf-8")
             tracker.log_artifacts(run_id, out / MODEL_PATH, MODEL_PATH)
         tracker.log(
             run_id,

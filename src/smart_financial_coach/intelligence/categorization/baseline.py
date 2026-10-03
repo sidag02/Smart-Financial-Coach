@@ -47,12 +47,13 @@ class Majority(CategorizerModel):
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self:
         labels = self._remember(y)
+        self._learn_strings(x)
         self.category = _most_common(labels)
         self.share = float((labels == self.category).mean())
         return self
 
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
-        return self._output(x, self.category, self.share)
+        return self._output(x, self.category, self.share, self._familiar(x))
 
 
 @register("categorization/keyword")
@@ -100,6 +101,7 @@ class Keyword(CategorizerModel):
 
     def fit(self, x: pd.DataFrame, y: pd.Series | None = None) -> Self:
         labels = self._remember(y)
+        self._learn_strings(x)
         self.fallback = _most_common(labels[labels != INCOME])
         category, rule = self._rules(x.reset_index(drop=True))
         self.confidence = _precision(rule, category, labels)
@@ -108,7 +110,8 @@ class Keyword(CategorizerModel):
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
         category, rule = self._rules(x.reset_index(drop=True))
         default = self.confidence[""]
-        return self._output(x, category.to_numpy(), rule.map(self.confidence).fillna(default))
+        confidence = rule.map(self.confidence).fillna(default)
+        return self._output(x, category.to_numpy(), confidence, self._familiar(x))
 
 
 @register("categorization/lookup")
@@ -127,6 +130,7 @@ class Lookup(CategorizerModel):
         top = counts.idxmax(axis=1)  # columns are sorted, so ties go to the first category
         share = counts.max(axis=1) / counts.sum(axis=1)
         self.table = {str(s): (str(top[s]), float(share[s])) for s in counts.index}
+        self.vocabulary = frozenset(self.table)
         majority = _most_common(labels)
         self.fallback = (majority, float((labels == majority).mean()))
         return self
@@ -135,7 +139,7 @@ class Lookup(CategorizerModel):
         found = [
             self.table.get(s, self.fallback) for s in x["merchant_raw"].map(normalize_merchant)
         ]
-        return self._output(x, [c for c, _ in found], [p for _, p in found])
+        return self._output(x, [c for c, _ in found], [p for _, p in found], self._familiar(x))
 
 
 def keywords_path(keywords_file: str = KEYWORDS_FILE) -> Path:

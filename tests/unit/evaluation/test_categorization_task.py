@@ -3,6 +3,7 @@
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from smart_financial_coach.config import PROJECT_ROOT
@@ -18,6 +19,7 @@ from smart_financial_coach.evaluation.tasks.base import Examples
 from smart_financial_coach.evaluation.tasks.categorization import CategorizationTask
 from smart_financial_coach.evaluation.tracking import Tracker
 from smart_financial_coach.intelligence.categorization.contract import CONTRACT
+from smart_financial_coach.intelligence.categorization.review import POLICY_FILE, ReviewPolicy
 from smart_financial_coach.intelligence.models import Checked, build
 
 EXPERIMENTS = PROJECT_ROOT / "configs" / "experiments" / "categorization"
@@ -221,6 +223,50 @@ def test_calibrated_candidate_end_to_end(small_sqlite: Path, tmp_path: Path) -> 
     )
     assert any(k.startswith("held_out.") and k.endswith("_brier") for k in result.metrics)
     assert [s.name for s in leaderboard("categorization", small_sqlite, tracker)] == ["linear_stub"]
+
+
+def _pooled(examples: Examples, error_confidence: float) -> pd.DataFrame:
+    """Pooled validation predictions for 200 spending rows and one Income row: alternate rows
+    familiar; every fourth row (all unfamiliar) wrong at `error_confidence`, the rest right at
+    0.97."""
+    frame = examples.frame
+    spending = frame[frame["category"] != "Income"].head(200)
+    f = pd.concat([spending, frame[frame["category"] == "Income"].head(1)], ignore_index=True)
+    i = np.arange(len(f))
+    wrong = (i % 4 == 1) & (i < 200)
+    other = np.where(f["category"] == "Dining", "Shopping", "Dining")
+    return pd.DataFrame(
+        {
+            "transaction_id": f["transaction_id"],
+            "category": np.where(wrong, other, f["category"]),
+            "confidence": np.where(wrong, error_confidence, np.where(i < 200, 0.97, 0.1)),
+            "model_version": "v",
+            "familiar": i % 2 == 0,
+            "fold": 0,
+            "held_out": "seen",
+        }
+    )
+
+
+def test_the_review_policy_is_chosen_on_validation_spending_rows(
+    task: CategorizationTask, examples: Examples
+) -> None:
+    files = task.serving_files(examples, _pooled(examples, error_confidence=0.3), "v", {"r": "1"})
+
+    policy = ReviewPolicy.from_json(files[POLICY_FILE])
+    assert policy.model_version == "v"
+    assert policy.unfamiliar_threshold == 0.35  # the lowest catching the errors at 0.3
+    assert policy.familiar_threshold == 0.0  # no familiar errors: none worth flagging
+    assert policy.evidence["unfamiliar"]["rows"] == 100  # the Income row isn't counted
+    assert policy.evidence["unfamiliar"]["error_rate"] == 0.5
+    assert policy.evidence["source"]["r"] == "1"
+
+
+def test_a_run_that_cant_meet_the_review_rule_gets_no_policy(
+    task: CategorizationTask, examples: Examples
+) -> None:
+    """Its errors are all confident: no threshold catches them, so it can't be promoted."""
+    assert task.serving_files(examples, _pooled(examples, 0.99), "v", {}) == {}
 
 
 def test_grid_keys_must_reach_a_nested_model() -> None:

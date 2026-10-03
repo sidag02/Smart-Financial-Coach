@@ -4,7 +4,8 @@ The generator's file stays a pure function of its spec; a predictions file holds
 version's output for one dataset, and every row carries that version.
 
     transaction_categories  transaction_id (PK), user_id (indexed), category, confidence,
-                            model_version
+                            model_version, familiar (0/1: the string occurs in the model's
+                            training rows)
     meta                    model_version, data_spec_hash, data_spec_name, created_at, rows
 
 A run writes to its own temporary file next to the target and renames it into place when complete,
@@ -26,14 +27,15 @@ from typing import Self
 import pandas as pd
 
 CATEGORIES_TABLE = "transaction_categories"
-COLUMNS = ("transaction_id", "user_id", "category", "confidence", "model_version")
+COLUMNS = ("transaction_id", "user_id", "category", "confidence", "model_version", "familiar")
 _SCHEMA = f"""
 CREATE TABLE {CATEGORIES_TABLE} (
     transaction_id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL,
     category TEXT NOT NULL,
     confidence REAL NOT NULL,
-    model_version TEXT NOT NULL
+    model_version TEXT NOT NULL,
+    familiar INTEGER NOT NULL CHECK (familiar IN (0, 1))
 );
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
@@ -66,6 +68,7 @@ class CategoryWriter:
     def append(self, user_ids: pd.Series, categories: pd.DataFrame) -> None:
         """Store one batch: the contract's output, plus each row's user (the input's order)."""
         frame = categories.assign(user_id=user_ids.to_numpy())[list(COLUMNS)]
+        frame = frame.assign(familiar=frame["familiar"].astype(int))
         frame.to_sql(CATEGORIES_TABLE, self.conn, if_exists="append", index=False)
         self.rows += len(frame)
 
@@ -97,9 +100,10 @@ def load_categories(path: str | Path, user_id: str | None = None) -> pd.DataFram
     sql = f"SELECT {', '.join(COLUMNS)} FROM {CATEGORIES_TABLE} {where} ORDER BY transaction_id"
     conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
     try:
-        return pd.read_sql_query(sql, conn, params=params)
+        frame = pd.read_sql_query(sql, conn, params=params)
     finally:
         conn.close()
+    return frame.assign(familiar=frame["familiar"].astype(bool))
 
 
 def load_prediction_meta(path: str | Path) -> dict[str, str]:
