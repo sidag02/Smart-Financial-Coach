@@ -8,16 +8,18 @@ model (FR-3); merchant display names from the shared normalizer, title-cased (We
     sources = DataSources.from_dir(settings.demo_dir)
     ledger = Ledger.load(sources, user_id)
     ledger.transactions  # ts, amount, merchant, merchant_raw, category, confidence, needs_review
+    mine = ledger.seen_by(store, subject)  # with that subject's corrections (FR-5, FR-6)
 """
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
 
+from smart_financial_coach.access.feedback import FeedbackStore, effective_categories
 from smart_financial_coach.data import store
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
@@ -31,6 +33,7 @@ _COLUMNS = [
     "currency",
     "merchant",
     "merchant_raw",
+    "merchant_key",  # the normalized string: what review items and merchant corrections key on
     "channel",
     "category",
     "confidence",
@@ -96,6 +99,12 @@ class Ledger:
     def load(cls, sources: DataSources, user_id: str) -> "Ledger":
         return _load(sources, user_id)
 
+    def seen_by(self, feedback: FeedbackStore, subject: str) -> "Ledger":
+        """This ledger with `subject`'s overrides applied after the shared predictions (FR-5 §3):
+        `category` is the effective category, with `model_category` and `category_source`."""
+        overrides = feedback.overrides(subject, self.user_id)
+        return replace(self, transactions=effective_categories(self.transactions, overrides))
+
     def between(self, start: date, end: date) -> pd.DataFrame:
         """Transactions with `start <= day <= end`."""
         day = self.transactions["day"]
@@ -114,6 +123,7 @@ def _load(sources: DataSources, user_id: str) -> Ledger:
         missing = int(merged["category"].isna().sum())
         raise ValueError(f"{missing} of {user_id}'s transactions have no predicted category")
     merged["merchant"] = merged["merchant_raw"].map(display_name)
+    merged["merchant_key"] = merged["merchant_raw"].map(normalize_merchant)
     merged = merged[_COLUMNS].copy()
     merged["ts"] = pd.to_datetime(merged["ts"])
     merged["day"] = merged["ts"].dt.date
