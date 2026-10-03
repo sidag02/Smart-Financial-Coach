@@ -4,6 +4,7 @@ sfc-experiment run configs/experiments/categorization/ --data data/synthetic/def
 sfc-experiment leaderboard --task categorization --data data/synthetic/default.sqlite
 sfc-experiment report --task categorization --data data/synthetic/default.sqlite --out report.md
 sfc-experiment finalize --task categorization --data data/synthetic/default.sqlite
+sfc-experiment replay --data data/synthetic/default.sqlite --out reports/fr5_replay.json
 sfc-model promote --task categorization --run ID --note "linear weights explain each category"
 
 `promote` uploads the model file to a GitHub Release (needs `gh` with write access) and records its
@@ -110,6 +111,22 @@ def _report(args: argparse.Namespace) -> int:
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+def _replay(args: argparse.Namespace) -> int:
+    import logging
+
+    from smart_financial_coach.evaluation.replay import Behavior, ReplayConfig, run_replay
+
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
+    config = ReplayConfig(behavior=Behavior(adversarial=args.adversarial), seed=args.seed)
+    result = run_replay(args.data, config)
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_text(result.to_json(), encoding="utf-8")
+    print(f"wrote {args.out}")
+    for key, value in result.summary.items():
+        print(f"  {key}: {value}")
     return 0
 
 
@@ -259,6 +276,15 @@ def experiment_main(argv: Sequence[str] | None = None) -> int:
     rep.add_argument("--split-hash", help="report runs on these splits (default: latest run's)")
     rep.add_argument("--out", type=Path, help="write to this file instead of printing")
     rep.set_defaults(handler=_report)
+
+    rpl = commands.add_parser(
+        "replay", help="the simulated feedback replay on test users (FR-5/FR-6 design, §7)"
+    )
+    rpl.add_argument("--data", type=Path, required=True)
+    rpl.add_argument("--out", type=Path, required=True, help="the result, as JSON")
+    rpl.add_argument("--adversarial", type=float, default=0.05, help="share of random correctors")
+    rpl.add_argument("--seed", type=int, default=0)
+    rpl.set_defaults(handler=_replay)
 
     fin = commands.add_parser("finalize", help="score the leaderboard's top three on the test sets")
     fin.add_argument("--task", required=True)
