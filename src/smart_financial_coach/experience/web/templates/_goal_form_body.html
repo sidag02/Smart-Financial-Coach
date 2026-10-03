@@ -1,0 +1,36 @@
+{# The setup or edit form (mockup 1h). `goal` is the goal being edited, or None for a new one #}
+{% set action = "/goals/" ~ goal.goal_id if goal else "/goals" %}
+<form class="stack goal-form" method="post" action="{{ action }}"{% if drawer %} hx-post="{{ action }}" hx-target="#drawer"{% endif %}>
+  {% if goal %}<input type="hidden" name="goal_id" value="{{ goal.goal_id }}">{% endif %}
+  {% if errors.goal %}<div class="error">{{ errors.goal }}</div>{% endif %}
+  <label class="field">What are you saving for?
+    <input name="name" maxlength="60" value="{{ values.name }}" autocomplete="off" required{% if not goal %} autofocus{% endif %}
+           hx-post="/goals/check" hx-trigger="input changed delay:300ms" hx-target="#fit" hx-include="closest form">
+    {% if errors.name %}<span class="field-error">{{ errors.name }}</span>{% endif %}
+  </label>
+  <div class="field-pair">
+    <label class="field">Amount
+      <input name="target_amount" inputmode="decimal" placeholder="$3,000" value="{{ values.target_amount }}" required
+             hx-post="/goals/check" hx-trigger="input changed delay:300ms" hx-target="#fit" hx-include="closest form">
+      {% if errors.target_amount %}<span class="field-error">{{ errors.target_amount }}</span>{% endif %}
+    </label>
+    <label class="field">By
+      <input name="target_month" type="month" placeholder="2027-06" value="{{ values.target_month }}" required
+             hx-post="/goals/check" hx-trigger="input changed delay:300ms, change" hx-target="#fit" hx-include="closest form">
+      {% if errors.target_date %}<span class="field-error">{{ errors.target_date }}</span>{% endif %}
+    </label>
+  </div>
+  <label class="field"><span>Saved so far <span class="muted" style="font-weight:400">(optional)</span></span>
+    <input name="saved" inputmode="decimal" placeholder="$0" value="{{ values.saved }}"
+           hx-post="/goals/check" hx-trigger="input changed delay:300ms" hx-target="#fit" hx-include="closest form">
+    {% if errors.saved %}<span class="field-error">{{ errors.saved }}</span>{% endif %}
+  </label>
+  <div id="fit" class="fit" aria-live="polite">
+    <div class="fit-head">How it fits</div>
+    <div class="muted" style="font-size:13.5px">Fill in an amount and a month to see what it takes each month.</div>
+  </div>
+  <div class="form-actions">
+    {% if drawer %}<button class="btn-ghost" type="button" data-close>Cancel</button>{% else %}<a class="btn-ghost" href="/goals">Cancel</a>{% endif %}
+    <button class="btn" type="submit">{{ "Save changes" if goal else "Create goal" }}</button>
+  </div>
+</form>

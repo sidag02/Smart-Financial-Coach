@@ -35,7 +35,15 @@ from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
 from smart_financial_coach.access.tokens import AccessTokens
-from smart_financial_coach.access.tools import Feedback, GoalAccess, Source, Tools, span_label
+from smart_financial_coach.access.tools import (
+    Feedback,
+    GoalAccess,
+    GoalProblemsError,
+    Source,
+    ToolError,
+    Tools,
+    span_label,
+)
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
@@ -415,9 +423,7 @@ def create_app(
             month_options=month_options(),
             summary=summary.data,
             essentials=essential_spend,
-            active_goals=[
-                g for g in tools.list_goals().data["goals"] if g["target_date"] >= as_of.isoformat()
-            ],
+            goal=featured_goal(tools),
             trend=charts.trend(months, month_key(period.start)),
             **flow_context(tools, period, horizon),
         )
@@ -587,13 +593,190 @@ def create_app(
     @app.get("/worth-a-look")
     def worth_a_look(request: Request) -> Response:
         account = signed_in(request)
-        return page(request, "coming.html", account, active="flags", feature="flags", goals=[])
+        return page(request, "coming.html", account, active="flags")
+
+    # Goals (FR-10; mockups 1g, 1h). The page writes through the same tools as the coach, as
+    # "edit", which applies on submit. Writes are plain posts that redirect back to the list with
+    # an Undo toast, so the form works without JavaScript; htmx adds the live check and opens the
+    # form in the drawer
+
+    def featured_goal(tools: Tools) -> dict[str, Any] | None:
+        """The overview's goal: the active one due soonest, else a reached one."""
+        listed = tools.list_goals(include_ended=False).data["goals"]
+        by_status = {s: [g for g in listed if g["status"] == s] for s in ("active", "reached")}
+        return next(iter(by_status["active"] or by_status["reached"]), None)
+
+    def goal_fields(form: Any) -> dict[str, Any]:
+        """The form's fields as the tools take them: amounts without "$" or commas, and the month
+        picker's "2027-06" as a day in that month. A blank name, amount or month stays blank, so
+        it's reported rather than left unchanged; a blank saved amount means 0, or unchanged."""
+
+        def text(key: str) -> str:
+            return str(form.get(key) or "").strip()
+
+        def amount(key: str) -> str:
+            return text(key).replace("$", "").replace(",", "")
+
+        month = text("target_month")
+        return {
+            "name": text("name"),
+            "target_amount": amount("target_amount"),
+            "target_date": f"{month}-01" if re.fullmatch(r"\d{4}-\d{2}", month) else month,
+            "saved": amount("saved") or None,
+        }
+
+    def goal_form(
+        request: Request,
+        account: Account,
+        *,
+        goal: dict[str, Any] | None,
+        values: dict[str, str],
+        problems: tuple[Any, ...] = (),
+    ) -> Response:
+        """The setup or edit form: in the drawer for htmx, a page of its own otherwise."""
+        drawer = bool(request.headers.get("HX-Request"))
+        errors = {p.field or "goal": form_message(p.code, p.message) for p in problems}
+        return page(
+            request,
+            "_goal_form.html" if drawer else "goal_form.html",
+            None if drawer else account,
+            active="goals",
+            drawer=drawer,
+            goal=goal,
+            values=values,
+            errors=errors,
+        )
+
+    def form_message(code: str, message: str) -> str:
+        """The tools' messages, except where the form's month picker reads better."""
+        return "Pick a month." if code == "date_invalid" else message
+
+    def form_values(form: Any) -> dict[str, str]:
+        keys = ("name", "target_amount", "target_month", "saved")
+        return {k: str(form.get(k) or "") for k in keys}
+
+    def goal_values(g: dict[str, Any]) -> dict[str, str]:
+        return {
+            "name": g["name"],
+            "target_amount": f"{g['target_amount']:g}",
+            "target_month": g["target_date"][:7],
+            "saved": f"{g['saved']:g}",
+        }
+
+    def toast(request: Request, text: str, revision_id: str | None = None) -> None:
+        request.session["goal_toast"] = {"text": text, "revision_id": revision_id}
+
+    def back_to_goals(request: Request) -> Response:
+        if request.headers.get("HX-Request"):
+            return Response(status_code=204, headers={"HX-Redirect": "/goals"})
+        return RedirectResponse("/goals", status_code=303)
+
+    def editable_goal(tools: Tools, goal_id: str) -> dict[str, Any] | None:
+        listed = tools.list_goals().data["goals"]
+        return next((g for g in listed if g["goal_id"] == goal_id and g["status"] != "ended"), None)
 
     @app.get("/goals")
     def goals(request: Request) -> Response:
         account = signed_in(request)
-        listed = tools_for(account, request).list_goals().data["goals"]
-        return page(request, "coming.html", account, active="goals", feature="goals", goals=listed)
+        listed = tools_for(account, request).list_goals(include_archived=True).data
+        by_status: dict[str, list[dict[str, Any]]] = {}
+        for g in listed["goals"]:
+            by_status.setdefault(g["status"], []).append(g)
+        running = [g for g in listed["goals"] if g["status"] in ("active", "reached")]
+        return page(
+            request,
+            "goals.html",
+            account,
+            active="goals",
+            running=running,
+            ended=by_status.get("ended", []),
+            removed=by_status.get("archived", []),
+            savings=listed,
+            toast=request.session.pop("goal_toast", None),
+        )
+
+    @app.get("/goals/new")
+    def new_goal(request: Request) -> Response:
+        return goal_form(request, signed_in(request), goal=None, values={})
+
+    @app.get("/goals/{goal_id}/edit")
+    def edit_goal(request: Request, goal_id: str) -> Response:
+        account = signed_in(request)
+        goal = editable_goal(tools_for(account, request), goal_id)
+        if goal is None:
+            return Response(status_code=404)
+        return goal_form(request, account, goal=goal, values=goal_values(goal))
+
+    @app.post("/goals/check")
+    async def check_goal(request: Request) -> Response:
+        """The live "How it fits" box (FR-10 design, "The setup check"): facts from check_goal,
+        and the problems for fields the person has filled in."""
+        tools = tools_for(signed_in(request), request)
+        form = await request.form()
+        fields = goal_fields(form)
+        goal_id = str(form.get("goal_id") or "") or None
+        try:
+            data = tools.check_goal(**fields, goal_id=goal_id).data
+        except ToolError:
+            return Response(status_code=404)
+        filled = {f for f, v in form_values(form).items() if v.strip()}
+        filled |= {"target_date"} if "target_month" in filled else set()
+        shown = [
+            {**p, "message": form_message(p["code"], p["message"])}
+            for p in data["problems"]
+            if p["field"] is None or p["field"] in filled
+        ]
+        return page(request, "_goal_fit.html", None, check=data, problems=shown)
+
+    @app.post("/goals")
+    async def create_goal(request: Request) -> Response:
+        account = signed_in(request)
+        tools = tools_for(account, request)
+        form = await request.form()
+        try:
+            data = tools.create_goal(**goal_fields(form)).data
+        except GoalProblemsError as error:
+            values = form_values(form)
+            return goal_form(request, account, goal=None, values=values, problems=error.problems)
+        toast(request, f"Created {data['goal']['name']}.", data["revision_id"])
+        return back_to_goals(request)
+
+    @app.post("/goals/undo")
+    def undo_goal(request: Request, revision_id: Annotated[str, Form()] = "") -> Response:
+        tools = tools_for(signed_in(request), request)
+        try:
+            data = tools.undo_goal_change(revision_id).data
+        except ToolError as error:
+            toast(request, f"Couldn't undo that: {error}")
+        else:
+            toast(request, "Undone." if data["removed"] else f"Undone: {data['goal']['name']}.")
+        return back_to_goals(request)
+
+    @app.post("/goals/{goal_id}")
+    async def update_goal(request: Request, goal_id: str) -> Response:
+        account = signed_in(request)
+        tools = tools_for(account, request)
+        goal = editable_goal(tools, goal_id)
+        if goal is None:
+            return Response(status_code=404)
+        form = await request.form()
+        try:
+            data = tools.update_goal(goal_id, **goal_fields(form)).data
+        except GoalProblemsError as error:
+            values = form_values(form)
+            return goal_form(request, account, goal=goal, values=values, problems=error.problems)
+        toast(request, f"Saved {data['goal']['name']}.", data["revision_id"])
+        return back_to_goals(request)
+
+    @app.post("/goals/{goal_id}/archive")
+    def archive_goal(request: Request, goal_id: str) -> Response:
+        tools = tools_for(signed_in(request), request)
+        try:
+            data = tools.archive_goal(goal_id).data
+        except ToolError:
+            return Response(status_code=404)
+        toast(request, f"Removed {data['goal']['name']}.", data["revision_id"])
+        return back_to_goals(request)
 
     # Connect an assistant (FR-19): a personal access token for this user's MCP access
 

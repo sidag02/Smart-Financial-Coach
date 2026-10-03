@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}{{ "Edit goal" if goal else "New savings goal" }} · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head"><div>
+  <h1 class="page-title">{{ "Edit goal" if goal else "New savings goal" }}</h1>
+  <div class="page-sub">Pick an amount and a month. We'll show you how it fits.</div>
+</div></div>
+<section class="card goal-page">
+  {% include "_goal_form_body.html" %}
+</section>
+{% endblock %}

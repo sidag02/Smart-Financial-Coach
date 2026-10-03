@@ -243,6 +243,28 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
 .goal-row { display: flex; flex-direction: column; gap: 8px; padding: 14px 0; border-bottom: 1px solid var(--divider); }
 .goal-row:last-child { border-bottom: 0; }
 
+/* Goals (FR-10) */
+.goal-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+.goal-card .row-split { margin-top: 0; }
+.goal-actions { display: flex; gap: 8px; }
+.goal-actions > * { flex: 1; }
+.goal-actions form { display: flex; }
+.goal-actions form button { flex: 1; }
+.new-goal { border: 2px dashed var(--border); border-radius: 20px; padding: 20px 22px; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 150px; color: var(--text); font-size: 14px; }
+.new-goal:hover { border-color: var(--accent); }
+.new-goal .plus { font: 600 26px var(--display); color: var(--accent-strong); }
+.toast { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: var(--accent-soft); color: var(--accent-ink); border-radius: 14px; padding: 12px 16px; font-size: 14px; font-weight: 600; }
+.toast form { margin: 0; }
+.removed summary { cursor: pointer; }
+.removed[open] summary { margin-bottom: 4px; }
+.goal-form { gap: 14px; }
+.goal-page { max-width: 560px; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-error { color: var(--warn); font-size: 13px; font-weight: 500; }
+.fit { background: var(--bg); border-radius: 18px; padding: 16px 18px; display: flex; flex-direction: column; gap: 8px; line-height: 1.45; }
+.fit-head { font-size: 13px; color: var(--muted); font-weight: 600; }
+.form-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
 @media (max-width: 1080px) {
   .grid-3 { grid-template-columns: 1fr 1fr; }
   .grid-3 > :first-child { grid-column: 1 / -1; }
@@ -260,6 +282,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   .page-title { font-size: 24px; }
   .big { font-size: 34px; }
   .grid-3, .grid-2, .coming { grid-template-columns: 1fr; }
+  .field-pair { grid-template-columns: 1fr; }
   .flow { display: none; }
   .cat-list { display: block; }
   .seg a { padding: 6px 9px; }

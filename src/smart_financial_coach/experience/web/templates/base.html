@@ -26,7 +26,7 @@
     <a class="brand" href="/"><span class="brand-mark">S</span><span class="brand-name">Smart Financial Coach</span></a>
     <nav class="nav" aria-label="Main">
       {% for key, href, label in nav %}
-      <a href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}{% if key in ("flags", "goals") %}<span class="soon">Soon</span>{% endif %}</a>
+      <a href="{{ href }}"{% if active == key %} aria-current="page"{% endif %}>{{ label }}{% if key == "flags" %}<span class="soon">Soon</span>{% endif %}</a>
       {% endfor %}
     </nav>
     <div class="spacer"></div>

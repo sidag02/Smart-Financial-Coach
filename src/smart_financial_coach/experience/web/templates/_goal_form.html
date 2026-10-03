@@ -1,0 +1,10 @@
+<div class="drawer" role="dialog" aria-modal="true" aria-label="{{ 'Edit ' ~ goal.name if goal else 'New savings goal' }}">
+  <div class="drawer-panel">
+    <div class="drawer-head">
+      <div class="drawer-title">{{ "Edit goal" if goal else "New savings goal" }}</div>
+      <button class="close" type="button" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="muted" style="font-size:14px;margin-top:-8px">Pick an amount and a month. We'll show you how it fits.</div>
+    {% include "_goal_form_body.html" %}
+  </div>
+</div>
