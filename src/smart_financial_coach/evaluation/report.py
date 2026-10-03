@@ -71,6 +71,12 @@ def comparison_report(
         # The leader is the first *eligible* run; with none, there is nothing to compare against
         eligible = [s for s in standings if s.eligible]
         leader = pooled(eligible[0].run_id) if eligible else None
+        # Where rank 1's errors go: its twin's when the task ships twins (what would ship)
+        diagnosed: tuple[str, str] | None = None
+        if eligible and (top_id := eligible[0].twin_id if shipping else eligible[0].run_id):
+            name = f"`{eligible[0].name}`"
+            diagnosed = (top_id, f"{name}'s shipping twin" if shipping else name)
+        diagnostics = task.diagnostics(examples, pooled(diagnosed[0])) if diagnosed else []
         rows = []
         for place, s in enumerate(standings, start=1):
             run = runs[s.run_id]
@@ -156,6 +162,14 @@ def comparison_report(
             for b in baselines
         ),
     ]
+    if diagnostics and diagnosed:
+        lines += [
+            "",
+            f"**Where rank 1's validation errors go** ({diagnosed[1]}, unseen-merchant rows; "
+            "diagnosis, not a gate):",
+            "",
+            *diagnostics,
+        ]
     finalists = [r for r in runs.values() if r.tags.get(FINALIST_TAG) == "true"]
     if finalists:
         # Baselines are scored with the finalists, so "beats the baseline" is visible here
