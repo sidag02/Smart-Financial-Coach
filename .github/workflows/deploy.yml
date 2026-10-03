@@ -88,10 +88,11 @@ jobs:
             --query "properties.template.containers[0].image" -o tsv)
           test "$image" = "${{ vars.ACR_NAME }}.azurecr.io/sfc-web:${GITHUB_SHA::7}"
           for attempt in $(seq 1 30); do
-            if curl -fsS "https://$fqdn/healthz" | grep -q '"as_of":"2026-09-30"'; then break; fi
+            if curl -fsS "https://$fqdn/healthz" | grep -q '"status":"ok"'; then break; fi
             sleep 10
           done
-          curl -fsS "https://$fqdn/healthz"
+          # Healthy means every demo account's data loads, not just that the process is up
+          curl -fsS "https://$fqdn/healthz" | grep -q '"status":"ok"'
           curl -fsS -o /dev/null "https://$fqdn/signin"
           test "$(curl -s -o /dev/null -w '%{http_code}' "https://$fqdn/")" = 303
           echo "Deployed https://$fqdn" >> "$GITHUB_STEP_SUMMARY"
