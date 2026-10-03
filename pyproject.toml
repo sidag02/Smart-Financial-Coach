@@ -64,6 +64,9 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "N", "RUF", "PTH", "PT", "C4"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+# Reasons are user-facing copy: "About 9× your usual charge" uses the multiplication sign
+"src/smart_financial_coach/intelligence/anomaly/reasons.py" = ["RUF001", "RUF002"]
+"tests/unit/intelligence/test_anomaly_contract.py" = ["RUF001"]
 
 [tool.mypy]
 python_version = "3.11"

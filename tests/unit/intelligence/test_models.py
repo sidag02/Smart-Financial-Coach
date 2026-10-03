@@ -165,3 +165,19 @@ def test_promotion_pointer_follows_the_log(tmp_path: Path) -> None:
         record_promotion(tmp_path, {"version": "v3"})
     assert len((tmp_path / LOG_FILE).read_text().splitlines()) == 2
     assert json.loads((tmp_path / LOG_FILE).read_text().splitlines()[0])["version"] == "v1"
+
+
+def test_contract_allows_missing_values_only_in_nullable_columns() -> None:
+    class NoLabel(Constant):
+        def predict(self, x: pd.DataFrame) -> pd.DataFrame:
+            return super().predict(x).assign(label=None)
+
+    nullable = Contract("test", "id", ("id", "label", "confidence"), _range, nullable=("label",))
+    assert len(Checked(NoLabel(), nullable).predict(X)) == 3
+
+    class NoConfidence(Constant):
+        def predict(self, x: pd.DataFrame) -> pd.DataFrame:
+            return super().predict(x).assign(confidence=None)
+
+    with pytest.raises(ContractError, match="missing values in \\['confidence'\\]"):
+        Checked(NoConfidence(), nullable).predict(X)
