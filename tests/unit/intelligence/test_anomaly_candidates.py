@@ -151,3 +151,12 @@ def test_search_records_the_params_in_use() -> None:
     assert model.params["base"].params["min_amount"] == 0.0
     assert model.report["chosen.min_amount"] == 0.0
     assert "search_recall.min_amount_1000.0" in model.report
+
+
+def test_new_merchant_evidence_says_whether_it_is_above_the_merchants_price() -> None:
+    x = ledger()
+    model = Thresholded(Rules(), precision=1.0).fit(x, labels(x))
+    out = by_id(Checked(model, CONTRACT).predict(x))
+
+    store = json.loads(str(out.loc["store", "evidence"]))
+    assert store["above_merchant_usual"] is True  # $900 against a $100 profile

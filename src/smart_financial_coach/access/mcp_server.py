@@ -12,15 +12,16 @@ subject, as an assistant: changes to more than one transaction need `confirm` (#
 """
 
 from collections.abc import Sequence
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any, Literal, cast
 from urllib.parse import urlsplit
 
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError as McpToolError
+from mcp.server.mcpserver.utilities.func_metadata import ArgModelBase
 from mcp.server.transport_security import TransportSecuritySettings
-from pydantic import Field
+from pydantic import ConfigDict, Field
 from starlette.applications import Starlette
 
 from smart_financial_coach.access.feedback import FeedbackStore
@@ -162,6 +163,7 @@ def build_mcp_server(
     def forecast_goal(goal_name: str) -> dict[str, Any]:
         return run("forecast_goal", goal_name=goal_name)
 
+    _reject_unknown_arguments(server)
     public = urlsplit(public_url)
     hosts = [public.netloc, INTERNAL_HOST, "127.0.0.1:*", "localhost:*", *extra_hosts]
     origins = [f"{public.scheme}://{public.netloc}", "http://127.0.0.1:*", "http://localhost:*"]
@@ -174,3 +176,19 @@ def build_mcp_server(
         ),
     )
     return server, asgi
+
+
+def _reject_unknown_arguments(server: MCPServer) -> None:
+    """Hold every tool's arguments to its schema, as `Tools.call` does in-process: an argument the
+    tool doesn't take (a `user_id`, say) is refused rather than dropped, and values aren't
+    coerced (`confirm: "yes"` isn't true). The SDK's argument models ignore extras and validate
+    leniently, so each is replaced by a strict subclass, and the published schema says
+    `additionalProperties: false`. Scope never came from arguments, so nothing leaked; this makes
+    a wrong call fail loudly (review on #43)."""
+    for tool in server._tool_manager.list_tools():
+        lenient = tool.fn_metadata.arg_model
+        config = ConfigDict(**{**lenient.model_config, "extra": "forbid", "strict": True})
+        namespace = {"model_config": config, "__module__": lenient.__module__}
+        strict = cast(type[ArgModelBase], type(lenient.__name__, (lenient,), namespace))
+        tool.fn_metadata.arg_model = strict
+        tool.parameters = strict.model_json_schema(by_alias=True)

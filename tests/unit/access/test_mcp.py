@@ -156,16 +156,38 @@ def test_the_token_not_an_argument_decides_whose_data(
     client: TestClient, sources: DataSources, users: list[str]
 ) -> None:
     mine, theirs = (Ledger.load(sources, u).transactions for u in users)
-    span = {"start_date": "2023-01-01", "end_date": "2026-09-30", "limit": 50, "user_id": users[1]}
+    span = {"start_date": "2023-01-01", "end_date": "2026-09-30", "limit": 50}
+    tools = mcp_tools(client, users[0])
 
-    result = in_worker_thread(
-        client, lambda: mcp_tools(client, users[0]).call("get_transactions", span)
-    )
+    result = in_worker_thread(client, lambda: tools.call("get_transactions", span))
 
     ids = {t["transaction_id"] for t in result.data["transactions"]}
     assert ids
     assert ids <= set(mine["transaction_id"])
     assert ids.isdisjoint(theirs["transaction_id"])
+    # Naming someone else is refused outright, not quietly ignored (review on #43)
+    with pytest.raises(ToolError, match="user_id"):
+        in_worker_thread(
+            client, lambda: tools.call("get_transactions", {**span, "user_id": users[1]})
+        )
+
+
+def test_every_tool_refuses_unknown_arguments_and_doesnt_coerce(
+    client: TestClient, users: list[str]
+) -> None:
+    tools = mcp_tools(client, users[0], feedback_subject="session-a")
+    specs = in_worker_thread(client, lambda: tools.specs)
+    for spec in specs:
+        assert spec["input_schema"]["additionalProperties"] is False, spec["name"]
+
+    for name, args in (
+        ("list_review_items", {"subject": "session-b"}),
+        ("detect_anomalies", {**SEPTEMBER, "user_id": users[1]}),
+    ):
+        with pytest.raises(ToolError, match="Extra inputs are not permitted"):
+            in_worker_thread(client, partial(tools.call, name, args))
+    with pytest.raises(ToolError, match="limit"):  # "10" isn't 10
+        in_worker_thread(client, lambda: tools.call("list_review_items", {"limit": "10"}))
 
 
 def test_tool_errors_come_back_as_tool_errors(client: TestClient, users: list[str]) -> None:
