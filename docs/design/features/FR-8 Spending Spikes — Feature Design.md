@@ -474,6 +474,13 @@ From milestone 2:
 - **The negative-binomial tie-break** (decision 6) is a scorer attribute, `assumes_poisson` (1 for the Poisson, 0 otherwise), logged as `fit.assumes_poisson` and read as the second tie-break.
 - **Drivers in evaluation** are the 5 largest outflows in the period on true categories, so excess coverage is reported for true positives at the run's own cutoff. The error of "usual" is measured on the same periods.
 
+From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Results):
+
+- **Rank 1: `count_negbin`, 0.521** recall at 0.035 flags per user-month, tied with `count_poisson` (0.516) on recall and on own-cutoff precision. Decision 6's second tie-break decided it. The fitted pooled over-dispersion is 0, so on this data they're the same model.
+- **Ablations are report-only runs:** a config tag `report_only: "true"` keeps a run out of the ranking and out of `finalize`. It's a tag rather than a config field, so no existing run's config hash changes. The ablation without the spend floor isn't possible, since the contract enforces the floor on every flag; the POC's measurement stands for it.
+- **Seasonality earns nothing out of fold** (0.518 without, 0.516 with), and κ landed on the top of the decided grid (2). Both are reported, not acted on.
+- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was.
+
 ## Decisions and open questions
 
 **Decisions** (owner, Oct 4, 2026, confirmed on #58). Any later decision that affects evaluation or test scoring goes to the owner before it runs.
