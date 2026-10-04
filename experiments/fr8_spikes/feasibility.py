@@ -1,4 +1,7 @@
-"""FR-8 feasibility: monthly spending spikes on TRAIN USERS ONLY (no test user is read).
+"""FR-8 feasibility: monthly spending spikes on TRAIN USERS ONLY.
+
+The dataset file is loaded whole, then every truth table is cut to train users (`train_only`)
+before anything is computed, so no test user's rows or labels reach a number below.
 
 Every (user, spending category, month) after the warm-up is a period. Spend and counts use true
 categories (FR-2: spike metrics are scored on true categories). Every detector is point in time:
@@ -16,6 +19,7 @@ Simplifications (each makes the numbers optimistic, as in FR-7's POC):
 """
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -35,6 +39,10 @@ TARGETS = (0.70, 0.80)
 REPS = 500
 SPEND_FLOOR = 1.3  # spend at least this times the usual level (FR-2's weak_lift, reused)
 MIN_USUAL_COUNT = 2.0  # purchases in a usual month
+SPIKE_CATEGORIES = ("Dining", "Groceries", "Shopping", "Transportation")  # where FR-1 plants
+LOOKALIKE_LIFT = 1.5  # non-label months with spend at least this times usual
+BASKET = (1.8, 3.0)  # simulated basket-size spikes: spend x U(BASKET), counts unchanged
+BASKET_N = 400
 OUT = Path(__file__).parent / "results"
 
 
@@ -48,6 +56,24 @@ def md(t: pd.DataFrame) -> str:
     ]
     out = ["| " + " | ".join(cols) + " |", "|" + " --- |" * len(cols)]
     return "\n".join(out + ["| " + " | ".join(r) + " |" for r in rows])
+
+
+def train_only(truth: Truth) -> Truth:
+    """The same truth, with every table cut to train users."""
+    users = truth.users[truth.users["split"] == "train"]
+    keep = set(users["user_id"])
+
+    def cut(df: pd.DataFrame) -> pd.DataFrame:
+        return df[df["user_id"].isin(keep)].reset_index(drop=True)
+
+    return replace(
+        truth,
+        transactions=cut(truth.transactions),
+        periods=cut(truth.periods),
+        expected=cut(truth.expected),
+        users=users.reset_index(drop=True),
+        preferences=cut(truth.preferences),
+    )
 
 
 def periods(truth: Truth) -> pd.DataFrame:
@@ -166,6 +192,14 @@ def scores(p: pd.DataFrame, beta: float) -> dict[str, pd.Series]:
     s["count_poisson_seasonal_income_floor"] = np.where(
         floor, s["count_poisson_seasonal_income"], np.nan
     )
+    # Ablations of the two rules, and (diagnostic only) the categories FR-1 plants in
+    spend_up = p["spend"] >= SPEND_FLOOR * usual
+    volume = p["mean_count"] >= MIN_USUAL_COUNT
+    planted = p["category"].isin(SPIKE_CATEGORIES)
+    csi = s["count_poisson_seasonal_income"]
+    s["ablation: spend floor only"] = np.where(spend_up, csi, np.nan)
+    s["ablation: min usual count only"] = np.where(volume, csi, np.nan)
+    s["diagnostic: planted categories only"] = np.where(planted, csi, np.nan)
     # Negative binomial: over-dispersion from the trailing count variance, floored at Poisson
     var = np.maximum(p["var_count"].fillna(lam_si), lam_si * 1.05)
     n = lam_si**2 / (var - lam_si)
@@ -255,8 +289,114 @@ def bootstrap(
     return np.percentile(a, [5, 95], axis=0)
 
 
+def ranked(score: pd.Series, o: pd.DataFrame, rate: float, user_months: int) -> pd.DataFrame:
+    """The top `rate` x user-months scored, non-ignored periods."""
+    keep = (o["outcome"] != "ignored") & score.notna()
+    return o[keep].assign(score=score[keep]).nlargest(round(rate * user_months), "score")
+
+
+def counts(s: pd.Series) -> str:
+    return ", ".join(f"{k} {v}" for k, v in s.value_counts().items())
+
+
+def spend_detectors(s: dict[str, pd.Series], scored: pd.DataFrame) -> list[str]:
+    """What tops the spend-based scores, overall and on frequent categories only."""
+    lines = ["## What tops the spend-based scores (top 240, non-ignored)", ""]
+    keep = scored["outcome"] != "ignored"
+    for k in ("baseline_mean_k_std", "robust_log_mad", "spend_ratio_seasonal"):
+        v = s[k]
+        top = scored[keep & v.notna()].assign(score=v).nlargest(240, "score")
+        freq = keep & v.notna() & (scored["mean_count"] >= 4)
+        top_f = scored[freq].assign(score=v).nlargest(240, "score")
+        top3 = counts(top["category"]).split(", ")[:3]
+        lines.append(
+            f"- {k}: {', '.join(top3)}; true spikes {int((top['outcome'] == 'tp').sum())}. "
+            f"With at least 4 purchases in a usual month: true spikes "
+            f"{int((top_f['outcome'] == 'tp').sum())} of 240"
+        )
+    return [*lines, ""]
+
+
+def ablations(table: pd.DataFrame) -> list[str]:
+    """Each piece's change in recall (points) at every operating point."""
+    steps = [
+        ("seasonal index", "count_poisson", "count_poisson_seasonal"),
+        ("income coupling", "count_poisson_seasonal", "count_poisson_seasonal_income"),
+        ("spend floor only", "count_poisson_seasonal_income", "ablation: spend floor only"),
+        ("min usual only", "count_poisson_seasonal_income", "ablation: min usual count only"),
+        ("both rules", "count_poisson_seasonal_income", "count_poisson_seasonal_income_floor"),
+    ]
+    cols = ["recall@p0.70", "recall@p0.80", *(f"recall@{r}" for r in RATES)]
+    rows = {
+        name: [100 * (float(table.loc[b, c]) - float(table.loc[a, c])) for c in cols]
+        for name, a, b in steps
+    }
+    out = pd.DataFrame.from_dict(rows, orient="index", columns=cols)
+    out.index.name = "change in recall (points)"
+    return ["## Ablations", "", md(out), ""]
+
+
+def lookalikes(
+    truth: Truth, scored: pd.DataFrame, leader: pd.Series, user_months: int
+) -> list[str]:
+    """Non-label months in the planted categories whose spend is well up, and simulated
+    basket-size spikes: spend up, counts unchanged. The leader can't see either."""
+    cutoff = ranked(leader, scored, 0.035, user_months)["score"].min()
+    usual = scored["mean_spend"]
+    cand = scored[
+        scored["category"].isin(SPIKE_CATEGORIES)
+        & (scored["outcome"] == "fp")
+        & (scored["spend"] >= LOOKALIKE_LIFT * usual)
+        & usual.notna()
+    ]
+    tx = truth.transactions[(truth.transactions["amount"] < 0)].rename(
+        columns={"month": "period_start"}
+    )
+    tx = tx.merge(cand[PERIOD_KEY], on=PERIOD_KEY)
+    tx["out"] = -tx["amount"]
+    top3 = tx.sort_values("out", ascending=False).groupby(PERIOD_KEY).head(3)
+    top3 = top3.groupby(PERIOD_KEY)["out"].sum().rename("top3").reset_index()
+    c = cand.merge(top3, on=PERIOD_KEY, how="left").fillna({"top3": 0.0})
+    covered = c["top3"] >= c["spend"] - c["mean_spend"]
+    flat = c["count"] < 1.3 * c["mean_count"]
+    flat_adj = c["count"] < 1.3 * c["mean_count"] * c["season"]
+    n_labels = int((scored["outcome"] == "tp").sum())
+    flagged = (leader.loc[c.index] >= cutoff).sum()
+    # Simulated basket-size spikes on a seeded sample of non-label months
+    rng = np.random.default_rng(0)
+    pool = scored[
+        scored["category"].isin(SPIKE_CATEGORIES)
+        & (scored["outcome"] == "fp")
+        & (scored["mean_count"] >= MIN_USUAL_COUNT)
+    ]
+    sample = pool.loc[rng.choice(pool.index, BASKET_N, replace=False)].copy()
+    sample["spend"] = sample["spend"] * rng.uniform(*BASKET, BASKET_N)
+    # The leader's score on the changed months: the count tail is unchanged, the floor re-checked
+    inc = sample["income_ratio"].clip(0.5, 1.6).fillna(1.0) ** FIT_BETA[0]
+    lam = ((sample["mean_count"] * sample["season"]).clip(lower=0.3) * inc).clip(lower=0.3)
+    tail = -poisson.logsf(sample["count"] - 1, lam)
+    usual_s = (sample["mean_spend"] * sample["season"]).clip(lower=1)
+    hit = (tail >= cutoff) & (sample["spend"] >= SPEND_FLOOR * usual_s)
+    return [
+        "## Look-alikes and basket-size spikes (planted categories)",
+        "",
+        f"- non-label months with spend >= {LOOKALIKE_LIFT}x the user's 12-month average: "
+        f"{len(c)} ({len(c) / n_labels:.1f} per label)",
+        f"- the 3 largest charges cover the whole excess: {covered.mean():.3f}",
+        f"- count up less than 1.3x: {flat.mean():.3f} against the plain average, "
+        f"{flat_adj.mean():.3f} against the seasonal one",
+        f"- flagged by the leader at its 0.035 cutoff: {int(flagged)}",
+        f"- simulated basket-size spikes (spend x U{BASKET}, counts unchanged, "
+        f"{BASKET_N} non-label months): recall at the 0.035 cutoff {hit.mean():.3f}",
+        "",
+    ]
+
+
+FIT_BETA = [0.0]  # set in main, read by `lookalikes`
+
+
 def main(path: str) -> None:
-    truth = load_truth(path)
+    truth = train_only(load_truth(path))
     p = features(periods(truth))
     o = outcomes(truth, p)
     scored = o[o["period_start"] >= truth.warmup_end_month].reset_index(drop=True)
@@ -267,6 +407,7 @@ def main(path: str) -> None:
     um = scored.drop_duplicates(["user_id", "period_start"]).groupby("user_id").size()
     user_months = int(um.sum())
     beta = fit_beta(scored)
+    FIT_BETA[0] = beta
     s = scores(scored, beta)
     lines = [
         "# FR-8 feasibility (train users only)",
@@ -282,6 +423,8 @@ def main(path: str) -> None:
     rows = [evaluate(k, v, scored, n_labels, user_months) for k, v in s.items()]
     table = pd.DataFrame(rows).set_index("detector")
     lines += ["## Detectors", "", md(table), ""]
+    lines += ablations(table)
+    lines += spend_detectors(s, scored)
     lines += ["## User bootstrap at 0.03 flags per user-month (5-95%: precision, recall)", ""]
     for k in (
         "baseline_mean_k_std",
@@ -301,7 +444,8 @@ def main(path: str) -> None:
     lines += [
         f"## {best} at 0.03: false positives",
         "",
-        f"- flags {len(top)}, false positives {len(fp)}",
+        f"- flags {len(top)}, false positives {len(fp)}; in categories FR-1 never plants in: "
+        f"{int((~fp['category'].isin(SPIKE_CATEGORIES)).sum())}",
         "- by category: " + ", ".join(f"{k} {v}" for k, v in fp["category"].value_counts().items()),
         "- by month of year: "
         + ", ".join(f"{k} {v}" for k, v in fp["moy"].value_counts().sort_index().items()),
@@ -314,7 +458,10 @@ def main(path: str) -> None:
         (scored["outcome"] == "tp")
         & ~scored.set_index(PERIOD_KEY).index.isin(top.set_index(PERIOD_KEY).index)
     ]
+    oracle_top = ranked(s["oracle_true_expected_count"], scored, 0.03, user_months)
+    oracle_missed = ~missed.set_index(PERIOD_KEY).index.isin(oracle_top.set_index(PERIOD_KEY).index)
     lines += [
+        f"- of the leader's misses, the oracle misses at the same rate: {int(oracle_missed.sum())}",
         "- true positives by tier: "
         + ", ".join(f"{k} {v}" for k, v in tp["tier"].value_counts().items()),
         "- missed by tier: "
@@ -335,6 +482,15 @@ def main(path: str) -> None:
             f"90th percentile {np.percentile(err, 90):.3f}; median excess "
             f"${np.median(tp['spend'] - e):,.0f} (true ${np.median(tp['spend'] - true_exp):,.0f})"
         )
+    plain = s["count_poisson_seasonal_income"].where(
+        (scored["spend"] >= SPEND_FLOOR * scored["mean_spend"].clip(lower=1))
+        & (scored["mean_count"] >= MIN_USUAL_COUNT)
+    )
+    plain_top = ranked(plain, scored, 0.035, user_months)
+    lines.append(
+        "- the leader with the floor on the plain 12-month average: precision at 0.035 "
+        f"{(plain_top['outcome'] == 'tp').mean():.3f}"
+    )
     lines.append(
         f"- purchases in a flagged spike month: median {tp['count'].median():.0f} against "
         f"{tp['mean_count'].median():.1f} in the user's average month"
@@ -342,7 +498,6 @@ def main(path: str) -> None:
     lines.append("")
     # Driving transactions: top 5 by amount, on all labeled spikes
     cov = truth.score_drivers(truth.baseline_drivers())
-    cov = cov[cov["user_id"].isin(train_users)]
     lines += [
         "## Driving transactions (labeled spikes, train users)",
         "",
@@ -351,6 +506,7 @@ def main(path: str) -> None:
         f"share at 1.0 {(cov['coverage'] >= 0.999).mean():.3f}",
         "",
     ]
+    lines += lookalikes(truth, scored, s[best], user_months)
     OUT.mkdir(exist_ok=True)
     (OUT / "feasibility.md").write_text("\n".join(lines))
     print("\n".join(lines))
