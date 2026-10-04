@@ -75,21 +75,33 @@ def goal_rows(
     return pd.DataFrame(rows, columns=list(INPUT_COLUMNS))
 
 
-def forecast_fields(out: Mapping[str, Any], months_of_history: int, money: Any) -> dict[str, Any]:
+def forecast_fields(
+    out: Mapping[str, Any],
+    months_of_history: int,
+    money: Any,
+    *,
+    target: float,
+    baseline: bool = False,
+) -> dict[str, Any]:
     """One goal's forecast as the tools return it. A reached goal shows no probability, range,
-    gap or top-up (owner decision 9 on #50), only whether it might be drawn down."""
+    gap or top-up (owner decision 9 on #50), only whether it might be drawn down. The baseline
+    (`method` "simple_projection": naive pace, while no model is promoted) has no probability
+    or range either: it projects the pace so far (owner decision 10 on #54)."""
     reached = out["status"] == "reached"
     extra = out["extra_per_month"]
     return {
+        "method": "simple_projection" if baseline else "simulation",
         "status": out["status"],
-        "p_goal_met": None if reached else round(float(out["p_goal_met"]), 3),
+        "p_goal_met": None if reached or baseline else round(float(out["p_goal_met"]), 3),
         "projected_balance": money(out["projected_balance"]),
         "range": (
             None
-            if reached
+            if reached or baseline
             else {"low": money(out["range_lo"]), "high": money(out["range_hi"]), "chance": 0.8}
         ),
         "gap": None if reached else money(out["gap"]),
+        # How far the likely amount is past the target, so no one computes it (FR-14)
+        "ahead": None if reached else money(max(0.0, float(out["projected_balance"]) - target)),
         "extra_per_month": None if reached or extra is None or pd.isna(extra) else money(extra),
         "share_source": out["share_source"],
         "months_of_history": months_of_history,

@@ -85,6 +85,9 @@ savings). The forecast assumes a month where they spend more than they earn draw
 they've set aside; say so if they ask why it could fall. For a reached goal, say it's reached; \
 mention that months of spending more than they earn could draw it back down only when \
 may_draw_down is true. For a goal they're setting up, quote check_goal's fit and forecast.
+- When a forecast's method is "simple_projection", say it's a simple projection of their pace \
+so far, not a forecast with a chance: quote the projected amount and gap, and never say how \
+likely they are to make it.
 - Don't give investment, tax or legal advice, or recommend financial products, funds or \
 securities. Suggest a licensed professional for those.
 """

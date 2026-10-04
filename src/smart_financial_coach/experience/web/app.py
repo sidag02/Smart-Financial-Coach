@@ -58,6 +58,7 @@ from smart_financial_coach.intelligence.categorization.agreement import (
     current_votes,
     global_labels,
 )
+from smart_financial_coach.intelligence.forecasting.contract import OFF_TRACK, ON_TRACK
 
 log = logging.getLogger(__name__)
 
@@ -141,13 +142,22 @@ def month_name(key: str, long: bool = False) -> str:
 
 
 def chance(p: float) -> str:
-    """A probability as people say it: 0.72 -> "about a 7 in 10 chance"; the ends never round
-    to certainty."""
+    """A probability as people say it: 0.72 -> "about a 7 in 10 chance". It stays inside the
+    status band the badge shows (review on #56): "could go either way" (0.3 to 0.7) says 3 to 6
+    in 10, "off track" at most 2, "on track" at least 7; and the ends never round to
+    certainty."""
     if p >= 0.95:
         return "better than a 9 in 10 chance"
     if p < 0.05:
         return "less than a 1 in 10 chance"
-    return f"about a {max(1, min(9, round(p * 10)))} in 10 chance"
+    tenths = round(p * 10)
+    if p < OFF_TRACK:
+        tenths = min(tenths, 2)
+    elif p < ON_TRACK:
+        tenths = min(max(tenths, 3), 6)
+    else:
+        tenths = max(tenths, 7)
+    return f"about a {max(1, min(9, tenths))} in 10 chance"
 
 
 def _mean(values: list[Any]) -> float | None:
