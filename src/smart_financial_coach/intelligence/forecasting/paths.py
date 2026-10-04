@@ -9,8 +9,13 @@ What `fit` learns, all from model-visible months, never from outcomes ("Why noth
 outcomes"):
 - each persona's seasonal profile and pooled deviations (for users with short histories);
 - the typical total allocation of savings to goals, from goals with a track record;
-- the spread, so that 80% ranges of the coming months' net savings cover 80% of what followed,
-  backtested inside the training users' own histories (target-free; §2).
+- the spread, so that the 80% range covers 80% of realized goal balances (§2): training goals
+  whose target month lies inside their user's visible history, run on their own share over the
+  months that followed. It reads realized balances, never a target or whether a goal was met.
+
+A user's paths are simulated once per `as_of`, over a fixed horizon, with a seed from (user,
+`as_of` month, model version) (§7). Every goal of that user runs over the same paths, so a draft
+and the same goal once saved get identical numbers, and two goals share one future.
 
     model = PathsModel(seasonal=True).fit(training_rows)
     model.predict(goal_rows)  # contract-checked by the caller
@@ -19,7 +24,7 @@ outcomes"):
 import hashlib
 import warnings
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Self
 
 import numpy as np
@@ -38,6 +43,7 @@ from smart_financial_coach.intelligence.forecasting.contract import (
 )
 from smart_financial_coach.intelligence.forecasting.savings import (
     SHARE_CAP,
+    final_balance,
     infer_share,
     run_balance,
 )
@@ -52,7 +58,10 @@ SEASONAL_FROM = 12  # months of history before a seasonal profile is used
 ETS_FROM = 24  # exponential smoothing needs two full cycles (owner decision 3 on #50)
 ETS_WINDOW = 36
 NEXT = 6  # the point forecast reported for the RMSE metric: the next 6 months' total
-_SPREADS = np.round(np.arange(0.5, 3.0001, 0.025), 3)
+HORIZON = 120  # months simulated per user: FR-10's furthest target, so any goal fits (§7)
+MIN_SPREAD_GOALS = 50  # fewer realized goals to tune on: keep a spread of 1
+SPREAD_PATHS = 200  # paths per goal while tuning the spread
+SPREAD_RANGE = (0.25, 4.0)
 
 
 @dataclass(frozen=True)
@@ -65,6 +74,9 @@ class ForecastState:
     spread: float
     months: int  # months of history it was fitted on
     end: pd.Period  # the last month of that history
+    # Exponential smoothing's own state, to simulate from the fitted model (§4): the smoothing
+    # weights (alpha, gamma), the last level, and the seasonal states by month of year
+    ets: tuple[float, float, float, tuple[float, ...]] | None = None
 
     def point(self, months: int) -> Floats:
         """The point forecast for the `months` after `end`."""
@@ -72,12 +84,27 @@ class ForecastState:
         return np.array([self.level + self.seasonal[m - 1] for m in moy])
 
     def simulate(self, months: int, n_paths: int, seed: int) -> Floats:
-        """`n_paths` paths of the next `months` months: the point plus resampled, scaled
-        deviations. Deterministic for a seed."""
+        """`n_paths` paths of the next `months` months, deterministic for a seed: the point plus
+        resampled, scaled deviations; for exponential smoothing, each month's error also feeds
+        its level and season forward, so its paths widen with the horizon."""
         rng = np.random.default_rng(seed)
-        noise = rng.choice(np.asarray(self.residuals), size=(n_paths, months), replace=True)
-        paths: Floats = self.point(months)[None, :] + self.spread * noise
-        return paths
+        noise = self.spread * rng.choice(
+            np.asarray(self.residuals), size=(n_paths, months), replace=True
+        )
+        if self.ets is None:
+            paths: Floats = self.point(months)[None, :] + noise
+            return paths
+        alpha, gamma, level0, season0 = self.ets
+        level = np.full(n_paths, level0)
+        season = np.tile(np.asarray(season0), (n_paths, 1))
+        out = np.empty((n_paths, months))
+        for h in range(months):
+            m = (self.end + h + 1).month - 1
+            e = noise[:, h]
+            out[:, h] = level + season[:, m] + e
+            level = level + alpha * e
+            season[:, m] = season[:, m] + gamma * e
+        return out
 
 
 @dataclass(frozen=True)
@@ -123,9 +150,18 @@ def _ets_state(y: Floats, end: pd.Period, spread: float) -> ForecastState:
     ahead = np.asarray(fit.forecast(12), dtype=float)
     level = float(ahead.mean())
     dev = np.zeros(12)
+    season = np.zeros(12)
+    states = np.asarray(fit.season, dtype=float)[-12:]  # states for the next 12 months, in order
     for i, value in enumerate(ahead):
         dev[(end + i + 1).month - 1] = value - level
+        season[(end + i + 1).month - 1] = states[i]
     residuals = np.asarray(fit.resid, dtype=float)
+    smoothing = (
+        float(fit.params["smoothing_level"]),
+        float(fit.params["smoothing_seasonal"]),
+        float(np.asarray(fit.level, dtype=float)[-1]),
+        tuple(float(v) for v in season),
+    )
     return ForecastState(
         level=level,
         seasonal=tuple(float(v) for v in dev),
@@ -133,6 +169,7 @@ def _ets_state(y: Floats, end: pd.Period, spread: float) -> ForecastState:
         spread=spread,
         months=len(y),
         end=end,
+        ets=smoothing,
     )
 
 
@@ -236,9 +273,13 @@ class PathsModel(BaseModel):
         histories = _longest_histories(x)
         self.priors = self._persona_priors(histories)
         self.typical_total = _typical_total(x)
-        self.fitted_spread = (
-            self.spread if self.spread is not None else self._tune_spread(histories)
-        )
+        tuned, n = (self.spread, 0) if self.spread is not None else self._tune_spread(x, histories)
+        self.fitted_spread = tuned
+        self.report = {
+            "spread": tuned,
+            "spread_goals": float(n),
+            "typical_total": self.typical_total,
+        }
         return self
 
     def _persona_priors(self, histories: pd.DataFrame) -> dict[str, PersonaPrior]:
@@ -262,78 +303,99 @@ class PathsModel(BaseModel):
             )
         return priors
 
-    def _tune_spread(self, histories: pd.DataFrame) -> float:
-        """The spread at which 80% ranges of the next 3-12 months' total net savings cover 80% of
-        what followed, backtested inside the training users' histories. Reads only months the
-        model is allowed to see; never an outcome or a target."""
-        lo_q, hi_q = INTERVAL
-        cases = []  # (realized - point, noise quantile low, noise quantile high) per case
-        for r in histories.to_dict("records"):
-            h: pd.Series = r["history"]
-            prior = self.priors.get(str(r["persona"]))
-            for origin in range(SEASONAL_FROM, len(h) - 3, 3):
-                state = fit_state(
-                    h.iloc[:origin],
-                    prior,
-                    window=self.window,
-                    seasonal=self.seasonal,
-                    shrink=self.shrink,
-                    spread=1.0,
-                    level_model=self.level_model,
-                )
-                for months in (3, 6, 12):
-                    if origin + months > len(h):
-                        continue
-                    realized = float(h.iloc[origin : origin + months].sum())
-                    rng = np.random.default_rng(_seed("spread", r["user_id"], origin, months))
-                    noise = rng.choice(np.asarray(state.residuals), size=(400, months)).sum(axis=1)
-                    q_lo, q_hi = np.quantile(noise, [lo_q, hi_q])
-                    cases.append((realized - float(state.point(months).sum()), q_lo, q_hi))
-        if not cases:
-            return 1.0
-        err, q_lo, q_hi = (np.array(c) for c in zip(*cases, strict=True))
-        coverage = np.array(
-            [float(((err >= s * q_lo) & (err <= s * q_hi)).mean()) for s in _SPREADS]
-        )
-        return float(_SPREADS[int(np.argmin(np.abs(coverage - self.coverage)))])
+    def _tune_spread(self, x: pd.DataFrame, histories: pd.DataFrame) -> tuple[float, int]:
+        """The spread at which the 80% range covers 80% of realized goal balances (§2).
+
+        The goals: training goals with a track-record share whose target month lies inside their
+        user's visible history (another of the user's rows reaches it). Each is run on its own
+        share over the months that followed its `as_of`. Only realized balances are read; a
+        target or whether a goal was met never is. Coverage grows with the spread, so it's found
+        by bisection. Fewer than `MIN_SPREAD_GOALS` such goals keep a spread of 1."""
+        longest = dict(zip(histories["user_id"], histories["history"], strict=True))
+        cases = []
+        for r in x[x["origin"] == "existing"].drop_duplicates("goal_id").to_dict("records"):
+            share = _track_record_share(r)
+            visible = longest.get(str(r["user_id"]))
+            if share is None or visible is None:
+                continue
+            as_of, target = (
+                pd.Period(to_date(r[c]), freq="M") for c in ("as_of_date", "target_date")
+            )
+            future = visible[(visible.index > as_of) & (visible.index <= target)]
+            if target > visible.index[-1] or not len(future):
+                continue
+            realized = final_balance(float(r["saved"]), share, future.to_numpy())
+            state = self.state_for(parse_history(str(r["history_json"])), str(r["persona"]), 1.0)
+            seed = _seed("spread", r["goal_id"], self.version)
+            cases.append((state, float(r["saved"]), share, len(future), realized, seed))
+        if len(cases) < MIN_SPREAD_GOALS:
+            return 1.0, len(cases)
+
+        def coverage(spread: float) -> float:
+            inside = 0
+            for state, saved, share, months, realized, seed in cases:
+                paths = replace(state, spread=spread).simulate(months, SPREAD_PATHS, seed)
+                finals = run_balance(saved, share, paths)[:, -1]
+                lo, hi = np.quantile(finals, INTERVAL)
+                inside += int(lo - 0.005 <= realized <= hi + 0.005)
+            return inside / len(cases)
+
+        lo, hi = SPREAD_RANGE
+        if coverage(hi) < self.coverage:
+            return hi, len(cases)
+        for _ in range(12):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if coverage(mid) < self.coverage else (lo, mid)
+        return round(hi, 3), len(cases)
 
     # --- Forecasting ------------------------------------------------------------------------
 
-    def state_for(self, history: pd.Series, persona: str) -> ForecastState:
+    def state_for(
+        self, history: pd.Series, persona: str, spread: float | None = None
+    ) -> ForecastState:
         return fit_state(
             history,
             self.priors.get(persona),
             window=self.window,
             seasonal=self.seasonal,
             shrink=self.shrink,
-            spread=self.fitted_spread,
+            spread=self.fitted_spread if spread is None else spread,
             level_model=self.level_model,
         )
 
+    def paths_for(self, user_id: str, as_of: object, state: ForecastState) -> Floats:
+        """A user's paths at an `as_of`: one future every goal of theirs shares (§7)."""
+        month = pd.Period(to_date(as_of), freq="M")
+        return state.simulate(HORIZON, self.n_paths, _seed(user_id, month, self.version))
+
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
-        states: dict[tuple[str, str], ForecastState] = {}
+        cache: dict[tuple[str, str], tuple[ForecastState, Floats]] = {}
         rows: list[dict[str, Any]] = []
         shares = _shares(x, self.typical_total)
         for r, (share, source) in zip(x.to_dict("records"), shares, strict=True):
             key = (str(r["user_id"]), str(r["as_of_date"]))
-            if key not in states:
-                states[key] = self.state_for(
-                    parse_history(str(r["history_json"])), str(r["persona"])
-                )
-            rows.append(self._forecast(r, states[key], share, source))
+            if key not in cache:
+                state = self.state_for(parse_history(str(r["history_json"])), str(r["persona"]))
+                cache[key] = (state, self.paths_for(key[0], r["as_of_date"], state))
+            state, paths = cache[key]
+            rows.append(self._forecast(r, state, paths, share, source))
         return output_frame(rows, self.version)
 
     def _forecast(
-        self, r: Mapping[Any, Any], state: ForecastState, share: float, source: str
+        self,
+        r: Mapping[Any, Any],
+        state: ForecastState,
+        user_paths: Floats,
+        share: float,
+        source: str,
     ) -> dict[str, Any]:
         saved, target = float(r["saved"]), float(r["target_amount"])
         left = months_left(to_date(r["as_of_date"]), to_date(r["target_date"]))
         reached = saved >= target
+        paths = user_paths[:, :left]
         if left == 0:
             finals = np.full(self.n_paths, saved)
-            paths = np.zeros((self.n_paths, 0))
         else:
-            paths = state.simulate(left, self.n_paths, _seed(r["goal_id"], self.version))
             finals = run_balance(saved, share, paths)[:, -1]
         p = float((finals >= target).mean())
         lo, mid, hi = (float(v) for v in np.quantile(finals, [INTERVAL[0], 0.5, INTERVAL[1]]))

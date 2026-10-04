@@ -26,7 +26,6 @@ dependencies = [
     "python-multipart>=0.0.32",
     "itsdangerous>=2.2.0",
     "anthropic>=1.11.0",
-    "statsmodels>=0.15.0",
 ]
 
 [project.scripts]
@@ -49,6 +48,9 @@ dev = [
 ]
 train = [
     "mlflow",
+    # Exponential smoothing, a FR-11 round candidate (owner decision 3 on #50); experiments
+    # only, so the serving image doesn't carry it (review on #52)
+    "statsmodels>=0.15.0",
 ]
 
 [build-system]

@@ -14,7 +14,6 @@ from smart_financial_coach.intelligence.forecasting.contract import (
 from smart_financial_coach.intelligence.forecasting.paths import (
     PathsModel,
     PersonaPrior,
-    _seed,
     _shares,
     fit_state,
     run_with_deposit,
@@ -130,7 +129,7 @@ def test_the_top_up_brings_the_goal_on_track() -> None:
     assert extra > 0
     # Re-run the same paths with the top-up: on track, and a dollar less isn't
     state = model.state_for(parse_history(str(row()["history_json"])), "young_professional")
-    paths = state.simulate(9, 400, _seed("g1", model.version))
+    paths = model.paths_for("u1", "2025-12-31", state)[:, :9]
     share = float(r["share"])
     assert (run_with_deposit(3000.0, share, paths, extra) >= 30000.0).mean() >= 0.7
     assert (run_with_deposit(3000.0, share, paths, extra - 1) >= 30000.0).mean() < 0.7
@@ -161,3 +160,51 @@ def test_fitting_never_reads_outcomes() -> None:
 def test_level_model_is_checked() -> None:
     with pytest.raises(ValueError, match="level_model"):
         PathsModel(level_model="arima")
+
+
+def test_a_draft_and_the_saved_goal_share_one_future() -> None:
+    """Paths come from (user, as_of month, model version), not the goal (§7): the same goal under
+    another id, as a draft would have, gets identical numbers."""
+    model = PathsModel(seasonal=True, spread=1.0, n_paths=300).fit(frame(row()))
+    saved, draft = row(), row(goal_id="draft", example_id="draft:track")
+    out = Checked(model, CONTRACT).predict(frame(saved, draft))
+    columns = ["p_goal_met", "projected_balance", "range_lo", "range_hi", "extra_per_month"]
+    assert out.iloc[0][columns].equals(out.iloc[1][columns])
+
+
+def test_ets_paths_widen_with_the_horizon() -> None:
+    rng = np.random.default_rng(3)
+    h = series(list(900 + 300 * np.sin(np.arange(36) / 12 * 2 * np.pi) + rng.normal(0, 250, 36)))
+    ets = fit_state(h, PRIOR, window=24, seasonal=True, shrink=2.0, spread=1.0, level_model="ets")
+    assert ets.ets is not None
+    paths = ets.simulate(24, 2000, seed=5)
+    assert paths[:, :12].mean() == pytest.approx(ets.point(12).mean(), rel=0.1, abs=60)
+    if ets.ets[0] > 0.01:  # errors feed the level forward: later months spread wider
+        assert paths[:, 23].std() > paths[:, 0].std()
+
+
+def test_the_spread_is_tuned_on_realized_goal_balances() -> None:
+    """Goals whose target lies inside the user's visible history (another row of theirs reaches
+    it) are run on their own share over the months that followed; their count is reported."""
+    long = series([700.0 + 400 * np.sin(i / 2) for i in range(36)], start="2023-10")
+    rows = []
+    for k in range(60):
+        as_of = long.index[14 + k % 10]
+        rows.append(
+            row(
+                example_id=f"g{k}:track",
+                goal_id=f"g{k}",
+                user_id="u1",
+                goal_set=f"u1:{k}:track",
+                as_of_date=str(as_of.end_time.date()),
+                created_date="2023-11-15",
+                saved_as_of=str(as_of.end_time.date()),
+                target_date=str((as_of + 6).end_time.date()),
+                saved=2000.0 + 10 * k,
+                history_json=history_json(long[long.index <= as_of]),
+            )
+        )
+    rows.append(row(example_id="last:track", goal_id="last", history_json=history_json(long)))
+    model = PathsModel(seasonal=False, n_paths=100).fit(frame(*rows))
+    assert model.report["spread_goals"] >= 50
+    assert 0.25 <= model.report["spread"] <= 4.0

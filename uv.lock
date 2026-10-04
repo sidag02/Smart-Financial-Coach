@@ -2058,7 +2058,6 @@ dependencies = [
     { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "statsmodels" },
     { name = "uvicorn" },
 ]
 
@@ -2076,6 +2075,7 @@ dev = [
 ]
 train = [
     { name = "mlflow" },
+    { name = "statsmodels" },
 ]
 
 [package.metadata]
@@ -2097,7 +2097,6 @@ requires-dist = [
     { name = "pyyaml" },
     { name = "scikit-learn" },
     { name = "scipy" },
-    { name = "statsmodels", specifier = ">=0.15.0" },
     { name = "uvicorn", specifier = ">=0.54.0" },
 ]
 
@@ -2113,7 +2112,10 @@ dev = [
     { name = "scipy-stubs" },
     { name = "types-pyyaml" },
 ]
-train = [{ name = "mlflow" }]
+train = [
+    { name = "mlflow" },
+    { name = "statsmodels", specifier = ">=0.15.0" },
+]
 
 [[package]]
 name = "smmap"
