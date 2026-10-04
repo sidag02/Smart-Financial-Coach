@@ -1,9 +1,16 @@
-{# "How it fits" (FR-10 design, "The setup check"): facts from check_goal, no verdict until FR-11 #}
-<div class="fit-head">How it fits</div>
+{# "How it fits" (FR-10 design, "The setup check"): facts from check_goal, and once a goal
+   forecasting model is promoted, the fit badge and the draft's forecast (FR-11) #}
+{% from "_macros.html" import fit_badge %}
+<div class="fit-head">How it fits{% if check.fit %} {{ fit_badge(check.fit) }}{% endif %}</div>
 {% if check.valid %}
 <div><span class="mid">{{ check.needed_per_month | money }}</span> <span class="muted">a month to get there by {{ check.target_date | day }} ({{ check.months_left }} month{{ "s" if check.months_left != 1 }})</span></div>
 {% if check.other_goals_per_month > 0 %}
 <div style="font-size:13.5px">With your other goals, that's about <b>{{ check.all_goals_per_month | money }} a month</b> across your goals.</div>
+{% endif %}
+{% set f = check.forecast %}
+{% if f is mapping and f.status != "reached" %}
+<div style="font-size:13.5px">Alongside your other goals, you'd likely have <b>{{ f.projected_balance | money }}</b> by then, between {{ f.range.low | money }} and {{ f.range.high | money }}: {{ f.p_goal_met | chance }} you'd make it.{% if f.extra_per_month %} Setting aside {{ f.extra_per_month | money }} more a month would put it within reach.{% endif %}</div>
+{% if f.short_history %}<div class="muted" style="font-size:13px">Based on only {{ f.months_of_history }} month{{ "s" if f.months_of_history != 1 }} of your history, so this is a rough guide.</div>{% endif %}
 {% endif %}
 {% elif problems %}
 {% for p in problems %}<div class="field-error">{{ p.message }}</div>{% endfor %}

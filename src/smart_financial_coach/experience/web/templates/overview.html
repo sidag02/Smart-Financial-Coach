@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import month_picker %}
+{% from "_macros.html" import month_picker, goal_status %}
 {% from "_flags.html" import flag_row %}
 {% block title %}Overview · Smart Financial Coach{% endblock %}
 {% block main %}
@@ -37,11 +37,15 @@
 
   <section class="card stack">
     {% if goal %}{% set g = goal %}
-    <div class="card-head"><div class="card-label">{{ g.name }}</div>{% if g.status == "reached" %}<span class="badge good">Reached</span>{% else %}<span class="badge soon">Forecast soon</span>{% endif %}</div>
+    <div class="card-head"><div class="card-label">{{ g.name }}</div>{{ goal_status(g.status, g.forecast_status) }}</div>
     <div><span class="mid">{{ g.saved | money }}</span> <span class="muted" style="font-size:14px">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
     <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
     {% if g.status == "active" %}
+    {% if g.projected_balance is defined and g.projected_balance is not none %}
+    <div style="font-size:13.5px">Likely <b>{{ g.projected_balance | money }}</b> by {{ g.target_date | day }}. <a href="/goals/{{ g.goal_id }}">See the forecast</a></div>
+    {% else %}
     <div style="font-size:13.5px"><b>{{ g.needed_per_month | money }} a month</b> <span class="muted">for {{ g.months_left }} month{{ "s" if g.months_left != 1 }}. Whether you're on track arrives with goal forecasting.</span></div>
+    {% endif %}
     {% else %}
     <div style="font-size:13.5px" class="muted">You've saved the whole amount. <a href="/goals">See your goals</a></div>
     {% endif %}

@@ -1,4 +1,5 @@
-"""Server-rendered chart geometry: the money-flow diagram and the monthly trend (mockup 1a).
+"""Server-rendered chart geometry: the money-flow diagram and the monthly trend (mockup 1a), and
+a goal's projection (mockups 1g, 1l).
 
 Pure functions of tool results, so the charts can't disagree with the numbers beside them.
 Positions are percentages of the chart box; ribbons are SVG paths in a 920 x 260 viewBox.
@@ -182,6 +183,28 @@ def trend(months: list[tuple[str, float]], highlight: str) -> list[dict[str, obj
             }
         )
     return bars
+
+
+def goal_projection(saved: float, target: float, monthly: list[dict[str, Any]]) -> dict[str, Any]:
+    """Columns for a goal's chart: what's saved now, then each month's likely balance (the
+    median, a mark) inside its 80% range (a band), from `forecast_goal`'s `monthly`. The target
+    is a line across. Heights are percentages of the tallest of the target and the ranges."""
+    top = max([target, saved, *(m["high"] for m in monthly)]) * 1.1 or 1.0
+    columns = [{"label": "Now", "now": True, "bar": pct(saved, top)}]
+    for m in monthly:
+        columns.append(
+            {
+                "label": m["month"],
+                "now": False,
+                "band_bottom": pct(m["low"], top),
+                "band_height": pct(m["high"] - m["low"], top),
+                "mark": pct(m["median"], top),
+                "median": m["median"],
+                "low": m["low"],
+                "high": m["high"],
+            }
+        )
+    return {"columns": columns, "target": pct(target, top)}
 
 
 LINE_W, LINE_H, LINE_PAD = 920.0, 220.0, 28.0

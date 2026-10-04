@@ -226,8 +226,9 @@ TOOL_SPECS: list[ToolSpec] = [
             "`needed_per_month`. `undo_revision_id` is the goal's latest change that can be "
             "undone. Also the user's median monthly savings over the last 12 full months. Active "
             "and reached goals have `forecast_status` (`on_track`, `either_way`, `off_track` or "
-            "`reached`) and `p_goal_met`, the chance of reaching it by its date (null once "
-            "reached); call forecast_goal for the range and what would close the gap."
+            "`reached`), `p_goal_met`, the chance of reaching it by its date, and "
+            "`projected_balance`, the likely amount by then (both null once reached); call "
+            "forecast_goal for the range and what would close the gap."
         ),
         "input_schema": {
             "type": "object",
@@ -891,6 +892,7 @@ class Tools:
                 data |= {
                     "forecast_status": f["status"],
                     "p_goal_met": None if reached else round(float(f["p_goal_met"]), 3),
+                    "projected_balance": None if reached else money(f["projected_balance"]),
                 }
             listed.append(data)
         data = {

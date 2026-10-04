@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_macros.html" import goal_status %}
+{% block title %}{{ goal.name }} · Smart Financial Coach{% endblock %}
+{% block main %}
+{% set f = forecast %}
+<div class="page-head"><div>
+  <a href="/goals" style="font-size:13.5px;font-weight:600">&larr; Goals</a>
+  <h1 class="page-title">{{ goal.name }}</h1>
+  <div class="page-sub">{{ goal.saved | money }} saved of {{ goal.target_amount | money }} by {{ goal.target_date | day }}</div>
+</div>
+<div class="goal-actions">
+  {% if goal.status != "ended" %}<a class="btn-ghost" href="/goals/{{ goal.goal_id }}/edit">Edit</a>{% endif %}
+</div></div>
+
+{% if f is none %}
+<section class="card stack">
+  <div class="card-head"><b>Where it's headed</b>{{ goal_status(goal.status, goal.forecast_status) }}</div>
+  {% if goal.status == "ended" %}
+  <p class="muted" style="margin:0">This goal's date has passed. You'd saved {{ goal.saved | money }} as of {{ goal.saved_as_of | day }}.</p>
+  {% else %}
+  <div class="soon-box">Whether you're on track, with a likely range, arrives with goal forecasting.</div>
+  {% endif %}
+</section>
+{% else %}
+<div class="goal-detail">
+  <section class="card stack">
+    <div class="card-head"><b>Saved so far, and where it's likely headed</b></div>
+    {% if projection %}
+    <div class="projection" role="img" aria-label="{{ goal.name }}: {{ goal.saved | money }} saved now; likely {{ f.projected_balance | money }} by {{ goal.target_date | day }}, between {{ f.range.low | money }} and {{ f.range.high | money }}">
+      <div class="plots">
+        <div class="target" style="bottom:{{ projection.target }}"><span>Goal {{ goal.target_amount | money }}</span></div>
+        {% for c in projection.columns %}
+        <div class="plot">
+          {% if c.now %}<div class="now" style="height:{{ c.bar }}"></div>
+          {% else %}<div class="band" style="bottom:{{ c.band_bottom }};height:{{ c.band_height }}"></div><div class="mark" style="bottom:{{ c.mark }}"></div>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <div class="labels">
+        {% for c in projection.columns %}<div>{% if c.now %}Now{% else %}{{ c.label | month_name }}{% endif %}</div>{% endfor %}
+      </div>
+    </div>
+    <div class="muted" style="font-size:13px">The shaded range is where you'll likely be each month (an 8 in 10 chance); the line is the most likely amount.</div>
+    {% else %}
+    <div><span class="mid">{{ goal.saved | money }}</span> <span class="muted">of {{ goal.target_amount | money }}</span></div>
+    <div class="track"><div style="width:100%"></div></div>
+    {% endif %}
+    <p class="muted" style="margin:0;font-size:13px">This assumes a month where you spend more than you earn draws on what you've set aside.</p>
+  </section>
+
+  <div class="stack">
+    <section class="card stack" style="gap:8px">
+      <div class="card-head"><div class="card-label">{% if f.status == "reached" %}Saved{% else %}Likely by {{ goal.target_date | day }}{% endif %}</div>{{ goal_status(goal.status, f.status) }}</div>
+      {% if f.status == "reached" %}
+      <div class="big">{{ goal.saved | money }}</div>
+      <p style="margin:0;font-size:14px">You've reached it.{% if f.may_draw_down %} Months where you spend more than you earn could draw it down before {{ goal.target_date | day }}.{% endif %}</p>
+      {% else %}
+      <div class="big">{{ f.projected_balance | money }}</div>
+      <p style="margin:0;font-size:14px">
+        {%- if f.gap > 0 %}About {{ f.gap | money }} short.{% else %}About {{ (f.projected_balance - goal.target_amount) | money }} ahead.{% endif %}
+        We're fairly confident you'll land between <b>{{ f.range.low | money }}</b> and <b>{{ f.range.high | money }}</b> (8 in 10 chance).</p>
+      {% endif %}
+    </section>
+
+    {% if f.status != "reached" %}
+    {% set kind = {"on_track": "good", "either_way": "either", "off_track": "soon"}[f.status] %}
+    <section class="tip {{ kind }}">
+      {% if f.extra_per_month %}
+      <div class="tip-head">{% if f.status == "either_way" %}Close the gap{% else %}One change that helps{% endif %}</div>
+      <div class="tip-title">Set aside {{ f.extra_per_month | money }} more a month</div>
+      <div style="font-size:14px">That would put you on track: a 7 in 10 chance or better that you'll reach {{ goal.target_amount | money }} by {{ goal.target_date | day }}. Right now it's {{ f.p_goal_met | chance }}.</div>
+      {% else %}
+      <div class="tip-head">Good news</div>
+      <div class="tip-title">You're on track</div>
+      <div style="font-size:14px">{{ f.p_goal_met | chance | capitalize }} you'll reach {{ goal.target_amount | money }} by {{ goal.target_date | day }}.</div>
+      {% endif %}
+    </section>
+    {% endif %}
+
+    <section class="card stack" style="gap:8px">
+      <div class="card-label">What this accounts for</div>
+      <ul style="margin:0;padding-left:18px;font-size:14px;line-height:1.5">
+        <li>Your own month-to-month savings, including the months that usually run high or low for you.</li>
+        {% if f.share_source == "track_record" %}<li>How much of your savings this goal has been getting.</li>
+        {% elif f.share_source == "your_entries" %}<li>How your saved amount has grown between the amounts you've entered.</li>
+        {% else %}<li>This goal is new, so it assumes a typical share of what you save, split with your other goals.</li>{% endif %}
+        <li>Based on {{ f.months_of_history }} month{{ "s" if f.months_of_history != 1 }} of your history.</li>
+      </ul>
+      {% if f.short_history %}<div class="soon-box">Based on only {{ f.months_of_history }} month{{ "s" if f.months_of_history != 1 }} of your history, so this is a rough guide.</div>{% endif %}
+    </section>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

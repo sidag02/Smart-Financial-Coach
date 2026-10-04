@@ -140,6 +140,16 @@ def month_name(key: str, long: bool = False) -> str:
     return f"{d:%b %Y}" if long else f"{d:%b}"
 
 
+def chance(p: float) -> str:
+    """A probability as people say it: 0.72 -> "about a 7 in 10 chance"; the ends never round
+    to certainty."""
+    if p >= 0.95:
+        return "better than a 9 in 10 chance"
+    if p < 0.05:
+        return "less than a 1 in 10 chance"
+    return f"about a {max(1, min(9, round(p * 10)))} in 10 chance"
+
+
 def _mean(values: list[Any]) -> float | None:
     present = [float(v) for v in values if v is not None]
     return sum(present) / len(present) if present else None
@@ -303,7 +313,7 @@ def create_app(
         app.mount("/mockups", StaticFiles(directory=MOCKUPS_DIR), name="mockups")
 
     templates = Jinja2Templates(directory=HERE / "templates")
-    templates.env.filters.update(money=money, day=day, month_name=month_name)
+    templates.env.filters.update(money=money, day=day, month_name=month_name, chance=chance)
     templates.env.globals.update(
         coach_name=settings.coach_name,
         quick_signin=settings.quick_signin,
@@ -939,6 +949,32 @@ def create_app(
     @app.get("/goals/new")
     def new_goal(request: Request) -> Response:
         return goal_form(request, signed_in(request), goal=None, values={})
+
+    @app.get("/goals/{goal_id}")
+    def goal_detail(request: Request, goal_id: str) -> Response:
+        """A goal's forecast (mockups 1g, 1l): rendered from `forecast_goal`, as the coach reads
+        it, so the page and the coach can't disagree (FR-14)."""
+        account = signed_in(request)
+        tools = tools_for(account, request)
+        goal = next((g for g in tools.list_goals().data["goals"] if g["goal_id"] == goal_id), None)
+        if goal is None:
+            return Response(status_code=404)
+        forecast = tools.forecast_goal(goal_id).data
+        live = forecast.get("status") not in ("not_available", "ended")
+        projection = (
+            charts.goal_projection(goal["saved"], goal["target_amount"], forecast["monthly"])
+            if live and forecast["monthly"]
+            else None
+        )
+        return page(
+            request,
+            "goal.html",
+            account,
+            active="goals",
+            goal=goal,
+            forecast=forecast if live else None,
+            projection=projection,
+        )
 
     @app.get("/goals/{goal_id}/edit")
     def edit_goal(request: Request, goal_id: str) -> Response:
