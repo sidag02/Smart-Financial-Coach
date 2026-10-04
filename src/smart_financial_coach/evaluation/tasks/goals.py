@@ -5,10 +5,17 @@ Examples are goals whose outcome is known, at their `as_of_date`, scored on two 
 - `new`: the same goal as if it were created at `as_of_date`, its balance entered by hand. That's
   the path every goal created through FR-10, and every draft behind the fit badge, takes.
 
-The goals are the dataset's own (draw 0) plus `draws` more per user from FR-1's stage-9 sampler,
-over the user's own monthly net savings and under the task's seed, so labeled goals are plentiful
-without changing the dataset (§6, owner decision 4). Each draw is its own goal set: the 1-2 goals
-stage 9 makes together; draws never coexist.
+The goals are `draws` per user from FR-1's stage-9 sampler, over the user's own monthly net
+savings and under the task's seed, so labeled goals are plentiful without changing the dataset
+(§6, owner decision 4). Each draw is its own goal set: the 1-2 goals stage 9 makes together;
+draws never coexist.
+
+Since round 5 (owner, Oct 4, 2026, after the first test scoring) a sampled goal's target is a
+multiple of the balance projected at its `as_of`, not of the balance it actually reached
+(`TARGETS_FROM`). Stage 9 plants targets from the realized future, so a target far below the
+forecast often meant the future went badly: a leak that made forecasts for volatile users look
+overconfident, measured on train users (round results, round 5). The dataset's own goals (draw
+0) keep stage 9's planted targets, so they're no longer examples.
 
 A model sees only months up to `as_of_date` (`history_json`); the leak check proves it. Labels
 (`met`) are truth, and nothing is tuned on them: outcomes are planted relative to the realized
@@ -71,8 +78,9 @@ RMSE_VS_SNAIVE = 1.0
 NON_BLOCKING = {("new", "freelancer")}
 BOOTSTRAP_REPS = 1000
 DEFAULTS: dict[str, Any] = {"k": 5}
-DRAWS = 10  # sampler draws per user beyond the dataset's own goals (§6)
+DRAWS = 10  # sampler draws per user (§6)
 SAMPLER_SEED = 11
+TARGETS_FROM = "projection"  # round 5; rounds 1-4 used the dataset's goals and "realized"
 
 Boot = tuple[Ids, npt.NDArray[np.float64]]  # the users (sorted) and how often each is drawn
 
@@ -100,8 +108,10 @@ def goal_examples(
     spec: Spec,
     draws: int,
     seed: int,
+    targets_from: str = TARGETS_FROM,
 ) -> pd.DataFrame:
-    """Two example rows (`track`, `new`) per known-outcome goal, dataset goals and sampled."""
+    """Two example rows (`track`, `new`) per known-outcome goal: sampled goals, and the
+    dataset's own only when targets come from the realized balance, as stage 9 plants them."""
     tl = Timeline(spec.calendar.start, spec.calendar.end)
     start = pd.Period(spec.calendar.start, freq="M")
     month = (pd.to_datetime(transactions["ts"]).dt.to_period("M") - start).map(lambda d: d.n)
@@ -123,7 +133,7 @@ def goal_examples(
         # the same definition serving uses; each example takes the months up to its as_of
         visible = monthly_net(frame[["ts", "amount"]], spec.calendar.end)
         persona = spec.personas[persona_name]
-        sets = [labeled[labeled["user_id"] == user_id]]
+        sets = [labeled[labeled["user_id"] == user_id]] if targets_from == "realized" else []
         for d in range(1, draws + 1):
             g, t = sample_goals(
                 net,
@@ -134,9 +144,11 @@ def goal_examples(
                 np.random.default_rng([seed, _user_seed(user_id), d]),
                 user_id=user_id,
                 goal_prefix=f"e{d}_{user_id[2:]}",
+                targets_from=targets_from,
             )
             sets.append(g.merge(t, on="goal_id"))
-        for draw, goal_set in enumerate(sets):
+        first = 0 if targets_from == "realized" else 1
+        for draw, goal_set in enumerate(sets, start=first):
             rows += _set_rows(u, goal_set, draw, net, start, visible)
     return pd.DataFrame(rows)
 
@@ -342,7 +354,8 @@ class GoalForecastingTask:
         joined = f.loc[predictions["example_id"].tolist(), cols].reset_index(drop=True)
         out = pd.concat([predictions.reset_index(drop=True), joined], axis=1)
         out["sq"] = (out["p_goal_met"].astype(float) - out["met"]) ** 2
-        out["covered"] = _covered(out)
+        out["side"] = _side(out)
+        out["covered"] = (out["side"] == 0).astype(float).where(out["side"].notna())
         return out
 
     def _metrics(self, rows: pd.DataFrame) -> dict[str, float]:
@@ -358,8 +371,20 @@ class GoalForecastingTask:
             for band, met_rate, n in _bands(r):
                 out[f"met_rate.{path}.{band}"] = met_rate
                 out[f"goals.{path}.{band}"] = float(n)
+            # Target-free calibration: where realized balances fall against the 80% range, about
+            # 10% below and 10% above when the forecast is honest. Unlike met rates by band, it
+            # never reads a target, which stage 9 plants from the realized future
+            out[f"below.{path}"] = (
+                float((r["side"] < 0).mean()) if r["side"].notna().any() else np.nan
+            )
+            out[f"above.{path}"] = (
+                float((r["side"] > 0).mean()) if r["side"].notna().any() else np.nan
+            )
             for persona, part in r.groupby("persona"):
                 out[f"brier.{path}.{persona}"] = float(part["sq"].mean())
+                if part["side"].notna().any():
+                    out[f"below.{path}.{persona}"] = float((part["side"] < 0).mean())
+                    out[f"above.{path}.{persona}"] = float((part["side"] > 0).mean())
                 for band, met_rate, n in _bands(part):
                     out[f"met_rate.{path}.{persona}.{band}"] = met_rate
                     out[f"goals.{path}.{persona}.{band}"] = float(n)
@@ -600,9 +625,10 @@ def history_leaks(frame: pd.DataFrame) -> list[str]:
     return [f"{len(late)} examples see months after their as_of_date: {late[:3]}"] if late else []
 
 
-def _covered(rows: pd.DataFrame) -> pd.Series:
-    """Whether the realized balance by the target date fell inside the 80% range: the goal's own
-    share run over the months that actually followed. NaN for a model without a share."""
+def _side(rows: pd.DataFrame) -> pd.Series:
+    """Where the realized balance by the target date fell against the 80% range: -1 below, 0
+    inside, 1 above; the goal's own share run over the months that actually followed. NaN for a
+    model without a share."""
     out: list[float] = []
     for r in rows[["share", "saved", "future_json", "range_lo", "range_hi"]].to_dict("records"):
         if pd.isna(r["share"]):
@@ -611,7 +637,7 @@ def _covered(rows: pd.DataFrame) -> pd.Series:
         future = parse_history(str(r["future_json"])).to_numpy()
         realized = final_balance(float(r["saved"]), float(r["share"]), future)
         lo, hi = float(r["range_lo"]), float(r["range_hi"])
-        out.append(float(lo - 0.005 <= realized <= hi + 0.005))
+        out.append(-1.0 if realized < lo - 0.005 else 1.0 if realized > hi + 0.005 else 0.0)
     return pd.Series(out, index=rows.index, dtype=float)
 
 

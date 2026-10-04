@@ -1,6 +1,8 @@
 """FR-11/FR-12 §2-§3: forecast states, simulated paths, shares by source, the cap, the top-up,
 and fitting that never reads outcomes."""
 
+from collections.abc import Callable
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -241,3 +243,88 @@ def test_predictions_never_read_set_goals() -> None:
     one = Checked(model, CONTRACT).predict(frame(new | {"set_goals": 1}))
     many = Checked(model, CONTRACT).predict(frame(new | {"set_goals": 5}))
     assert one.equals(many)
+
+
+def mixture_rows() -> pd.DataFrame:
+    """Two users per persona with different shapes, so the weights have something to learn."""
+    rows = []
+    rng = np.random.default_rng(3)
+    shapes: dict[str, Callable[[int], float]] = {
+        "family_budgeter": lambda i: 900 - 700 * (i % 12 == 7) - 500 * (i % 12 == 11),
+        "freelancer": lambda i: 600 + 1500 * rng.standard_normal(),
+        "young_professional": lambda i: 700 + 40 * rng.standard_normal(),
+    }
+    for persona, shape in shapes.items():
+        for u in range(2):
+            history = series([float(shape(i)) for i in range(36)], start="2023-01")
+            user = f"{persona[:2]}{u}"
+            rows.append(
+                row(
+                    example_id=f"{user}:track",
+                    goal_id=f"g_{user}",
+                    user_id=user,
+                    goal_set=f"{user}:0:track",
+                    persona=persona,
+                    as_of_date="2025-12-31",
+                    history_json=history_json(history),
+                )
+            )
+    return frame(*rows)
+
+
+def test_the_persona_mixture_never_reads_a_persona() -> None:
+    x = mixture_rows()
+    model = PathsModel(seasonal=True, personas="mixture", n_paths=200, spread=1.0).fit(x)
+    out = Checked(model, CONTRACT).predict(x)
+    blank = Checked(model, CONTRACT).predict(x.assign(persona=""))
+    pd.testing.assert_frame_equal(out, blank)
+    # The label model does read it: an unknown persona gets no prior
+    labelled = PathsModel(seasonal=True, n_paths=200, spread=1.0).fit(x)
+    assert not labelled.predict(x).equals(labelled.predict(x.assign(persona="")))
+
+
+def test_a_mixture_state_weighs_every_personas_profile() -> None:
+    x = mixture_rows()
+    model = PathsModel(seasonal=True, personas="mixture", n_paths=200, spread=1.0).fit(x)
+    state = model.state_for(parse_history(str(x["history_json"].iloc[0])), "")
+    assert state.mixture is not None
+    assert len(state.mixture) == 3
+    weights = np.array([w for w, _ in state.mixture])
+    assert weights.sum() == pytest.approx(1.0)
+    mean = sum(w * np.asarray(dev) for w, dev in state.mixture)
+    assert np.asarray(state.seasonal) == pytest.approx(mean)
+    paths = state.simulate(24, 500, seed=1)
+    assert np.array_equal(paths, state.simulate(24, 500, seed=1))  # NFR-8
+
+
+def test_the_trend_follows_a_raise_and_is_damped() -> None:
+    rising = series([500.0 + 20 * i for i in range(24)])  # $20 more each month
+    flat = fit_state(rising, PRIOR, window=24, seasonal=False, shrink=2.0, spread=1.0)
+    trended = fit_state(
+        rising, PRIOR, window=24, seasonal=False, shrink=2.0, spread=1.0, damping=0.95
+    )
+    assert flat.slope == 0.0
+    assert np.allclose(flat.point(12), rising.mean())
+    # Shrunk halfway toward the prior's flat slope with two years seen: $10 a month
+    assert trended.slope == pytest.approx(10.0)
+    ahead = trended.point(60)
+    assert ahead[0] > rising.mean() + 10 * 11.5  # past the window's center
+    steps = np.diff(ahead)
+    assert (steps > 0).all()
+    assert steps[-1] < steps[0] / 5  # damped: it levels off
+
+
+def test_the_mixture_pools_every_personas_deviations_for_short_histories() -> None:
+    """Under 6 months of the user's own deviations, each persona's pool joins in proportion to
+    its weight; with no history at all, the personas weigh equally and no label is read."""
+    x = mixture_rows()
+    model = PathsModel(seasonal=True, personas="mixture", n_paths=200, spread=1.0).fit(x)
+    short = series([700.0, 650.0, 820.0, 760.0])
+    state = model.state_for(short, "freelancer")
+    assert state.mixture is not None
+    assert len(state.residuals) > 4  # the user's 4, then the personas' pools
+    assert state == model.state_for(short, "")
+    empty = model.state_for(series([]), "freelancer")
+    assert empty.mixture is not None
+    assert [w for w, _ in empty.mixture] == pytest.approx([1 / 3] * 3)
+    assert empty == model.state_for(series([]), "")

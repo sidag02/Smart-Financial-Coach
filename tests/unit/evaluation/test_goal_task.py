@@ -30,7 +30,7 @@ from smart_financial_coach.intelligence.models.contract import Checked
 
 @pytest.fixture(scope="module")
 def task() -> GoalForecastingTask:
-    return GoalForecastingTask(reps=200, draws=2)
+    return GoalForecastingTask(reps=200, draws=4)
 
 
 @pytest.fixture(scope="module")
@@ -129,10 +129,49 @@ def test_examples_have_both_paths_and_only_known_outcomes(
     new = f[f["path"] == "new"]
     assert (new["created_date"] == new["as_of_date"]).all()
     assert (new["origin"] == "yours").all()
-    assert set(f["draw"]) == {0, 1, 2}
-    known = read_sqlite(small_sqlite)["truth_goals"]["met"].notna().sum()
-    assert (f["draw"] == 0).sum() == 2 * known  # the dataset's own goals, on both paths
+    # Sampled goals only: the dataset's own (draw 0) have targets planted from the future
+    assert set(f["draw"]) == {1, 2, 3, 4}
+    assert not f["goal_id"].isin(read_sqlite(small_sqlite)["goals"]["goal_id"]).any()
     assert (f["active_goals"] >= 1).all()
+
+
+def test_projected_targets_change_only_the_targets(small_sqlite: Path) -> None:
+    """Round 5: the same goals as stage 9 draws, with each target a multiple of the balance
+    projected at `as_of` instead of the one reached, so an `on_track` goal can be missed."""
+    ds = read_sqlite(small_sqlite)
+    spec = load_spec(PROJECT_ROOT / "configs" / "data" / "small.yaml")
+    tl = Timeline(spec.calendar.start, spec.calendar.end)
+    rng = np.random.default_rng(0)
+    persona = spec.personas[ds["users"]["persona"].iloc[0]]
+    planted: list[tuple[pd.DataFrame, pd.DataFrame]] = []
+    projected: list[tuple[pd.DataFrame, pd.DataFrame]] = []
+    for i in range(100):
+        net = rng.normal(400, 900, tl.n_months)  # any stream: the rules don't depend on it
+        args = (net, tl, [g.name for g in persona.goals], [g.weight for g in persona.goals])
+        for mode, out in (("realized", planted), ("projection", projected)):
+            out.append(
+                sample_goals(
+                    *args,
+                    spec.goals,
+                    np.random.default_rng([7, i]),
+                    user_id="u",
+                    goal_prefix=f"e{i}",
+                    targets_from=mode,
+                )
+            )
+    a = pd.concat([g.merge(t, on="goal_id") for g, t in planted], ignore_index=True)
+    b = pd.concat([g.merge(t, on="goal_id") for g, t in projected], ignore_index=True)
+    same = ["goal_id", "name", "created_date", "target_date", "as_of_date", "current_balance"]
+    pd.testing.assert_frame_equal(a[same], b[same])
+    inside = a["met"].notna()
+    assert (a.loc[~inside, "target_amount"] == b.loc[~inside, "target_amount"]).all()
+    assert (a.loc[inside, "target_amount"] != b.loc[inside, "target_amount"]).any()
+    # Planted: on_track is always met and off_track never; projected: up to the future
+    on = inside & (a["outcome_class"] == "on_track")
+    assert (a.loc[on, "met"] == 1).all()
+    assert (b.loc[on, "met"] == 0).any()
+    with pytest.raises(ValueError, match="targets_from"):
+        sample_goals(*args, spec.goals, rng, user_id="u", goal_prefix="e", targets_from="x")
 
 
 def test_histories_end_at_as_of_and_the_leak_check_proves_it(
@@ -259,3 +298,7 @@ def test_a_paths_model_gets_rmse_and_coverage(
     assert m["rmse_6_vs_naive"] < 0.85  # decision 1's gate, on this small data
     assert 0.5 < m["coverage.track"] <= 1.0
     assert m["scaled_rmse_6"] >= 0.0
+    # The target-free check: below, inside or above the range, per path and persona
+    for path in ("track", "new"):
+        assert m[f"below.{path}"] + m[f"coverage.{path}"] + m[f"above.{path}"] == pytest.approx(1)
+    assert "below.track.freelancer" in m

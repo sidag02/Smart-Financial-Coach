@@ -1,0 +1,10 @@
+# FR-11 round 5: the seasonal model without a persona label. Each persona's profile is weighed by
+# how much the user's own history looks like that persona (a classifier over history features,
+# trained on train users), and each path follows one persona's profile, drawn by its weight. Real
+# users have no persona (FR-1's personas are how the data was generated).
+name: paths_seasonal_mixture
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: true, shrink: 2.0, window: 24, personas: mixture}
+tags: {plan: fr11-round-5}
