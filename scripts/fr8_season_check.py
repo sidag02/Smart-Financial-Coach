@@ -11,7 +11,9 @@ Train users only, as in the POC: every truth table is cut to train users before 
 computed. The POC's simplifications stay (thresholds and the income elasticity on the same
 users); what changes is only the season profile, built by milestone 1's feature pipeline: a
 clipped mean of log ratios, as of each month, each scored user left out, at least 20 other users.
-The row that rebuilds the POC's median profile checks that this script reproduces the POC.
+The row that rebuilds the POC's median profile reproduced the POC exactly (0.545, 0.809) on the
+POC's grid; since review on #59 categories start at their first purchase, which moves it to
+0.543 and 0.805.
 
     uv run python scripts/fr8_season_check.py data/synthetic/default.sqlite
 """
@@ -24,6 +26,7 @@ import pandas as pd
 from scipy.stats import poisson
 
 from smart_financial_coach.data.labels import PERIOD_KEY, Truth, load_truth
+from smart_financial_coach.data.store import load_meta
 from smart_financial_coach.intelligence.spikes.contract import (
     MIN_USUAL_COUNT,
     SPEND_FLOOR,
@@ -67,7 +70,8 @@ def poc_season(rows: pd.DataFrame) -> np.ndarray:
 
 
 def clipped_season(rows: pd.DataFrame) -> np.ndarray:
-    """Milestone 1's season: the user's own log season shrunk toward the profile, by years."""
+    """Milestone 1's season: the user's own log season a year earlier, shrunk toward the
+    profile."""
     years = rows["own_years"].to_numpy(dtype=float)
     w = years / (years + KAPPA)
     own = rows["own_season"].fillna(0.0).to_numpy()
@@ -120,7 +124,7 @@ def at_rate(score: np.ndarray, outcome: pd.Series, user_months: int) -> tuple[fl
 def main(path: str) -> None:
     truth = train_only(load_truth(path))
     tx = truth.transactions
-    rows = scoring_periods(tx, tx)
+    rows = scoring_periods(tx, tx, as_of=load_meta(path)["calendar_end"])
     rows = rows[rows["period_start"] >= truth.warmup_end_month].reset_index(drop=True)
     scored = truth.score_periods(rows[PERIOD_KEY])
     outcome = rows.merge(scored[scored["outcome"] != "fn"], on=PERIOD_KEY, how="left")["outcome"]
@@ -131,7 +135,10 @@ def main(path: str) -> None:
         f"labels {n_labels}"
     )
     variants = {
-        "POC median profile, POC floor (reproduces the POC)": (poc_season(rows), False),
+        "POC median profile, POC floor (the POC's own grid gave 0.545 and 0.809)": (
+            poc_season(rows),
+            False,
+        ),
         "clipped mean pooled like the POC, milestone 1's own season (breakdown)": (
             pooled_clipped_season(rows),
             False,

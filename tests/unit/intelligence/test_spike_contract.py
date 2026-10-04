@@ -67,7 +67,7 @@ def scorer(broken: Any = None) -> SpikeScorer:
 
 def rows() -> pd.DataFrame:
     t = ledger()
-    return scoring_periods(t, t, min_users=1)
+    return scoring_periods(t, t, as_of="2025-07-31", min_users=1)
 
 
 def test_the_service_is_registered() -> None:
@@ -108,6 +108,8 @@ def test_only_the_product_rules_let_a_period_through() -> None:
     ("edit", "message"),
     [
         (lambda r: r.assign(persona="freelancer"), "never see"),
+        (lambda r: r.assign(expected_spend=1.0), "never see"),
+        (lambda r: r.assign(tier="clear"), "never see"),
         (lambda r: r.drop(columns="profile_season"), "lack"),
         (lambda r: r.assign(category="Income"), "Income"),
         (lambda r: r.assign(usual_months=2), "3 earlier months"),
@@ -116,6 +118,13 @@ def test_only_the_product_rules_let_a_period_through() -> None:
 def test_the_scorer_rejects_bad_input(edit: Any, message: str) -> None:
     with pytest.raises(ValueError, match=re.escape(message)):
         scorer().score_periods(edit(rows()))
+
+
+def test_an_incomplete_month_is_never_scored() -> None:
+    t = ledger()
+    assert scoring_periods(t, t, as_of="2025-07-30", min_users=1)["period_start"].max() == (
+        "2025-06-01"
+    )
 
 
 def test_the_scorer_passes_only_the_contracts_columns() -> None:
@@ -132,7 +141,7 @@ def test_the_scorer_passes_only_the_contracts_columns() -> None:
         return original(x)
 
     model.predict = predict  # type: ignore[method-assign]
-    SpikeScorer(model, CONTRACT).score_periods(rows().assign(expected_spend=1.0))
+    SpikeScorer(model, CONTRACT).score_periods(rows().assign(extra_column=1.0))
     assert seen == [list(INPUT_COLUMNS)]
 
 
@@ -152,6 +161,8 @@ def flag_all(out: pd.DataFrame) -> pd.DataFrame:
             "fewer than 2",
         ),
         (lambda o: flag_all(o).assign(evidence=json.dumps(EVIDENCE | {"excess": 1.0})), "excess"),
+        (lambda o: flag_all(o).assign(evidence=json.dumps(EVIDENCE | {"ratio": 3.1})), "ratio"),
+        (lambda o: flag_all(o), "another period's evidence"),
         (lambda o: flag_all(o).assign(evidence=None), "not JSON text"),
         (lambda o: o.assign(evidence=json.dumps(EVIDENCE)), "unflagged rows carry evidence"),
         (lambda o: o.assign(model_version=""), "empty model_version"),
@@ -176,6 +187,15 @@ def test_the_reason_quotes_only_the_evidence() -> None:
     short = EVIDENCE | {"usual_months": 5, "usual_count": 19.0, "count": 1}
     assert "over the past 5 months" in reason(short)
     assert "1 purchase, against 19 in an average month" in reason(short)
+
+
+def test_the_reasons_arithmetic_adds_up_in_whole_dollars() -> None:
+    e = EVIDENCE | {"actual": 1000.6, "usual": 500.4, "excess": 500.2, "ratio": 1000.6 / 500.4}
+    assert reason(e).startswith(
+        "You spent $1,001 on Dining in August 2026, $501 more than your average month over the "
+        "past year ($500)."
+    )
+    assert "against about 3 in an average month" in reason(EVIDENCE | {"usual_count": 2.5})
 
 
 def test_a_reason_needs_valid_evidence() -> None:

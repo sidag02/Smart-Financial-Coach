@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -57,16 +56,32 @@ def test_aggregates_net_refunds_count_outflows_and_skip_income() -> None:
     assert tuple(p.reset_index().columns) == AGGREGATE_COLUMNS
     jan = p.loc["u1|Shopping|2025-01-01"]
     assert (jan["spend"], jan["count"], jan["income"]) == (30.0, 1, 3000.0)
-    # Every used category gets every month of the user's span, zero-filled; Income never does
-    assert p.loc["u1|Dining|2025-01-01", "spend"] == 0.0
+    # A category runs from its first purchase to the user's last month, zero-filled; Income never
+    # is a period
+    assert "u1|Dining|2025-01-01" not in p.index
     assert p.loc["u1|Shopping|2025-03-01", "count"] == 0
     assert set(p["category"]) == {"Shopping", "Dining"}
-    assert len(p) == 6
+    assert len(p) == 4
 
 
-def test_through_drops_later_months() -> None:
-    p = monthly_aggregates(txns(monthly("u1", "Dining", [1, 1, 1, 1])), through="2025-02-01")
-    assert p["period_start"].tolist() == ["2025-01-01", "2025-02-01"]
+def test_only_complete_months_are_kept() -> None:
+    rows = monthly("u1", "Dining", [1, 1, 1, 1])
+    assert monthly_aggregates(txns(rows), as_of="2025-03-31")["period_start"].tolist() == [
+        "2025-01-01",
+        "2025-02-01",
+        "2025-03-01",
+    ]
+    # Mid-March, March is still in progress
+    assert monthly_aggregates(txns(rows), as_of="2025-03-30")["period_start"].iloc[-1] == (
+        "2025-02-01"
+    )
+
+
+def test_a_category_starts_at_its_first_purchase() -> None:
+    rows = [*monthly("u1", "Dining", [3] * 6), ("u1", "2025-04-05 12:00", -40.0, "Travel")]
+    p = monthly_aggregates(txns(rows))
+    travel = p[p["category"] == "Travel"]
+    assert travel["period_start"].tolist() == ["2025-04-01", "2025-05-01", "2025-06-01"]
 
 
 def test_history_uses_earlier_months_only() -> None:
@@ -101,16 +116,17 @@ def test_season_observations_need_three_months_and_are_clipped() -> None:
     assert p.loc["u1|Dining|2025-06-01", "log_ratio"] == pytest.approx(-CLIP)  # none bought
 
 
-def test_own_season_averages_the_same_month_of_earlier_years() -> None:
+def test_own_season_is_the_same_month_a_year_earlier() -> None:
     counts = [4] * 6 + [8] + [4] * 11 + [4] * 6 + [12] + [4] * 6  # Julys of 2025-2027
     p = by_id(period_history(monthly_aggregates(txns(monthly("u1", "Dining", counts)))))
     jul25, jul26, jul27 = (p.loc[f"u1|Dining|{y}-07-01"] for y in (2025, 2026, 2027))
 
-    assert (jul25["own_years"], np.isnan(jul25["own_season"])) == (0, True)
+    assert jul25["own_years"] == 0
+    assert pd.isna(jul25["own_season"])
     assert jul26["own_years"] == 1
     assert jul26["own_season"] == pytest.approx(jul25["log_ratio"])
-    assert jul27["own_years"] == 2
-    assert jul27["own_season"] == pytest.approx((jul25["log_ratio"] + jul26["log_ratio"]) / 2)
+    assert jul27["own_years"] == 1  # only the year before counts (FR-8 §2)
+    assert jul27["own_season"] == pytest.approx(jul26["log_ratio"])
 
 
 def test_income_ratio_is_the_previous_two_months_over_the_window() -> None:

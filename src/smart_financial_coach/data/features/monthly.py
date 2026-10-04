@@ -4,7 +4,7 @@ A period is one (user, spending category, month). The category comes from the `c
 the caller fills: true categories in evaluation, the user's effective categories in serving. The
 scorer doesn't know which (FR-8 §2).
 
-    periods = monthly_aggregates(transactions)  # one row per period, zero-filled
+    periods = monthly_aggregates(transactions, as_of="2026-09-30")  # complete months, zero-filled
     periods = period_history(periods)  # adds each period's history, from earlier months only
 
 `monthly_aggregates` columns:
@@ -16,8 +16,11 @@ scorer doesn't know which (FR-8 §2).
     count          outflows in the category
     income         the user's Income inflows that month (the same on each of the user's rows)
 
-Each user's grid runs from their first month to their last (or `through`), for every spending
-category they've used, with zeros where they bought nothing. Income is never a period.
+Each (user, category) runs from the user's first purchase in the category to their last month,
+with zeros where they bought nothing. A category adopted later has no zeros before its first use,
+so they can't pull its usual level down (review on #59). With `as_of`, only months complete by
+that date are kept: v1 never scores a month in progress (FR-8 §1, decision 10). Income is never a
+period.
 
 `period_history` adds, from the user's earlier months only, so appending later months never
 changes a period's history:
@@ -27,8 +30,8 @@ changes a period's history:
     count_var      their count variance (NaN with fewer than 2)
     log_ratio      log(count / usual_count) clipped to ±log 3: this month's season observation
                    (NaN without a usual count or with fewer than `MIN_HISTORY` earlier months)
-    own_season     mean `log_ratio` in the same month of earlier years (NaN without one)
-    own_years      how many such months there are
+    own_season     `log_ratio` in the same month a year earlier (FR-8 §2; NaN without one)
+    own_years      1 when there is one, else 0: the shrinkage weight's `years`
     income_ratio   mean income over the previous `income_months` over the mean over the window
                    (NaN without income in the window)
 """
@@ -38,6 +41,7 @@ import pandas as pd
 
 INCOME = "Income"
 WINDOW = 12  # months that describe a usual month (FR-8 §2)
+YEAR = 12
 MIN_HISTORY = 3  # earlier months before a period is scored (FR-8 §1; the label warm-up's length)
 INCOME_MONTHS = 2  # spending follows the previous two months' income
 CLIP = float(np.log(3.0))  # a season observation is at most 3x or a third of usual
@@ -81,19 +85,27 @@ def period_ids(user_id: pd.Series, category: pd.Series, period_start: pd.Series)
     return user_id.astype(str) + "|" + category.astype(str) + "|" + period_start.astype(str)
 
 
-def monthly_aggregates(transactions: pd.DataFrame, through: str | None = None) -> pd.DataFrame:
+def last_complete_month(as_of: str) -> int:
+    """The latest month that has ended by `as_of` (a date): its own month when `as_of` is the
+    month's last day, otherwise the month before."""
+    day = pd.Timestamp(as_of)
+    month = day.year * 12 + day.month - 1
+    return month if day.is_month_end else month - 1
+
+
+def monthly_aggregates(transactions: pd.DataFrame, as_of: str | None = None) -> pd.DataFrame:
     """One row per (user, spending category, month), zero-filled, sorted by user, category, month.
 
-    `transactions` has `user_id`, `ts`, `amount` and `category`. `through` (a month start) drops
-    later months, for scoring as of a date.
+    `transactions` has `user_id`, `ts`, `amount` and `category`. `as_of` (a date) keeps only
+    months complete by then, and drops later transactions.
     """
     if missing := [c for c in ("user_id", "ts", "amount", "category") if c not in transactions]:
         raise ValueError(f"transactions lack {missing}")
     t = transactions[["user_id", "ts", "amount", "category"]].copy()
     t["month"] = month_index(t["ts"].astype(str).str[:7] + "-01")
-    if through is not None:
-        t = t[t["month"] <= int(month_index(pd.Series([through])).iloc[0])]
-    span = t.groupby("user_id")["month"].agg(["min", "max"])
+    if as_of is not None:
+        t = t[t["month"] <= last_complete_month(as_of)]
+    last = t.groupby("user_id")["month"].max()
     income = t[t["category"] == INCOME].groupby(["user_id", "month"])["amount"].sum()
     spending = t[t["category"] != INCOME]
     g = spending.groupby([*KEY, "month"])["amount"]
@@ -101,11 +113,11 @@ def monthly_aggregates(transactions: pd.DataFrame, through: str | None = None) -
         {"spend": -g.sum(), "count": g.apply(lambda a: int((a < 0).sum()))}
     ).reset_index()
 
-    used = spending[KEY].drop_duplicates()
-    used = used.join(span, on="user_id")
-    reps = (used["max"] - used["min"] + 1).to_numpy()
+    used = spending.groupby(KEY)["month"].min().rename("first").reset_index()
+    used["last"] = used["user_id"].map(last).to_numpy()
+    reps = (used["last"] - used["first"] + 1).to_numpy()
     grid = used.loc[used.index.repeat(reps), KEY].reset_index(drop=True)
-    first = np.repeat(used["min"].to_numpy(), reps)
+    first = np.repeat(used["first"].to_numpy(), reps)
     offset = grid.groupby(KEY, sort=False).cumcount().to_numpy()
     grid["month"] = first + offset
 
@@ -148,15 +160,9 @@ def period_history(
     observed = (p["usual_count"].to_numpy() > 0) & (p["usual_months"].to_numpy() >= MIN_HISTORY)
     p["log_ratio"] = np.clip(np.where(observed, ratio, np.nan), -CLIP, CLIP)
 
-    # The same month of earlier years: a running mean per (user, category, month of year),
-    # excluding the period itself
-    same = [p["user_id"], p["category"], p["month"] % 12]
-    value = p["log_ratio"].fillna(0.0)
-    seen = p["log_ratio"].notna().astype(int)
-    total = value.groupby(same, sort=False).cumsum() - value
-    years = seen.groupby(same, sort=False).cumsum() - seen
-    p["own_years"] = years.astype(int)
-    p["own_season"] = (total / years).where(years > 0)
+    # The same month a year earlier (FR-8 §2): rows are consecutive months within a category
+    p["own_season"] = p["log_ratio"].groupby(keys, sort=False).shift(YEAR)
+    p["own_years"] = p["own_season"].notna().astype(int)
 
     users = p.drop_duplicates(["user_id", "month"])[["user_id", "month", "income"]]
     by_user = users.groupby("user_id", sort=False)["income"]

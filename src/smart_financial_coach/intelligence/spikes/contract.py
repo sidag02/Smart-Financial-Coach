@@ -41,8 +41,28 @@ SPEND_FLOOR = 1.3  # FR-2's weak_lift: below it, the reason would describe ordin
 MIN_USUAL_COUNT = 2.0  # purchases in a usual month: 1 becoming 4 isn't a meaningful spike
 INPUT_COLUMNS = (*AGGREGATE_COLUMNS, *HISTORY_COLUMNS, *SEASON_COLUMNS[1:])
 OUTPUT_COLUMNS = ("period_id", "score", "is_flagged", "evidence", "model_version")
-# Columns that must never reach a scorer: real users have no persona (FR-11, decision 11)
-FORBIDDEN_INPUT = frozenset({"persona"})
+# Columns that must never reach a scorer (FR-8 §1): real users have no persona (FR-11, decision
+# 11), and ground truth is for evaluation only (FR-2 §5): the truth tables' own columns, and the
+# task's labels. Named one by one: model code never names the truth tables (the isolation test)
+FORBIDDEN_INPUT = frozenset(
+    {
+        "persona",
+        "label",
+        "tier",
+        "outcome",
+        "anomaly_kind",
+        "process",
+        "is_recurring",
+        "merchant_id",
+        "related_transaction_id",
+        "spike_id",
+        "expected_count",
+        "expected_spend",
+        "base_spend",
+        "extra_spend",
+        "multiplier",
+    }
+)
 EVIDENCE = (
     "category",
     "period_start",
@@ -61,18 +81,21 @@ TOLERANCE = 0.005  # dollars and ratios are rounded to cents in evidence
 def scoring_periods(
     transactions: pd.DataFrame,
     pool: pd.DataFrame,
-    through: str | None = None,
+    *,
+    as_of: str,
     min_users: int = DEFAULT_MIN_USERS,
 ) -> pd.DataFrame:
-    """The service's input for `transactions`' users, with season profiles from `pool`.
+    """The service's input for `transactions`' users as of a date, with season profiles from
+    `pool`.
 
     Both frames have a `category` column on the basis the caller wants (FR-8 §2). Serving and
     test scoring pass every user as the pool; validation passes train users only, so test users
-    never shape model selection. Periods with fewer than `MIN_HISTORY` earlier months are left
-    out: there's too little history to judge them (FR-8 §1).
+    never shape model selection. Only months complete by `as_of` are scored (decision 10), and
+    periods with fewer than `MIN_HISTORY` earlier months are left out: there's too little
+    history to judge them (FR-8 §1).
     """
-    scored = period_history(monthly_aggregates(transactions, through=through))
-    pool_periods = period_history(monthly_aggregates(pool, through=through))
+    scored = period_history(monthly_aggregates(transactions, as_of=as_of))
+    pool_periods = period_history(monthly_aggregates(pool, as_of=as_of))
     season = season_profiles(scored, pool_periods, min_users=min_users)
     rows = pd.concat([scored, season.drop(columns="period_id")], axis=1)
     rows = rows[rows["usual_months"] >= MIN_HISTORY].reset_index(drop=True)
@@ -138,7 +161,15 @@ def evidence_errors(evidence: Any) -> list[str]:
         errors.append(f"fewer than {MIN_HISTORY} earlier months")
     if abs(e["excess"] - (e["actual"] - e["usual"])) > 2 * TOLERANCE:
         errors.append("excess isn't actual minus usual")
+    if e["usual"] > 0 and abs(e["ratio"] - e["actual"] / e["usual"]) > TOLERANCE:
+        errors.append("ratio isn't actual over usual")
     return errors
+
+
+def period_of(period_id: str) -> tuple[str, str]:
+    """(category, period_start) from a period id, "<user_id>|<category>|<period_start>"."""
+    _, category, start = period_id.rsplit("|", 2)
+    return category, start
 
 
 def _check(out: pd.DataFrame) -> list[str]:
@@ -149,9 +180,15 @@ def _check(out: pd.DataFrame) -> list[str]:
     flagged = flagged.astype(bool)
     if out["score"].map(lambda v: isinstance(v, bool) or not isinstance(v, int | float)).any():
         errors.append("score is not a number")
-    for evidence in out.loc[flagged, "evidence"]:
+    for period_id, evidence in zip(
+        out.loc[flagged, "period_id"], out.loc[flagged, "evidence"], strict=True
+    ):
         if problems := evidence_errors(evidence):
             errors.append(f"a flag breaks the contract: {problems[0]}")
+            break
+        e = json.loads(evidence)
+        if (e["category"], e["period_start"]) != period_of(str(period_id)):
+            errors.append(f"a flag carries another period's evidence ({period_id})")
             break
     if out.loc[~flagged, "evidence"].notna().any():
         errors.append("unflagged rows carry evidence")
@@ -165,8 +202,8 @@ class SpikeScorer(Checked):
     verb; its input comes from `scoring_periods`."""
 
     def score_periods(self, rows: pd.DataFrame) -> pd.DataFrame:
-        if forbidden := sorted(FORBIDDEN_INPUT & set(rows.columns)):
-            raise ValueError(f"spike scorers never see {forbidden} (FR-11, decision 11)")
+        if forbidden := FORBIDDEN_INPUT & set(rows.columns):
+            raise ValueError(f"spike scorers never see {sorted(forbidden)} (persona or truth)")
         if missing := [c for c in INPUT_COLUMNS if c not in rows.columns]:
             raise ValueError(f"scoring periods lack {missing}; build them with scoring_periods")
         if (rows["category"] == INCOME).any():

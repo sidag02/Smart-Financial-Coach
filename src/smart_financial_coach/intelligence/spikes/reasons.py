@@ -14,6 +14,7 @@ category over the previous 12 months, or as many as exist (FR-8 decision 7).
 """
 
 import json
+import math
 from collections.abc import Mapping
 from datetime import date
 from typing import Any
@@ -24,9 +25,14 @@ KIND_LABEL = "Spending spike"
 YEAR = 12
 
 
-def dollars(value: float) -> str:
+def whole(value: float) -> int:
+    """Rounded half up (2.5 -> 3), not Python's half to even."""
+    return math.floor(value + 0.5)
+
+
+def dollars(value: int) -> str:
     """Whole dollars: a month's total reads as $1,853, not $1,853.27. Evidence keeps the cents."""
-    return f"${value:,.0f}"
+    return f"${value:,}"
 
 
 def _plural(n: int, word: str) -> str:
@@ -44,11 +50,14 @@ def reason(evidence: Mapping[str, Any] | str) -> str:
         raise ValueError(f"can't render a reason: {'; '.join(errors)}")
     e = json.loads(text)
     month = date.fromisoformat(e["period_start"]).strftime("%B %Y")
-    usual_count = round(e["usual_count"])
+    actual, usual = whole(e["actual"]), whole(e["usual"])
+    usual_count = whole(e["usual_count"])
     about = "about " if usual_count != e["usual_count"] else ""
+    # The excess shown is the rounded actual minus the rounded usual, so the sentence adds up
     return (
-        f"You spent {dollars(e['actual'])} on {e['category']} in {month}, "
-        f"{dollars(e['excess'])} more than your average month over {_span(e['usual_months'])} "
-        f"({dollars(e['usual'])}). That came from {_plural(int(e['count']), 'purchase')}, "
-        f"against {about}{usual_count} in an average month."
+        f"You spent {dollars(actual)} on {e['category']} in {month}, "
+        f"{dollars(actual - usual)} more than your average month over "
+        f"{_span(e['usual_months'])} ({dollars(usual)}). That came from "
+        f"{_plural(int(e['count']), 'purchase')}, against {about}{usual_count} in an average "
+        "month."
     )
