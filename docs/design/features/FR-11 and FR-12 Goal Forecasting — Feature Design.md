@@ -1,6 +1,6 @@
 # FR-11 and FR-12 Goal Forecasting — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Proposed** (revised after review on #50, Oct 4, 2026) · Branch: `docs/fr-11-12-design`
+Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #50) · Branch: `docs/fr-11-12-design`
 
 ## Summary
 
@@ -35,8 +35,7 @@ This feature tells a user whether they're on track for a savings goal: where it 
      - the monthly top-up that would put it on track.
   4. **Nightly, store each user's forecast state, not the paths:** level, profile and residuals, a few hundred numbers. Simulate per request with a fixed seed, so answers are reproducible and fast enough for the live setup check.
   5. **A round of candidates through the FR-3 framework,** gated on Brier and calibration for both paths, overall and per persona.
-- **Owner decision (Oct 4, 2026, on #50):** a bad month draws a goal down, as in FR-1's rule. Goals are notional in v1, so this is a v1 assumption, to revisit when v2 links real accounts.
-- **Seven decisions remain for the owner,** in [Decisions and open questions](#decisions-and-open-questions).
+- **Owner decisions** (Oct 4, 2026, on #50) settled all nine questions; see [Decisions and open questions](#decisions-and-open-questions).
 - **Principles:**
   - Carried from FR-2: the modeled behavior isn't tuned to make the target pass, and test users are scored once, for finalists.
   - Specific to goals ([why](#why-nothing-is-tuned-on-outcomes)): nothing is tuned on whether goals were met, because those outcomes are planted relative to the future.
@@ -416,20 +415,20 @@ One PR each.
 
 ## Decisions and open questions
 
-1. [ ] **The RMSE target: a change, recorded before test.** The Technical Design defines the baseline as seasonal-naive, and nothing beats it by 15%: the best is 2% at 6 months, and the true level in hindsight is 17–19%. **Recommend:**
-   - record a target change now, before any test scoring, as FR-4 did on #27 (0.70 to 0.66);
-   - gate RMSE at 15% below last-month naive (the PRD's word "naive"), and require no worse than seasonal-naive;
-   - make Brier and calibration the primary gates;
-   - rank on scaled RMSE.
+All decided by the owner on Oct 4, 2026, on #50.
 
-   The PRD keeps the seasonal-naive numbers next to the new target.
-2. [ ] **A new goal's share:** option D(a), the typical total allocation divided by the number of active goals, capped so a user's shares never total more than 1. It switches to `your_entries` once the user has two saved entries at least 3 months apart. This changes FR-10 decision 2's starting point (split by need) **on product grounds**: an equal split doesn't make a stretch target look more achievable, and it's easy to explain. The feasibility numbers (0.208 against 0.228) can't choose between the rules for real users, because the generated data favors the equal split by construction ([Feasibility](#the-on-track-call-new-goals)).
-3. [ ] **Exponential smoothing in the round,** which adds `statsmodels` as a dependency. Recommend yes, but only if it fits in milestone 2's time, and only for users with 24+ months.
-4. [ ] **More evaluation goals** from the refactored stage-9 sampler (§6), without changing the dataset. The alternatives are living with 95 test goals (about 30 per persona) or regenerating the dataset with more goals per user (every model's predictions rebuilt). Recommend the sampler.
-5. [ ] **Status bands, fixed:** "On track" at 0.7 or more, "Off track" below 0.3, "Could go either way" in between, with the setup badge's "Within reach" / "Could go either way" / "A stretch" on the same bands. They're fixed rather than tuned, because outcomes are planted relative to the future ([why](#why-nothing-is-tuned-on-outcomes)); validation checks each band is calibrated.
-6. [ ] **Gates:** Brier below naive and below a flat 50%, and calibration inside each band, for both paths, overall and per persona; 80% coverage within 70–90%. The per-persona gates are FR-12's acceptance. Freelancers sit at the flat 50% on the new-goal path (0.251), so that gate may fail. If it does, recommend reporting it, as FR-4 did with its unseen-merchant target, rather than loosening it.
-7. [ ] **What-if forecasts** (Web App UI, gap 5: "a December like last year's"). Recommend deferring them to a follow-up. The paths make them cheap later (replace one month's draws), but they need their own tool and copy.
+1. [x] **The RMSE target: a change, recorded before test.** The Technical Design defines the baseline as seasonal-naive, and nothing beats it by 15%: the best is 2% at 6 months, and the true level in hindsight is 17–19%. So:
+   - RMSE gates at 15% below last-month naive (the PRD's word "naive"), and no worse than seasonal-naive;
+   - Brier and calibration are the primary gates;
+   - the ranking uses scaled RMSE;
+   - the PRD keeps the seasonal-naive numbers next to the new target.
 
-**Settled:**
-- [x] A bad month draws a goal down in proportion to its share (FR-1's rule), as a v1 assumption tied to notional goals; revisit when v2 links real accounts (owner, Oct 4, 2026, on #50).
-- [x] Reached goals show "Reached", with no on-track status or probability, and a drawdown note only when the paths show a real chance of dropping below the target by the date (owner, Oct 4, 2026, on #50).
+   Recorded now, before any test scoring, as FR-4 did on #27 (0.70 to 0.66).
+2. [x] **A new goal's share: option D(a), on product grounds.** It's the typical total allocation divided by the number of active goals, capped so a user's shares never total more than 1, which is the rule feasibility measured (§3). It switches to `your_entries` after two saved entries at least 3 months apart. It doesn't make a stretch target look more achievable, and it's easy to explain. The feasibility numbers (0.208 against 0.228) can't choose between the rules for real users, because the generated data favors the equal split by construction. This replaces FR-10 decision 2's starting point (split by need).
+3. [x] **Exponential smoothing joins the round** (adding `statsmodels`), if it fits in milestone 2's time, and only for users with 24 or more months of history.
+4. [x] **More evaluation goals** from the refactored stage-9 sampler (§6), without changing the dataset.
+5. [x] **Status bands, fixed:** "On track" at 0.7 or more, "Off track" below 0.3, "Could go either way" in between, with the setup badge's "Within reach" / "Could go either way" / "A stretch" on the same bands. Validation checks each band; nothing tunes them ([why](#why-nothing-is-tuned-on-outcomes)).
+6. [x] **Gates as proposed:** Brier below naive and below a flat 50%, and calibration inside each band, for both paths, overall and per persona; 80% coverage within 70–90%. If the freelancer gate on the new-goal path fails (0.251 in feasibility), it's **reported, not loosened**, and it doesn't block FR-11's promotion on its own.
+7. [x] **What-if forecasts are deferred** to a follow-up (Web App UI, gap 5).
+8. [x] **A bad month draws a goal down** in proportion to its share (FR-1's rule), as a v1 assumption tied to notional goals; revisit when v2 links real accounts.
+9. [x] **Reached goals show "Reached",** with no on-track status or probability, and a drawdown note only when the paths show a real chance of dropping below the target by the date.
