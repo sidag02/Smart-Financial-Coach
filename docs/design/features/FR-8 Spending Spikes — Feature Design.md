@@ -1,6 +1,6 @@
 # FR-8 Spending Spikes — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Draft, for review** · Branch: `docs/fr-8-design`
+Oct 4, 2026 · @Sidd · Status: **Accepted with conditions** (owner, Oct 4, 2026, on #58; see [Decisions](#decisions-and-open-questions)) · Branch: `docs/fr-8-design`
 
 ## Summary
 
@@ -9,24 +9,25 @@ This feature flags months in which a user's spending in one category runs well a
 - **Requirement:** FR-8 (P0): *"Flag spending spikes: monthly spend in a category significantly above the user's normal level, with the size of the deviation and the transactions driving it."* Weekly spikes are out of v1 (FR-2, option F). PRD success metric: precision ≥ 0.70 per monthly period, recall above a simple rule-based alternative. NFR-7 requires a reason on every flag.
 - **Starting point:** FR-1 plants spikes. FR-2 scores them (`Truth.score_periods`, `score_drivers`, the top-5-by-amount driver baseline), and its count oracle reaches precision 1.00 at recall 0.5, so the target is reachable. Nothing detects spikes yet: `detect_anomalies` returns `spending_spikes: not_available`, and "Worth a look" (1f) has a placeholder card.
 - **Feasibility, measured on train users only** ([evidence](#feasibility)):
-  - **The Technical Design's baseline fails.** Per-user mean ± k·std on monthly spend reaches precision 0.07 and recall 0.04 at the flag volume below. Spend is dominated by lumpy one-offs: its top scores are fees, subscriptions and health bills, and the top 240 of the other spend-based detectors are almost all Travel.
+  - **The Technical Design's baseline fails.** Per-user mean ± k·std on monthly spend reaches precision 0.065 and recall 0.044 at the flag volume below. Spend is dominated by lumpy one-offs: its top scores are fees, subscriptions and health bills, and the top 240 of the other spend-based detectors are almost all Travel.
   - **Purchase counts carry the signal.** A spike multiplies how often the user buys, not what they pay. A Poisson tail on the month's purchase count, against the user's trailing 12-month average, reaches **recall 0.47 at precision 0.80**.
-  - **Seasonality and income make it close to the ceiling.** With a seasonal index (the user's own previous year, shrunk toward a cross-user profile for the category), a pooled income elasticity, and a rule that spend must be at least 1.3× usual, it reaches **precision 0.81 at recall 0.55** at 0.035 flags per user-month (about one flag per user every 2.4 years). The oracle reaches 0.85 and 0.57 at the same rate.
+  - **Seasonality, income and a minimum volume bring it close to the ceiling.** The model adds a seasonal index (the user's own previous year, shrunk toward a cross-user profile for the category), a pooled income elasticity, and a rule that a usual month needs at least 2 purchases. It reaches **precision 0.81 at recall 0.55** at 0.035 flags per user-month (about one flag per user every 2.4 years). The oracle reaches 0.85 and 0.57 at the same rate. A rule that spend must be at least 1.3× usual stays as a product rule; it costs half a point of recall rather than earning any.
+  - **The main risk: one mechanism.** The generator plants count spikes, the labels mark count spikes, and the detector detects count spikes. Months that are up because of bigger baskets or higher prices are missed by construction. On simulated ones, recall is 0.3% ([Main risk](#main-risk-one-mechanism)).
 - **Approach:**
   1. **Score each (user, category, month) only from the user's earlier months** (point in time), once the month is complete.
-  2. **Score the purchase count, and require the spend to be up too.** A month is a spike only if its count is improbably high for the user and its spend is at least 1.3× their usual level. That's a fixed product rule, not a tuned parameter: a "spike" whose spend isn't up would contradict its own reason.
+  2. **Score the purchase count, and require the spend to be up too.** A month is a spike only if its count is improbably high for the user and its spend is at least 1.3× their usual level. The usual month must also have at least 2 purchases. Both are fixed product rules, set before the round and never tuned. A "spike" whose spend isn't up would contradict its own reason, and a jump from 1 to 4 purchases isn't a meaningful spike.
   3. **Seasonality from the user's own history, shrunk toward category season profiles built across users.** Profiles are a nightly feature table with the scored user left out, as FR-7's merchant profiles are. No persona label is used (FR-11, decision 11).
   4. **A round through the FR-3 framework:** the baseline, a report-only simple count rule, and two count models (Poisson and negative binomial). They're ranked on out-of-fold recall at a common flag rate, as FR-7's round was.
   5. **Tune to precision 0.80 and gate at 0.70,** as FR-7 does.
   6. **Reasons are templates that quote only the user's own numbers:** this month's spend and purchases against their average over the previous 12 months. The drivers are the 5 largest charges, which is optimal under FR-2's driver metric.
-- **For review:** eleven decisions, listed in [Decisions and open questions](#decisions-and-open-questions). Nothing in this design is recorded as decided yet.
+- **Owner decisions (Oct 4, 2026, on #58):** all eleven decisions were accepted. Decision 1 comes with three conditions: the spend floor is a product rule only, the minimum volume is fixed rather than tuned, and the basket-size gap is stated as the main risk and measured in the round. FR-8 aims for the Oct 6 demo on FR-11's terms. See [Decisions and open questions](#decisions-and-open-questions).
 - **Principle (carried from FR-2 and FR-7):** the modeled behavior is not tuned to make the target pass, and test users are scored once, for finalists.
 
 ## Context
 
 ### What is planted
 
-FR-1 plants about one spending spike per user per year after a 3-month warm-up, half monthly and half weekly. On the default dataset (main at `acfa1e9`, content hash `b4d43bf4`, the same data FR-7 used) that's 601 monthly spikes: 411 for train users and 190 for test users. 49 (8.2%) are `weak`, meaning the realized spend stayed below 1.3× the expected spend.
+FR-1 plants about one spending spike per user per year after a 3-month warm-up, half monthly and half weekly. On the default dataset (main at `acfa1e9`, content hash `b4d43bf4`, the same data FR-7 used) that's 601 monthly spikes: 411 for train users and 190 for test users. 52 (8.7%; the generator's report, `spikes_month_weak`) are `weak`, meaning the realized spend stayed below 1.3× the expected spend. FR-2's implementation note says 49, which was counted on an earlier dataset.
 
 | Property | Value | Consequence for a detector |
 | --- | --- | --- |
@@ -57,13 +58,13 @@ FR-1 plants about one spending spike per user per year after a 3-month warm-up, 
 | Gates on | Precision ≥ 0.70 and recall above its baseline | The same, per monthly period | — |
 | Delivers | `score_transactions`, unusual charges in `detect_anomalies` | `score_periods`, the `spending_spikes` half of `detect_anomalies`, the spikes card on 1f | A sensitivity control and flag actions |
 
-A month that is high because of **one** large charge isn't a spike under this design: the count doesn't move, and FR-7 judges the charge. The contract agrees and ignores months that contain a planted unusual charge. See decision 3.
+A month that is high because of **one** large charge isn't a spike under this design: the count doesn't move, and FR-7 judges the charge. The contract agrees and ignores months that contain a planted unusual charge (decision 3). Months that are up from several larger charges, rather than more of them, aren't caught by either feature. That's the design's main risk ([below](#main-risk-one-mechanism)).
 
 ## Feasibility
 
-**Evidence:** POC branch `poc/fr-8-spending-spikes`, commit `20806f9`: `experiments/fr8_spikes/feasibility.py` and its output, `results/feasibility.md`. One command reproduces every number below.
+**Evidence:** POC branch `poc/fr-8-spending-spikes`, commit `8f83868` (first version `20806f9`; the revision for review on #58 adds the ablations, the look-alikes and the basket-size simulation, and changes no earlier number): `experiments/fr8_spikes/feasibility.py` and its output, `results/feasibility.md`. One command reproduces every number below.
 
-Setup: the default dataset as above (`validate` passes). **Train users only:** 240 users, 7,920 post-warm-up user-months, 89,760 scored (user, category, month) periods (1,426 ignored by the contract), 411 labels (373 `clear`), so 0.052 labels per user-month. **No test user was read.**
+Setup: the default dataset as above (`validate` passes). **Train users only:** 240 users, 7,920 post-warm-up user-months, 89,760 scored (user, category, month) periods (1,426 ignored by the contract), 411 labels (373 `clear`), so 0.052 labels per user-month. The file is loaded whole, and every truth table is cut to train users before anything is computed, so **no test user's rows or labels reach any number**. The first version scored all labels and filtered to train users afterwards; the numbers didn't change.
 
 Every detector is point in time: month *m* is scored from months before *m* only (a 12-month trailing window, at least 3 months). Spend and counts use true categories. "Count" is the number of outflows in the category, because a model can't see the generator's processes.
 
@@ -85,27 +86,62 @@ At a fixed flag rate (flags per post-warm-up user-month), and at the best recall
 | Count, Poisson, trailing mean | 0.474 (240) | 0.726 | 0.489 | 0.517 |
 | + seasonal index | 0.487 (250) | 0.755 | 0.509 | 0.520 |
 | + income coupling | 0.518 (264) | 0.787 | 0.530 | 0.544 |
-| **+ spend ≥ 1.3× usual and ≥ 2 purchases in a usual month** | **0.545 (275)** | **0.809** | **0.545** | **0.547** |
+| **+ spend ≥ 1.3× usual and ≥ 2 purchases in a usual month (the leader)** | **0.545 (275)** | **0.809** | **0.545** | **0.547** |
+| *Ablation:* + spend ≥ 1.3× usual only | 0.513 (262) | 0.783 | 0.528 | 0.542 |
+| *Ablation:* + ≥ 2 purchases in a usual month only | 0.550 (277) | 0.816 | 0.550 | 0.552 |
+| *Diagnostic:* the four planted categories only | 0.550 (276) | 0.816 | 0.550 | 0.552 |
 | Count, negative binomial, seasonal and income | 0.431 (217) | 0.711 | 0.479 | 0.491 |
 | *Oracle: Poisson tail on the generator's true expected count* | *0.623 (311)* | *0.845* | *0.569* | *0.590* |
 
 - **Spend is the wrong signal.** The robust and ratio scores are topped by Travel (238 and 240 of their top 240): one flight in a category the user rarely uses is an enormous ratio. The baseline's top 240 are fees (89), subscriptions (30) and health bills (27), whose month-to-month spread is small, so one larger bill makes a big z. Restricted to categories with at least 4 purchases in a usual month, spend scores still reach only 65–103 true spikes in their top 240 (precision ≤ 0.43). This matches FR-2's oracle, where the spend ratio reached 0.29.
-- **Each piece of the leader earns a little.** Depending on the operating point, seasonality adds 1–4 points of recall, income coupling 2–3, and the spend floor with the minimum volume 1–3. The leader recovers 96% of the oracle's recall at the same flag rate.
-- **The spend floor is nearly free.** With the minimum volume, it adds 11 flags and 3 points of recall at precision 0.80 (264 to 275 flags, recall 0.518 to 0.545), because the periods it removes are mostly false positives. It holds whether "usual" is the seasonal expectation or the user's plain 12-month average (precision 0.801 against 0.809 at 0.035).
+- **What each piece buys depends on the operating point** (change in recall, in points):
+
+  | | p ≥ 0.70 | p ≥ 0.80 | 0.02 | 0.03 | 0.035 | 0.05 |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | Seasonal index | +4.4 | +1.2 | −1.0 | +0.2 | +1.9 | +1.7 |
+  | Income coupling | +1.7 | +3.2 | +1.0 | +2.2 | +2.2 | +1.0 |
+  | Spend floor only | −0.5 | −0.5 | 0.0 | −0.2 | −0.2 | −0.5 |
+  | Minimum volume only | +1.9 | +3.2 | +0.5 | +0.7 | +1.9 | +1.0 |
+  | Both rules | +1.5 | +2.7 | +0.5 | +0.2 | +1.5 | +1.0 |
+
+  Income coupling helps everywhere. Seasonality helps at every rate but the strictest. The leader recovers 96% of the oracle's recall at 0.035.
+- **The spend floor earns no recall.** On its own it costs up to half a point. It stays as a product rule (decision 1): a flagged month's spend is visibly up, so the reason never describes ordinary spending. It behaves the same whether "usual" is the seasonal expectation or the user's plain 12-month average (precision 0.801 against 0.809 at 0.035).
+- **The minimum volume earns the gain, and it rediscovers where the generator plants.** "At least 2 purchases in a usual month" gives the same result as restricting to the four planted categories (0.550 with 277 flags against 0.550 with 276). What it removes is Poisson-tail false positives in low-volume categories. A month that goes from 1 purchase to 4 is improbable but not a meaningful spike, so the rule stands as a product rule fixed at 2 before the round (decision 1). It isn't tuned on labels: tuning it would only search for the generator's eligibility floor.
 - **Negative binomial loses here,** probably for a structural reason: the generator's counts are Poisson by construction, so estimating over-dispersion from 12 months only adds noise. Real counts are over-dispersed, which is why it stays in the round (§3).
 - **The pooled income elasticity is 0.25** (persona-free; the freelancers' true value is 0.5 and the others' is 0). A per-user elasticity is a later candidate.
 - **Uncertainty (user bootstrap, 5–95%, at 0.03):** leader precision 0.81–0.91 and recall 0.47–0.53; baseline precision 0.03–0.08.
 
 ### What the leader gets wrong (at 0.03 flags per user-month)
 
-- **False positives (33 of 237):** spread over the months of the year (1–4 each), so seasonality isn't what's left. By category: Dining 10, Transportation 9, Shopping 7, Entertainment 3, Groceries 2, Health & Fitness 2. Five of them are in categories where nothing is ever planted: natural Poisson extremes, which the contract calls false positives.
-- **Misses (207):** all 38 `weak` labels and 169 `clear` ones. Shopping 63, Groceries 57, Transportation 52, Dining 35. Most of them the oracle misses too at this rate: low-volume categories (Groceries at about 1.2 purchases a week) and spikes at the low end of 1.8–3.0.
+- **False positives (33 of 237):** spread over the months of the year (1–4 each), so seasonality isn't what's left. By category: Dining 10, Transportation 9, Shopping 7, Entertainment 3, Groceries 2, Health & Fitness 2. Five are in categories where nothing is ever planted: natural Poisson extremes, which the contract calls false positives.
+- **Misses (207):** all 38 `weak` labels and 169 `clear` ones. Shopping 63, Groceries 57, Transportation 52, Dining 35. The oracle misses 176 of them too at this rate: low-volume categories (Groceries at about 1.2 purchases a week) and spikes at the low end of 1.8–3.0.
 
 ### Size of the deviation and drivers
 
 - **Purchases:** a flagged spike month has a median of 48 purchases, against 19 in the user's average month.
 - **"Usual" from the user's own numbers is as accurate as the model's.** Against the generator's true expected spend, the user's plain average over the previous 12 months is off by a median 9.0% (90th percentile 25.5%). The seasonal and income-adjusted expectation is off by 9.8% (27.2%). The median excess is $1,074 by the plain average and $1,087 in truth.
 - **Drivers:** the 5 largest charges cover a mean 0.69 of a labeled spike's excess and all of it 31% of the time. By construction, no 5 charges in the period cover more, so this is the ceiling of FR-2's metric. FR-2 also rejected trying to pick out the "extra" purchases, which no detector can tell apart (FR-2 §1).
+
+### Main risk: one mechanism
+
+**The planted spikes, the labels and the detector all share one mechanism: more purchases.** The generator plants a spike by raising the purchase rate, the contract labels exactly those months, and the leader scores the count. So the feasibility numbers measure how well the detector finds the kind of spike the generator makes. They don't measure spikes made any other way. Real overspending also comes from bigger baskets, higher prices, holiday shopping and repairs paid in several charges, and those leave the count flat.
+
+Measured on train users, in the four planted categories:
+
+- **Look-alikes:** 3,685 non-label months have spend at least 1.5× the user's 12-month average, 9.0 for every label.
+  - In 64.4% of them, the 3 largest charges cover the whole excess.
+  - In 26.5% (28.2% against the seasonal expectation), the count rose less than 1.3×, so the rise is purely price or basket.
+  - The leader flags 14 of them at its 0.035 cutoff.
+- **Simulated basket-size spikes:** on 400 non-label months, spend is multiplied by U(1.8, 3.0) with counts unchanged. The leader's recall at its 0.035 cutoff is **0.3%**, against 54.5% on planted spikes.
+
+What follows (decision 1):
+
+- **Stated as a known limit,** here and in the round's report: v1 detects months with more purchasing than usual, not months with bigger purchases.
+- **Measured in the round:** recall on simulated basket-size spikes is a reported diagnostic for every candidate (§6), so the gap has a number on validation and test.
+- **Not patched with spend:** spend scores fail at precision ≤ 0.43 even on frequent categories (above). Adding them back would trade the precision gate for a gap the labels can't score.
+- **Revisited in v2** with real data, where spikes of every kind occur and a spend-side signal can be judged against real outcomes.
+
+The review on #58 measured the same quantities slightly differently: 3,684 look-alikes, the count up less than 1.3× in 22–27%, 37 of them flagged, and 0.2% recall on simulated spikes. The numbers above are the POC's output; the conclusion is the same.
 
 ## Goals and non-goals
 
@@ -142,7 +178,7 @@ score_periods(rows) → one row per (user_id, category, period_start) in `rows`:
 - **Minimum history:** a period is scored once the user has 3 earlier months. That's the same length as the label contract's warm-up, fixed, not tuned. Before that, the tool says the history is too short (§8).
 - **Runtime checks** (FR-3's `Checked` wrapper):
   - one output row per input period, in order;
-  - when `is_flagged`: `evidence.actual ≥ 1.3 × evidence.usual` (the spend floor of §3), and `evidence` holds every field the reason template needs (§7);
+  - when `is_flagged`: `evidence.actual ≥ 1.3 × evidence.usual` (the spend floor of §3), `evidence.usual_count ≥ 2` (the minimum volume of §3), and `evidence` holds every field the reason template needs (§7);
   - no persona or truth column in the input.
 
   A flag without a reason or a size breaks the contract; it isn't a quality issue.
@@ -157,17 +193,20 @@ All features come from model-visible columns. Nothing reads `truth_*`, and the e
 | Monthly aggregates | `spend` and `count` per (user, category, month), zero-filled for the user's months without a purchase in a category they've used | The score; the reason |
 | Usual level | The mean `spend` and `count` over the previous 12 months (at least 3) | The Poisson rate; the reason's "usual"; the spend floor |
 | The user's own season | That category's count in the same month a year earlier, over the user's trailing mean then | Seasonality, once a year of history exists |
-| **Category season profile** | Per (category, month of year): across other users, the median of count over their trailing mean, as of the first of the month | Seasonality before the user has a year, and shrinkage after |
+| **Category season profile** | Per (category, month of year, as-of month): across other users, the average of each user's log ratio of count to their trailing mean, clipped to ±log 3, from months before the as-of month | Seasonality before the user has a year, and shrinkage after |
 | Income ratio | The user's income over the previous two months, over their 12-month average (`Income` rows) | Freelancer-style coupling |
 
 **Season profiles are a feature table, built like FR-7's merchant profiles:**
 
-- built nightly by the feature pipeline from every user's model-visible rows, **as of the first of each month**, so a period never sees later months;
-- **the scored user's own months are left out** of the profile used to score them;
-- a (category, month of year) cell needs at least **20 distinct other users**, otherwise the season is 1. It's an aggregate over many people's buying, never a single merchant or a price. FR-7's 3-user minimum is a privacy floor; 20 is about stability.
-- **In evaluation**, validation profiles come from train users only. Test and serving profiles come from all users. This is FR-7's two-pool rule, so test users never shape a validation score.
+- built nightly by the feature pipeline from every user's model-visible rows, **as of the first of each month**, so a period never sees later months. The table is keyed by (category, month of year, as-of month);
+- **the scored user's own months are left out** of the profile used to score them. Each cell stores the sum of users' clipped log ratios and the number of users, so leaving one user out is exact: subtract that user's own terms, which serving recomputes from their ledger. The POC used a median over all users, which can't be left out cheaply. Milestone 1 checks that the POC's validation numbers hold with the clipped mean before the round runs;
+- a cell needs at least **20 distinct other users**, otherwise the season is 1. It's an aggregate over many people's buying, never a single merchant or a price. FR-7's 3-user minimum is a privacy floor; 20 is about stability.
+- **Which categories the pool uses:**
+  - **in evaluation**, true categories, like every FR-8 metric. Validation profiles come from train users only, and test profiles from all users: FR-7's two-pool rule, so test users never shape a validation score;
+  - **in serving**, the promoted categorizer's predictions for every user. They're shared and include nobody's corrections, so one user's corrections never reach another user's profile (user story 5). The served user's own terms, subtracted for the leave-out, are computed on the same predicted categories, while their own aggregates use their effective categories (§8).
+- **The demo bundle** (decision 8): the build computes the table from the **full `--data` pool**, not just the 3 demo accounts, and ships it as a bundle file, as FR-7's `flag_dataset(pool=data)` does for merchant profiles. The demo accounts are all test users, so a table built from the bundle alone would have too few users in every cell and fall back to a season of 1. That needs predicted categories for every user, so the build either categorizes the pool with the promoted categorizer or reads a full predictions file it's given. Milestone 4 measures that build time.
 
-**Shrinkage:** the season used is `w · own + (1 − w) · profile`, with `w = years / (years + κ)`. `years` counts the user's earlier same-month observations, and κ is a tuned parameter (the POC used κ = 1). Two noisy Augusts don't become the user's season. This is FR-11's idea, without the persona.
+**Shrinkage:** the season used is `w · own + (1 − w) · profile`, with `w = years / (years + κ)`. `years` counts the user's earlier same-month observations, and κ is tuned within folds (grid {0.5, 1, 2}; the POC used κ = 1). Two noisy Augusts don't become the user's season. This is FR-11's idea, without the persona.
 
 **No persona.** `users.persona` is a label real users don't have (FR-11, decision 11). The only cross-user input is the category profile, which mixes everyone. The contract check rejects a persona column. Folds are still stratified by persona, on the evaluation side only.
 
@@ -181,13 +220,15 @@ Each candidate outputs one score per period on a common scale and is a class plu
 | --- | --- | --- |
 | **Baseline:** mean ± k·std | z of the month's spend against the user's earlier months in that category (all of them) | Required: the Technical Design's "simple alternative". Gated |
 | **Simple count rule** (reported only) | Poisson upper tail of the count against the user's trailing 12-month mean count. No season, income or floor | A stronger simple rule, reported beside the gated baseline, as FR-7 reported "baseline plus duplicates" |
-| **Count, Poisson** | Poisson upper tail of the count against `usual count × season × income_ratio^β`; flagged only where spend ≥ 1.3× usual and the usual count ≥ `min_usual` | The POC leader. One score is the tail probability, so the FR-9 sensitivity becomes one knob |
+| **Count, Poisson** | Poisson upper tail of the count against `usual count × season × income_ratio^β`; flagged only where spend ≥ 1.3× usual and the usual month has at least 2 purchases | The POC leader. One score is the tail probability, so the FR-9 sensitivity becomes one knob |
 | **Count, negative binomial** | The same expectation, with over-dispersion from the user's trailing count variance shrunk toward a pooled value | Real counts are over-dispersed and synthetic ones aren't (§Feasibility), so this is the variant built for v2. The round measures what it costs here |
 
 - **Fitted without labels:** β (pooled, by least squares of the log count ratio on the log income ratio), the pooled dispersion and the season profiles.
-- **Tuned with labels, within folds (§5):** κ and `min_usual` (grid {1, 2, 4}), by recall at the common flag rate.
-- **Fixed, never tuned:** the spend floor of 1.3×, which reuses FR-2's `weak_lift`, the line between a visible spike and noise. It's a product rule: below it, the reason would describe ordinary spending.
-- **Ablations, reported, not ranked:** the Poisson candidate without the season, and without income. The Technical Design asks theory to narrow the choice to seasonality-aware options, and these show what each piece buys on folds.
+- **Tuned with labels, within folds (§5):** κ only, by recall at the common flag rate.
+- **Fixed before the round, never tuned (decision 1):** both are product rules and apply to every count candidate.
+  - **The spend floor of 1.3×** reuses FR-2's `weak_lift`, the line between a visible spike and noise. Below it, the reason would describe ordinary spending. It earns no recall (it costs up to half a point in the POC).
+  - **The minimum volume:** the user's usual month has at least 2 purchases in the category. Fewer than that, and a "spike" is a handful of purchases (1 becoming 4), improbable but not meaningful. The value is the POC's, chosen before this review. It removes the same periods as restricting to the generator's planted categories (Feasibility), which is why it must not be tuned: on labels, tuning would only rediscover the generator's floor.
+- **Ablations, reported, not ranked:** the Poisson candidate without the season, without income, and without the spend floor. The Technical Design asks theory to narrow the choice to seasonality-aware options, and these show what each piece buys on folds.
 - **Not carried forward:**
   - Spend-based robust statistics (median and MAD, seasonal spend ratios): ruled out by the POC, where they reach precision ≤ 0.43 even on frequent categories.
   - Seasonal decomposition residuals (STL and similar): ruled out by theory. They need two full cycles per series, and users have at most 36 months, so the first two years of every user would go unscored.
@@ -216,7 +257,7 @@ Fixed before the round runs. It follows FR-7 §4 where it can.
 ### 5. The operating point and the gates
 
 - **The cutoff:** FR-7's `Thresholded(base, precision=0.80)`, generalized from transaction ids to period keys. Its `fit` passes no labels to the base scorer and places the cutoff at the target precision on the training users. Within validation, each fold's cutoff comes from the other folds.
-- **Every label-tuned parameter is fitted within the folds** (κ, `min_usual`), as FR-7's review required.
+- **Every label-tuned parameter is fitted within the folds** (κ), as FR-7's review required. The two product rules aren't tuned (§3).
 - **Tune to 0.80, gate at 0.70** (decision 4). That's FR-7's reasoning:
   - test users are 120, with 190 monthly labels; at 0.035 flags per user-month that's about 140 flags, so measured precision swings by about ±0.07;
   - a cutoff tuned to 0.70 would fail the gate about half the time;
@@ -229,6 +270,7 @@ Fixed before the round runs. It follows FR-7 §4 where it can.
   - recall on `clear` labels;
   - excess coverage of the drivers, next to the top-5 baseline (equal by construction, §7);
   - the error of the quoted "usual" against the generator's expected spend;
+  - **recall on simulated basket-size spikes** (decision 1, [Main risk](#main-risk-one-mechanism)): on a seeded sample of non-label months in the planted categories, spend × U(1.8, 3.0) with counts unchanged, recall at the run's cutoff. On validation for every run and on test for finalists. It isn't gated: the design misses them by construction, and the number is there so the gap is measured, not assumed;
   - precision and recall when the categories are the promoted categorizer's predictions rather than the truth. That's what serving sees, and it's measured on test users only, because train users' predictions are in-sample for the categorizer.
 - **If rank 1 fails a gate,** it is investigated, not resolved by promoting rank 2 (FR-3's rule).
 - **For real data (v2):** promotion records the flag rate at the cutoff, as FR-7's does, so `Thresholded(rate=…)` can place a cutoff without labels.
@@ -251,7 +293,8 @@ A new task, `spending_spikes`, built from the FR-3 framework's parts, beside `un
   - recall at the common rate (the ranking measure);
   - precision and flag rate at each run's own cutoff;
   - PR-AUC, flags per user-month, user-bootstrap intervals;
-  - excess coverage, and the median absolute error of the quoted usual level.
+  - excess coverage, and the median absolute error of the quoted usual level;
+  - recall on simulated basket-size spikes (§5), and the look-alike counts of [Main risk](#main-risk-one-mechanism).
 - **Diagnostics for the report:**
   - false positives by category, month of year and usual purchase count (under 4, 4–15, 16+ a month);
   - misses by tier, category, usual count and the user's history length;
@@ -286,8 +329,8 @@ Illustrative, with the POC's median flagged spike:
 
 - **Cost:** one user is about 12 categories × 36 months. Scoring is closed-form (a rate and a tail probability), so a request takes milliseconds. Milestone 4 adds a timing test well inside NFR-5's 2 s.
 - **Serving state** comes from the promotion, as FR-11's `forecasts.json` does for goals:
-  - the model (β, the dispersion, κ, `min_usual`, the cutoff);
-  - the season profile table, built from all users by the nightly job, or at image build time for the demo bundle.
+  - the model (β, the dispersion, κ, the cutoff) and the two product rules;
+  - the season profile table (§2), built from all users' predicted categories by the nightly job, or from the full `--data` pool at image build time for the demo bundle.
 - **Why not flag files like FR-7:** a nightly file is computed on model categories. The demo applies corrections per browser session on read (FR-5/FR-6 §3), so a stored spike could quote a Dining total the user's own Spending page no longer shows. FR-7's flags don't have this problem, because a charge's flag doesn't depend on its category.
 - **The tool:** `detect_anomalies(start_date, end_date)` fills `spending_spikes` with the flagged complete months that overlap the range:
 
@@ -303,7 +346,7 @@ Illustrative, with the POC's median flagged spike:
   When the range holds no complete month, or the user has fewer than 3 earlier months, the tool says so (`spikes_status: "too_short"` or `"month_in_progress"`). The coach must then say it can't judge yet, not that nothing was unusual (PRD risk: short histories).
 - **The coach** answers "Why was August so high?" with `detect_anomalies` for August. With no spike, it says no category ran well above usual and uses `get_spending_summary` to name the biggest categories or charges. It doesn't invent a spike (FR-14).
 - **"Worth a look":** the spikes card lists flagged months that ended in the last 60 days, FR-7's window (decision 9). For the demo, dated Sep 30, 2026, that's August and September 2026. Each shows category, month, actual against usual, the reason and the largest charges. The Overview's "Worth a look" card counts them with the unusual charges.
-- **The sync rule:** the spikes half stays "not available yet" until FR-8 promotes, and switches in the promoting PR.
+- **Without a promoted scorer** (open question 1, FR-11's terms): the pipeline ships either way. The spikes card falls back to a clearly labelled simple rule, never "not available". *Proposed, for the owner to confirm:* the fallback is the simple count rule of §3 with the two product rules, cut at the common rate of 0.035 flags per user-month. That cutoff needs no labels. The card and the tool label it "simple rule" (`"method": "simple_rule"`), and the reason wording is unchanged, since it quotes only the user's own numbers. When a scorer is promoted, the PR that promotes it switches the card to the model.
 - **Flag actions (v1.1, FR-9).** The flag id is the model version plus `user_id`, category and `period_start`, so it stays stable for actions to key on. Actions will be stored per user in FR-5/FR-6's feedback store. "Expected, all good" will suppress that category's flag for that month only.
 
 ## Metrics and why
@@ -313,7 +356,8 @@ Illustrative, with the POC's median flagged spike:
 3. **Recall on `clear` labels:** weak labels are, by definition, months the noise cancelled. They are reported, not hidden, and don't dominate selection.
 4. **Flags per user-month** is the alert burden in the user's terms. At 0.035 it's about one spike per user every 2.4 years, on top of FR-7's 1.3 unusual charges a year.
 5. **Excess coverage and the error of "usual"** measure the two halves of FR-8's explanation: which charges, and how big. Both are reported, not gated; the PRD sets no target for them.
-6. **User-bootstrap intervals,** because a user's months aren't independent.
+6. **Recall on simulated basket-size spikes** measures the main risk: what the labels can't. Reported, not gated.
+7. **User-bootstrap intervals,** because a user's months aren't independent.
 
 ## Options considered
 
@@ -321,9 +365,9 @@ Illustrative, with the POC's median flagged spike:
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| (a) Monthly spend (Technical Design baseline) | Literally the requirement's words | Precision 0.07 at the common rate: one-offs dominate |
-| **(b) Purchase count, with spend required to be up ≥ 1.3× (recommended)** | 0.81 precision, 96% of the oracle's recall; the spend rule keeps the reason honest | Doesn't call a single huge charge a spike (FR-7's job) |
-| (c) Count and spend combined into one score | Might catch spikes with few, large purchases | No such spikes are planted; adds spend's noise back |
+| (a) Monthly spend (Technical Design baseline) | Literally the requirement's words | Precision 0.065 at the common rate: one-offs dominate |
+| **(b) Purchase count, with spend required to be up ≥ 1.3× (chosen)** | 0.81 precision, 96% of the oracle's recall; the spend rule keeps the reason honest | Misses basket- and price-driven spikes by construction (0.3% recall on simulated ones; the main risk). Doesn't call a single huge charge a spike (FR-7's job) |
+| (c) Count and spend combined into one score | Might catch spikes with few, large purchases | No such spikes are planted, so the labels can't score the gain; adds spend's noise back (precision ≤ 0.43 on frequent categories) |
 
 ### B. Where seasonality comes from
 
@@ -331,7 +375,7 @@ Illustrative, with the POC's median flagged spike:
 | --- | --- | --- |
 | (a) None | Simplest | Family Augusts and Decembers become false positives |
 | (b) The user's own previous year only | Personal | Nothing in year one; one noisy year becomes the season |
-| **(c) Own, shrunk toward a cross-user category profile (recommended)** | Works from month 4; personal as history grows | A nightly table and a leave-user-out rule |
+| **(c) Own, shrunk toward a cross-user category profile (chosen)** | Works from month 4; personal as history grows | A nightly table and a leave-user-out rule |
 | (d) The persona's profile | Strong prior on synthetic data | Real users have no persona label (FR-11, decision 11) |
 
 ### C. The cutoff
@@ -339,14 +383,14 @@ Illustrative, with the POC's median flagged spike:
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Tune to 0.70 | Most recall | Passes the test gate about half the time |
-| **(b) Tune to 0.80, gate at 0.70 (recommended; FR-7's choice)** | Passes reliably | About 3 points of recall in the POC |
+| **(b) Tune to 0.80, gate at 0.70 (chosen; FR-7's choice)** | Passes reliably | About 3 points of recall in the POC |
 | (c) A fixed flag rate | No labels; carries to real data | Ignores the precision target where labels exist; recorded for v2 instead |
 
 ### D. "Recall above a simple rule-based alternative"
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **(a) The Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported (recommended)** | The bar was set before seeing results, as in FR-7 | The gated bar is low (recall 0.044) |
+| **(a) The Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported (chosen)** | The bar was set before seeing results, as in FR-7 | The gated bar is low (recall 0.044) |
 | (b) The simple count rule as the gated bar | A stronger, more meaningful comparison | Moves the bar after the POC showed counts work; FR-7 declined the same move |
 
 ### E. Serving
@@ -354,7 +398,7 @@ Illustrative, with the POC's median flagged spike:
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) Nightly spike files, like FR-7's flags | Matches FR-7; no compute on request | Computed on model categories: disagrees with the user's corrected Spending totals |
-| **(b) On request from the session's ledger, with nightly season profiles (recommended)** | Always matches what the user sees; corrections apply at once | Compute on the request path (milliseconds) |
+| **(b) On request from the session's ledger, with nightly season profiles (chosen)** | Always matches what the user sees; corrections apply at once | Compute on the request path (milliseconds) |
 | (c) Nightly files, recomputed on request only for users with corrections | Least request-time compute | Two paths that must agree, and a test for each |
 
 ### F. What "usual" means in a reason
@@ -362,14 +406,14 @@ Illustrative, with the POC's median flagged spike:
 | Option | Pros | Cons |
 | --- | --- | --- |
 | (a) The model's expectation (season and income adjusted) | The number the score used | Contains other users' aggregate; not recomputable by the user or the coach |
-| **(b) The user's own average over the previous 12 months (recommended)** | Own numbers only; recomputable; as accurate in the POC | Can differ from the expectation that drove the score in seasonal months, where spikes are rare |
+| **(b) The user's own average over the previous 12 months (chosen)** | Own numbers only; recomputable; as accurate in the POC | Can differ from the expectation that drove the score in seasonal months, where spikes are rare |
 | (c) The same month last year | Seasonal by nature | Missing in year one; one noisy month |
 
 ### G. Which months are scored
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **(a) Complete months only (recommended)** | Matches the labels; nothing to project | A spike shows only after the month ends |
+| **(a) Complete months only (chosen)** | Matches the labels; nothing to project | A spike shows only after the month ends |
 | (b) Month to date, projected | Earlier warning | Needs a pacing model and its own labels; v1.1 or later |
 
 ## Testing
@@ -377,42 +421,55 @@ Illustrative, with the POC's median flagged spike:
 - **Unit:**
   - point in time: appending later months never changes an earlier period's score;
   - the 3-month minimum; zero-filled months; Income never scored;
-  - season profiles: under 20 users means a season of 1; the scored user is left out; as of the month;
-  - the contract rejects a flag below the spend floor, without evidence, or with a persona column;
+  - season profiles: under 20 users means a season of 1; leaving a user out by subtracting their terms equals rebuilding the table without them; as of the month; serving profiles use predicted categories, so one user's corrections never change another user's season;
+  - the contract rejects a flag below the spend floor or the minimum volume, without evidence, or with a persona column;
   - the reason renders from evidence alone, and every number in it equals a sum over the user's own ledger;
   - `Thresholded` on period keys passes no labels to the base scorer.
 - **Isolation:** nothing under `intelligence/` reads truth (existing test). `detect_anomalies` returns user A's spikes to A and nothing to B. A's corrections change A's spikes and never B's.
 - **Framework (toy task):** out-of-fold cutoffs and grid choices; recall at the common rate; validation profiles without test users; no twins; finalize scores test users once.
 - **Serving:** a spike's `actual` equals `get_spending_summary` for the same category and month, with and without corrections. A request for one user scores within the timing budget.
+- **Demo bundle:** the season profile file is built from the full `--data` pool (it has cells with 20+ users), and the fallback card says "simple rule" when no scorer is promoted.
 - **Slow (default data):** the promoted scorer passes the gates on test users.
 
 ## Milestones
 
 One PR per milestone, stacked as FR-7's were.
 
-1. **Contract and features:** the `SpikeScorer` contract and runtime checks; monthly aggregates over a given category column; season profiles in the feature pipeline (as of the month, the scored user left out, at least 20 users); the income ratio; the reason template.
-2. **Task:** `spending_spikes`, with user-grouped folds, two-pool profiles, `Thresholded` on period keys, metrics through the contract, recall at the common rate, diagnostics, the decision rule of §4, and the baseline.
-3. **The round:** the simple count rule, both count models and the ablations on validation, with a round results report.
-4. **Finalize, promote and serve:** finalists scored once on test users; promote if the gates pass. Then the serving state, the on-request scoring, `detect_anomalies`' spikes half, the 1f card, the coach and the demo bundle.
+1. **Contract and features:** the `SpikeScorer` contract and runtime checks; monthly aggregates over a given category column; season profiles in the feature pipeline (as of the month, exact leave-one-user-out, at least 20 users), with a check that the POC's validation numbers hold with the clipped mean; the income ratio; the reason template.
+2. **Task:** `spending_spikes`, with user-grouped folds, two-pool profiles, `Thresholded` on period keys, metrics through the contract, recall at the common rate, the basket-size diagnostic, the decision rule of §4, and the baseline.
+3. **The round:** the simple count rule, both count models and the ablations on validation, with a round results report that states the main risk and its measured size.
+4. **Finalize, promote and serve:** finalists scored once on test users; promote if the gates pass. A failing gate means no promotion and a root-cause analysis (open question 1). Then the serving state, the on-request scoring, `detect_anomalies`' spikes half, the 1f card (with the simple-rule fallback), the coach and the demo bundle with its season profile file. This milestone ships whether or not a scorer is promoted.
 5. **Docs:** the Technical Design (contract, the feature-pipeline row, model selection, the evaluation row), the PRD's first-measurement note, and the Web App UI (1f, the "usual" question).
 
 ## Decisions and open questions
 
-**Decisions for review** (none decided yet)
+**Decisions** (owner, Oct 4, 2026, confirmed on #58). Any later decision that affects evaluation or test scoring goes to the owner before it runs.
 
-1. [ ] **Score purchase counts, and require spend ≥ 1.3× usual** for a flag (§3, option A-b). The floor is a fixed product rule, never tuned.
-2. [ ] **Seasonality from the user's own history, shrunk toward cross-user category season profiles:** at least 20 users, the scored user left out, as of the month, scores only. No persona label (§2, option B-c).
-3. [ ] **A month that's high because of one large charge is not a spike.** FR-7 judges the charge, and the coach explains the month from the spending summary (Scope).
-4. [ ] **Tune to precision 0.80, gate at 0.70** on test users (§5, option C-b).
-5. [ ] **The baseline:** the Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported, not gated (§5, option D-a).
-6. [ ] **The decision rule:** rank on out-of-fold recall at 0.035 flags per user-month; user-bootstrap ties; then own-cutoff precision, **negative binomial before Poisson**, cost and simplicity; no shipping twins (§4).
-7. [ ] **Reasons quote only the user's own numbers;** "usual" is the average of the previous 12 months, which also closes the Web App UI's open question (§7, option F-b).
-8. [ ] **Serve on request from the session's ledger with effective categories,** with the model and season profiles as serving state (§8, option E-b).
-9. [ ] **"Worth a look" shows spikes in months that ended in the last 60 days,** FR-7's window (§8).
-10. [ ] **Complete months only;** month-to-date pacing and weekly spikes later (§1, option G-a).
-11. [ ] **Drivers are the 5 largest charges, shown as "Largest charges",** with a count of the remaining purchases (§7).
+1. [x] **Score purchase counts for v1** (§3, option A-b), with three conditions:
+   - **the spend floor (≥ 1.3× usual) is a product rule only.** It keeps the reason honest; the design doesn't credit it with recall, since ablated it lowers recall at p ≥ 0.80 (0.550 to 0.545);
+   - **the minimum volume is fixed before the round from the product argument** (at least 2 purchases in a usual month; 1 becoming 4 isn't a meaningful spike) **and not tuned on labels.** Tuned, it rediscovers where the generator plants;
+   - **the basket-size gap is the main stated risk, and it's measured.** The round reports recall on simulated basket-size spikes, and v2 revisits it with real data ([Main risk](#main-risk-one-mechanism)).
+2. [x] **Seasonality from the user's own history, shrunk toward cross-user category profiles:** at least 20 users, the scored user left out, as of the month; no persona label (§2, option B-c).
+3. [x] **A month that's high because of one large charge is not a spike;** FR-7 judges the charge (Scope).
+4. [x] **Tune to precision 0.80, gate at 0.70** on test users (§5, option C-b).
+5. [x] **The baseline:** the Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported, not gated (§5, option D-a).
+6. [x] **The decision rule of §4,** fixed before the round runs: recall at 0.035 flags per user-month, user-bootstrap ties, then own-cutoff precision, negative binomial before Poisson, cost and simplicity; no shipping twins.
+7. [x] **Reasons quote only the user's own numbers;** "usual" is the average of the previous 12 months (§7, option F-b).
+8. [x] **Serve on request from the session's ledger with effective categories** (§8, option E-b). For the demo bundle, the season profiles are built from the full `--data` pool at build time and shipped as a bundle file (§2).
+9. [x] **"Worth a look" shows spikes in months that ended in the last 60 days** (§8).
+10. [x] **Complete months only** (§1, option G-a).
+11. [x] **Drivers are the 5 largest charges, shown as "Largest charges",** with a count of the rest (§7).
 
 **Open questions**
 
-1. [ ] **The Oct 6 demo.** FR-8 is the last P0 model without a promotion. Should milestones 1–4 aim for the demo, or should the demo keep the "not available yet" spikes card?
-2. [ ] **A per-user income elasticity** instead of the pooled 0.25 is a candidate the round could add. Recommended for later: the pooled value already earns 3 points, and a per-user slope from 12–36 months is noisy.
+1. [x] **The Oct 6 demo: aim for it, on FR-11's terms** (decisions 10 and 13 on #54) (owner, Oct 4, 2026, on #58):
+   - the pipeline ships either way; without a promoted scorer, the spikes card falls back to a clearly labelled simple rule, not "not available" (§8);
+   - test users are scored once, for finalists;
+   - a failing gate means no promotion and a root-cause analysis on train and validation data (data, model or criteria); whether test is scored again is decided after it. No gate is loosened.
+2. [x] **A per-user income elasticity: deferred** (owner, Oct 4, 2026, on #58). The pooled value stays for v1.
+
+**Proposed in the revision for #58's review, not yet confirmed**
+
+- [ ] The fallback rule's definition: the simple count rule with the two product rules, at 0.035 flags per user-month, labelled "simple rule" (§8).
+- [ ] The season profile statistic: a clipped mean of log ratios instead of the POC's median, so leaving a user out is exact. Milestone 1 checks the POC's validation numbers hold with it before the round (§2).
+- [ ] κ's grid, {0.5, 1, 2} (§2).
