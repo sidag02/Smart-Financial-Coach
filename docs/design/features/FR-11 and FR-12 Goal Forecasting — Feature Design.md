@@ -482,7 +482,7 @@ Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (
 **What happened on the way** (the round results report has the numbers):
 - Round 4's rank 1 failed 4 calibration gates on test; nothing was promoted.
 - Train users showed why: stage 9's targets leak the realized future, and the model read a persona label.
-- Round 5 (decisions 10–13, decided on #54 with conditions) is persona-free and scores evaluation goals with projected targets. All three finalists passed every gate on the second, and last, test scoring for v1.
+- Round 5 (decisions 10–13, decided on #54 with conditions) is persona-free and scores evaluation goals with projected targets. All three finalists passed every gate on the second test scoring; under decision 13, a failure would have meant no promotion and a root-cause analysis first.
 
 **Reproducing it**
 - **Data:** `uv run sfc-data generate --spec configs/data/default.yaml --out <path>/default.sqlite` (content hash `b4d43bf4…`).
@@ -491,8 +491,8 @@ Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (
 
 **Follow-ups, not in v1**
 - **Salaried users' forecasts are pessimistic:** about a quarter of families' realized balances land above the range. The damped trend fixed the ranges but lost on Brier, so a better trend is needed. Measure its prior slope the new way (#54).
-- **A target-free calibration gate** (`below.*`, `above.*` per persona), since planted or projected targets both shape what band calibration measures. That needs an owner decision, and a fresh test set: v1's test users have been scored twice.
-- **The number of gates:** 30 calibration gates with validation tolerances on half as many test users will fail some by chance. Consider fewer, or a multiplicity-aware tolerance.
+- **A target-free calibration gate** (`below.*`, `above.*` per persona), since planted or projected targets both shape what band calibration measures. That needs an owner decision; v1's test users have been scored twice, so a fresh test set would make its result readable.
+- **What the calibration gates can't see:** a calibrated model fails none of the 24 by chance (`scripts/fr11_gate_chance.py`), so they catch real misses; but they're wide bands, so they can't see a model that's calibrated on average and lopsided within a band, which the target-free checks can.
 - **Moving `set_goals` out of `INPUT_COLUMNS`** (fit-only; #53).
 - **What-if forecasts** (decision 7), and 1g's user-specific "what this accounts for" facts.
 - **`your_entries`** is built and tested, but the demo's "today" is fixed, so no goal has entries 3 months apart there.
