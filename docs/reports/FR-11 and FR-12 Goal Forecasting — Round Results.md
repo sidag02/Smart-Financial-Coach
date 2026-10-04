@@ -7,7 +7,7 @@ Oct 4, 2026 · @Sidd · Milestone 2 of FR-11 and FR-12 Goal Forecasting — Feat
 - **Round 4's finalists were scored on test users once and failed** 4 of 30 blocking calibration gates, freelancers' "on track" band above all; nothing was promoted ([test results](#round-4-test-results-first-scoring)).
 - **Train users showed why:** stage 9 plants targets from the realized future, a leak that's strongest for volatile users. The freelancer forecast itself is honest, and round 4's model read a persona label real users don't have.
 - **Round 5** (owner decisions 10–13 in the design, prompted by the first test failure) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals** on validation, ahead of both other candidates ([round 5](#round-5-no-persona-label-targets-without-the-future)).
-- **On test (the second and last scoring for v1, of users seen once before, so optimistic), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
+- **On test (the second scoring, of users seen once before, so optimistic), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
 
 ## Round 4 summary (as written for milestone 2)
 
@@ -149,7 +149,7 @@ Rank 1 by persona (goals and met rate per band; below and above the 80% range, w
 **Read these results with three caveats** (owner, on #54):
 - **Test users were seen once before,** in round 4's scoring, and round 5's changes were prompted by that failure, though the leak was diagnosed on train users only. So this result is optimistic relative to an untouched test set.
 - **Projected targets sit close to the model's own median,** so the bands mainly check calibration around that projection ([round 5](#round-5-no-persona-label-targets-without-the-future)), and the Brier isn't comparable with rounds 1–4.
-- **This is the last test scoring for v1.** There's no round 6 against test.
+- **Had a blocking gate failed,** nothing would have been promoted, and a root-cause analysis on train and validation data would have decided whether test users are scored again (decision 13).
 
 The scoring ran before the owner's decisions and conditions were recorded on #54, where the review had asked to hold it until they were.
 
@@ -177,6 +177,16 @@ By persona (goals · met rate per band; below and above the 80% range):
 - **The closest calls** are families' "could go either way" goals with a track record (0.74, inside 0.70 + 0.08) and freelancers' new goals at "on track" (0.69, inside 0.70 − 0.07). Both lean toward being met more often than said, or right at the edge.
 - **Salaried balances still land above the range** about a quarter of the time for families, as on validation: forecasts for them are pessimistic. A better trend is the follow-up.
 - **Promotion:** `promote` checked the gates in the design's order and logged them in `artifacts/goal_forecasting/promotions.jsonl`; the model file is a GitHub Release tagged at `5dc69c6`.
+
+## How often a calibrated model fails a calibration gate by chance
+
+Asked by the owner on #54, and computed on validation only (`scripts/fr11_gate_chance.py`). The question: could round 4's failures have been noise, and can a round 5 failure be read?
+
+- **The method:** take rank 1's pooled validation predictions and make it calibrated by construction:
+  - draw every goal's outcome from its own predicted chance and apply the 24 calibration gates with their validation tolerances (2,000 simulations, on all validation users and on half of them, the test set's size);
+  - separately, treat each gate's met rate as normal around its band's mean chance, with the spread of its user-bootstrap interval (which carries the correlation between a user's goals), widened by √2 at test size.
+- **The result:** expected chance failures are 0.00 either way, at either size. The closest gate, freelancers' "on track" with a track record, has a mean chance of 0.80 on 93 goals and sits 3.1 standard deviations from its edge at test size; every other gate is further.
+- **Reading it:** the bands are wide, and a calibrated band's met rate centers on its mean chance, well inside. So a failing calibration gate signals a real miss in the model or the data, not chance. Round 4's freelancer failures (0.40–0.44 against 0.70) were real, and the data (planted targets) explains them. There are 24 calibration gates (2 paths × 4 scopes × 3 bands), not 30.
 
 ## Round history
 
