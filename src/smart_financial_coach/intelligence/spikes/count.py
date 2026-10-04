@@ -101,6 +101,11 @@ class CountScorer(SpikeScorerModel):
                 )
                 self.beta = float(np.polyfit(np.log(ratio[ok]), np.log(target), 1)[0])
         if self.dispersion == "negbin":
+            # The pooled 1/size is the median of rows' own estimates, each clipped at 0: it's 0
+            # whenever fewer than half the rows are over-dispersed (46% on the default data, where
+            # the ratio-of-sums moment estimate would be 0.034). Each row's own estimate still
+            # counts, shrunk by its months of history, so the negative binomial stays close to the
+            # Poisson but not equal to it (review on #61; kept as run, not changed after results)
             enough = x["usual_count"].to_numpy(dtype=float) >= BETA_MIN_COUNT
             own = self._own_dispersion(x)[enough]
             self.pooled_dispersion = float(np.median(own)) if len(own) else 0.0

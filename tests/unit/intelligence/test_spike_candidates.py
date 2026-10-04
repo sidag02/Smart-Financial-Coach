@@ -85,6 +85,9 @@ def test_every_round_config_builds(path: object) -> None:
     config = load_experiment(path)  # type: ignore[arg-type]
     model = build(config.model_spec({}))
     assert isinstance(model, SpikeThresholded)
-    assert model.precision == 0.80
+    if config.name == "simple_count":  # decision 12's fallback: a rate cutoff, no labels
+        assert (model.precision, model.rate) == (None, 0.035)
+    else:
+        assert model.precision == 0.80
     if config.tags.get("report_only") == "true":
         assert not config.baseline

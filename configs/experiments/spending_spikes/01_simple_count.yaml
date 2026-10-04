@@ -1,12 +1,16 @@
-# FR-8 round 0, report-only: the simple count rule, a Poisson tail of the month's purchase count
-# against the user's trailing 12-month mean, with no season and no income (decision 5: reported
-# beside the gated baseline, never gated). The product rules apply, as to every flag.
+# FR-8 round 0, reported, never gated: the simple count rule, which is decision 12's fallback
+# exactly (owner decision on #60 and #61, Oct 4, 2026). A Poisson tail of the month's purchase
+# count against the user's trailing 12-month mean, no season and no income, cut at 0.035 flags
+# per user-month with no labels. The product rules apply, as to every flag (owner, Oct 4), and
+# the expected count is floored at 0.3, as in every count model. Test scoring then says whether
+# the fallback would be good enough to ship if no model is promoted.
 name: simple_count
 task: spending_spikes
 model:
   type: spending_spikes/thresholded
   params:
-    precision: 0.80
+    precision: null
+    rate: 0.035
     base: {$model: {type: spending_spikes/count, params: {season: false, income: false}}}
 baseline: true
 tags: {plan: fr8-round}

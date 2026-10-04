@@ -476,10 +476,13 @@ From milestone 2:
 
 From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Results):
 
-- **Rank 1: `count_negbin`, 0.521** recall at 0.035 flags per user-month, tied with `count_poisson` (0.516) on recall and on own-cutoff precision. Decision 6's second tie-break decided it. The fitted pooled over-dispersion is 0, so on this data they're the same model.
+- **Rank 1: `count_negbin`, 0.521** recall at 0.035 flags per user-month, tied with `count_poisson` (0.516) on recall and on own-cutoff precision. Decision 6's second tie-break decided it. They're near-equivalent, not the same (review on #61):
+  - the pooled over-dispersion is 0 under its estimator, a median of rows' own estimates clipped at 0, because fewer than half the rows (46%) are over-dispersed. The ratio-of-sums moment estimate would be 0.034;
+  - each row's own estimate still counts, so the two differ by more than 1% on a quarter of rows (own-cutoff recall 0.513 against 0.523);
+  - the estimator is documented as run, not changed after the results.
 - **Ablations are report-only runs:** a config tag `report_only: "true"` keeps a run out of the ranking and out of `finalize`. It's a tag rather than a config field, so no existing run's config hash changes. The ablation without the spend floor isn't possible, since the contract enforces the floor on every flag; the POC's measurement stands for it.
 - **Seasonality earns nothing out of fold** (0.518 without, 0.516 with), and κ landed on the top of the decided grid (2). Both are reported, not acted on.
-- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was.
+- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3 are owner decisions: it runs with both product rules, and its expected count is floored at 0.3 like every count model's.
 
 ## Decisions and open questions
 
@@ -513,3 +516,8 @@ From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Result
 12. [x] **The fallback rule:** if no scorer is promoted, the spikes card uses the simple count rule with both product rules (spend ≥ 1.3× usual, at least 2 purchases in a usual month) at 0.035 flags per user-month, which needs no labels, labelled "simple rule" (§8).
 13. [x] **Season profiles use a clipped mean of log ratios,** with the pass condition fixed before milestone 1 checks it. The check passes if, at 0.035 flags per user-month, the leader with the clipped mean has recall within the POC's user-bootstrap interval, **0.506–0.578**, and precision within it, **0.737–0.860**. Both intervals were printed by the script at `bd5ae63`. If either falls outside, the statistic comes back to the owner before the round, not swapped silently (§2). The first wording, "at precision ≥ 0.80", was replaced by the precision interval (owner, option (b) on #58), since the POC's own point precision was 0.809.
 14. [x] **κ's grid is {0.5, 1, 2},** tuned within folds (§2).
+
+**Decided before test scoring** (owner, Oct 4, 2026, on #60 and #61, after the round on validation)
+
+15. [x] **The simple count rule that `finalize` scores is decision 12's fallback exactly:** both product rules, cut at 0.035 flags per user-month with no labels (`rate=0.035`), not at precision 0.80. Its test result says whether the fallback would be good enough to ship if no model is promoted. Like the gated baseline, it's scored on test users with the finalists.
+16. [x] **κ's grid stays {0.5, 1, 2},** although κ = 2 was chosen in every fold. Widening it after seeing validation results would be tuning on the outcome. A wider grid is a v2 item.
