@@ -375,7 +375,7 @@ Written for the session that continues FR-5 and FR-6, human or agent. Read it fi
 3. **Accept the design now;** N, the majority and the cadence are provisional until the replay.
 4. **The review rule** (§1): unfamiliar strings below the lowest threshold catching at least 60% of their errors, familiar strings below the highest threshold whose flags are at least 25% errors, capped at 0.95. On the promoted model, grouped by its `familiar` flag as production groups rows: **0.65 and 0.95**. (A first re-measurement grouped by validation set and gave 0.8; the rule was kept rather than re-targeted after seeing the result; Feasibility.) Flagging every new merchant was rejected: the point of FR-3 and FR-4 was a cold model good enough to trust, so review flags only what it is unsure about.
 5. **The replay runs on test users** (only they hold preferences), **once, with N = 3 and the default settings; nothing is chosen from its results.** Their data was scored once at FR-4's `finalize`, and the replay answers a different question, so that is acceptable; tuning on it would not be. When N or the cadence is tuned later, split the test users into a tuning half and a reporting half.
-6. **A retrained model that passes §5's gates is promoted,** with the normal `promote` command. Two consequences, recorded in the promotion log:
+6. **A retrained model that passes §5's gates is promoted,** with the normal `promote` command. *Superseded for the demo (owner, Oct 3, 2026, on #44): no replay model is promoted to the demo; see step 8.* Two consequences, recorded in the promotion log:
    - for the demo: a promotion **by the end of Oct 5** is rebuilt into the demo and clicked through; after that, the demo keeps `20eea4fb`;
    - the promoted model has trained on contributing test users' transactions, so its truth-based numbers are reported on non-contributing test users only; FR-3's and FR-4's full test sets no longer score it cleanly.
 7. **The replay's must-have measures:** global gain on non-contributors against their own view (truth alongside), per-remap outcomes with bootstrap intervals, burden, robustness at 5% and 20% adversarial users, and isolation. Deferred: down-weighting users who often disagree with consensus, and "cheap to retrain". Retraining is quarterly in the replay (about an hour of compute).
@@ -401,7 +401,7 @@ One PR per step, each small, since the demo deploys on every merge. After each m
    - time-forward evaluation on non-contributors against their own view, truth alongside; the measures in decision 7;
    - its output, the step-by-step record and the measures, saved as a file the demo bundle includes.
 7. **The "Learning" page:** the replay's steps and numbers, the gate outcome, and live agreement counts from visitors.
-8. **Promotion** if a retrained candidate passes §5's gates (decision 6).
+8. **Promotion: settled, none to the demo** (owner, Oct 3, 2026, on #44). Retraining stays inside the replay; the demo shows the loop from its results on "How it learns" and keeps serving the FR-4 categorizer `20eea4fb`. The replay's December 2024 model was retrained as a tracked run (`sfc-experiment retrain-from-replay`, kind `feedback-retrain`) and not deployed.
 9. **Tests:**
    - two sessions on the same demo account never see each other's corrections;
    - precedence; undo; unknown categories are rejected; tool schemas;
@@ -443,7 +443,7 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 - [x] The design is accepted without the replay; N, the majority and the cadence are provisional (owner, Oct 3, 2026).
 - [x] FR-5, FR-6 and the retraining pipeline are in the Oct 6 demo; retraining is shown as the precomputed replay, walked step by step (owner, Oct 3, 2026).
 - [x] The replay runs once on test users with N = 3 and default settings; nothing is chosen from it; later tuning splits test users in half (owner, Oct 3, 2026).
-- [x] A retrained model that passes §5's gates is promoted; for the demo, by the end of Oct 5 (owner, Oct 3, 2026).
+- [x] A retrained model that passes §5's gates is promoted; for the demo, by the end of Oct 5 (owner, Oct 3, 2026). *Superseded: no replay model is promoted to the demo; the demo keeps `20eea4fb` (owner, Oct 3, 2026, on #44).*
 - [x] In the demo, feedback lives in a `feedback.sqlite` in the container, keyed by browser session, and feeds the agreement rule (owner, Oct 3, 2026).
 - [x] Only rows predicted as a spending category are flagged for review (owner, Oct 3, 2026, on #32).
 - [x] The review rule is kept as decided; on the promoted model, grouped by `familiar`, it gives 0.65 and 0.95 (owner, Oct 3, 2026).
