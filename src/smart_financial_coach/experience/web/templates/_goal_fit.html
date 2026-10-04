@@ -1,0 +1,15 @@
+{# "How it fits" (FR-10 design, "The setup check"): facts from check_goal, no verdict until FR-11 #}
+<div class="fit-head">How it fits</div>
+{% if check.valid %}
+<div><span class="mid">{{ check.needed_per_month | money }}</span> <span class="muted">a month to get there by {{ check.target_date | day }} ({{ check.months_left }} month{{ "s" if check.months_left != 1 }})</span></div>
+{% if check.other_goals_per_month > 0 %}
+<div style="font-size:13.5px">With your other goals, that's about <b>{{ check.all_goals_per_month | money }} a month</b> across your goals.</div>
+{% endif %}
+{% elif problems %}
+{% for p in problems %}<div class="field-error">{{ p.message }}</div>{% endfor %}
+{% else %}
+<div class="muted" style="font-size:13.5px">Fill in an amount and a month to see what it takes each month.</div>
+{% endif %}
+{% if check.median_monthly_savings_12m is not none %}
+<div class="muted" style="font-size:13.5px">Over the last 12 months you've saved a median of {{ check.median_monthly_savings_12m | money }} a month.</div>
+{% endif %}

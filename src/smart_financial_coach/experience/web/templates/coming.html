@@ -1,7 +1,6 @@
 {% extends "base.html" %}
-{% block title %}{{ "Worth a look" if feature == "flags" else "Goals" }} · Smart Financial Coach{% endblock %}
+{% block title %}Worth a look · Smart Financial Coach{% endblock %}
 {% block main %}
-{% if feature == "flags" %}
 <div class="page-head"><div>
   <h1 class="page-title">Worth a look</h1>
   <div class="page-sub">Things that look different from your usual pattern. Nothing here means something is wrong.</div>
@@ -19,31 +18,4 @@
     <a class="btn" style="align-self:flex-start" href="/chat">Ask {{ coach_name }}</a>
   </section>
 </div>
-{% else %}
-<div class="page-head"><div>
-  <h1 class="page-title">Goals</h1>
-  <div class="page-sub">What you're saving for, and how far along you are.</div>
-</div></div>
-<div class="coming">
-  <section class="card">
-    <div class="card-title">Your goals</div>
-    {% for g in goals %}
-    <div class="goal-row">
-      <div class="card-head"><b>{{ g.name }}</b>{% if g.target_date >= as_of %}<span class="badge soon">Forecast soon</span>{% else %}<span class="badge good">Target date passed</span>{% endif %}</div>
-      <div><span class="mid">{{ g.saved | money }}</span> <span class="muted">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
-      <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
-      <div class="muted" style="font-size:13px">Saved as of {{ g.saved_as_of | day }}</div>
-    </div>
-    {% else %}
-    <p class="muted">No savings goals yet.</p>
-    {% endfor %}
-  </section>
-  <section class="card stack">
-    <span class="badge soon" style="align-self:flex-start">Coming next</span>
-    <div class="card-title">On track or not, and by how much</div>
-    <p class="muted" style="margin:0">Where each goal is likely to land, with a range, and what would close the gap. Setting up new goals comes with it. Both switch on when goal forecasting (FR-10 to FR-12) is released.</p>
-    {% if mockups %}<a href="/mockups/{{ mockup_page | urlencode }}#1g" target="_blank" rel="noopener">See the design ›</a>{% endif %}
-  </section>
-</div>
-{% endif %}
 {% endblock %}

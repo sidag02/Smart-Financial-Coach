@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Goals · Smart Financial Coach{% endblock %}
+{% block main %}
+<div class="page-head"><div>
+  <h1 class="page-title">Goals</h1>
+  <div class="page-sub">What you're saving for, and how far along you are.</div>
+</div></div>
+
+{% if toast %}
+<div class="toast" role="status">
+  <span>{{ toast.text }}</span>
+  {% if toast.revision_id %}
+  <form method="post" action="/goals/undo"><input type="hidden" name="revision_id" value="{{ toast.revision_id }}"><button class="link-btn" type="submit">Undo</button></form>
+  {% endif %}
+</div>
+{% endif %}
+
+<div class="goal-grid">
+  {% for g in running %}
+  <section class="card stack goal-card">
+    <div class="card-head">
+      <b>{{ g.name }}</b>
+      {% if g.status == "reached" %}<span class="badge good">Reached</span>{% else %}<span class="badge soon">Forecast soon</span>{% endif %}
+    </div>
+    <div><span class="mid">{{ g.saved | money }}</span> <span class="muted">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
+    <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
+    {% if g.status == "active" %}
+    <div class="row-split"><span>{{ g.months_left }} month{{ "s" if g.months_left != 1 }} left</span><b class="num">{{ g.needed_per_month | money }} a month</b></div>
+    {% else %}
+    <div class="row-split"><span>Saved the whole amount</span><b class="num">{{ g.target_amount | money }}</b></div>
+    {% endif %}
+    <div class="goal-actions">
+      <a class="btn-ghost" href="/goals/{{ g.goal_id }}/edit" hx-get="/goals/{{ g.goal_id }}/edit" hx-target="#drawer">Edit</a>
+      <form method="post" action="/goals/{{ g.goal_id }}/archive"><button class="btn-ghost" type="submit">Remove</button></form>
+    </div>
+    <div class="muted" style="font-size:13px">Saved as of {{ g.saved_as_of | day }}.</div>
+  </section>
+  {% endfor %}
+  <a class="new-goal" href="/goals/new" hx-get="/goals/new" hx-target="#drawer"><span class="plus">+</span><b>New goal</b><span class="muted">Pick an amount and a month. We'll show you how it fits.</span></a>
+</div>
+
+<section class="card stack">
+  <div class="card-title">How you're saving</div>
+  {% if savings.median_monthly_savings_12m is not none %}
+  <p style="margin:0">Over the last 12 months you've saved a median of <b>{{ savings.median_monthly_savings_12m | money }} a month</b>.</p>
+  {% else %}
+  <p class="muted" style="margin:0">There isn't enough history yet to say how much you usually save.</p>
+  {% endif %}
+  <p class="muted" style="margin:0">Whether each goal is on track, with a likely range, arrives with goal forecasting.</p>
+</section>
+
+{% if ended %}
+<section class="card">
+  <div class="card-title">Ended</div>
+  {% for g in ended %}
+  <div class="goal-row">
+    <div class="card-head"><b>{{ g.name }}</b><span class="muted" style="font-size:13px">{{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
+    <div class="card-head">
+      <span class="muted" style="font-size:13.5px">Saved {{ g.saved | money }} as of {{ g.saved_as_of | day }}</span>
+      <form method="post" action="/goals/{{ g.goal_id }}/archive"><button class="link-btn" type="submit">Remove</button></form>
+    </div>
+  </div>
+  {% endfor %}
+</section>
+{% endif %}
+
+{% if removed %}
+<details class="card removed">
+  <summary class="card-title">Removed goals ({{ removed | length }})</summary>
+  {% for g in removed %}
+  <div class="goal-row">
+    <div class="card-head">
+      <span><b>{{ g.name }}</b> <span class="muted" style="font-size:13px">{{ g.target_amount | money }} by {{ g.target_date | day }}</span></span>
+      {% if g.undo_revision_id %}
+      <form method="post" action="/goals/undo"><input type="hidden" name="revision_id" value="{{ g.undo_revision_id }}"><button class="link-btn" type="submit">Restore</button></form>
+      {% endif %}
+    </div>
+  </div>
+  {% endfor %}
+</details>
+{% endif %}
+
+<div id="drawer"></div>
+{% endblock %}
