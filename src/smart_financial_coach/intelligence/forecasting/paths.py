@@ -382,13 +382,18 @@ class PathsModel(BaseModel):
                 scale = scale_of(y)
                 if scale <= 0:
                     continue
+                own = np.zeros(12)
                 if len(y) >= SEASONAL_FROM + 12:
                     own, _ = _own_seasonal(y, h.index[-1])
                     profiles.append(own / scale)
                 recent = y[-self.window :]
                 residuals.append((recent - recent.mean()) / scale)
                 if len(recent) >= 12:
-                    slopes.append(_slope(recent) / scale)
+                    # Measured as a user's own slope is: after their month-of-year profile, so
+                    # seasonality doesn't pass for a trend in a short window (review on #54)
+                    start = h.index[-1] - (len(recent) - 1)
+                    moy = np.array([(start + i).month - 1 for i in range(len(recent))])
+                    slopes.append(_slope(recent - own[moy]) / scale)
             profile = np.median(np.stack(profiles), axis=0) if profiles else np.zeros(12)
             pooled = np.concatenate(residuals) if residuals else np.zeros(1)
             priors[str(persona)] = PersonaPrior(
@@ -448,10 +453,15 @@ class PathsModel(BaseModel):
     def state_for(
         self, history: pd.Series, persona: str, spread: float | None = None
     ) -> ForecastState:
-        """With the persona mixture, `persona` isn't read: a real user has none."""
+        """With the persona mixture, `persona` isn't read: a real user has none. A user with no
+        history yet weighs every persona equally (review on #54)."""
         mixture = None
-        if self.persona_weights is not None and len(history):
-            weights = self.persona_weights.predict(history)
+        if self.persona_weights is not None:
+            weights = (
+                self.persona_weights.predict(history)
+                if len(history)
+                else {p: 1.0 / len(self.priors) for p in self.priors}
+            )
             mixture = [(w, self.priors[p]) for p, w in weights.items() if p in self.priors]
         return fit_state(
             history,

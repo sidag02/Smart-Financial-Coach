@@ -138,10 +138,15 @@ Rank 1 by persona (goals and met rate per band; below and above the 80% range, w
 - **The persona mixture costs nothing** against round 4's label model on the same goals (0.166 and 0.198 for `paths_seasonal_persona` in a rehearsal run), so the label wasn't earning its place.
 - **The trend centers salaried ranges** (families 10% below, 16% above) **but loses on Brier and RMSE**, so salaried forecasts stay pessimistic; a better trend is a follow-up.
 - **Spread:** 1.016 for rank 1, tuned on 892 realized goal balances (fewer than round 4's 973: the dataset's own goals are gone). Typical total: 0.686.
+- **What the band calibration now measures** (review on #54): a projected target is close to the model's own median, so target ÷ forecast nearly gives each goal's class away (0.75 / 1.02 / 1.63 on the track path). The bands mostly check whether the forecast distribution is calibrated at fixed quantiles of realized ÷ projection, a PIT-like check, not how people set targets. It isn't trivial: knowing each goal's class scores Brier 0.196, against rank 1's 0.167.
+- **The risk going into test:** families' "could go either way" goals with a track record were met 0.743 on validation, above the band's 0.70 and passing only within tolerance; it's the gate that failed in round 4. The target-free checks show salaried users still lopsided: families 4.5% below the range and 24.5% above, young professionals 4.7% and 16.5%.
+- **Persona recovery,** held out by user over the round's folds (`scripts/fr11_persona_recovery.py`): 85% of histories with 24+ months (n=667) and 53% with 6 or fewer (n=60); freelancers 98% and 80%, families with 6 or fewer months 1 in 17.
 
 ## Round 5 test results (second scoring)
 
-`sfc-experiment finalize --override "…"` scored round 5's top three and the baselines on the 120 test users (935 goals per path) on Oct 4, from code version `5e7cefbd`. The override names decisions 10–13 and is recorded on every run it scored. All three finalists pass every gate; rank 1, `paths_seasonal_mixture`, was promoted:
+`sfc-experiment finalize --override "…"` scored round 5's top three and the baselines on the 120 test users (935 goals per path) on Oct 4, from code version `5e7cefbd`. The override names decisions 10–13 and is recorded on every run it scored. All three finalists pass every gate; rank 1, `paths_seasonal_mixture`, was promoted.
+
+The scoring ran before the review on #54 asked to hold it until the owner confirmed decisions 10–13 on the PR; the owner's confirmation is pending there.
 
 | Gate | Test | Target |
 | --- | --- | --- |
@@ -176,7 +181,7 @@ By persona (goals · met rate per band; below and above the 80% range):
 | 2 | `1fee571` | Review on #52: one future per user, ETS from its model, the spread on goal balances | 0.201 / 0.230 | 0.206 / 0.234 | 0.212 / 0.235 | 0.655 |
 | 3 | `11ceb21` | Review on #51: `active_goals` without later siblings, `monthly_net` histories, no labels in fits | 0.201 / 0.236 | 0.206 / 0.242 | 0.211 / 0.239 | 0.552 |
 | 4 | `1dfdab8` | Review on #52: the typical total summed over each set's goals (the design's estimator) | 0.196 / 0.229 | 0.202 / 0.235 | 0.207 / 0.232 | 0.686 |
-| 5 | `5dc69c6` | After the first test scoring: targets without the future, persona mixture (seasonal / trend / flat); not comparable to rounds 1–4 | **0.167 / 0.199** | trend 0.176 / 0.220 | 0.186 / 0.216 | 0.686 |
+| 5 | `5dc69c6` | After the first test scoring: targets without the future, persona mixture (seasonal / trend / flat). **Different goals and targets: not comparable with rounds 1–4** | 0.167 / 0.199 | trend 0.176 / 0.220 | 0.186 / 0.216 | 0.686 |
 
 - The rank-1 run was the same in every round.
 - The flat level lost its tie with the leader in round 2, and exponential smoothing lost its tie in round 4.
