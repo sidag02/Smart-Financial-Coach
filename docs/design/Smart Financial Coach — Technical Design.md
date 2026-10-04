@@ -85,13 +85,17 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 | Tool | Purpose |
 | --- | --- |
 | get\_spending\_summary | Totals by category and month for a date range |
-| get\_transactions | Filtered, categorized transactions |
+| get\_transactions | Filtered, categorized transactions, with each one's review flag and whether the user set its category (FR-5, FR-6) |
 | detect\_anomalies | Unusual charges for a period, each with its kind, reason and evidence (FR-7); spending spikes (FR-8) |
 | forecast\_goal | On-track status and gap for a goal, by `goal_id` |
 | list\_goals | The user's goals: status (active, reached, ended), months left and the amount needed per month, and the user's median monthly savings |
 | check\_goal | Validates a new goal or an edit and states the facts for the setup screen; writes nothing (FR-10) |
 | create\_goal, update\_goal, archive\_goal | Change the user's goals. The Goals page applies on submit; the coach and outside assistants get a preview until the user agrees (`confirm`) |
 | undo\_goal\_change | Undo a goal's latest change |
+| list\_review\_items | Categories the model is unsure about, one item per merchant, most unreviewed spending first (FR-5) |
+| resolve\_review\_item | Confirm or correct a review item for every transaction at its merchant; the coach previews a change to more than one transaction until the user agrees (FR-5, FR-6) |
+| correct\_category | Change any transaction's category, for its merchant or just that one (FR-6) |
+| undo\_correction, list\_corrections | Undo a change; the user's recent changes (FR-6) |
 
 All tool outputs are structured JSON with units and currency, so the assistant can quote numbers without doing arithmetic.
 
@@ -103,6 +107,7 @@ v1 runs as a single Python deployment on one machine; each component has a named
 | --- | --- | --- |
 | Language / runtime | Python 3.11, pinned dependencies | Containerized services |
 | Data store | SQLite (one file per generated dataset) | Managed Postgres with row-level security |
+| Feedback store (FR-5, FR-6) | SQLite file the app writes, apart from the read-only data; in the demo, keyed by browser session and reset on each deploy | Postgres with row-level security, keyed by the signed-in user |
 | Model artifacts | The repo's `artifacts/` holds each service's `PROMOTED` pointer, promotion log and model manifests; model files are attached to GitHub Releases and verified against the committed manifest on first use (FR-3) | Container registry: continuous deployment bakes the promoted model into the serving image |
 | Experiment tracking | MLflow with a local store: runs, metrics and the model registry (`champion` alias); serving never reads it | Shared MLflow server |
 | Tool server | Local process speaking MCP over stdio / HTTP | Hosted service behind auth gateway |
@@ -190,9 +195,17 @@ Every model is scored against planted ground truth and a simple baseline, with o
 - Goal examples use only transactions with `ts <= as_of_date` (the goal's backtest origin). The full ledger covers the target month, so later transactions reveal whether the goal was met. The evaluation harness enforces this when it builds splits (build order step 4).
 - The judge model differs from the coach model, and a sample of judge scores is checked by hand.
 
-## Learning from user feedback (direction, not yet designed)
+## Learning from user feedback
 
-Categorization ships with a cold-start model that only needs to be decent (FR-3). After launch, quality comes from feedback: low-confidence review (FR-5) and user corrections (FR-6), both P1 for v1.1. A correction says more than "the model was wrong". It also shows how a user *prefers* to see their money. This section sets the direction, so v1 doesn't close doors. A feature design comes with FR-5 and FR-6.
+Categorization ships with a cold-start model that only needs to be decent (FR-3). After launch, quality comes from feedback: low-confidence review (FR-5) and user corrections (FR-6), P1 requirements built for the v1 demo. A correction says more than "the model was wrong". It also shows how a user *prefers* to see their money. This section set the direction; the design is FR-5 and FR-6 Review, Corrections and Retraining — Feature Design.
+
+**As built (Oct 2026):**
+
+- **Review:** each promoted categorizer carries a review policy, one threshold per familiarity group chosen on its validation predictions by a written rule; the batch flags spending rows below it.
+- **Corrections:** events in a feedback store; overrides are replayed from them and applied per user after the shared predictions (a transaction override, then a merchant override, then the model). Undo marks an event; nothing is deleted. In the demo, feedback is keyed by browser session, since visitors share accounts.
+- **Agreement:** a merchant's category becomes a training label when at least N distinct people (3) have a view, two thirds agree, and at least one corrected rather than accepted a suggestion; re-evaluated with every vote. N, the majority and the cadence are provisional.
+- **Retraining:** through the evaluation harness's parts, on clean labels: original rows relabelled at agreed merchants, contributors' rows before the cutoff, a leak check; gated on users who supplied no labels, against their own view, with truth-based numbers reported.
+- **Measured** in a simulated replay (FR-5 Feedback Replay — Results): new-merchant macro F1 for people who never corrected rose from 0.75 to 0.87 against the true categories, and held at 0.83 with a fifth of correctors acting at random. The demo shows it on "How it learns"; no replay model is promoted, and visitors' agreement is illustrative only (owner, Oct 3, 2026).
 
 **A correction means one of two things, and the system has to tell them apart.**
 
@@ -243,4 +256,4 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 - [x] LLM provider: Anthropic (owner, Oct 2, 2026).
 - [x] Web framework for v1: server-rendered Python, FastAPI with templates and htmx (owner, Oct 2, 2026; Delivery Plan).
 - [x] Tool server transport for v1: HTTP only, MCP over Streamable HTTP with bearer tokens carrying the user (owner, Oct 2, 2026; Web App UI, decision 8). stdio isn't part of v1.
-- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria. Decided in the FR-5 and FR-6 design (Oct 2, 2026): the shipped model and retrained models train on clean labels; injected label noise stays for experiments that compare candidates. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
+- [x] Feedback and retraining (FR-5, FR-6): designed and built (FR-5 and FR-6 feature design). Settled: the agreement rule's shape (distinct users, a two-thirds majority, at least one correction; single-user strings stay private) and clean labels for shipped and retrained models (owner, Oct 2, 2026). Still provisional after the replay: N, the majority and the retraining cadence; deferred: "cheap to retrain" as a selection criterion.

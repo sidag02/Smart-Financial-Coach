@@ -88,7 +88,7 @@ Each user story maps to one ML capability, and each key scenario is an end-to-en
 
 ## Functional requirements
 
-Requirements are grouped by capability and say what the system must do, not how. P0 is required for v1, P1 is planned for v1.1.
+Requirements are grouped by capability and say what the system must do, not how. P0 is required for v1, P1 is planned for v1.1. FR-5 and FR-6 are P1 but were built for the v1 demo (owner, Oct 3, 2026).
 
 | ID | Capability | Requirement | Priority |
 | --- | --- | --- | --- |
@@ -96,8 +96,8 @@ Requirements are grouped by capability and say what the system must do, not how.
 | FR-2 | Data | Synthetic data carries known true categories and known anomalies (unusual charges and spending spikes), so quality can be measured | P0 |
 | FR-3 | Categorization | Assign every transaction one category from a fixed set of about 12 | P0 |
 | FR-4 | Categorization | Categorize merchants the system has never seen before | P0 |
-| FR-5 | Categorization | Mark low-confidence categories for user review | P1 |
-| FR-6 | Categorization | Let users correct a category | P1 |
+| FR-5 | Categorization | Mark low-confidence categories for user review | P1 (in the v1 demo) |
+| FR-6 | Categorization | Let users correct a category | P1 (in the v1 demo) |
 | FR-7 | Unusual spending | Flag individual transactions that are unusual for this user, with a plain-language reason | P0 |
 | FR-8 | Unusual spending | Flag spending spikes: monthly spend in a category significantly above the user's normal level, with the size of the deviation and the transactions driving it. Weekly spikes are deferred: even a perfect detector would be wrong most of the time on weekly data (see FR-2) | P0 |
 | FR-9 | Unusual spending | Let users adjust alert sensitivity | P1 |
@@ -146,6 +146,8 @@ v1 succeeds when every capability meets its target and each beats a simple rule-
 
 **Revisited after the first measurement:** the new-merchant target was 0.80 for v1. A cold model learns new brands only from text, and the best measured one scores about 0.71 on validation, so v1 gates at 0.66, a level a model that good passes reliably. 0.80 moves to v1.1, where corrections from users teach the model new merchants (FR-4 Unseen Merchant Categorization — Feature Design, §4). The v1 model scored 0.735 on new merchants.
 
+**Learning from feedback, simulated (FR-5, FR-6):** in a replay of three years with 120 synthetic people who see some categories their own way, corrections from 69 of them, turned into training labels only where at least 3 people agreed, raised new-merchant macro F1 for the 51 who never corrected anything from 0.75 to 0.87 against the true categories (0.83 with a fifth of correctors acting at random). That's the route to v1.1's 0.80 target; it's a simulation, and no retrained model is promoted in v1 (FR-5 Feedback Replay — Results).
+
 **Unusual transactions, first measurement:** a per-user z-score on amount, the simple alternative, can reach 0.70 precision only on a handful of alerts, so recall is compared at the same number of alerts: 0.11 per user-month (FR-7 Unusual Transactions — Feature Design, §5). The v1 model scored precision 0.834 at its cutoff, and recall 0.720 at that rate against the alternative's 0.051, from a second scoring of the test users after a feature fix: the first promoted model's history rank was two-sided, so cheap first visits read as large. That model had scored 0.814 and 0.715 on the first scoring (FR-7 Unusual Transactions — Round Results).
 
 **Caveat:** v1 is measured on synthetic data, which is easier than real data. Targets must be re-validated on real data before launch.
@@ -182,7 +184,7 @@ Each release widens what the coach can do or who it serves; real user data arriv
 
 | Release | Scope |
 | --- | --- |
-| v1 | All P0 requirements on synthetic data |
-| v1.1 | P1 requirements: category correction, low-confidence review, alert sensitivity, answer sources; new-merchant categorization at the 0.80 target |
+| v1 | All P0 requirements on synthetic data, plus FR-5 and FR-6: review of uncertain categories, corrections and undo, and how corrections teach the model, shown from a simulated replay (Oct 6, 2026 demo) |
+| v1.1 | The other P1 requirements: alert sensitivity, answer sources; retraining from real feedback, promoted through the gates, reaching the 0.80 new-merchant target |
 | v2 | Real bank data, real sign-in, validated quality on real data, clear handling of short histories |
 | v3 | Proactive nudges, mobile notifications, deeper goal planning, weekly spending-spike alerts if they can be made reliable |
