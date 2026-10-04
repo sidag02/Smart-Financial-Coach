@@ -1,0 +1,12 @@
+# FR-8 ablation (report only: validation, never ranked or test-scored; §3): the Poisson
+# candidate without income coupling, so the report shows what it buys on folds.
+name: ablation_no_income
+task: spending_spikes
+model:
+  type: spending_spikes/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: spending_spikes/count, params: {dispersion: poisson, income: false}}}
+    search: {kappa: [0.5, 1.0, 2.0]}
+complexity: 2
+tags: {plan: fr8-round, report_only: "true"}

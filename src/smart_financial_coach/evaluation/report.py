@@ -20,6 +20,7 @@ from smart_financial_coach.evaluation.promote import (
     comparable_runs,
     leaderboard,
     rebuild_splits,
+    report_only_runs,
 )
 from smart_financial_coach.evaluation.runner import PREDICTIONS_FILE, PREDICTIONS_PATH
 from smart_financial_coach.evaluation.tasks.base import get_task
@@ -165,6 +166,20 @@ def comparison_report(
             for b in baselines
         ),
     ]
+    if extra := report_only_runs(list(runs.values())):
+        lines += [
+            "",
+            "**Report-only runs** (e.g. ablations: validation only, never ranked or test-scored):",
+            "",
+            "| Run | `" + selection + "` | " + " | ".join(f"`{k}`" for k in keys) + " |",
+            "| --- | --- | " + " | ".join("---" for _ in keys) + " |",
+            *(
+                f"| `{r.name}` | {_cell(r.metrics.get(selection))} | "
+                + " | ".join(_metric_row(r, keys))
+                + " |"
+                for r in extra
+            ),
+        ]
     if diagnostics and diagnosed:
         lines += [
             "",

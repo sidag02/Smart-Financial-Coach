@@ -1,0 +1,13 @@
+# FR-8 round: the POC leader. A Poisson tail of the purchase count against the usual count times
+# the season (own a year earlier, shrunk toward the category profile by κ) times income^β (FR-8
+# §3). κ is searched within each fold on its training users (§5); β is fitted without labels.
+name: count_poisson
+task: spending_spikes
+model:
+  type: spending_spikes/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: spending_spikes/count, params: {dispersion: poisson}}}
+    search: {kappa: [0.5, 1.0, 2.0]}
+complexity: 2
+tags: {plan: fr8-round}

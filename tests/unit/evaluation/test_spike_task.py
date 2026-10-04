@@ -262,3 +262,24 @@ def test_test_scoring_reports_precision_on_predicted_categories(
     for key in ("precision_predicted", "recall_predicted", "recall_at_rate_predicted"):
         assert key in m
     assert 0 <= m["recall_predicted"] <= 1
+
+
+def test_report_only_runs_are_never_ranked_or_finalized(small_sqlite: Path, tmp_path: Path) -> None:
+    from smart_financial_coach.evaluation.promote import SelectionError, finalize
+
+    tracker = Tracker(f"sqlite:///{tmp_path / 'mlflow.db'}", artifact_root=tmp_path / "art")
+    run_experiment(load_experiment(CONFIGS / "00_mean_k_std.yaml"), small_sqlite, tracker)
+    ablation = run_experiment(
+        load_experiment(CONFIGS / "30_ablation_no_season.yaml"), small_sqlite, tracker
+    )
+    candidate = run_experiment(
+        load_experiment(CONFIGS / "10_count_poisson.yaml"), small_sqlite, tracker
+    )
+
+    names = [s.name for s in leaderboard("spending_spikes", small_sqlite, tracker)]
+    assert names == ["count_poisson"]
+    with pytest.raises(SelectionError, match="report-only"):
+        finalize(
+            "spending_spikes", small_sqlite, tracker, run_ids=[ablation.run_id], override="test"
+        )
+    assert candidate.metrics["fit.assumes_poisson"] == 1.0
