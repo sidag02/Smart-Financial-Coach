@@ -377,7 +377,8 @@ table.retrain td { padding: 8px 10px; border-bottom: 1px solid var(--divider); v
 .projection .target { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); pointer-events: none; z-index: 1; }
 .projection .target span { position: absolute; right: 0; top: -19px; font-size: 11px; color: var(--muted); background: var(--surface); padding: 0 4px; border-radius: 4px; }
 .projection .labels { display: flex; gap: 8px; }
-.projection .labels div { flex: 1; min-width: 0; font-size: 11px; color: var(--faint); text-align: center; white-space: nowrap; overflow: hidden; }
+/* A label may run into its neighbours' columns: long goals leave those empty */
+.projection .labels div { flex: 1; min-width: 0; display: flex; justify-content: center; font-size: 11px; color: var(--faint); white-space: nowrap; }
 .goal-detail { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
 .tip { border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
 .tip.good { background: var(--good-soft); } .tip.good .tip-head { color: var(--good); }
