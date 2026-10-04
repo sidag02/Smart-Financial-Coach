@@ -23,7 +23,7 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 | Screen | Requirement | Tools | Ships in |
 | --- | --- | --- | --- |
 | 1i Sign in | FR-18 | Session | Demo; P2 |
-| 1a Overview (classic grid), 1j mobile | FR-17 | `get_spending_summary`, `get_transactions`, `list_goals` | Demo; P2 (flags panel "coming next"; the goal card with FR-10) |
+| 1a Overview (classic grid), 1j mobile | FR-17 | `get_spending_summary`, `get_transactions`, `list_goals` | Demo; P2 (flags panel "coming next"; the goal card with FR-10, its status and likely amount with FR-11) |
 | 1e Transactions list | FR-3, FR-17 | `get_transactions` with confidence | Demo, read-only; P2 |
 | 1e "Not sure?" review panel | FR-5, FR-6 (P1) | #15: `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction` | After #15 milestone 3 |
 | 1d, 1k Coach chat with sources | FR-13–16 | Read tools, plus goal and category writes with confirmation | Demo; P3 |

@@ -218,9 +218,9 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 
 | Tool | Change |
 | --- | --- |
-| `forecast_goal` (`goal_id`) | Returns:<br>• `status`: `on_track`, `either_way`, `off_track` or `reached`<br>• `p_goal_met`<br>• `projected_balance` (the median)<br>• `range` (10th and 90th percentiles; an 80% interval)<br>• `gap` (target − median, never below 0)<br>• `extra_per_month`<br>• `monthly` (median and range by month, for the chart)<br>• `share_source` (`track_record`, `your_entries` or `typical`)<br>• `months_of_history`, `short_history`, `model_version`<br><br>For a reached goal: `status: reached`, `p_goal_met`, `range`, `gap` and `extra_per_month` are null, and `may_draw_down` is true when 10% or more of paths end below the target |
-| `check_goal` | Adds the same forecast fields for a valid draft, and the fit badge's `fit` (`within_reach`, `either_way`, `stretch`) |
-| `list_goals` | Each active goal gains `status` and `p_goal_met`. `forecast` becomes `available` |
+| `forecast_goal` (`goal_id`) | Returns:<br>• `status`: `on_track`, `either_way`, `off_track` or `reached`<br>• `p_goal_met`<br>• `projected_balance` (the median)<br>• `range` (10th and 90th percentiles; an 80% interval)<br>• `gap` (target − median, never below 0)<br>• `extra_per_month`<br>• `monthly` (median and range by month, for the chart)<br>• `share_source` (`track_record`, `your_entries` or `typical`)<br>• `months_of_history`, `short_history`, `model_version`<br>• `ahead` (median − target, never below 0), `method` (`simulation`, or `simple_projection` for the naive-pace baseline, decision 10)<br><br>For a reached goal: `status: reached`, `p_goal_met`, `range`, `gap` and `extra_per_month` are null, and `may_draw_down` is true when 10% or more of paths end below the target. The baseline has no chance or range either |
+| `check_goal` | Adds the same forecast fields for a valid draft, and the fit badge's `fit` (`within_reach`, `either_way`, `stretch`; none from the baseline, which also can't project a goal not saved yet) |
+| `list_goals` | Each active and reached goal gains `forecast_status` (`status` stays the lifecycle: active, reached, ended), `forecast_method`, `p_goal_met`, `projected_balance`, `short_history` and `may_draw_down`. `forecast` becomes `available` |
 
 ## Design
 
@@ -420,7 +420,7 @@ The round's candidates and rule were written down before it ran on committed cod
 
 ### What the first test scoring showed
 
-Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (`paths_seasonal_persona`) passed every Brier, coverage and RMSE gate, but 4 of 30 blocking calibration gates failed, and so did both other finalists'. Nothing was promoted.
+Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (`paths_seasonal_persona`) passed every Brier, coverage and RMSE gate, but 4 of 24 blocking calibration gates failed, and so did both other finalists'. Nothing was promoted.
 
 | Gate (blocking) | Test met rate (95% CI) | Validation |
 | --- | --- | --- |
@@ -467,7 +467,7 @@ Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (
 
 ## Status (Oct 4, 2026)
 
-**Implemented.** The promoted model is `cbc08f6c-4e5378f2-5e7cefbd` (`paths_seasonal_mixture`), served in the demo.
+**Implemented.** The promoted model is `cbc08f6c-4e5378f2-5e7cefbd` (`paths_seasonal_mixture`), served in the demo. Without a promoted model, naive pace stands behind the same pipeline as a simple projection with no chance or range (decision 10; #55, #56), so a model swaps in without code changes.
 
 | Milestone | PR |
 | --- | --- |
