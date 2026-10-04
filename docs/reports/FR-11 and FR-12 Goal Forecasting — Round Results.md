@@ -4,32 +4,40 @@ Oct 4, 2026 · @Sidd · Milestone 2 of FR-11 and FR-12 Goal Forecasting — Feat
 
 ## Summary
 
+- **This is the round as rerun after review on #52,** with the three fixes that bring the code to the design:
+  - one future per user, the same paths for all of a user's goals (§7);
+  - exponential smoothing simulated from its fitted model (§4);
+  - the spread tuned on realized goal balances (§2).
+
+  The first round's numbers moved by at most 0.004 in Brier. [History](#round-history) has them.
 - **Five runs on validation:** the two baselines (`naive_pace`, `flat_50`) and the three §4 candidates, all built on simulated net-savings paths:
   - `paths_flat_level`: a flat 24-month level;
   - `paths_seasonal_persona`: the level plus a month-of-year profile shrunk toward the persona's;
   - `paths_ets`: exponential smoothing for users with 24+ months (owner decision 3).
-- **Rank 1: `paths_seasonal_persona`, Brier 0.203 on goals with a track record and 0.231 on new goals** (mean 0.217, user bootstrap 95% 0.20–0.23).
-  - **All three candidates are tied** with it on the paired user bootstrap.
-  - **Every candidate's calibration error is 0,** so the next tie-breaker decides: scaled RMSE of the next 6 months' net savings. The seasonal model leads there (0.913 of seasonal-naive), ahead of exponential smoothing (0.959) and the flat level (0.989).
-- **Every candidate beats both baselines on both paths,** by a wide margin: naive pace scores 0.344 and 0.467, a flat 50% scores 0.250.
+- **Rank 1: `paths_seasonal_persona`, Brier 0.201 on goals with a track record and 0.230 on new goals** (mean 0.215, user bootstrap 95% 0.20–0.23).
+  - **`paths_ets` is tied with it** (paired difference −0.010 to +0.001). Both have zero calibration error, so the next tie-breaker decides: scaled RMSE, where the seasonal model leads (0.913 of seasonal-naive against 0.959).
+  - **`paths_flat_level` is behind** (−0.013 to −0.003).
+- **Every candidate beats both baselines on both paths:** naive pace scores 0.344 and 0.467, a flat 50% scores 0.250.
 - **On validation, rank 1 passes every gate but one,** with these values:
   - every status band's met rate falls inside its band, on both paths;
-  - coverage is 0.76 on both paths (gate: 70–90%);
+  - coverage is 0.78 on both paths (gate: 70–90%);
   - RMSE is 0.24 of last-month naive (gate ≤ 0.85) and 0.82 of seasonal-naive (gate ≤ 1.0).
-  - The exception is **freelancers on the new-goal path, at 0.253** against the flat 50%'s 0.250. Feasibility predicted this, and decision 6 makes it reported and non-blocking.
+  - The exception is **freelancers on the new-goal path, at 0.250**, level with a flat 50%. Feasibility predicted this, and decision 6 makes it reported and non-blocking.
 - **No test user was scored by this milestone.** Test results come with milestone 3.
 
 ## Setup
 
 - **Data:** the default dataset generated from `main` (360 users, 36 months, schema 4).
 - **Splits:** 240 train users in 5 user-grouped folds, stratified by persona. Data hash `7261111db5a6`, split hash `6f2fc4ed8b7c`.
-- **Code:** commit `797e0d3` (code version `2f30e120`).
+- **Code:** commit `1fee571` (code version `7ed3dad9`).
 - **Examples:** every known-outcome goal at its `as_of_date`, from the dataset (153 goals) plus 10 stage-9 sampler draws per user, **2,004 goals per path.** Each goal is scored as `track` (its own history) and as `new` (created at `as_of`, on the prior share).
-- **Fitted inside each fold from its training users, never from outcomes:**
+- **Fitted inside each fold from its training users, never from outcomes,** and logged as `fit.*` for the final model on all train users:
   - each persona's seasonal profile and pooled deviations;
-  - the typical allocation (0.656 in fold 0; the POC's was 0.662);
-  - the spread: 1.025 in fold 0 for the seasonal model, tuned so 80% ranges of the next 3–12 months' net savings cover 80% inside the training histories.
-- **Time:** about 7 minutes for all five runs on a laptop CPU. The paths models take about 3.5 s per 2,000-goal batch, and exponential smoothing 8.9 s.
+  - the typical allocation: 0.655, against the POC's 0.662;
+  - the spread, tuned by bisection so the 80% range covers 80% of **realized goal balances**: 973 training goals whose target month lies inside their user's visible history, each run on its own share. The fitted spreads were 1.039 (seasonal), 1.109 (exponential smoothing) and 0.943 (flat level).
+- **Paths:** 1,000 per user and `as_of`, over 120 months, with a seed from (user, `as_of` month, model version). Every goal of the user runs over the same paths.
+- **RMSE** is scored on goal origins: once per user and `as_of`, the next 6 months, against last-month naive and seasonal-naive from the same history.
+- **Time:** about 2.5 minutes for all five runs on a laptop CPU. The paths models take about 4.5 s per 2,000-goal batch, and exponential smoothing 10 s.
 
 ## Results
 
@@ -37,9 +45,9 @@ Ranked by `val_neg_brier`, minus the mean of the two paths' Brier. Ties are judg
 
 | Rank | Run | Brier, track | Brier, new | Mean (95% CI) | vs leader | Band error | Coverage | RMSE vs naive | vs seasonal-naive | Scaled vs seasonal-naive |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| 1 | `paths_seasonal_persona` | **0.203** | **0.231** | 0.217 (0.20–0.23) | – | 0.000 | 0.76 | 0.24 | 0.82 | 0.91 |
-| 2 | `paths_ets` (tied) | 0.207 | 0.236 | 0.222 (0.21–0.24) | −0.010 to +0.001 | 0.000 | 0.75 | 0.26 | 0.88 | 0.96 |
-| 3 | `paths_flat_level` (tied) | 0.208 | 0.231 | 0.220 (0.21–0.23) | −0.008 to +0.002 | 0.000 | 0.81 | 0.28 | 0.93 | 0.99 |
+| 1 | `paths_seasonal_persona` | **0.201** | **0.230** | 0.215 (0.20–0.23) | – | 0.000 | 0.78 | 0.24 | 0.82 | 0.91 |
+| 2 | `paths_ets` (tied) | 0.206 | 0.234 | 0.220 (0.21–0.23) | −0.010 to +0.001 | 0.000 | 0.76 | 0.26 | 0.88 | 0.96 |
+| 3 | `paths_flat_level` | 0.212 | 0.235 | 0.223 (0.21–0.24) | −0.013 to −0.003 | 0.000 | 0.78 | 0.28 | 0.93 | 0.99 |
 | — | `naive_pace` (baseline) | 0.344 | 0.467 | 0.405 | | 0.190 | – | – | – | – |
 | — | `flat_50` (baseline) | 0.250 | 0.250 | 0.250 | | 0.000 | – | – | – | – |
 
@@ -47,25 +55,28 @@ By persona (FR-12):
 
 | Run | Track: family | freelancer | young professional | New: family | freelancer | young professional |
 | --- | --- | --- | --- | --- | --- | --- |
-| `paths_seasonal_persona` | 0.209 | 0.238 | 0.161 | 0.237 | **0.253** | 0.203 |
-| `paths_ets` | 0.207 | 0.255 | 0.160 | 0.240 | 0.268 | 0.199 |
-| `paths_flat_level` | 0.214 | 0.243 | 0.167 | 0.234 | 0.256 | 0.203 |
-
-Calibration of rank 1 by status band:
-
-| Band | Track: goals | Met | New: goals | Met |
-| --- | --- | --- | --- | --- |
-| Off track (p < 0.3) | 962 | 0.25 | 913 | 0.29 |
-| Could go either way (0.3–0.7) | 542 | 0.59 | 532 | 0.54 |
-| On track (p ≥ 0.7) | 500 | 0.81 | 559 | 0.74 |
+| `paths_seasonal_persona` | 0.208 | 0.236 | 0.161 | 0.236 | **0.250** | 0.203 |
+| `paths_ets` | 0.207 | 0.253 | 0.160 | 0.238 | 0.266 | 0.198 |
+| `paths_flat_level` | 0.220 | 0.247 | 0.169 | 0.239 | 0.259 | 0.206 |
 
 ## Reading it
 
-- **Seasonality earns its place, narrowly, and only for families.** Family Brier is 0.209 against the flat level's 0.214, and scaled RMSE improves most at short horizons, as in feasibility. For freelancers the seasonal profile helps a little (0.238 against 0.243): their billing seasonality (a slow January, a strong December) is real.
-- **Exponential smoothing doesn't beat the simpler models.** It's slightly better for young professionals, worse for freelancers (0.255 and 0.268), whose 2–3 years of lumpy months give it too little to fit. It also costs 2.5× the time.
-- **Track-record goals versus the dataset's own goals.** On the dataset's 153 goals alone, rank 1 scores 0.187 on the track path, close to the POC's 0.171 (its interval was ±0.03). The sampled goals are a little harder (0.204), mostly because about a quarter of them have no usable track record (a $0 balance or under 3 months), and those score 0.271 on the typical share.
-- **Coverage is 0.76 for the seasonal model and 0.81 for the flat level.** The spread is tuned on net-savings totals inside the histories, not on goal balances, because tuning on goals would read the realized future. The floor on the balance narrows the realized range a little. Both are inside the 70–90% gate.
-- **RMSE:** on goal origins, the seasonal model is 18% better than seasonal-naive in dollars (9% scaled). That's better than feasibility's backtest, which used every origin with 12+ months. Either way it clears decision 1's gates.
+- **Seasonality helps every persona a little.** Against the flat level, the seasonal model is better for families (0.208 against 0.220 on the track path), for freelancers (0.236 against 0.247) and for young professionals (0.161 against 0.169). The freelancer gain fits their billing seasonality (a slow January, a strong December).
+- **Exponential smoothing doesn't beat the simpler seasonal model.** It's level for families and young professionals but worse for freelancers (0.253 and 0.266), whose 2–3 years of lumpy months give it little to fit. It also takes twice the time.
+- **Tuning the spread on realized balances raised coverage** from 0.76 to 0.78 for the seasonal model, and from 0.75 to 0.76 for exponential smoothing, closer to the 0.80 aim. The remaining shortfall is out-of-fold: the spread is tuned on the training folds' realized goals and scored on other users.
+- **RMSE on goal origins** puts the seasonal model 18% ahead of seasonal-naive in dollars (9% scaled). This round measures only the 6-month horizon, which is what decision 1's gate uses. The design is updated (#50) to say the gate runs on goal origins rather than the §6 rolling backtest. A rolling-origin check in review gave 0.86 (dollars) and 0.93 (scaled), so goal origins don't flatter the gate.
+
+## Round history
+
+**First round** (commit `797e0d3`), before the review fixes. Paths were seeded per goal, exponential smoothing resampled residuals around a fixed forecast, and the spread was tuned on net-savings totals inside the histories.
+
+| Run | Brier, track | Brier, new | Coverage |
+| --- | --- | --- | --- |
+| `paths_seasonal_persona` | 0.203 | 0.231 | 0.76 |
+| `paths_ets` | 0.207 | 0.236 | 0.75 |
+| `paths_flat_level` | 0.208 | 0.231 | 0.81 |
+
+The ranking and the gate outcomes didn't change. The flat level lost its tie with the leader, because its spread tuned on goal balances (0.94) came out lower than on net-savings totals.
 
 ## Next (milestone 3)
 
