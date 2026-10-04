@@ -434,6 +434,15 @@ def main(path: str) -> None:
     ):
         lo, hi = bootstrap(s[k], scored, 0.03, um)
         lines.append(f"- {k}: precision {lo[0]:.3f}-{hi[0]:.3f}, recall {lo[1]:.3f}-{hi[1]:.3f}")
+    # The interval milestone 1's check of the season-profile statistic is held to (owner, #58)
+    lo, hi = bootstrap(s["count_poisson_seasonal_income_floor"], scored, 0.035, um)
+    lines += [
+        "",
+        "At 0.035 flags per user-month (the common rate):",
+        "",
+        f"- count_poisson_seasonal_income_floor: precision {lo[0]:.3f}-{hi[0]:.3f}, "
+        f"recall {lo[1]:.3f}-{hi[1]:.3f}",
+    ]
     lines.append("")
     # Where the best non-oracle detector's false positives come from, at 0.03
     best = "count_poisson_seasonal_income_floor"

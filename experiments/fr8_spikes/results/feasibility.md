@@ -45,6 +45,10 @@
 - count_poisson_seasonal_income_floor: precision 0.807-0.908, recall 0.466-0.534
 - count_negbin_seasonal_income: precision 0.714-0.832, recall 0.411-0.481
 
+At 0.035 flags per user-month (the common rate):
+
+- count_poisson_seasonal_income_floor: precision 0.737-0.860, recall 0.506-0.578
+
 ## count_poisson_seasonal_income_floor at 0.03: false positives
 
 - flags 237, false positives 33; in categories FR-1 never plants in: 5
