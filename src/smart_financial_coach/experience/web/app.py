@@ -8,10 +8,11 @@ request parameter, so no URL or form field can name another user's data (NFR-2).
 """
 
 import html
+import json
 import logging
 import re
 import secrets
-from collections import OrderedDict
+from collections import Counter, OrderedDict
 from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -49,9 +50,14 @@ from smart_financial_coach.access.tools import (
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
-from smart_financial_coach.experience.demo import ACCOUNTS_FILE
+from smart_financial_coach.experience.demo import ACCOUNTS_FILE, REPLAY_FILE
 from smart_financial_coach.experience.web import charts
 from smart_financial_coach.experience.web.limits import RateLimit
+from smart_financial_coach.intelligence.categorization.agreement import (
+    AgreementRule,
+    current_votes,
+    global_labels,
+)
 
 log = logging.getLogger(__name__)
 
@@ -69,6 +75,7 @@ HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Yea
 REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
 ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
 CHANGES_SHOWN = 5  # recent corrections listed with an undo button (FR-6)
+MIN_VISIBLE = 2  # sessions that must vote on a merchant before others see its tally
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -131,6 +138,11 @@ def month_name(key: str, long: bool = False) -> str:
     """ "2026-09" -> "Sep", or "Sep 2026" when long."""
     d = date.fromisoformat(f"{key}-01")
     return f"{d:%b %Y}" if long else f"{d:%b}"
+
+
+def _mean(values: list[Any]) -> float | None:
+    present = [float(v) for v in values if v is not None]
+    return sum(present) / len(present) if present else None
 
 
 def money(value: float, cents: bool = False, sign: bool = False) -> str:
@@ -640,6 +652,62 @@ def create_app(
             return f"Undone: {result['undone']['merchant']} is back to how it was."
 
         return feedback_action(request, back, run)
+
+    # How it learns (FR-5/FR-6 §7): the feedback replay, step by step, and visitors' agreement
+
+    @app.get("/learning")
+    def learning(request: Request) -> Response:
+        account = signed_in(request)
+        path = sources.dataset.parent / REPLAY_FILE
+        replay = json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
+        context: dict[str, Any] = {"replay": replay}
+        if replay:
+            months = [m["month"] for m in replay["months"]]
+
+            def share(m: dict[str, Any], group: str) -> float | None:
+                value = m[group].get("accuracy_view")
+                return float(value) if value is not None else None
+
+            evaluation = [share(m, "evaluation") for m in replay["months"]]
+            personal = [share(m, "personal") for m in replay["months"]]
+            promoted = [s["month"] for s in replay["retrainings"] if s["decision"] == "promoted"]
+            context |= {
+                "chart": charts.lines(
+                    {"evaluation": evaluation, "personal": personal}, months, promoted
+                ),
+                "first_q": _mean(evaluation[:3]),
+                "last_q": _mean(evaluation[-3:]),
+                # New merchants against the true categories: model errors fixed, comparable with
+                # the PRD's 0.80 goal for v1.1, which feedback is meant to reach
+                "unseen_first": _mean(
+                    [m["evaluation_unseen"].get("macro_f1_truth") for m in replay["months"][:3]]
+                ),
+                "unseen_last": _mean(
+                    [m["evaluation_unseen"].get("macro_f1_truth") for m in replay["months"][-3:]]
+                ),
+                "labels": sorted(replay["labels"], key=lambda x: -x["voters"])[:15],
+            }
+        # Visitors' agreement, live and illustrative: counts across sessions, never who
+        votes = current_votes(feedback.all_events())
+        rule = AgreementRule()
+        tallies: dict[str, Counter[str]] = {}
+        for v in votes:
+            tallies.setdefault(v.merchant_key, Counter())[v.category] += 1
+        labels_now = global_labels(votes, rule)
+        context["visitors"] = [
+            {
+                "merchant": key.title(),
+                "category": counts.most_common(1)[0][0],
+                "agreeing": counts.most_common(1)[0][1],
+                "voters": sum(counts.values()),
+                "needed": rule.n,
+                "label": key in labels_now,
+            }
+            for key, counts in sorted(tallies.items(), key=lambda kv: -sum(kv[1].values()))[:8]
+            if sum(counts.values()) >= MIN_VISIBLE  # one person's choice stays theirs (§4)
+        ]
+        context["single_votes"] = sum(1 for c in tallies.values() if sum(c.values()) < MIN_VISIBLE)
+        return page(request, "learning.html", account, active="learning", **context)
 
     # Chat (mockup 1d)
 

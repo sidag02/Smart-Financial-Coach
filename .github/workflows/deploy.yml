@@ -13,6 +13,7 @@ on:
       - "configs/**"
       - "artifacts/**"
       - "docs/design/mockups/**"
+      - "docs/reports/fr5-replay.json" # the "How it learns" page's data
       - "Dockerfile"
       - ".dockerignore"
       - "pyproject.toml"
