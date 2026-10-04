@@ -44,6 +44,9 @@ class Gate:
     name: str
     passed: bool
     detail: str
+    # A non-blocking gate is reported, but its failure alone doesn't stop promotion (an owner
+    # decision, e.g. FR-11's freelancer gate on the new-goal path)
+    blocking: bool = True
 
 
 class Task(Protocol):
@@ -142,6 +145,7 @@ _TASKS: dict[str, Callable[[], Task]] = {}
 TASK_MODULES: tuple[str, ...] = (
     "smart_financial_coach.evaluation.tasks.categorization",
     "smart_financial_coach.evaluation.tasks.unusual",
+    "smart_financial_coach.evaluation.tasks.goals",
 )
 
 

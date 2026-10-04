@@ -38,16 +38,41 @@ def _saved(net: np.ndarray, share: float, first: int, last: int) -> float:
 def generate_goals(
     user: User, tl: Timeline, txns: pd.DataFrame, spec: GoalsSpec
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
-    rng = user.rng("goals")
     net = np.bincount(
         tl.month_idx[txns["day"].to_numpy(dtype=np.int64)],
         weights=txns["amount"].to_numpy(),
         minlength=tl.n_months,
     )
-    types = user.persona.goals
-    k = min(int(rng.integers(spec.per_user[0], spec.per_user[1] + 1)), len(types))
-    weights = np.array([t.weight for t in types])
-    picked = rng.choice(len(types), size=k, replace=False, p=weights / weights.sum())
+    return sample_goals(
+        net,
+        tl,
+        [t.name for t in user.persona.goals],
+        [t.weight for t in user.persona.goals],
+        spec,
+        user.rng("goals"),
+        user_id=user.user_id,
+        goal_prefix=f"g_{user.user_id[2:]}",
+    )
+
+
+def sample_goals(
+    net: np.ndarray,
+    tl: Timeline,
+    names: list[str],
+    weights: list[float],
+    spec: GoalsSpec,
+    rng: np.random.Generator,
+    *,
+    user_id: str,
+    goal_prefix: str,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """One user's goals and their truth, from the user's monthly net savings (`net`, one value
+    per month of `tl`). A pure function of its arguments: stage 9 calls it once per user with the
+    user's own stream; FR-11's evaluation calls it again with other streams to draw more labeled
+    goals without changing the dataset (FR-11 and FR-12 design, §6)."""
+    k = min(int(rng.integers(spec.per_user[0], spec.per_user[1] + 1)), len(names))
+    w = np.array(weights)
+    picked = rng.choice(len(names), size=k, replace=False, p=w / w.sum())
     total_share = float(rng.uniform(*spec.allocation_share))
     shares = total_share * (rng.dirichlet(np.full(k, 2.0)) if k > 1 else np.ones(1))
     classes = list(spec.outcome_mix)
@@ -87,12 +112,12 @@ def generate_goals(
         created_day = min(
             int(tl.month_first[created_m]) + int(rng.integers(0, 28)), int(tl.month_last[created_m])
         )
-        goal_id = f"g_{user.user_id[2:]}_{j + 1}"
+        goal_id = f"{goal_prefix}_{j + 1}"
         goals.append(
             {
                 "goal_id": goal_id,
-                "user_id": user.user_id,
-                "name": types[int(type_idx)].name,
+                "user_id": user_id,
+                "name": names[int(type_idx)],
                 "target_amount": target,
                 "created_date": str(tl.date_of(created_day)),
                 "target_date": target_date,

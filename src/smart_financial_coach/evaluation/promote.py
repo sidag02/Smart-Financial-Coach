@@ -399,7 +399,7 @@ def promote(
             )
         shipped = {p: config.task_params[p] for p in task.shipping_params}
     gates = check_gates(task, run, tracker)
-    if failed := [g for g in gates if not g.passed]:
+    if failed := [g for g in gates if not g.passed and g.blocking]:
         raise SelectionError("gates failed: " + "; ".join(f"{g.name} ({g.detail})" for g in failed))
 
     service_dir = (artifacts_dir or get_settings().artifacts_dir) / task.name
@@ -451,7 +451,10 @@ def promote(
         "mlflow_run_id": run_id,
         "registry_version": registry_version,
         "promoted_at": datetime.now(UTC).isoformat(timespec="seconds"),
-        "gates": [{"name": g.name, "passed": g.passed, "detail": g.detail} for g in gates],
+        "gates": [
+            {"name": g.name, "passed": g.passed, "detail": g.detail, "blocking": g.blocking}
+            for g in gates
+        ],
         "note": note.strip(),
         **({"task_params": shipped} if shipped else {}),
         **({URL_KEY: url} if url else {}),
