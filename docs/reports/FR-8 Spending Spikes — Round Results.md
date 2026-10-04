@@ -32,9 +32,9 @@ Oct 4, 2026 · @Sidd · Milestones 3 and 4 of FR-8 Spending Spikes — Feature D
   - β, fitted without labels, is 0.24 for both. The negative binomial's pooled over-dispersion is 0: most users' trailing variance is at or below their mean.
 - **Time:** 3.8 minutes for all six runs on a laptop CPU. Scoring itself takes milliseconds (`latency_batch_ms` 4–6 ms for 200 periods); the rest is loading data, building season profiles and the leak check.
 
-## Departures from §3, decided by the owner
+## Departures from §3
 
-- **The simple count rule runs with both product rules,** and its expected count is floored at 0.3 like every count model's. §3 defined it with no floor. The contract enforces the rules on every flag.
+- **The simple count rule runs with both product rules** (an owner decision): §3 defined it with no floor, and the contract enforces the rules on every flag. Its expected count is floored at 0.3, an implementation detail shared by every count model.
 - **The ablation without the spend floor was dropped:** it can't run under the contract. The POC's measurement stands for it (the floor alone costs 0.5 points).
 - **The simple count rule is cut at a rate, not a precision** (decision 15), so it measures the fallback that actually ships. As a baseline run, it's scored on test users with the finalists.
 
@@ -156,7 +156,7 @@ Look-alikes (the main risk): 3663 normal months in the planted categories with s
 - recall at the rate 0.521 against the baseline's 0.158: pass;
 - 0 flags without a reason, a size or valid drivers: pass.
 
-**Promoted** (owner, Oct 4, 2026): `count_negbin` as `8c428c54-d85b4650-64917ea6`, by the decision rule. The model file is attached to the GitHub Release `spending_spikes-8c428c54-d85b4650-64917ea6`.
+**Promoted:** `count_negbin` as `8c428c54-d85b4650-64917ea6`, under milestone 4's rule (promote if the gates pass), and accepted by the owner after seeing the test results (Oct 4, 2026, on #62). The go-ahead on #61 covered test scoring only. The model file is attached to the GitHub Release `spending_spikes-8c428c54-d85b4650-64917ea6`.
 
 **Reading the test results:**
 - **The precision margin is thin.** Out of fold it was 0.799; on test users it's 0.705, and its 95% interval reaches 0.634. The flag rate rose from 0.035 to 0.039: the cutoff fitted on train users flags slightly more on test users, and the extra flags are mostly false positives. Tuning to 0.80 (decision 4) is what kept it above the gate. This is the known limit that goes with the promotion.

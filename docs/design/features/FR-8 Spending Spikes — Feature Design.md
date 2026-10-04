@@ -482,7 +482,7 @@ From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Result
   - the estimator is documented as run, not changed after the results.
 - **Ablations are report-only runs:** a config tag `report_only: "true"` keeps a run out of the ranking and out of `finalize`. It's a tag rather than a config field, so no existing run's config hash changes. The ablation without the spend floor isn't possible, since the contract enforces the floor on every flag; the POC's measurement stands for it.
 - **Seasonality earns nothing out of fold** (0.518 without, 0.516 with), and κ landed on the top of the decided grid (2). Both are reported, not acted on.
-- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3 are owner decisions: it runs with both product rules, and its expected count is floored at 0.3 like every count model's.
+- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3: it runs with both product rules (an owner decision), and its expected count is floored at 0.3, an implementation detail shared by every count model.
 
 From milestone 4, test scoring and promotion (FR-8 Spending Spikes — Round Results):
 
@@ -490,7 +490,7 @@ From milestone 4, test scoring and promotion (FR-8 Spending Spikes — Round Res
   - precision **0.705** (0.634–0.770) against 0.70;
   - recall at the rate **0.521** against the baseline's 0.158;
   - every flag with evidence and valid drivers.
-- **Promoted** (owner, Oct 4, 2026) as `8c428c54-d85b4650-64917ea6`. **Known limit:** the precision margin is thin, 0.799 out of fold and 0.705 on test, with the flag rate rising from 0.035 to 0.039. Reviewing the cutoff on real data is part of v2's re-validation.
+- **Promoted** as `8c428c54-d85b4650-64917ea6` under milestone 4's rule (promote if the gates pass), and accepted by the owner after seeing the test results (Oct 4, 2026, on #62). The go-ahead on #61 covered test scoring, not promotion in advance. **Known limit:** the precision margin is thin, 0.799 out of fold and 0.705 on test, with the flag rate rising from 0.035 to 0.039. Reviewing the cutoff on real data is part of v2's re-validation.
 - On predicted categories, precision is 0.777 and recall at the rate 0.526. The fallback simple rule would also have passed precision (0.705).
 
 From milestone 4, serving (built before test scoring, so the simple rule served until the promotion):
