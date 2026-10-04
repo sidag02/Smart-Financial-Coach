@@ -26,6 +26,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "itsdangerous>=2.2.0",
     "anthropic>=1.11.0",
+    "statsmodels>=0.15.0",
 ]
 
 [project.scripts]
@@ -78,7 +79,7 @@ plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "joblib.*"]
+module = ["sklearn.*", "joblib.*", "statsmodels.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
