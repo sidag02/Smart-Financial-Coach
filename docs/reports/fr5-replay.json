@@ -1521,6 +1521,9 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [
+        "seatgeek"
+      ],
       "inputs": {
         "cutoff": "2024-04-01",
         "agreed": {
@@ -1977,6 +1980,7 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [],
       "inputs": {
         "cutoff": "2024-07-01",
         "agreed": {
@@ -2384,6 +2388,7 @@
         "cvs/pharmacy",
         "netflix.com"
       ],
+      "adversarial_driven": [],
       "inputs": {
         "cutoff": "2024-10-01",
         "agreed": {
@@ -2855,6 +2860,7 @@
       "revoked": [
         "amazon prime"
       ],
+      "adversarial_driven": [],
       "inputs": {
         "cutoff": "2025-01-01",
         "agreed": {
@@ -3385,6 +3391,9 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [
+        "costcowhse"
+      ],
       "inputs": {
         "cutoff": "2025-04-01",
         "agreed": {
@@ -4013,6 +4022,9 @@
       ],
       "revoked": [
         "disney plus"
+      ],
+      "adversarial_driven": [
+        "costcowhse"
       ],
       "inputs": {
         "cutoff": "2025-07-01",
@@ -4673,6 +4685,9 @@
       "revoked": [
         "disney plus",
         "spotify usa"
+      ],
+      "adversarial_driven": [
+        "costcowhse"
       ],
       "inputs": {
         "cutoff": "2025-10-01",
@@ -5363,6 +5378,9 @@
         "hulu.com/bill",
         "spotify",
         "spotify usa"
+      ],
+      "adversarial_driven": [
+        "costcowhse"
       ],
       "inputs": {
         "cutoff": "2026-01-01",
@@ -6083,6 +6101,9 @@
         "hulu.com/bill",
         "spotify",
         "spotify usa"
+      ],
+      "adversarial_driven": [
+        "costcowhse"
       ],
       "inputs": {
         "cutoff": "2026-04-01",
@@ -6844,6 +6865,9 @@
         "spotify",
         "spotify usa"
       ],
+      "adversarial_driven": [
+        "costcowhse"
+      ],
       "inputs": {
         "cutoff": "2026-07-01",
         "agreed": {
@@ -7537,7 +7561,8 @@
       "subtype": "home",
       "voters": 12,
       "agreeing": 12,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "amazon prime",
@@ -7546,7 +7571,8 @@
       "subtype": "streaming",
       "voters": 15,
       "agreeing": 12,
-      "corrections": 12
+      "corrections": 12,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "apple icloud",
@@ -7555,7 +7581,8 @@
       "subtype": "streaming",
       "voters": 6,
       "agreeing": 6,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "apple.com/bill",
@@ -7564,7 +7591,8 @@
       "subtype": "streaming",
       "voters": 5,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "arco",
@@ -7573,7 +7601,8 @@
       "subtype": "fuel",
       "voters": 7,
       "agreeing": 6,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "bp",
@@ -7582,7 +7611,8 @@
       "subtype": "fuel",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "bright smile dental",
@@ -7591,7 +7621,8 @@
       "subtype": "medical",
       "voters": 11,
       "agreeing": 9,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "chick-fil-a",
@@ -7600,7 +7631,8 @@
       "subtype": "fast_casual",
       "voters": 23,
       "agreeing": 23,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "citymd",
@@ -7609,7 +7641,8 @@
       "subtype": "medical",
       "voters": 17,
       "agreeing": 16,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "costcowhse",
@@ -7618,7 +7651,8 @@
       "subtype": "warehouse",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "disney+",
@@ -7627,7 +7661,8 @@
       "subtype": "streaming",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "dollar tree",
@@ -7636,7 +7671,8 @@
       "subtype": "general",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "eventbrite",
@@ -7645,7 +7681,8 @@
       "subtype": "events",
       "voters": 10,
       "agreeing": 10,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "expedia",
@@ -7654,7 +7691,8 @@
       "subtype": "lodging",
       "voters": 9,
       "agreeing": 8,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "fastrak",
@@ -7663,7 +7701,8 @@
       "subtype": "toll",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "five below",
@@ -7672,7 +7711,8 @@
       "subtype": "general",
       "voters": 11,
       "agreeing": 10,
-      "corrections": 7
+      "corrections": 7,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "five below phoenix az",
@@ -7681,7 +7721,8 @@
       "subtype": "general",
       "voters": 4,
       "agreeing": 3,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "food lion",
@@ -7690,7 +7731,8 @@
       "subtype": "supermarket",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "google",
@@ -7699,7 +7741,8 @@
       "subtype": "streaming",
       "voters": 6,
       "agreeing": 6,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "h-e-b",
@@ -7708,7 +7751,8 @@
       "subtype": "supermarket",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "in-n-out burger",
@@ -7717,7 +7761,8 @@
       "subtype": "fast_casual",
       "voters": 15,
       "agreeing": 13,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "intuit",
@@ -7726,7 +7771,8 @@
       "subtype": "software",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "lakeside toy",
@@ -7735,7 +7781,8 @@
       "subtype": "kids",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "laugh track c",
@@ -7744,7 +7791,8 @@
       "subtype": "leisure",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "little ow",
@@ -7753,7 +7801,8 @@
       "subtype": "coffee",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "lowe's",
@@ -7762,7 +7811,8 @@
       "subtype": "home",
       "voters": 10,
       "agreeing": 9,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "max",
@@ -7771,7 +7821,8 @@
       "subtype": "streaming",
       "voters": 14,
       "agreeing": 11,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "max.com",
@@ -7780,7 +7831,8 @@
       "subtype": "streaming",
       "voters": 10,
       "agreeing": 8,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "netflix",
@@ -7789,7 +7841,8 @@
       "subtype": "streaming",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "netflix.com",
@@ -7798,7 +7851,8 @@
       "subtype": "streaming",
       "voters": 11,
       "agreeing": 9,
-      "corrections": 9
+      "corrections": 9,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "one medical",
@@ -7807,7 +7861,8 @@
       "subtype": "medical",
       "voters": 26,
       "agreeing": 25,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "p.f. chang s",
@@ -7816,7 +7871,8 @@
       "subtype": "restaurant",
       "voters": 7,
       "agreeing": 6,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "p.f. chang s mi",
@@ -7825,7 +7881,8 @@
       "subtype": "restaurant",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "panda express",
@@ -7834,7 +7891,8 @@
       "subtype": "fast_casual",
       "voters": 12,
       "agreeing": 9,
-      "corrections": 8
+      "corrections": 8,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "paramount+",
@@ -7843,7 +7901,8 @@
       "subtype": "streaming",
       "voters": 6,
       "agreeing": 5,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "peacock",
@@ -7852,7 +7911,8 @@
       "subtype": "streaming",
       "voters": 8,
       "agreeing": 7,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "pep boys dallas t",
@@ -7861,7 +7921,8 @@
       "subtype": "auto_repair",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "pho saigo",
@@ -7870,7 +7931,8 @@
       "subtype": "restaurant",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "progressive",
@@ -7879,7 +7941,8 @@
       "subtype": "auto_insurance",
       "voters": 8,
       "agreeing": 6,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "progressive web pmt",
@@ -7888,7 +7951,8 @@
       "subtype": "auto_insurance",
       "voters": 5,
       "agreeing": 5,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "publix",
@@ -7897,7 +7961,8 @@
       "subtype": "supermarket",
       "voters": 4,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "riverside mini",
@@ -7906,7 +7971,8 @@
       "subtype": "leisure",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "riverside mini go",
@@ -7915,7 +7981,8 @@
       "subtype": "leisure",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "safewa",
@@ -7924,7 +7991,8 @@
       "subtype": "supermarket",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "scholastic book fair",
@@ -7933,7 +8001,8 @@
       "subtype": "school",
       "voters": 6,
       "agreeing": 5,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "seatgeek",
@@ -7942,7 +8011,8 @@
       "subtype": "events",
       "voters": 10,
       "agreeing": 10,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "sittercity",
@@ -7951,7 +8021,8 @@
       "subtype": "babysitting",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "sprouts farmers market sto",
@@ -7960,7 +8031,8 @@
       "subtype": "supermarket",
       "voters": 6,
       "agreeing": 6,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "starlight bowling",
@@ -7969,7 +8041,8 @@
       "subtype": "leisure",
       "voters": 6,
       "agreeing": 5,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "subway",
@@ -7978,7 +8051,8 @@
       "subtype": "fast_casual",
       "voters": 17,
       "agreeing": 15,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "sweetgreen",
@@ -7987,7 +8061,8 @@
       "subtype": "fast_casual",
       "voters": 17,
       "agreeing": 16,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "taget",
@@ -7996,7 +8071,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target los angeles ca",
@@ -8005,7 +8081,8 @@
       "subtype": "general",
       "voters": 4,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target phoenix az",
@@ -8014,7 +8091,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target seattle wa",
@@ -8023,7 +8101,8 @@
       "subtype": "general",
       "voters": 5,
       "agreeing": 4,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target sore",
@@ -8032,7 +8111,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "temu",
@@ -8041,7 +8121,8 @@
       "subtype": "marketplace",
       "voters": 10,
       "agreeing": 8,
-      "corrections": 7
+      "corrections": 7,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "the children's place",
@@ -8050,7 +8131,8 @@
       "subtype": "kids",
       "voters": 15,
       "agreeing": 14,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "tjmaxx",
@@ -8059,7 +8141,8 @@
       "subtype": "clothing",
       "voters": 13,
       "agreeing": 12,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "vrbo",
@@ -8068,7 +8151,8 @@
       "subtype": "lodging",
       "voters": 6,
       "agreeing": 6,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "walgreens",
@@ -8077,7 +8161,8 @@
       "subtype": "pharmacy",
       "voters": 5,
       "agreeing": 5,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "walgreens dalla",
@@ -8086,7 +8171,8 @@
       "subtype": "pharmacy",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "wayfair",
@@ -8095,7 +8181,8 @@
       "subtype": "home",
       "voters": 10,
       "agreeing": 10,
-      "corrections": 7
+      "corrections": 7,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "wayfair dallas tx",
@@ -8104,7 +8191,8 @@
       "subtype": "home",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "zara",
@@ -8113,7 +8201,8 @@
       "subtype": "clothing",
       "voters": 9,
       "agreeing": 9,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     }
   ],
   "remaps": [
@@ -8492,7 +8581,16 @@
     "personal_accuracy_last_quarter": 0.941588756072981,
     "open_items_per_user_month": 1.2822061191626408,
     "items_resolved_per_user_month": 0.6747181964573268,
+    "adversarial_driven_labels": [
+      "costcowhse"
+    ],
+    "adversarial_driven_in_promoted_models": {},
     "isolation_holds": true,
-    "seconds": 2231
-  }
+    "seconds": 2342
+  },
+  "adversarial_users": [
+    "u_te_fb_0001",
+    "u_te_fl_0008",
+    "u_te_yp_0033"
+  ]
 }

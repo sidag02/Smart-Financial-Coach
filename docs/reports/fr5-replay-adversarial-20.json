@@ -1505,6 +1505,10 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [
+        "disney plus",
+        "seatgeek"
+      ],
       "inputs": {
         "cutoff": "2024-04-01",
         "agreed": {
@@ -1878,6 +1882,11 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "disney plus",
+        "hulu.com/bill"
+      ],
       "inputs": {
         "cutoff": "2024-07-01",
         "agreed": {
@@ -2242,6 +2251,15 @@
       "revoked": [
         "cvs/pharmacy",
         "lowe's"
+      ],
+      "adversarial_driven": [
+        "apple icloud",
+        "bj s wholesale c",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "max",
+        "publix"
       ],
       "inputs": {
         "cutoff": "2024-10-01",
@@ -2671,6 +2689,13 @@
       ],
       "revoked": [
         "publix"
+      ],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill"
       ],
       "inputs": {
         "cutoff": "2025-01-01",
@@ -3147,6 +3172,14 @@
         "netflix.com",
         "sam s club",
         "spotify"
+      ],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill"
       ],
       "inputs": {
         "cutoff": "2025-04-01",
@@ -3640,6 +3673,18 @@
         ]
       ],
       "revoked": [],
+      "adversarial_driven": [
+        "amazon prime",
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "laugh tra",
+        "netflix",
+        "peloton"
+      ],
       "inputs": {
         "cutoff": "2025-07-01",
         "agreed": {
@@ -4179,6 +4224,16 @@
       "revoked": [
         "disney plus",
         "target los angeles ca"
+      ],
+      "adversarial_driven": [
+        "amazon prime",
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "netflix",
+        "peloton"
       ],
       "inputs": {
         "cutoff": "2025-10-01",
@@ -4753,6 +4808,16 @@
         "amazon prime",
         "disney plus",
         "target los angeles ca"
+      ],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "netflix",
+        "netflix.com",
+        "peloton"
       ],
       "inputs": {
         "cutoff": "2026-01-01",
@@ -5364,6 +5429,15 @@
         "apple icloud",
         "disney plus",
         "target los angeles ca"
+      ],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "netflix",
+        "peloton"
       ],
       "inputs": {
         "cutoff": "2026-04-01",
@@ -5986,6 +6060,16 @@
         "paramount+",
         "target los angeles ca"
       ],
+      "adversarial_driven": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "five below seattle wa",
+        "netflix",
+        "peloton",
+        "spotify",
+        "sprouts farmers market st"
+      ],
       "inputs": {
         "cutoff": "2026-07-01",
         "agreed": {
@@ -6557,7 +6641,8 @@
       "subtype": "home",
       "voters": 12,
       "agreeing": 11,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "amazon prie",
@@ -6566,7 +6651,8 @@
       "subtype": "streaming",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "apple.com/bill",
@@ -6575,7 +6661,8 @@
       "subtype": "streaming",
       "voters": 6,
       "agreeing": 5,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "bj s wholesale c",
@@ -6584,7 +6671,8 @@
       "subtype": "warehouse",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "bjs wholesale club",
@@ -6593,7 +6681,8 @@
       "subtype": "warehouse",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "bright smile dental",
@@ -6602,7 +6691,8 @@
       "subtype": "medical",
       "voters": 11,
       "agreeing": 8,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "chick-fil-a",
@@ -6611,7 +6701,8 @@
       "subtype": "fast_casual",
       "voters": 23,
       "agreeing": 18,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "citymd",
@@ -6620,7 +6711,8 @@
       "subtype": "medical",
       "voters": 17,
       "agreeing": 14,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "costcowhse",
@@ -6629,7 +6721,8 @@
       "subtype": "warehouse",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "cvs/pharmacy",
@@ -6638,7 +6731,8 @@
       "subtype": "pharmacy",
       "voters": 28,
       "agreeing": 19,
-      "corrections": 10
+      "corrections": 10,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "disney+",
@@ -6647,7 +6741,8 @@
       "subtype": "streaming",
       "voters": 5,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "dollar tree",
@@ -6656,7 +6751,8 @@
       "subtype": "general",
       "voters": 16,
       "agreeing": 15,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "eventbrite",
@@ -6665,7 +6761,8 @@
       "subtype": "events",
       "voters": 11,
       "agreeing": 10,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "expedia",
@@ -6674,7 +6771,8 @@
       "subtype": "lodging",
       "voters": 9,
       "agreeing": 8,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "fastrak",
@@ -6683,7 +6781,8 @@
       "subtype": "toll",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "five below phoenix az",
@@ -6692,7 +6791,8 @@
       "subtype": "general",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "five below seattle wa",
@@ -6701,7 +6801,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "food lion",
@@ -6710,7 +6811,8 @@
       "subtype": "supermarket",
       "voters": 4,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "gap",
@@ -6719,7 +6821,8 @@
       "subtype": "clothing",
       "voters": 6,
       "agreeing": 4,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "google",
@@ -6728,7 +6831,8 @@
       "subtype": "streaming",
       "voters": 6,
       "agreeing": 6,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "h-e-b",
@@ -6737,7 +6841,8 @@
       "subtype": "supermarket",
       "voters": 7,
       "agreeing": 5,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "in-n-out burger",
@@ -6746,7 +6851,8 @@
       "subtype": "fast_casual",
       "voters": 15,
       "agreeing": 12,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "laugh tra",
@@ -6755,7 +6861,8 @@
       "subtype": "leisure",
       "voters": 5,
       "agreeing": 5,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "little sprouts daycare",
@@ -6764,7 +6871,8 @@
       "subtype": "daycare",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "max",
@@ -6773,7 +6881,8 @@
       "subtype": "streaming",
       "voters": 12,
       "agreeing": 9,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "netflix",
@@ -6782,7 +6891,8 @@
       "subtype": "streaming",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "netflix.com",
@@ -6791,7 +6901,8 @@
       "subtype": "streaming",
       "voters": 13,
       "agreeing": 10,
-      "corrections": 10
+      "corrections": 10,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "one medical",
@@ -6800,7 +6911,8 @@
       "subtype": "medical",
       "voters": 26,
       "agreeing": 21,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "p.f. chang s",
@@ -6809,7 +6921,8 @@
       "subtype": "restaurant",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "p.f. chang s mi",
@@ -6818,7 +6931,8 @@
       "subtype": "restaurant",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "panda express",
@@ -6827,7 +6941,8 @@
       "subtype": "fast_casual",
       "voters": 12,
       "agreeing": 10,
-      "corrections": 9
+      "corrections": 9,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "peacock",
@@ -6836,7 +6951,8 @@
       "subtype": "streaming",
       "voters": 8,
       "agreeing": 7,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "peloton",
@@ -6845,7 +6961,8 @@
       "subtype": "gym",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "pho saigo",
@@ -6854,7 +6971,8 @@
       "subtype": "restaurant",
       "voters": 4,
       "agreeing": 4,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "progressive",
@@ -6863,7 +6981,8 @@
       "subtype": "auto_insurance",
       "voters": 8,
       "agreeing": 7,
-      "corrections": 7
+      "corrections": 7,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "riverside mini",
@@ -6872,7 +6991,8 @@
       "subtype": "leisure",
       "voters": 7,
       "agreeing": 6,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "riverside mini go",
@@ -6881,7 +7001,8 @@
       "subtype": "leisure",
       "voters": 7,
       "agreeing": 7,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "spotify",
@@ -6890,7 +7011,8 @@
       "subtype": "streaming",
       "voters": 8,
       "agreeing": 6,
-      "corrections": 6
+      "corrections": 6,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "spotify usa",
@@ -6899,7 +7021,8 @@
       "subtype": "streaming",
       "voters": 11,
       "agreeing": 8,
-      "corrections": 8
+      "corrections": 8,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "sprouts farmers market st",
@@ -6908,7 +7031,8 @@
       "subtype": "supermarket",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": true
     },
     {
       "merchant_key": "subway",
@@ -6917,7 +7041,8 @@
       "subtype": "fast_casual",
       "voters": 17,
       "agreeing": 13,
-      "corrections": 4
+      "corrections": 4,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "sweetgreen",
@@ -6926,7 +7051,8 @@
       "subtype": "fast_casual",
       "voters": 17,
       "agreeing": 12,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target chicago il",
@@ -6935,7 +7061,8 @@
       "subtype": "general",
       "voters": 4,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target dallas tx",
@@ -6944,7 +7071,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target denver co",
@@ -6953,7 +7081,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "target phoenix az",
@@ -6962,7 +7091,8 @@
       "subtype": "general",
       "voters": 3,
       "agreeing": 3,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "temu",
@@ -6971,7 +7101,8 @@
       "subtype": "marketplace",
       "voters": 10,
       "agreeing": 7,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "the children's place",
@@ -6980,7 +7111,8 @@
       "subtype": "kids",
       "voters": 16,
       "agreeing": 13,
-      "corrections": 3
+      "corrections": 3,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "tjmaxx",
@@ -6989,7 +7121,8 @@
       "subtype": "clothing",
       "voters": 13,
       "agreeing": 9,
-      "corrections": 1
+      "corrections": 1,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "wayfair",
@@ -6998,7 +7131,8 @@
       "subtype": "home",
       "voters": 10,
       "agreeing": 7,
-      "corrections": 5
+      "corrections": 5,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "wayfair dallas tx",
@@ -7007,7 +7141,8 @@
       "subtype": "home",
       "voters": 3,
       "agreeing": 2,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     },
     {
       "merchant_key": "zara",
@@ -7016,7 +7151,8 @@
       "subtype": "clothing",
       "voters": 9,
       "agreeing": 7,
-      "corrections": 2
+      "corrections": 2,
+      "adversarial_driven": false
     }
   ],
   "remaps": [
@@ -7368,7 +7504,63 @@
     "personal_accuracy_last_quarter": 0.9112481138940959,
     "open_items_per_user_month": 1.256038647342995,
     "items_resolved_per_user_month": 0.6847826086956521,
+    "adversarial_driven_labels": [
+      "bj s wholesale c",
+      "bjs wholesale club",
+      "costcowhse",
+      "five below seattle wa",
+      "netflix",
+      "peloton",
+      "sprouts farmers market st"
+    ],
+    "adversarial_driven_in_promoted_models": {
+      "2024-06": [
+        "bj s wholesale c",
+        "disney plus",
+        "hulu.com/bill"
+      ],
+      "2024-09": [
+        "apple icloud",
+        "bj s wholesale c",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill",
+        "max",
+        "publix"
+      ],
+      "2024-12": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill"
+      ],
+      "2025-03": [
+        "bj s wholesale c",
+        "bjs wholesale club",
+        "costcowhse",
+        "disney plus",
+        "five below seattle wa",
+        "hulu.com/bill"
+      ]
+    },
     "isolation_holds": true,
-    "seconds": 2188
-  }
+    "seconds": 2267
+  },
+  "adversarial_users": [
+    "u_te_fb_0000",
+    "u_te_fb_0001",
+    "u_te_fb_0013",
+    "u_te_fb_0015",
+    "u_te_fb_0028",
+    "u_te_fb_0034",
+    "u_te_fl_0001",
+    "u_te_fl_0004",
+    "u_te_fl_0008",
+    "u_te_fl_0009",
+    "u_te_fl_0017",
+    "u_te_fl_0025",
+    "u_te_fl_0026",
+    "u_te_yp_0033"
+  ]
 }
