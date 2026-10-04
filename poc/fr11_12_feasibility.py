@@ -135,20 +135,28 @@ for u in users.index:
         hmax = min(12, N - k)
         actual = y[k : k + hmax]
         lvl = np.abs(y[k - 12 : k].mean())
+        scale = np.abs(y[:k]).mean()  # the user's mean absolute monthly net before the origin
         for name, fc in MODELS.items():
             f = fc(y, k, hmax)
             for h in H:
                 if h <= hmax:
-                    errs.append((p, name, h, k, f[:h].sum() - actual[:h].sum(), lvl))
+                    errs.append((p, name, h, k, f[:h].sum() - actual[:h].sum(), scale))
         # persona-pooled seasonal prior, shrunk
         pool = {m: pools[k][p][m] * lvl for m in range(1, 13)}
         for shrink in (1, 2, 4):
             f = make_profile(shrink)(y, k, hmax, pool)
             for h in H:
                 if h <= hmax:
-                    errs.append((p, f"profile_pool{shrink}", h, k, f[:h].sum() - actual[:h].sum(), lvl))
+                    errs.append((p, f"profile_pool{shrink}", h, k, f[:h].sum() - actual[:h].sum(), scale))
 
-E = pd.DataFrame(errs, columns=["persona", "model", "h", "k", "err", "level"])
+E = pd.DataFrame(errs, columns=["persona", "model", "h", "k", "err", "scale"])
+E["serr"] = E["err"] / (E["scale"] * E["h"])  # in months of the user's typical absolute net
+srm = E.groupby(["h", "model"])["serr"].apply(lambda e: float(np.sqrt((e**2).mean()))).unstack("h")
+print("\nScaled RMSE (error per month / user's mean absolute monthly net), ratio to seasonal-naive:")
+print((srm / srm.loc["snaive"]).round(3).sort_values(6).to_string())
+srp = E.groupby(["persona", "model", "h"])["serr"].apply(lambda e: float(np.sqrt((e**2).mean()))).unstack("h")
+for pp in srp.index.get_level_values(0).unique():
+    print(f"  {pp}: " + ", ".join(f"{m} {srp.loc[(pp, m), 6] / srp.loc[(pp, 'snaive'), 6]:.3f}" for m in ("naive", "mean12", "mean24", "profile_pool4", "hindsight_level")))
 rmse = E.groupby(["h", "model"])["err"].apply(lambda e: float(np.sqrt((e**2).mean())))
 print("\nRMSE of cumulative net over h months, all train users ($):")
 tab = rmse.unstack("h").round(0)
@@ -201,6 +209,32 @@ for g in known.itertuples():
         yy = net.loc[g.user_id].to_numpy()
         pri.append(infer_share(yy, month_of(g.created_date), month_of(g.as_of_date), g.current_balance))
 SHARE_PRIOR = float(np.median(pri)) if "--prior" in sys.argv else None
+SPREAD = float(next((a.split('=')[1] for a in sys.argv if a.startswith('--spread=')), '1.0'))
+# A typical total allocation: per user, the sum of the inferred shares of all their goals (each
+# at its own as_of), median over users. The share an as-if-new goal gets as the user's only goal
+tot = {}
+for g in goals.itertuples():
+    yy = net.loc[g.user_id].to_numpy()
+    sh = infer_share(yy, month_of(g.created_date), month_of(g.as_of_date), g.current_balance)
+    tot[g.user_id] = tot.get(g.user_id, 0.0) + sh
+PRIOR_TOTAL = float(np.median(list(tot.values())))
+print(f"\nPrior for $0-balance goals (median inferred share, goals with a balance): {np.median(pri):.3f} (n={len(pri)})")
+print(f"Typical total allocation (median over users of their goals' summed shares): {PRIOR_TOTAL:.3f} (n={len(tot)})")
+# The design's prior for a goal without a track record: the typical total split across the user's
+# goals in proportion to what each needs per month (each at its own as_of)
+need = {}
+for g in goals.itertuples():
+    left_ = max(1, month_of(g.target_date) - month_of(g.as_of_date))
+    need[g.goal_id] = max(0.0, g.target_amount - g.current_balance) / left_
+need_total = goals.assign(n=goals["goal_id"].map(need)).groupby("user_id")["n"].sum()
+SPLIT_RULE = next((a.split('=')[1] for a in sys.argv if a.startswith('--split=')), 'need')
+n_goals = goals.groupby("user_id").size()
+PRIOR_SHARE = {
+    g.goal_id: PRIOR_TOTAL / n_goals[g.user_id]
+    if SPLIT_RULE == "equal"
+    else PRIOR_TOTAL * (need[g.goal_id] / need_total[g.user_id] if need_total[g.user_id] > 0 else 1.0)
+    for g in goals.itertuples()
+}
 rows = []
 for g in known.itertuples():
     y = net.loc[g.user_id].to_numpy()
@@ -229,12 +263,21 @@ for g in known.itertuples():
     resid = lvl_w - lvl_w.mean()
     sims = []
     for _ in range(400):
-        path = point + rng.choice(resid, size=left, replace=True)
+        path = point + SPREAD * rng.choice(resid, size=left, replace=True)
         s = bal
         for v in path:
             s = max(0.0, s + share * v)
         sims.append(s)
     sims = np.array(sims)
+    # The same goal as if it were new at as_of: its balance entered by hand, the prior share
+    new_sims = []
+    for _ in range(400):
+        path = point + SPREAD * rng.choice(resid, size=left, replace=True)
+        s = bal
+        for v in path:
+            s = max(0.0, s + PRIOR_SHARE[g.goal_id] * v)
+        new_sims.append(s)
+    p_new = float((np.array(new_sims) >= g.target_amount).mean())
     p_met = float((sims >= g.target_amount).mean())
     point_final = saved_path(np.concatenate([hist, point]), share, k, k + left - 1) if left else bal
     point_final = bal
@@ -252,6 +295,7 @@ for g in known.itertuples():
     rows.append(
         dict(
             oracle_call=int(s3 >= g.target_amount), actual_final=s3, share_raw=share_raw,
+            p_new=p_new, user=g.user_id,
             persona=persona[g.user_id], cls=g.outcome_class, met=int(g.met), left=left,
             naive_call=int(naive_proj >= g.target_amount), share=share,
             p_sim=p_met, flat_call=int(s2 >= g.target_amount),
@@ -305,3 +349,29 @@ if "--se" in sys.argv:
     boot = [float(sq.sample(len(sq), replace=True, random_state=i).mean()) for i in range(1000)]
     print(f"bootstrap 90% interval {np.quantile(boot, .05):.3f}-{np.quantile(boot, .95):.3f}")
     print(G.groupby("persona").size().to_dict())
+
+
+if "--review" in sys.argv:
+    def band(p):
+        return pd.cut(p, [-0.01, 0.3, 0.7, 1.0], labels=["off (<0.3)", "either (0.3-0.7)", "on (>=0.7)"])
+
+    def by_user_boot(col, n=1000):
+        users_ = G["user"].unique()
+        r = np.random.default_rng(1)
+        out = []
+        for _ in range(n):
+            pick = r.choice(users_, size=len(users_), replace=True)
+            d = pd.concat([G[G["user"] == u] for u in pick])
+            out.append(brier(d[col], d["met"]))
+        return np.quantile(out, [0.05, 0.95])
+
+    print(f"\nSpread {SPREAD}: coverage of the 80% range {((G['actual_final'] >= G['lo']) & (G['actual_final'] <= G['hi'])).mean():.2f}")
+    for col in ("p_sim", "p_new"):
+        lo_, hi_ = by_user_boot(col)
+        print(f"{col}: Brier {brier(G[col], G['met']):.3f}  (user bootstrap 90%: {lo_:.3f}-{hi_:.3f})")
+        print(G.groupby(band(G[col]), observed=True)["met"].agg(["count", "mean"]).round(2).to_string())
+        print("  by persona: " + ", ".join(f"{p} {brier(d[col], d['met']):.3f}" for p, d in G.groupby("persona")))
+    G["bin"] = pd.cut(G["p_sim"], [-0.01, 0.1, 0.3, 0.5, 0.7, 0.9, 1.0])
+    print("Reliability of p_sim (fine bins):")
+    print(G.groupby("bin", observed=True)["met"].agg(["count", "mean"]).round(2).to_string())
+    print("Share column median (after the $0 prior):", round(float(G["share"].median()), 3))
