@@ -52,7 +52,7 @@ from smart_financial_coach.intelligence.forecasting.contract import (
     history_json,
     parse_history,
 )
-from smart_financial_coach.intelligence.forecasting.savings import final_balance
+from smart_financial_coach.intelligence.forecasting.savings import final_balance, monthly_net
 from smart_financial_coach.intelligence.models.contract import Checked
 
 TEST = "test"
@@ -119,6 +119,9 @@ def goal_examples(
             ),
             dtype=float,
         )
+        # What a model may see: full months up to the dataset's end, by `monthly_net`'s rules,
+        # the same definition serving uses; each example takes the months up to its as_of
+        visible = monthly_net(frame[["ts", "amount"]], spec.calendar.end)
         persona = spec.personas[persona_name]
         sets = [labeled[labeled["user_id"] == user_id]]
         for d in range(1, draws + 1):
@@ -134,7 +137,7 @@ def goal_examples(
             )
             sets.append(g.merge(t, on="goal_id"))
         for draw, goal_set in enumerate(sets):
-            rows += _set_rows(u, goal_set, draw, net, start)
+            rows += _set_rows(u, goal_set, draw, net, start, visible)
     return pd.DataFrame(rows)
 
 
@@ -144,18 +147,27 @@ def _set_rows(
     draw: int,
     net: npt.NDArray[np.float64],
     start: pd.Period,
+    visible: pd.Series,
 ) -> list[dict[str, Any]]:
+    """`net` is the generator's monthly net (every month of the calendar), which labels and the
+    realized future come from; `visible` is what a model may see."""
     out = []
     n_months = len(net)
     for g in goal_set[goal_set["met"].notna()].to_dict("records"):
         as_of_date, target_date = str(g["as_of_date"]), str(g["target_date"])
         as_of = pd.Period(as_of_date, freq="M")
         a, t = (as_of - start).n, (pd.Period(target_date, freq="M") - start).n
-        history = pd.Series(net[: a + 1], index=pd.period_range(start, periods=a + 1, freq="M"))
+        history = visible[visible.index <= as_of]
         future = pd.Series(net[a + 1 : t + 1], index=pd.period_range(as_of + 1, periods=t - a))
         # The realized next 6 months, for the RMSE metric; None when the history ends sooner
         next6 = float(net[a + 1 : a + 7].sum()) if a + 6 < n_months else None
-        active = int((goal_set["target_date"] > as_of_date).sum())
+        # Goals of the set already created and not yet ended at this as_of (a sibling created
+        # later is the future; review on #51)
+        active = int(
+            (
+                (goal_set["target_date"] > as_of_date) & (goal_set["created_date"] <= as_of_date)
+            ).sum()
+        )
         common = {
             "goal_id": g["goal_id"],
             "user_id": user["user_id"],
@@ -315,7 +327,10 @@ class GoalForecastingTask:
     def training_rows(
         self, examples: Examples, which: Ids, params: Mapping[str, Any], seed: int
     ) -> tuple[pd.DataFrame, pd.Series | None]:
-        return examples.rows(which), examples.labels_for(which)
+        """No labels: outcomes are planted relative to the realized future, so nothing may be
+        fitted on them ("Why nothing is tuned on outcomes"); withholding them here enforces it
+        for every candidate (review on #51)."""
+        return examples.rows(which), None
 
     # --- Metrics ---------------------------------------------------------------------------
 
@@ -339,11 +354,14 @@ class GoalForecastingTask:
             out[f"accuracy.{path}"] = float(((r["p_goal_met"] >= 0.5) == (r["met"] == 1)).mean())
             out[f"coverage.{path}"] = float(r["covered"].mean())  # NaN without a share
             out[f"goals.{path}"] = float(len(r))
-            for persona, part in r.groupby("persona"):
-                out[f"brier.{path}.{persona}"] = float(part["sq"].mean())
             for band, met_rate, n in _bands(r):
                 out[f"met_rate.{path}.{band}"] = met_rate
                 out[f"goals.{path}.{band}"] = float(n)
+            for persona, part in r.groupby("persona"):
+                out[f"brier.{path}.{persona}"] = float(part["sq"].mean())
+                for band, met_rate, n in _bands(part):
+                    out[f"met_rate.{path}.{persona}.{band}"] = met_rate
+                    out[f"goals.{path}.{persona}.{band}"] = float(n)
         out |= _rmse(rows)
         briers = [out[f"brier.{p}"] for p in PATHS if f"brier.{p}" in out]
         out["brier"] = float(np.mean(briers)) if briers else float("nan")
@@ -359,28 +377,38 @@ class GoalForecastingTask:
         )
         return out
 
-    def validation_metrics(self, examples: Examples, pooled: pd.DataFrame) -> dict[str, float]:
-        return self._metrics(self._rows(examples, pooled))
-
-    def test_metrics(self, examples: Examples, splits: Splits, model: Checked) -> dict[str, float]:
-        predictions = model.predict(examples.rows(splits.sets[TEST]))
-        rows = self._rows(examples, predictions)
-        out = self._metrics(rows)
+    def _intervals(self, rows: pd.DataFrame) -> dict[str, float]:
+        """95% user-bootstrap intervals of what the gates read: Brier per path and persona, and
+        each band's met rate per path, overall and per persona."""
+        out: dict[str, float] = {}
         boot = self._boot(rows)
+
+        def add(name: str, part: pd.DataFrame, column: str) -> None:
+            if len(part):
+                out[f"{name}_lo"], out[f"{name}_hi"] = interval(self._mean(boot, part, column))
+
         for path in PATHS:
             r = rows[rows["path"] == path]
-            out[f"brier.{path}_lo"], out[f"brier.{path}_hi"] = interval(self._mean(boot, r, "sq"))
-            for persona in PERSONAS:
-                part = r[r["persona"] == persona]
-                if len(part):
-                    lo, hi = interval(self._mean(boot, part, "sq"))
-                    out[f"brier.{path}.{persona}_lo"], out[f"brier.{path}.{persona}_hi"] = lo, hi
-            for band, lo_p, hi_p in BANDS:
-                part = r[_in_band(r["p_goal_met"], lo_p, hi_p)]
-                if len(part):
-                    lo, hi = interval(self._mean(boot, part, "met"))
-                    out[f"met_rate.{path}.{band}_lo"], out[f"met_rate.{path}.{band}_hi"] = lo, hi
+            add(f"brier.{path}", r, "sq")
+            for scope, part in [("", r), *((f".{p}", r[r["persona"] == p]) for p in PERSONAS)]:
+                if scope:
+                    add(f"brier.{path}{scope}", part, "sq")
+                for band, lo_p, hi_p in BANDS:
+                    add(
+                        f"met_rate.{path}{scope}.{band}",
+                        part[_in_band(part["p_goal_met"], lo_p, hi_p)],
+                        "met",
+                    )
         return out
+
+    def validation_metrics(self, examples: Examples, pooled: pd.DataFrame) -> dict[str, float]:
+        """With the intervals the gates' tolerances come from, logged before any test scoring."""
+        rows = self._rows(examples, pooled)
+        return self._metrics(rows) | self._intervals(rows)
+
+    def test_metrics(self, examples: Examples, splits: Splits, model: Checked) -> dict[str, float]:
+        rows = self._rows(examples, model.predict(examples.rows(splits.sets[TEST])))
+        return self._metrics(rows) | self._intervals(rows)
 
     # --- User bootstrap ----------------------------------------------------------------------
 
@@ -454,10 +482,12 @@ class GoalForecastingTask:
     def eligible(
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> bool:
-        """Below both baselines' validation Brier on both paths."""
-        for path in PATHS:
+        """Below both baselines' validation Brier with a track record, and below a flat 50% on
+        new goals. Naive pace isn't a floor for new goals: a goal created this month has a
+        "pace" of its whole balance per month (review on #51)."""
+        for path, floors in (("track", BASELINES), ("new", ("flat_50",))):
             mine = metrics.get(f"val_brier.{path}", float("nan"))
-            for b in BASELINES:
+            for b in floors:
                 if not mine < baselines.get(b, {}).get(f"val_brier.{path}", float("inf")):
                     return False
         return True
@@ -465,13 +495,22 @@ class GoalForecastingTask:
     def gates(
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> list[Gate]:
-        """§5, in order: Brier below the baselines, per persona below a flat 50%, calibration
-        inside each band, and the range's coverage, on each path. RMSE of net savings joins in
-        milestone 2 with the net-savings forecasters."""
+        """§5, in order, on test users: Brier below the baselines; per persona below a flat 50%;
+        calibration inside each band, overall and per persona; the range's coverage; RMSE of
+        the next 6 months' net savings (decision 1).
+
+        One reading of "within the user-bootstrap tolerance" (review on #51): a gate's target
+        widens by half the width of the same metric's 95% interval on validation, which the run
+        logged before any test scoring. A gate with no validation interval gets no tolerance."""
+
+        def tolerance(name: str) -> float:
+            lo, hi = metrics.get(f"val_{name}_lo"), metrics.get(f"val_{name}_hi")
+            return 0.0 if lo is None or hi is None or np.isnan(lo) else (hi - lo) / 2
+
         gates = []
-        for path in PATHS:
+        for path, floors in (("track", BASELINES), ("new", ("flat_50",))):
             mine = metrics.get(f"test_brier.{path}", float("nan"))
-            for b in BASELINES:
+            for b in floors:
                 theirs = baselines.get(b, {}).get(f"test_brier.{path}")
                 gates.append(
                     Gate(
@@ -482,30 +521,42 @@ class GoalForecastingTask:
                 )
         for path in PATHS:
             for persona in PERSONAS:
-                value = metrics.get(f"test_brier.{path}.{persona}", float("nan"))
-                lo = metrics.get(f"test_brier.{path}.{persona}_lo", float("nan"))
-                hi = metrics.get(f"test_brier.{path}.{persona}_hi", float("nan"))
+                name = f"brier.{path}.{persona}"
+                value, tol = metrics.get(f"test_{name}", float("nan")), tolerance(name)
                 gates.append(
                     Gate(
                         f"brier_{path}_{persona}_below_flat",
-                        value < FLAT,
-                        f"{value:.3f} ({lo:.3f}-{hi:.3f}) vs {FLAT}",
+                        value <= FLAT + tol,
+                        f"{value:.3f} vs {FLAT} + {tol:.3f} (validation tolerance)",
                         blocking=(path, persona) not in NON_BLOCKING,
                     )
                 )
         for path in PATHS:
-            for band, lo_p, hi_p in BANDS:
-                rate = metrics.get(f"test_met_rate.{path}.{band}", float("nan"))
-                lo = metrics.get(f"test_met_rate.{path}.{band}_lo", float("nan"))
-                hi = metrics.get(f"test_met_rate.{path}.{band}_hi", float("nan"))
-                # Inside its band within the user-bootstrap tolerance: the interval meets the band
-                gates.append(
-                    Gate(
-                        f"calibrated_{path}_{band}",
-                        bool(hi >= lo_p and lo <= hi_p),
-                        f"met {rate:.2f} ({lo:.2f}-{hi:.2f}) vs band {lo_p}-{hi_p}",
+            for scope in ("", *(f".{p}" for p in PERSONAS)):
+                for band, lo_p, hi_p in BANDS:
+                    name = f"met_rate.{path}{scope}.{band}"
+                    rate = metrics.get(f"test_{name}", float("nan"))
+                    tol = tolerance(name)
+                    label = f"calibrated_{path}{scope.replace('.', '_')}_{band}"
+                    if np.isnan(rate):
+                        gates.append(Gate(label, True, "no goals in this band"))
+                        continue
+                    gates.append(
+                        Gate(
+                            label,
+                            lo_p - tol <= rate <= hi_p + tol,
+                            f"met {rate:.2f} vs band {lo_p}-{hi_p} ± {tol:.2f} (validation)",
+                        )
                     )
+        for path in PATHS:
+            coverage = metrics.get(f"test_coverage.{path}", float("nan"))
+            gates.append(
+                Gate(
+                    f"coverage_{path}",
+                    COVERAGE[0] <= coverage <= COVERAGE[1],
+                    f"{coverage:.2f} vs {COVERAGE[0]}-{COVERAGE[1]}",
                 )
+            )
         vs_naive = metrics.get("test_rmse_6_vs_naive", float("nan"))
         vs_snaive = metrics.get("test_rmse_6_vs_snaive", float("nan"))
         gates.append(
@@ -522,15 +573,6 @@ class GoalForecastingTask:
                 f"{vs_snaive:.3f} of seasonal-naive's (at most {RMSE_VS_SNAIVE})",
             )
         )
-        for path in PATHS:
-            coverage = metrics.get(f"test_coverage.{path}", float("nan"))
-            gates.append(
-                Gate(
-                    f"coverage_{path}",
-                    COVERAGE[0] <= coverage <= COVERAGE[1],
-                    f"{coverage:.2f} vs {COVERAGE[0]}-{COVERAGE[1]}",
-                )
-            )
         return gates
 
     def serving_files(

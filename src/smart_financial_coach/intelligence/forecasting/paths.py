@@ -32,6 +32,7 @@ import numpy.typing as npt
 import pandas as pd
 
 from smart_financial_coach.intelligence.forecasting.contract import (
+    DRAW_DOWN,
     INTERVAL,
     ON_TRACK,
     months_left,
@@ -414,6 +415,8 @@ class PathsModel(BaseModel):
             "share": share,
             "share_source": source,
             "net_next_6": float(state.point(NEXT).sum()),
+            # A reached goal's drawdown note: 10% or more of paths end below the target
+            "may_draw_down": bool((finals < target).mean() >= DRAW_DOWN) if reached else None,
         }
 
     @staticmethod
@@ -454,7 +457,8 @@ def _track_record_share(r: Mapping[Any, Any]) -> float | None:
     since = history[history.index >= created]
     if len(since) < MIN_TRACK_MONTHS:
         return None
-    return min(SHARE_CAP, infer_share(since.to_numpy(), 0.0, float(r["saved"])))
+    share = infer_share(since.to_numpy(), 0.0, float(r["saved"]))
+    return None if share is None else min(SHARE_CAP, share)
 
 
 def _entries_share(r: Mapping[Any, Any]) -> float | None:
@@ -468,7 +472,8 @@ def _entries_share(r: Mapping[Any, Any]) -> float | None:
         return None
     history = parse_history(str(r["history_json"]))
     between = history[(history.index > a) & (history.index <= b)]
-    return min(SHARE_CAP, infer_share(between.to_numpy(), float(first), float(r["saved"])))
+    share = infer_share(between.to_numpy(), float(first), float(r["saved"]))
+    return None if share is None else min(SHARE_CAP, share)
 
 
 def _typical_total(x: pd.DataFrame) -> float:

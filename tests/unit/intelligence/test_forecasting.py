@@ -26,17 +26,23 @@ from smart_financial_coach.intelligence.forecasting.savings import (
 from smart_financial_coach.intelligence.models.contract import Checked, ContractError
 
 
-def test_monthly_net_sums_each_month_and_fills_gaps() -> None:
+def test_monthly_net_counts_full_months_up_to_as_of() -> None:
     txns = pd.DataFrame(
         {
-            "ts": ["2026-01-03 10:00", "2026-01-20 09:00", "2026-03-02 08:00"],
-            "amount": [3000.0, -1200.5, -40.0],
+            "ts": ["2026-01-01 10:00", "2026-01-20 09:00", "2026-03-02 08:00", "2026-06-02 08:00"],
+            "amount": [3000.0, -1200.5, -40.0, 999.0],
         }
     )
-    net = monthly_net(txns)
-    assert list(net.index.astype(str)) == ["2026-01", "2026-02", "2026-03"]
-    assert net.tolist() == [1799.5, 0.0, -40.0]
-    assert monthly_net(txns.iloc[:0]).empty
+    net = monthly_net(txns, date(2026, 4, 30))
+    # January starts on the 1st, so it counts; February and April have nothing, so 0; June is
+    # after as_of
+    assert list(net.index.astype(str)) == ["2026-01", "2026-02", "2026-03", "2026-04"]
+    assert net.tolist() == [1799.5, 0.0, -40.0, 0.0]
+    # A first month that starts late, and an as_of mid-month, are both partial
+    late = txns.assign(ts=["2026-01-05 10:00", *txns["ts"][1:]])
+    partial = monthly_net(late, date(2026, 4, 15))
+    assert list(partial.index.astype(str)) == ["2026-02", "2026-03"]
+    assert monthly_net(txns.iloc[:0], date(2026, 4, 30)).empty
 
 
 def test_the_balance_recursion_is_fr1s_rule() -> None:
@@ -65,15 +71,23 @@ def test_share_inference_round_trips(start: float) -> None:
         if end <= start + 1:
             continue  # no growth: nothing to infer from
         inferred = infer_share(net, start, end)
+        assert inferred is not None
         assert final_balance(start, inferred, net) == pytest.approx(end, rel=1e-6)
 
 
 def test_share_inference_edges() -> None:
     net = np.array([100.0, 100.0])
-    assert infer_share(net, 0.0, 0.0) == 0.0  # never grew
-    assert infer_share(np.array([]), 0.0, 50.0) == 0.0  # no months
+    assert infer_share(net, 0.0, 0.0) is None  # never moved: no information
+    assert infer_share(net, 300.0, 300.0) is None
+    assert infer_share(np.array([]), 0.0, 50.0) is None  # no months
     assert infer_share(net, 0.0, 5000.0) == 1.0  # more than all of it: capped
-    assert infer_share(net, 300.0, 250.0) == 0.0  # fell from the first entry
+
+
+def test_a_goal_that_fell_is_inferred_too() -> None:
+    """Net savings below zero draw a goal down by its share (review on #51)."""
+    net = np.array([-500.0, -500.0, -500.0])
+    share = infer_share(net, 3000.0, 2400.0)
+    assert share == pytest.approx(0.4)
 
 
 def test_months_left_and_status_bands() -> None:
@@ -133,6 +147,8 @@ def test_naive_pace_extends_the_pace_so_far() -> None:
     reached = Checked(NaivePace(), CONTRACT).predict(goal_rows(saved=3100.0)).iloc[0]
     assert reached["status"] == "reached"
     assert pd.isna(reached["extra_per_month"])
+    assert reached["may_draw_down"] is False
+    assert Checked(NaivePace(), CONTRACT).predict(goal_rows()).iloc[0]["may_draw_down"] is None
 
 
 def test_flat_gives_every_goal_the_same_chance() -> None:
@@ -150,6 +166,7 @@ def test_the_contract_catches_inconsistent_forecasts() -> None:
         ("range_lo", 9999.0, "range_lo"),
         ("share", 0.4, "together"),
         ("p_goal_met", 1.2, "outside 0-1"),
+        ("may_draw_down", True, "only for them"),  # set on a goal that isn't reached
     ):
         bad = good.copy()
         bad[column] = value

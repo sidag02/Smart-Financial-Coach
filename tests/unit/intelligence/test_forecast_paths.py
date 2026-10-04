@@ -208,3 +208,17 @@ def test_the_spread_is_tuned_on_realized_goal_balances() -> None:
     model = PathsModel(seasonal=False, n_paths=100).fit(frame(*rows))
     assert model.report["spread_goals"] >= 50
     assert 0.25 <= model.report["spread"] <= 4.0
+
+
+def test_a_reached_goal_on_a_falling_future_may_draw_down() -> None:
+    falling = history_json(series([-400.0 + 50 * np.sin(i) for i in range(24)]))
+    model = PathsModel(seasonal=False, spread=1.0, n_paths=300).fit(frame(row()))
+    out = Checked(model, CONTRACT).predict(
+        frame(
+            row(saved=6100.0, history_json=falling),  # just past the target, losing money
+            row(example_id="g2:track", goal_id="g2", user_id="u2", saved=9000.0),  # well clear
+        )
+    )
+    assert out.iloc[0]["status"] == "reached"
+    assert out.iloc[0]["may_draw_down"] is True
+    assert out.iloc[1]["may_draw_down"] is False
