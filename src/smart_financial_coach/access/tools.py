@@ -1199,7 +1199,9 @@ class Tools:
             "unusual_transactions": unusual,
             "spending_spikes": spiking,
         }
-        found = [f"{data['count']} flagged"]
+        found = [
+            f"{data['count']} flagged" if flags is not None else "unusual charges not available"
+        ]
         if spiking.get("status") in ("ok", "too_short", "month_in_progress"):
             found.append(f"{len(spiking['spikes'])} spending spikes")
         title = f"Unusual charges · {span_label(start, end)}"

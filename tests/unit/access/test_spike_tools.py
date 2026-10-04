@@ -1,6 +1,7 @@
 """Spending spikes in serving (FR-8 §8): the spikes file, and `detect_anomalies`' spikes half."""
 
 import copy
+import json
 import time
 from dataclasses import replace
 from pathlib import Path
@@ -150,10 +151,32 @@ def test_one_users_spikes_are_fast_enough_for_a_request(
 
 
 def test_the_file_holds_no_rows_of_any_user(spike_sources: DataSources) -> None:
+    """Its schema: the scorer and the table's sums and counts, nothing per user or charge."""
     assert spike_sources.spikes is not None
-    text = Path(spike_sources.spikes).read_text()
-    assert "u_tr_" not in text
-    assert "u_te_" not in text
+    payload = json.loads(Path(spike_sources.spikes).read_text())
+    assert set(payload) == {"meta", "model", "season_table"}
+    assert set(payload["season_table"]) == {"category", "moy", "as_of", "total", "users"}
+    assert set(payload["model"]) == {"spec", "fitted", "base_fitted"}
+    assert payload["meta"]["categorizer_version"] == "stub"
+
+
+def test_a_bundle_whose_predictions_dont_match_the_table_fails_to_load(
+    spike_sources: DataSources, tmp_path: Path
+) -> None:
+    assert spike_sources.spikes is not None
+    payload = json.loads(Path(spike_sources.spikes).read_text())
+    payload["meta"]["categorizer_version"] = "another-categorizer"
+    other = tmp_path / "spikes.json"
+    other.write_text(json.dumps(payload))
+    with pytest.raises(ValueError, match="rebuild the bundle"):
+        replace(spike_sources, spikes=other).spike_state()
+
+
+def test_the_source_says_when_unusual_charges_arent_checked(
+    spike_sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    result = Tools(Ledger.load(spike_sources, two_users[0])).call("detect_anomalies", EVERYTHING)
+    assert result.source.detail.startswith("unusual charges not available")
 
 
 def test_the_served_fallback_is_the_rule_finalize_scores() -> None:

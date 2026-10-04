@@ -94,6 +94,8 @@ jobs:
           done
           # Healthy means every demo account's data loads, not just that the process is up
           curl -fsS "https://$fqdn/healthz" | grep -q '"status":"ok"'
+          # Spending spikes are served (FR-8): a bundle without its spikes file fails here
+          curl -fsS "https://$fqdn/healthz" | grep -Eq '"spikes":"(model|simple_rule)"'
           curl -fsS -o /dev/null "https://$fqdn/signin"
           test "$(curl -s -o /dev/null -w '%{http_code}' "https://$fqdn/")" = 303
           echo "Deployed https://$fqdn" >> "$GITHUB_STEP_SUMMARY"

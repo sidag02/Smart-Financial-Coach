@@ -1,0 +1,110 @@
+{
+  "baseline": "false",
+  "chosen_params": {},
+  "code_version": "64917ea6b42365fa",
+  "config": {
+    "baseline": false,
+    "complexity": 3,
+    "grid": {},
+    "model": {
+      "params": {
+        "base": {
+          "$model": {
+            "params": {
+              "dispersion": "negbin"
+            },
+            "type": "spending_spikes/count"
+          }
+        },
+        "precision": 0.8,
+        "search": {
+          "kappa": [
+            0.5,
+            1.0,
+            2.0
+          ]
+        }
+      },
+      "type": "spending_spikes/thresholded"
+    },
+    "name": "count_negbin",
+    "seed": 0,
+    "ship": null,
+    "tags": {
+      "plan": "fr8-round"
+    },
+    "task": "spending_spikes",
+    "task_params": {}
+  },
+  "config_hash": "8c428c5421f1fa0745c5a21925f236017b4bcfdd946715427f1bfd917d971025",
+  "data_hash": "d85b465021bbb219dba267539fe6fe479062eaa9da4d8f1b53cad22f201173db",
+  "git_commit": "3d556b2f716391811e83013302f94907766d3888",
+  "git_dirty": "false",
+  "kind": "experiment",
+  "metrics": {
+    "fit.assumes_poisson": 0.0,
+    "fit.beta": 0.2403488816934127,
+    "fit.chosen.kappa": 2.0,
+    "fit.cutoff": 7.6818190028651285,
+    "fit.pooled_dispersion": 0.0,
+    "fit.search_recall.kappa_0.5": 0.46958637469586373,
+    "fit.search_recall.kappa_1.0": 0.5036496350364964,
+    "fit.search_recall.kappa_2.0": 0.5182481751824818,
+    "fit.train_flag_rate": 0.03358585858585859,
+    "fit.train_precision": 0.8007518796992481,
+    "fit.train_recall": 0.5182481751824818,
+    "latency_batch_ms": 12.440167018212378,
+    "latency_batch_rows": 10000.0,
+    "latency_p50_ms": 0.9971459949156269,
+    "latency_p95_ms": 1.4034360705409197,
+    "latency_warm_p95_ms": 1.5452330058906225,
+    "val_average_precision": 0.6172493107783167,
+    "val_basket_recall": 0.0025,
+    "val_basket_recall_at_rate": 0.0025,
+    "val_cutoff_shortfall": 0.2007575757575758,
+    "val_excess_coverage": 0.5174496934875046,
+    "val_flag_rate": 0.0345959595959596,
+    "val_flags_with_invalid_drivers": 0.0,
+    "val_flags_without_evidence": 0.0,
+    "val_fn": 200.0,
+    "val_fp": 53.0,
+    "val_ignored": 10.0,
+    "val_precision": 0.7992424242424242,
+    "val_precision_at_rate": 0.8045112781954887,
+    "val_recall": 0.51338199513382,
+    "val_recall_at_rate": 0.5206812652068127,
+    "val_recall_clear": 0.5656836461126006,
+    "val_tp": 211.0,
+    "val_usual_error": 0.08850776275119342
+  },
+  "mlflow_run_id": "56795d2b1450432883b45252c0adcde2",
+  "model_sha256": "2f8443482cceaa606b013ee4965d8771bec727367341db5922d78da018ff54c9",
+  "model_type": "spending_spikes/thresholded",
+  "name": "spending_spikes/thresholded",
+  "params": {
+    "base": {
+      "$model": {
+        "params": {
+          "dispersion": "negbin",
+          "income": true,
+          "kappa": 2.0,
+          "season": true
+        },
+        "type": "spending_spikes/count"
+      }
+    },
+    "precision": 0.8,
+    "rate": null,
+    "search": {
+      "kappa": [
+        0.5,
+        1.0,
+        2.0
+      ]
+    },
+    "search_rate": 0.035
+  },
+  "split_hash": "ce2cefeb4d2d25b8435b97852f40144063905f6b7cabcce0200868e4920e9f91",
+  "task": "spending_spikes",
+  "version": "8c428c54-d85b4650-64917ea6"
+}

@@ -81,7 +81,18 @@ class DataSources:
         return _forecaster(self.forecasts) if self.forecasts is not None else None
 
     def spike_state(self) -> SpikeState | None:
-        return _spike_state(self.spikes) if self.spikes is not None else None
+        """The spikes file's state, checked against this bundle's predictions: the season table's
+        leave-one-out is exact only on the categorizer it was built on (FR-8 §2)."""
+        if self.spikes is None:
+            return None
+        state = _spike_state(self.spikes)
+        ours = load_prediction_meta(self.predictions)["model_version"]
+        if state.categorizer != ours:
+            raise ValueError(
+                f"{self.spikes} was built on categorizer {state.categorizer!r}, but the "
+                f"predictions are {ours!r}: rebuild the bundle"
+            )
+        return state
 
     def as_of(self) -> date:
         """The dataset's last day: the app's "today" (Web App UI, gap 8)."""

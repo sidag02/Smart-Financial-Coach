@@ -458,12 +458,26 @@ def test_worth_a_look_lists_spending_spikes_from_the_simple_rule(
 
     assert "Spending spikes" in page
     assert "Coming next" not in page
+    # The simple rule is labelled on the card itself, whether or not it found anything
+    assert 'title="No spending-spike model is released yet">Simple rule' in page
+    assert ("by a simple rule (the spending-spike model" in page) == (not shown)
     assert "unusual-charge model (FR-7) is released" in page  # no FR-7 flags in these sources
     assert page.count("Spending spike</span>") == len(shown)
-    assert ("Simple rule" in page) == bool(shown)
     assert ("No category ran well above" in page) == (not shown)
     assert "once the alert models are released" not in overview
     assert health["spikes"] == "simple_rule"
+
+
+def test_a_promoted_model_isnt_labelled_a_simple_rule(
+    promoted_spike_sources: DataSources, accounts: list[Account]
+) -> None:
+    with make_client(promoted_spike_sources, accounts) as c:
+        sign_in(c)
+        page = c.get("/worth-a-look").text
+        health = c.get("/healthz").json()
+    assert "Simple rule" not in page
+    assert "by a simple rule" not in page
+    assert health["spikes"] == "model"
 
 
 def test_spike_rows_name_the_largest_charges_not_the_cause() -> None:

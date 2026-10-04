@@ -91,6 +91,9 @@ class SpikeState:
     table: SeasonTable
     as_of: str
     min_users: int = DEFAULT_MIN_USERS
+    # The categorizer whose predictions the season table was built on. A user's own term is left
+    # out exactly only when their ledger's categories come from the same one (review on #62)
+    categorizer: str | None = None
 
     def periods(
         self, user_id: str, effective: pd.DataFrame, model_basis: pd.DataFrame
@@ -163,7 +166,7 @@ def _artifacts() -> Path:
     return get_settings().artifacts_dir
 
 
-def write_state(state: SpikeState, out: str | Path, *, users: int) -> None:
+def write_state(state: SpikeState, out: str | Path, *, users: int, categorizer: str) -> None:
     """The state as JSON, written to a temporary name and renamed into place when complete."""
     base = state.model.base
     payload = {
@@ -174,6 +177,7 @@ def write_state(state: SpikeState, out: str | Path, *, users: int) -> None:
             "as_of": state.as_of,
             "min_users": state.min_users,
             "pool_users": users,
+            "categorizer_version": categorizer,
             "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
         },
         "model": {
@@ -213,4 +217,5 @@ def load_state(path: str | Path) -> SpikeState:
         SeasonTable(cells),
         meta["as_of"],
         int(meta["min_users"]),
+        meta.get("categorizer_version"),
     )

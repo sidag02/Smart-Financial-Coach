@@ -259,6 +259,8 @@ def create_app(
     as_of = sources.as_of()
     flags_live = sources.flags is not None  # an FR-7 model is promoted and its flags are here
     spikes_live = sources.spikes is not None  # a spikes file: the FR-8 model or the simple rule
+    state = sources.spike_state()
+    spike_method = state.method if state is not None else None  # "model" or "simple_rule"
     alerts_live = flags_live or spikes_live
     essentials = frozenset(settings.essentials)
     unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
@@ -442,13 +444,12 @@ def create_app(
         except Exception:
             log.exception("health check: the demo data doesn't load")
             return JSONResponse({"status": "error", "as_of": as_of.isoformat()}, 503)
-        state = sources.spike_state()
         return JSONResponse(
             {
                 "status": "ok",
                 "as_of": as_of.isoformat(),
                 "users": len(accounts),
-                "spikes": state.method if state is not None else None,
+                "spikes": spike_method,
             }
         )
 
@@ -527,6 +528,7 @@ def create_app(
             trend=charts.trend(months, month_key(period.start)),
             flags=recent_flags(tools) if flags_live else [],
             spikes=recent_spikes(tools) if spikes_live else [],
+            spike_method=spike_method,
             overview_flags=OVERVIEW_FLAGS,
             window_days=FLAG_WINDOW_DAYS,
             **flow_context(tools, period, horizon),
@@ -868,6 +870,7 @@ def create_app(
             spikes_live=spikes_live,
             flags=recent_flags(tools) if flags_live else [],
             spikes=recent_spikes(tools) if spikes_live else [],
+            spike_method=spike_method,
             start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
             end=as_of.isoformat(),
             window_days=FLAG_WINDOW_DAYS,

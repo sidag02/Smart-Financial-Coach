@@ -1,6 +1,6 @@
 # FR-8 Spending Spikes — Round Results
 
-Oct 4, 2026 · @Sidd · Milestone 3 of FR-8 Spending Spikes — Feature Design (test results and promotion come in milestone 4)
+Oct 4, 2026 · @Sidd · Milestones 3 and 4 of FR-8 Spending Spikes — Feature Design (test results and promotion added in milestone 4)
 
 ## Summary
 
@@ -140,6 +140,33 @@ Look-alikes (the main risk): 3663 normal months in the planted categories with s
 - **False positives spread over categories and months.** August (11) and January (9) lead slightly. Thirteen are in categories with fewer than 4 usual purchases.
 - **Excess coverage** of the 5 largest charges is 0.50–0.52 on flagged true spikes, below the POC's 0.69 over all spikes. Flagged spikes have more purchases, so 5 charges cover less of them. "Usual" is off by a median 8.9% against the generator's expected spend.
 
+## Test results and promotion (milestone 4)
+
+**Test users were scored once,** by `finalize` on Oct 4, 2026, after the owner's go-ahead on #61 (decisions 15 and 16 recorded first). It scored the decision rule's two finalists and both baselines, from the round's runs (commit `3d556b2`).
+
+| Run | Precision at own cutoff (95% CI) | Recall | Recall at 0.035 (95% CI) | Recall `clear` | Flag rate | On predicted categories: precision, recall | Basket recall at the rate |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **`count_negbin` (rank 1)** | **0.705** (0.634–0.770) | 0.542 | **0.521** (0.450–0.597) | 0.585 | 0.039 | 0.777, 0.495 | 0.005 |
+| `count_poisson` (rank 2) | 0.719 (0.650–0.784) | 0.553 | 0.532 (0.461–0.602) | 0.597 | 0.039 | 0.752, 0.542 | 0.005 |
+| `mean_k_std` (gated baseline) | no flags | 0.000 | 0.158 (0.109–0.208) | 0.000 | 0.000 | no flags | 0.225 |
+| `simple_count` (the fallback, reported) | 0.705 (0.610–0.785) | 0.489 | 0.489 (0.422–0.560) | 0.528 | 0.035 | 0.710, 0.489 | 0.005 |
+
+**Gates for rank 1:**
+- precision 0.705 ≥ 0.70: pass;
+- recall at the rate 0.521 against the baseline's 0.158: pass;
+- 0 flags without a reason, a size or valid drivers: pass.
+
+**Promoted** (owner, Oct 4, 2026): `count_negbin` as `8c428c54-d85b4650-64917ea6`, by the decision rule. The model file is attached to the GitHub Release `spending_spikes-8c428c54-d85b4650-64917ea6`.
+
+**Reading the test results:**
+- **The precision margin is thin.** Out of fold it was 0.799; on test users it's 0.705, and its 95% interval reaches 0.634. The flag rate rose from 0.035 to 0.039: the cutoff fitted on train users flags slightly more on test users, and the extra flags are mostly false positives. Tuning to 0.80 (decision 4) is what kept it above the gate. This is the known limit that goes with the promotion.
+- **Recall held** (0.521 on both), and the two candidates stay within each other's intervals on test, as on validation.
+- **Predicted categories cost little:** recall at the rate is 0.526 against 0.521 on true categories, and own-cutoff precision is higher, 0.777. Categorizer errors don't hurt the detector here, though synthetic categories are easier than real ones.
+- **The main risk is unchanged:** 0.5% of simulated basket-size spikes are flagged at the rate, against 22.5% for the spend baseline.
+- **The fallback would also have passed precision** (0.705, with no labels), so the rule that served before promotion was within the bar.
+
+**In serving,** the demo bundle now holds the promoted model (`spikes.json`, method `model`). Its season term removes the simple rule's seasonal false positive on the family account (August 2024 Shopping). All three demo accounts have a spike inside "Worth a look"'s 60-day window: Groceries in September 2026, Dining in September 2026, and Transportation in August 2026.
+
 ## Next
 
-Milestone 4 scores at most three finalists plus the baselines on test users once, through `finalize`: by the rule, `count_negbin` and `count_poisson`. Then promotion, if the gates pass, and serving. Test scoring is irreversible, so it waits for the owner's go-ahead.
+Done in milestone 4: test users scored once, `count_negbin` promoted, served on request (above). Later work is in the design's v2 items: a wider κ grid, a spend-side signal for basket-size spikes on real data, and real over-dispersion.

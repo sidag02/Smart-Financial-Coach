@@ -155,12 +155,12 @@ def _spikes(data: Path, out: Path, artifacts_dir: Path | None) -> SpikeState:
     out.unlink(missing_ok=True)  # a stale file would score with another model
     with tempfile.TemporaryDirectory() as tmp:
         predictions = Path(tmp) / "pool_predictions.sqlite"
-        categorize_dataset(data, predictions, artifacts_dir=artifacts_dir, overwrite=True)
+        run = categorize_dataset(data, predictions, artifacts_dir=artifacts_dir, overwrite=True)
         pool = store.load_transactions(data).merge(
             load_categories(predictions)[["transaction_id", "category"]], on="transaction_id"
         )
     state = build_state(
         pool, as_of=store.load_meta(data)["calendar_end"], artifacts_dir=artifacts_dir
     )
-    write_state(state, out, users=int(pool["user_id"].nunique()))
+    write_state(state, out, users=int(pool["user_id"].nunique()), categorizer=run.model_version)
     return state

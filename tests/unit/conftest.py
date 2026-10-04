@@ -191,7 +191,7 @@ def _spike_sources(
     as_of = store.load_meta(sources.dataset)["calendar_end"]
     state = build_state(pool, as_of=as_of, artifacts_dir=artifacts, min_users=1)
     path = folder / "spikes.json"
-    write_state(state, path, users=int(pool["user_id"].nunique()))
+    write_state(state, path, users=int(pool["user_id"].nunique()), categorizer="stub")
     return replace(sources, spikes=path)
 
 
