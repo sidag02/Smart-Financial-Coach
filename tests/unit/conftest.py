@@ -149,3 +149,67 @@ def forecast_sources(
     forecasts = tmp_path_factory.mktemp("forecasts") / "forecasts.json"
     forecast_dataset(sources.dataset, forecasts, artifacts_dir=forecast_artifacts)
     return DataSources(sources.dataset, sources.predictions, sources.flags, forecasts)
+
+
+@pytest.fixture(scope="session")
+def spike_pool(small_sqlite: Path) -> pd.DataFrame:
+    """Every user's transactions on the stub categories: the pool a spikes file is built from."""
+    txns = store.load_transactions(small_sqlite)
+    return txns.merge(stub_categories(txns)[["transaction_id", "category"]], on="transaction_id")
+
+
+@pytest.fixture(scope="session")
+def spike_artifacts(
+    small_sqlite: Path, spike_pool: pd.DataFrame, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    """An artifacts folder with a promoted spike model: the Poisson count candidate cut at a rate
+    on the pool, without labels (a test fixture, not a measurement)."""
+    from smart_financial_coach.intelligence.models.artifact import record_promotion, save_artifact
+    from smart_financial_coach.intelligence.spikes.contract import INPUT_COLUMNS, scoring_periods
+    from smart_financial_coach.intelligence.spikes.count import CountScorer
+    from smart_financial_coach.intelligence.spikes.threshold import SpikeThresholded
+
+    as_of = store.load_meta(small_sqlite)["calendar_end"]
+    rows = scoring_periods(spike_pool, spike_pool, as_of=as_of, min_users=1)
+    model = SpikeThresholded(CountScorer(), precision=None, rate=0.05).fit(
+        rows[list(INPUT_COLUMNS)]
+    )
+    model.version = "fr8-test"
+    root = tmp_path_factory.mktemp("artifacts")
+    save_artifact(model, root / "spending_spikes" / model.version, {})
+    record_promotion(root / "spending_spikes", {"version": model.version})
+    return root
+
+
+def _spike_sources(
+    sources: DataSources, pool: pd.DataFrame, artifacts: Path, folder: Path
+) -> DataSources:
+    from dataclasses import replace
+
+    from smart_financial_coach.intelligence.spikes.batch import build_state, write_state
+
+    as_of = store.load_meta(sources.dataset)["calendar_end"]
+    state = build_state(pool, as_of=as_of, artifacts_dir=artifacts, min_users=1)
+    path = folder / "spikes.json"
+    write_state(state, path, users=int(pool["user_id"].nunique()))
+    return replace(sources, spikes=path)
+
+
+@pytest.fixture(scope="session")
+def spike_sources(
+    sources: DataSources, spike_pool: pd.DataFrame, tmp_path_factory: pytest.TempPathFactory
+) -> DataSources:
+    """`sources` with a spikes file holding the simple rule (no spike model promoted)."""
+    empty = tmp_path_factory.mktemp("no-artifacts")
+    return _spike_sources(sources, spike_pool, empty, tmp_path_factory.mktemp("spikes"))
+
+
+@pytest.fixture(scope="session")
+def promoted_spike_sources(
+    sources: DataSources,
+    spike_pool: pd.DataFrame,
+    spike_artifacts: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> DataSources:
+    """`sources` with a spikes file holding the promoted spike model."""
+    return _spike_sources(sources, spike_pool, spike_artifacts, tmp_path_factory.mktemp("spikes"))

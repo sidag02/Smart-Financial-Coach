@@ -15,3 +15,35 @@
   <div class="flag-reason">{{ f.reason }}</div>
 </li>
 {%- endmacro %}
+
+
+{# One spending spike (FR-8, screen 1f): the month and category, actual against usual, the reason,
+   and the largest charges, labelled as such: they're the biggest, not "what caused it" (§7). #}
+{% macro spike_row(s, charges=True) -%}
+<li class="flag">
+  <div class="flag-head">
+    <span class="badge look">{{ s.kind }}</span>
+    {% if s.simple_rule %}<span class="badge soon" title="No spending-spike model is released yet; a simple rule found this">Simple rule</span>{% endif %}
+    <span class="muted num" style="white-space:nowrap">{{ s.period_start[:7] | month_name(long=True) }}</span>
+  </div>
+  <div class="flag-body">
+    <div>
+      <div class="merchant">{{ s.category }}</div>
+      <div class="raw">{{ s.count }} purchases against about {{ s.usual_count | round | int }} in an average month</div>
+    </div>
+    <div class="amount num">{{ s.actual | money }}</div>
+  </div>
+  <div class="flag-reason">{{ s.reason }}</div>
+  {% if charges and s.largest_charges %}
+  <details class="spike-charges">
+    <summary>Largest charges</summary>
+    <ul>
+      {% for c in s.largest_charges %}
+      <li><span>{{ c.date | day }} · {{ c.merchant }}</span><span class="num">{{ c.amount | money(cents=True) }}</span></li>
+      {% endfor %}
+    </ul>
+    {% if s.other_purchases %}<div class="muted">and {{ s.other_purchases }} more {{ "purchase" if s.other_purchases == 1 else "purchases" }}</div>{% endif %}
+  </details>
+  {% endif %}
+</li>
+{%- endmacro %}

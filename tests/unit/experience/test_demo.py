@@ -1,5 +1,6 @@
 """The demo bundle: the accounts' rows only, categorized, and readable by the serving user."""
 
+import json
 import stat
 from pathlib import Path
 
@@ -50,6 +51,12 @@ def test_the_bundle_holds_only_the_accounts_and_everyone_can_read_it(
         load_forecasts(bundle.root / "forecasts.json").model["name"]
         == "goal_forecasting/naive_pace"
     )
+    # Nor a spike model: the simple rule serves spikes (owner decision 12 on #58), and its season
+    # profiles come from every user in the data, not just the bundle's accounts
+    assert (bundle.spike_model_version, bundle.spike_method) == ("simple-rule", "simple_rule")
+    spikes = json.loads((bundle.root / "spikes.json").read_text())
+    assert spikes["meta"]["pool_users"] == len(store.load_users(small_sqlite))
+    assert Ledger.load(DataSources.from_dir(bundle.root), two_users[0]).spikes is not None
     assert bundle.transactions == len(store.load_transactions(small_sqlite, user_id=two_users[0]))
     for path in bundle.root.iterdir():
         mode = stat.S_IMODE(path.stat().st_mode)
@@ -105,3 +112,25 @@ def test_the_bundle_carries_forecast_states_once_a_goal_model_is_promoted(
     assert set(stored.states) == {two_users[0]}  # the accounts only
     assert DataSources.from_dir(bundle.root).forecasts == bundle.root / "forecasts.json"
     assert Ledger.load(DataSources.from_dir(bundle.root), two_users[0]).forecaster is not None
+
+
+def test_the_bundle_serves_a_promoted_spike_model(
+    small_sqlite: Path,
+    two_users: tuple[str, str],
+    spike_artifacts: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    accounts = tmp_path / "accounts.yaml"
+    accounts.write_text(
+        yaml.safe_dump(
+            {"accounts": [{"user_id": two_users[0], "name": "Maya Chen", "email": "m@x.com"}]}
+        )
+    )
+    monkeypatch.setattr(demo, "categorize_dataset", fake_categorize)
+
+    bundle = demo.build_demo(
+        small_sqlite, accounts, tmp_path / "demo", artifacts_dir=spike_artifacts
+    )
+
+    assert (bundle.spike_model_version, bundle.spike_method) == ("fr8-test", "model")

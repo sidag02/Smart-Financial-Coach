@@ -5,7 +5,9 @@ user-scoped readers, so nothing built on it can reach another user's rows (Techn
 "Security and data isolation", step 3). Categories come from the predictions file of the promoted
 model (FR-3); merchant display names from the shared normalizer, title-cased (Web App UI, gap 1);
 unusual-charge flags from the promoted FR-7 model's flag file, when there is one (FR-7 §8); goal
-forecasts from the promoted FR-11 model's forecasts file, when there is one (FR-11 and FR-12, §7).
+forecasts from the promoted FR-11 model's forecasts file, when there is one (FR-11 and FR-12, §7);
+the spending-spike scorer and season profiles from the spikes file, scored per request on the
+categories the session sees (FR-8 §8).
 
     sources = DataSources.from_dir(settings.demo_dir)
     ledger = Ledger.load(sources, user_id)
@@ -27,6 +29,7 @@ from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.flags import load_flags
 from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
 from smart_financial_coach.intelligence.forecasting.batch import FORECASTS_FILE, GoalForecaster
+from smart_financial_coach.intelligence.spikes.batch import SPIKES_FILE, SpikeState, load_state
 
 INCOME = "Income"
 
@@ -58,19 +61,27 @@ class DataSources:
     # The promoted goal-forecasting model's states for it (FR-11, FR-12); None until a model is
     # promoted, and goal forecasts stay "not available yet"
     forecasts: Path | None = None
+    # The spike scorer (the promoted model's, or the simple rule) and the season profiles
+    # (FR-8 §8); None, and spending spikes stay "not available yet"
+    spikes: Path | None = None
 
     @classmethod
     def from_dir(cls, root: Path) -> "DataSources":
         flags, forecasts = root / "flags.sqlite", root / FORECASTS_FILE
+        spikes = root / SPIKES_FILE
         return cls(
             root / "dataset.sqlite",
             root / "predictions.sqlite",
             flags if flags.exists() else None,
             forecasts if forecasts.exists() else None,
+            spikes if spikes.exists() else None,
         )
 
     def forecaster(self) -> GoalForecaster | None:
         return _forecaster(self.forecasts) if self.forecasts is not None else None
+
+    def spike_state(self) -> SpikeState | None:
+        return _spike_state(self.spikes) if self.spikes is not None else None
 
     def as_of(self) -> date:
         """The dataset's last day: the app's "today" (Web App UI, gap 8)."""
@@ -117,6 +128,8 @@ class Ledger:
     flags: pd.DataFrame | None = None
     # The goal forecast (shared by every user of the bundle), or None when no model is promoted
     forecaster: GoalForecaster | None = None
+    # The spike scorer and season profiles (shared), or None when there's no spikes file
+    spikes: SpikeState | None = None
 
     @classmethod
     def load(cls, sources: DataSources, user_id: str) -> "Ledger":
@@ -159,9 +172,15 @@ def _load(sources: DataSources, user_id: str) -> Ledger:
         as_of=sources.as_of(),
         flags=load_flags(sources.flags, user_id=user_id) if sources.flags else None,
         forecaster=sources.forecaster(),
+        spikes=sources.spike_state(),
     )
 
 
 @lru_cache(maxsize=4)  # one forecasts file per bundle, read once
 def _forecaster(path: Path) -> GoalForecaster:
     return GoalForecaster.load(path)
+
+
+@lru_cache(maxsize=4)  # one spikes file per bundle, read once
+def _spike_state(path: Path) -> SpikeState:
+    return load_state(path)

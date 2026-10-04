@@ -336,6 +336,11 @@ details.edit-cat[open] .edit-form { background: var(--surface); border: 1px soli
 .flag .raw { overflow-wrap: anywhere; }
 .flag .amount { font-weight: 700; white-space: nowrap; }
 .flag-reason { font-size: 13.5px; line-height: 1.45; }
+.spike-charges { font-size: 13px; }
+.spike-charges summary { cursor: pointer; font-weight: 600; }
+.spike-charges ul { list-style: none; margin: 6px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.spike-charges li { display: flex; justify-content: space-between; gap: 12px; }
+.spike-charges li span:first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* How it learns (FR-5/FR-6 §7) */
 .learn-intro { color: var(--muted); font-size: 14.5px; max-width: 860px; margin: 0; line-height: 1.5; }

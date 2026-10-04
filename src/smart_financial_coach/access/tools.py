@@ -3,9 +3,13 @@
 No tool takes a `user_id`: a `Tools` is built around one user's `Ledger`, which the caller makes
 from the signed-in session, so a tool argument can't name whose data is read. Every result is
 JSON with amounts in the user's currency, so the coach quotes numbers without doing arithmetic.
-Services that aren't released yet (spending spikes, forecasts, and unusual charges until an FR-7
-model is promoted) return a typed "not available yet", never a number (FR-14, Delivery Plan sync
-rule).
+Services that aren't released yet return a typed "not available yet", never a number (FR-14,
+Delivery Plan sync rule).
+
+Spending spikes (FR-8 §8): `detect_anomalies` scores the user's complete months on request, from
+the ledger as the session sees it (corrections applied), so a spike's numbers always match
+`get_spending_summary`. Each spike carries its reason, size and largest charges, and the result
+says which scorer made it: the promoted model or, before one is promoted, the simple rule.
 
 For the Oct 6 demo the tools run inside the web app; the tool server (Delivery Plan P1) will serve
 the same functions over HTTP and MCP.
@@ -65,9 +69,17 @@ from smart_financial_coach.access.goals import (
 )
 from smart_financial_coach.access.ledger import INCOME, Ledger
 from smart_financial_coach.access.review_items import item_id, open_review_items
+from smart_financial_coach.data.features.monthly import (
+    MIN_HISTORY,
+    last_complete_month,
+    month_index,
+)
 from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
 from smart_financial_coach.intelligence.forecasting.savings import monthly_net
+from smart_financial_coach.intelligence.spikes.batch import METHOD_SIMPLE
+from smart_financial_coach.intelligence.spikes.reasons import KIND_LABEL as SPIKE_LABEL
+from smart_financial_coach.intelligence.spikes.reasons import reason as spike_reason
 
 log = logging.getLogger(__name__)
 
@@ -320,7 +332,13 @@ TOOL_SPECS: list[ToolSpec] = [
         "name": "detect_anomalies",
         "description": (
             "Unusual charges in a date range, each with its kind, a plain-language reason and the "
-            "numbers behind it, and spending spikes (not available yet)."
+            "numbers behind it; and spending spikes: complete months in the range when a "
+            "category ran well above the person's usual level (more purchases than usual, and "
+            "spend at least 1.3x their average month over the past year), each with the month's "
+            "spend, the usual, the excess, purchase counts, a reason and the largest charges. "
+            "`spending_spikes.status` is `ok`, `too_short` (too little history to judge) or "
+            "`month_in_progress` (only whole months are judged). A month that's high because of "
+            "one large charge isn't a spike; look at unusual charges or the spending summary."
         ),
         "input_schema": {
             "type": "object",
@@ -1162,42 +1180,129 @@ class Tools:
 
     def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
         start, end = self._range(start_date, end_date)
-        flags = self.ledger.flags
-        if flags is None:
+        flags, spikes = self.ledger.flags, self.ledger.spikes
+        if flags is None and spikes is None:
             return self._not_available(
                 "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
             )
+        unusual: Any
+        if flags is None:
+            unusual = self._not_available("Unusual charges", span_label(start, end), "FR-7").data
+        else:
+            unusual = self._unusual(flags, start, end)
+        spiking = self._spikes(start, end)
+        data = {
+            "currency": CURRENCY,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "count": len(unusual) if isinstance(unusual, list) else 0,
+            "unusual_transactions": unusual,
+            "spending_spikes": spiking,
+        }
+        found = [f"{data['count']} flagged"]
+        if spiking.get("status") in ("ok", "too_short", "month_in_progress"):
+            found.append(f"{len(spiking['spikes'])} spending spikes")
+        title = f"Unusual charges · {span_label(start, end)}"
+        return ToolResult(data, Source(title, ", ".join(found)))
+
+    def _unusual(self, flags: pd.DataFrame, start: date, end: date) -> list[dict[str, Any]]:
         rows = self.ledger.between(start, end)
         rows = rows.merge(
             _one_per_pair(flags)[["transaction_id", "reason_code", "evidence"]], on="transaction_id"
         )
         rows = rows.assign(evidence=[self._with_category(r) for r in rows.to_dict("records")])
-        data = {
-            "currency": CURRENCY,
-            "start_date": start.isoformat(),
-            "end_date": end.isoformat(),
-            "count": len(rows),
-            "unusual_transactions": [
-                {
-                    "transaction_id": r["transaction_id"],
-                    "date": r["day"].isoformat(),
-                    "merchant": r["merchant"],
-                    "description": r["merchant_raw"],
-                    "amount": money(r["amount"]),
-                    "category": r["category"],
-                    "kind": KIND_LABELS[r["reason_code"]],
-                    "reason_code": r["reason_code"],
-                    "reason": reason(r["reason_code"], r["evidence"]),
-                    "evidence": json.loads(r["evidence"]),
-                }
-                for r in rows.to_dict("records")
-            ],
-            "spending_spikes": self._not_available(
-                "Spending spikes", span_label(start, end), "FR-8"
-            ).data,
+        return [
+            {
+                "transaction_id": r["transaction_id"],
+                "date": r["day"].isoformat(),
+                "merchant": r["merchant"],
+                "description": r["merchant_raw"],
+                "amount": money(r["amount"]),
+                "category": r["category"],
+                "kind": KIND_LABELS[r["reason_code"]],
+                "reason_code": r["reason_code"],
+                "reason": reason(r["reason_code"], r["evidence"]),
+                "evidence": json.loads(r["evidence"]),
+            }
+            for r in rows.to_dict("records")
+        ]
+
+    def _spikes(self, start: date, end: date) -> dict[str, Any]:
+        """Flagged complete months that overlap `start`..`end`, on the session's categories
+        (FR-8 §8). The season profiles leave this user out on the model's categories, which the
+        shared table was built on (§2)."""
+        state = self.ledger.spikes
+        if state is None:
+            return self._not_available("Spending spikes", span_label(start, end), "FR-8").data
+        first = month_index(pd.Series([start.isoformat()[:7] + "-01"])).iloc[0]
+        last = month_index(pd.Series([end.isoformat()[:7] + "-01"])).iloc[0]
+        complete = last_complete_month(state.as_of)
+        out: dict[str, Any] = {
+            "method": state.method,
+            "model_version": state.version,
+            "spikes": [],
         }
-        title = f"Unusual charges · {span_label(start, end)}"
-        return ToolResult(data, Source(title, f"{len(rows)} flagged"))
+        if first > complete:
+            return out | {
+                "status": "month_in_progress",
+                "message": "Only whole months are judged; this one isn't over yet.",
+            }
+        scored = state.score(self.ledger.user_id, self.ledger.transactions, self.base.transactions)
+        in_range = scored[(scored["month"] >= first) & (scored["month"] <= min(last, complete))]
+        if in_range.empty:
+            history = self.ledger.transactions["ts"]
+            began = month_index(pd.Series([history.min().strftime("%Y-%m-01")])).iloc[0]
+            if min(last, complete) < began + MIN_HISTORY:
+                return out | {
+                    "status": "too_short",
+                    "message": (
+                        f"Spikes are judged against at least {MIN_HISTORY} earlier months; "
+                        "there's too little history for these months yet."
+                    ),
+                }
+        flagged = in_range[in_range["is_flagged"].astype(bool)].sort_values(
+            ["month", "category"], ascending=[False, True]
+        )
+        out["spikes"] = [self._spike(r) for r in flagged.to_dict("records")]
+        return out | {"status": "ok"}
+
+    def _spike(self, row: Mapping[Hashable, Any]) -> dict[str, Any]:
+        evidence = json.loads(row["evidence"])
+        t = self.ledger.transactions
+        period = pd.Period(str(row["period_start"])[:7], freq="M")
+        inside = t[
+            (t["category"] == row["category"])
+            & (t["amount"] < 0)
+            & (t["ts"].dt.to_period("M") == period)
+        ]
+        largest = inside.sort_values(["amount", "transaction_id"]).head(5)
+        return {
+            "category": row["category"],
+            "period_start": period.start_time.date().isoformat(),
+            "period_end": period.end_time.date().isoformat(),
+            "kind": SPIKE_LABEL,
+            "actual": evidence["actual"],
+            "usual": evidence["usual"],
+            "excess": evidence["excess"],
+            "ratio": evidence["ratio"],
+            "count": evidence["count"],
+            "usual_count": evidence["usual_count"],
+            "usual_months": evidence["usual_months"],
+            "reason": spike_reason(evidence),
+            "largest_charges": [
+                {
+                    "transaction_id": c["transaction_id"],
+                    "date": c["day"].isoformat(),
+                    "merchant": c["merchant"],
+                    "description": c["merchant_raw"],
+                    "amount": money(-c["amount"]),
+                }
+                for c in largest.to_dict("records")
+            ],
+            "other_purchases": max(int(evidence["count"]) - len(largest), 0),
+            "simple_rule": self.ledger.spikes is not None
+            and self.ledger.spikes.method == METHOD_SIMPLE,
+        }
 
     def _with_category(self, flag: Mapping[Hashable, Any]) -> str:
         """A new-merchant flag's evidence with its predicted category and the latest earlier

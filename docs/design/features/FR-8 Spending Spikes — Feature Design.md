@@ -484,6 +484,16 @@ From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Result
 - **Seasonality earns nothing out of fold** (0.518 without, 0.516 with), and κ landed on the top of the decided grid (2). Both are reported, not acted on.
 - **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3 are owner decisions: it runs with both product rules, and its expected count is floored at 0.3 like every count model's.
 
+From milestone 4, serving (built before test scoring; the owner held `finalize` on Oct 4, so the demo serves the simple rule until a model is promoted):
+
+- **`spikes.json`** holds the scorer (its spec and what it fitted) and the season table's sums and counts per (category, month of year, as-of month): no row of any user (a test checks it). It's 21 KB for the default data.
+- **The simple rule's cutoff is fitted on the whole pool at 0.035 flags per user-month,** without labels (decision 12). On the default data's 360 users it's a tail score of 8.93. A promoted model replaces it in the same file, and nothing else changes.
+- **The demo bundle categorizes the full `--data` pool** with the promoted categorizer for the season table: 51 s for 1.1 million transactions. The whole `build-demo` takes about 1 minute 45 seconds.
+- **Per request:** one user's spikes take about 75 ms (`detect_anomalies` over their whole history), well inside NFR-5. A test holds it under 1 s.
+- **`detect_anomalies`' two halves are independent:** unusual charges are "not available" without an FR-7 model, and spikes without a spikes file. Each spike says `simple_rule` when the simple rule found it. The card shows a "Simple rule" badge and the coach says so.
+- **`/healthz` scores every demo account's spikes,** so a deploy's smoke test reads user data (and reports which scorer serves).
+- **What the simple rule gets wrong in the demo:** it has no season, so the family account's August 2024 Shopping, a seasonal peak, reads as a spike. The candidates' season term exists to explain such months. It's outside "Worth a look"'s 60-day window, but the coach can find it when asked about 2024.
+
 ## Decisions and open questions
 
 **Decisions** (owner, Oct 4, 2026, confirmed on #58). Any later decision that affects evaluation or test scoring goes to the owner before it runs.
