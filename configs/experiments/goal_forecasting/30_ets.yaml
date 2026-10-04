@@ -1,0 +1,9 @@
+# FR-11 round: exponential smoothing (additive seasonality, no trend) for users with 24+ months,
+# the seasonal persona-shrunk state before that; paths from its own residuals (FR-11 and FR-12
+# design, §4; owner decision 3 on #50).
+name: paths_ets
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: true, shrink: 2.0, window: 24, level_model: ets}
+tags: {plan: fr11-round}

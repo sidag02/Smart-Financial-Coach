@@ -5,7 +5,7 @@ in:  one row per goal to forecast, with what a forecast may use: the goal (targe
      its goal set (the user's goals that share their savings) and the user's monthly net savings
      up to the forecast's `as_of_date`, as JSON (`history_json`)
 out: example_id, status, p_goal_met, projected_balance, range_lo, range_hi, gap,
-     extra_per_month, share, share_source, may_draw_down, model_version
+     extra_per_month, share, share_source, net_next_6, may_draw_down, model_version
 
 `range_lo`/`range_hi` are the 10th and 90th percentiles of the balance by the target date: an 80%
 interval, fixed here (Web App UI, gap 4). `p_goal_met` is always set, so a reached goal can still
@@ -13,7 +13,9 @@ be scored here; the tools hide its probability, range and top-up (owner decision
 reached goal shows). `may_draw_down` is set only for a reached goal: whether 10% or more of the
 paths end below the target, which drives the drawdown note. `extra_per_month` is the monthly
 deposit that would bring a goal to the on-track band, or null when it's already there.
-A model without a share (a baseline) leaves `share` and `share_source` null.
+A model without a share (a baseline) leaves `share` and `share_source` null. `net_next_6` is the
+model's point forecast of the user's total net savings over the next 6 months, scored for the
+PRD's RMSE metric (owner decision 1 on #50); null for a model without a net-savings forecast.
 """
 
 import json
@@ -42,6 +44,9 @@ INPUT_COLUMNS = (
     "first_saved_as_of",  # its date; None without one
     "origin",  # "existing" (generated: a track record from $0) or "yours" (entered by hand)
     "active_goals",  # goals in the set still running at `as_of_date`, this one included
+    # Every goal in the set, whenever created: only for estimating the typical total allocation
+    # in `fit`, where every goal's share is measured (review on #52). Predictions never read it
+    "set_goals",
     "history_json",
 )
 OUTPUT_COLUMNS = (
@@ -55,6 +60,7 @@ OUTPUT_COLUMNS = (
     "extra_per_month",
     "share",
     "share_source",
+    "net_next_6",
     "may_draw_down",
     "model_version",
 )
@@ -147,7 +153,7 @@ CONTRACT = Contract(
     id_column="example_id",
     columns=OUTPUT_COLUMNS,
     check=_check,
-    nullable=("extra_per_month", "share", "share_source", "may_draw_down"),
+    nullable=("extra_per_month", "share", "share_source", "net_next_6", "may_draw_down"),
 )
 register_service(CONTRACT)
 
@@ -156,7 +162,15 @@ def output_frame(rows: list[dict[str, object]], version: str) -> pd.DataFrame:
     """Model outputs in the contract's column order, with the model's version."""
     frame = pd.DataFrame(rows, columns=[c for c in OUTPUT_COLUMNS if c != "model_version"])
     frame["model_version"] = version
-    for c in ("p_goal_met", "projected_balance", "range_lo", "range_hi", "gap", "share"):
+    for c in (
+        "p_goal_met",
+        "projected_balance",
+        "range_lo",
+        "range_hi",
+        "gap",
+        "share",
+        "net_next_6",
+    ):
         frame[c] = frame[c].astype(float)
     frame["extra_per_month"] = frame["extra_per_month"].astype(float)
     for c in ("share_source", "may_draw_down"):

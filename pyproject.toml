@@ -48,6 +48,9 @@ dev = [
 ]
 train = [
     "mlflow",
+    # Exponential smoothing, a FR-11 round candidate (owner decision 3 on #50); experiments
+    # only, so the serving image doesn't carry it (review on #52)
+    "statsmodels>=0.15.0",
 ]
 
 [build-system]
@@ -78,7 +81,7 @@ plugins = ["pydantic.mypy"]
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*", "joblib.*"]
+module = ["sklearn.*", "joblib.*", "statsmodels.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

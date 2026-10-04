@@ -1,0 +1,8 @@
+# FR-11 round: simulated paths around a flat 24-month level, with the user's own deviations and a
+# spread fitted on the training users' histories for 80% coverage (FR-11 and FR-12 design, §4).
+name: paths_flat_level
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: false, window: 24}
+tags: {plan: fr11-round}

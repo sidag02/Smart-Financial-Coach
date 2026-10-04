@@ -24,6 +24,7 @@ from smart_financial_coach.evaluation.tasks.goals import (
 )
 from smart_financial_coach.intelligence.forecasting.baseline import Flat, NaivePace
 from smart_financial_coach.intelligence.forecasting.contract import CONTRACT, parse_history
+from smart_financial_coach.intelligence.forecasting.paths import PathsModel
 from smart_financial_coach.intelligence.models.contract import Checked
 
 
@@ -189,7 +190,7 @@ def passing_metrics() -> dict[str, float]:
         for scope in ("", ".family_budgeter", ".freelancer", ".young_professional"):
             for band, rate in (("off", 0.2), ("either", 0.5), ("on", 0.8)):
                 m[f"test_met_rate.{path}{scope}.{band}"] = rate
-    return m
+    return m | {"test_rmse_6_vs_naive": 0.3, "test_rmse_6_vs_snaive": 0.95}
 
 
 def test_gates_follow_the_design_and_decision_6(task: GoalForecastingTask) -> None:
@@ -205,6 +206,12 @@ def test_gates_follow_the_design_and_decision_6(task: GoalForecastingTask) -> No
     assert "brier_new_below_naive_pace" not in gates
     # Calibration is gated per persona too (decision 6)
     assert "calibrated_new_family_budgeter_on" in gates
+
+    # Decision 1: within 15% of last-month naive isn't enough, and seasonal-naive can't be beaten
+    worse = metrics | {"test_rmse_6_vs_naive": 0.9, "test_rmse_6_vs_snaive": 1.02}
+    rmse = {g.name: g for g in task.gates(worse, {"naive_pace": base, "flat_50": base})}
+    assert not rmse["rmse_6_below_naive"].passed
+    assert not rmse["rmse_6_not_worse_than_seasonal_naive"].passed
 
 
 def test_tolerances_come_from_validation(task: GoalForecastingTask) -> None:
@@ -238,3 +245,17 @@ def test_fits_never_get_labels(task: GoalForecastingTask, examples: Examples) ->
 
 def test_the_task_is_registered() -> None:
     assert isinstance(get_task("goal_forecasting"), GoalForecastingTask)
+
+
+def test_a_paths_model_gets_rmse_and_coverage(
+    task: GoalForecastingTask, examples: Examples
+) -> None:
+    f = examples.frame
+    # Each path is its own goal set
+    assert all(s.endswith(f":{p}") for s, p in zip(f["goal_set"], f["path"], strict=True))
+    rows = examples.rows(ids(f["example_id"]))
+    model = Checked(PathsModel(seasonal=True, n_paths=200), CONTRACT).fit(rows)
+    m = task.validation_metrics(examples, model.predict(rows))
+    assert m["rmse_6_vs_naive"] < 0.85  # decision 1's gate, on this small data
+    assert 0.5 < m["coverage.track"] <= 1.0
+    assert m["scaled_rmse_6"] >= 0.0
