@@ -413,6 +413,56 @@ One PR each.
 4. **Pages:** goal detail (1g, 1l), statuses on cards and the overview, reached goals, the fit badge, the short-history notice and the assumption line; a browser check at desktop and phone width.
 5. **Docs:** the Technical Design (the forecasting decision, the contracts), the PRD (the measured metric and any target change), the Web App UI (1g/1l built, gap 4 closed); status to Implemented.
 
+## Status and handoff (Oct 4, 2026)
+
+### Where it stands
+
+| Milestone | PR | State |
+| --- | --- | --- |
+| Design | #50 | Merged, Accepted. Amended in #52 (§2, §6, §7) |
+| 1. Contracts, the task, the sampler, baselines | #51 | Merged |
+| 2. Candidates and the validation round | #52 | Approved. Rebased on `main` with #51; merges next |
+| 3. Test scoring, promotion, serving | — | Not started |
+| 4. Pages | — | Not started |
+| 5. Docs | — | Not started |
+
+**The validation round's result** (round 4, `docs/reports/FR-11 and FR-12 Goal Forecasting — Round Results.md`):
+- **Rank 1:** `paths_seasonal_persona`, Brier 0.196 (track) and 0.229 (new). It's ahead of `paths_ets` and `paths_flat_level` on the paired user bootstrap.
+- **Fitted values:** typical total 0.686, spread 1.039.
+- **Gates:** it passes every gate on validation; freelancers on new goals score 0.248.
+- **No test user has been scored.**
+
+### Reproducing the round
+
+- **Data:** `uv run sfc-data generate --spec configs/data/default.yaml --out <path>/default.sqlite --force`, about 80 s. It should give content hash `b4d43bf4…`, the same as `main`'s generator before #51; a test pins the stage-9 goals.
+- **Data and split hashes:** the task's are `a650268fd2a0` and `6f2fc4ed8b7c`, at 2,004 validation goals per path.
+- **Tracking:** MLflow needs a database URI, e.g. `--tracking-uri sqlite:///<path>/mlflow.db`, because the file store is refused.
+- **Rerun the round from `main` once #52 has merged:** `uv run sfc-experiment run configs/experiments/goal_forecasting --data <path>/default.sqlite --tracking-uri sqlite:///<path>/mlflow.db`, about 2.5 minutes. `finalize` refuses runs from mixed code versions, so all five must come from one commit.
+- **`statsmodels`** (the ETS candidate) is in the `train` dependency group, so a plain `uv sync` includes it.
+
+### Milestone 3, step by step
+
+1. **Test scoring,** once: `uv run sfc-experiment finalize --task goal_forecasting --data … --tracking-uri …` scores the top three and the baselines on test users. Read the gate output in §5's order. The freelancer Brier gate on new goals is non-blocking (decision 6), and the CLI marks it so.
+2. **Promotion:** run `promote` for `goal_forecasting` (see `evaluation/promote.py` and how FR-7's #39 did it). It records the gates, with `blocking`, in the promotion log. Record the test results in the round report's "test results" section, as FR-7 did.
+3. **Serving:**
+   - Fit the promoted `PathsModel` on all users' rows and serialize its learned values: persona priors, typical total, spread.
+   - Build each user's `ForecastState` at the dataset's `as_of` into the demo bundle (`sfc-web build-demo`), like FR-3's predictions file and FR-7's flag file.
+   - Paths are simulated per request with `paths_for(user_id, as_of, state)`.
+4. **Tools** (`access/tools.py`):
+   - `forecast_goal` returns the §"Tools" fields. **For a reached goal it hides p, the range and the top-up,** and adds the drawdown note when `may_draw_down`; test this at the tool level (review on #51).
+   - `check_goal` adds the forecast and the `fit` badge for a valid draft. A draft must give the saved goal's numbers: one future per user, `active_goals` counting the draft.
+   - `list_goals` adds `status` and `p_goal_met`.
+   - Goals from FR-10's store need their input row built from `goal_revisions`: `first_saved`/`first_saved_as_of` from the earliest live entry, `origin`, `active_goals`, `set_goals`.
+5. **Coach:** the §8 prompt rules.
+6. **Tests:** contract tests in-process and over MCP; a draft equal to the saved goal; reached-goal hiding; a short-history notice under 6 months.
+
+### Practical notes
+
+- **Reviews:** before saying a PR is up to date, list every review and inline comment with no time filter. Re-reviews arrive often, and filtering by time hid two of them in this session.
+- **Stacked PRs:** keep each branch current by merging `main` (or the branch below), not by rebasing. GitHub retargets the next PR when its base branch merges.
+- **Tolerances:** the gates read the run's own validation intervals (`val_*_lo/_hi`) as tolerances. Don't recompute them from test.
+- **The CLI:** the experiment runner prints a run's metrics. `sfc-experiment report --out` writes the comparison table, and `fit.*` metrics carry the spread and typical total.
+
 ## Decisions and open questions
 
 All decided by the owner on Oct 4, 2026, on #50.
