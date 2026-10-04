@@ -56,7 +56,14 @@
         "macro_f1_view": 0.6024336459685563,
         "macro_f1_truth": 0.7468957021569459
       },
-      "items_shown_per_user": 2.028985507246377,
+      "open_items_per_user": 3.8840579710144927,
+      "items_resolved_per_user": 2.028985507246377,
+      "share_resolved": 0.5223880597014925,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 147,
       "global_labels": 6
     },
@@ -87,7 +94,14 @@
         "macro_f1_view": 0.6387910871319595,
         "macro_f1_truth": 0.7751741028963385
       },
-      "items_shown_per_user": 1.5942028985507246,
+      "open_items_per_user": 3.7681159420289854,
+      "items_resolved_per_user": 1.5942028985507246,
+      "share_resolved": 0.4230769230769231,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 265,
       "global_labels": 14
     },
@@ -118,7 +132,14 @@
         "macro_f1_view": 0.5945437009067521,
         "macro_f1_truth": 0.7320252969806319
       },
-      "items_shown_per_user": 1.5217391304347827,
+      "open_items_per_user": 3.36231884057971,
+      "items_resolved_per_user": 1.5217391304347827,
+      "share_resolved": 0.4525862068965517,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 377,
       "global_labels": 17
     },
@@ -149,7 +170,14 @@
         "macro_f1_view": 0.6074773953849651,
         "macro_f1_truth": 0.7223552571823367
       },
-      "items_shown_per_user": 1.5217391304347827,
+      "open_items_per_user": 2.8840579710144927,
+      "items_resolved_per_user": 1.5217391304347827,
+      "share_resolved": 0.5276381909547738,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 490,
       "global_labels": 24
     },
@@ -180,7 +208,14 @@
         "macro_f1_view": 0.5744978733270326,
         "macro_f1_truth": 0.7187625014024753
       },
-      "items_shown_per_user": 1.1304347826086956,
+      "open_items_per_user": 2.1594202898550723,
+      "items_resolved_per_user": 1.1304347826086956,
+      "share_resolved": 0.5234899328859061,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 581,
       "global_labels": 28
     },
@@ -211,7 +246,14 @@
         "macro_f1_view": 0.6275140454081135,
         "macro_f1_truth": 0.7145296159950724
       },
-      "items_shown_per_user": 0.9855072463768116,
+      "open_items_per_user": 1.7246376811594204,
+      "items_resolved_per_user": 0.9855072463768116,
+      "share_resolved": 0.5714285714285714,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 656,
       "global_labels": 29
     },
@@ -242,7 +284,14 @@
         "macro_f1_view": 0.5835505568164383,
         "macro_f1_truth": 0.7458962896656575
       },
-      "items_shown_per_user": 0.855072463768116,
+      "open_items_per_user": 1.3043478260869565,
+      "items_resolved_per_user": 0.855072463768116,
+      "share_resolved": 0.6555555555555556,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 718,
       "global_labels": 32
     },
@@ -273,7 +322,14 @@
         "macro_f1_view": 0.5923797132620995,
         "macro_f1_truth": 0.7054094715143028
       },
-      "items_shown_per_user": 0.6376811594202898,
+      "open_items_per_user": 1.1159420289855073,
+      "items_resolved_per_user": 0.6376811594202898,
+      "share_resolved": 0.5714285714285714,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 771,
       "global_labels": 34
     },
@@ -304,7 +360,14 @@
         "macro_f1_view": 0.6108231588397223,
         "macro_f1_truth": 0.7356400326615568
       },
-      "items_shown_per_user": 0.463768115942029,
+      "open_items_per_user": 0.9420289855072463,
+      "items_resolved_per_user": 0.463768115942029,
+      "share_resolved": 0.49230769230769234,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 810,
       "global_labels": 37
     },
@@ -335,7 +398,14 @@
         "macro_f1_view": 0.7916943117334476,
         "macro_f1_truth": 0.8607480729169371
       },
-      "items_shown_per_user": 1.7971014492753623,
+      "open_items_per_user": 3.9420289855072466,
+      "items_resolved_per_user": 1.7971014492753623,
+      "share_resolved": 0.45588235294117646,
+      "isolation": {
+        "evaluation_rows_changed": 2288,
+        "after_promotion": true,
+        "evaluation_votes": 0
+      },
       "votes": 936,
       "global_labels": 39
     },
@@ -366,7 +436,14 @@
         "macro_f1_view": 0.7462730795749243,
         "macro_f1_truth": 0.8488813835974082
       },
-      "items_shown_per_user": 1.3333333333333333,
+      "open_items_per_user": 2.753623188405797,
+      "items_resolved_per_user": 1.3333333333333333,
+      "share_resolved": 0.4842105263157895,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1034,
       "global_labels": 43
     },
@@ -397,7 +474,14 @@
         "macro_f1_view": 0.7814712455862808,
         "macro_f1_truth": 0.8524310542757876
       },
-      "items_shown_per_user": 0.8115942028985508,
+      "open_items_per_user": 1.8695652173913044,
+      "items_resolved_per_user": 0.8115942028985508,
+      "share_resolved": 0.43410852713178294,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1096,
       "global_labels": 43
     },
@@ -428,7 +512,14 @@
         "macro_f1_view": 0.801452604724085,
         "macro_f1_truth": 0.8481502424801876
       },
-      "items_shown_per_user": 1.144927536231884,
+      "open_items_per_user": 2.130434782608696,
+      "items_resolved_per_user": 1.144927536231884,
+      "share_resolved": 0.5374149659863946,
+      "isolation": {
+        "evaluation_rows_changed": 1627,
+        "after_promotion": true,
+        "evaluation_votes": 0
+      },
       "votes": 1177,
       "global_labels": 47
     },
@@ -459,7 +550,14 @@
         "macro_f1_view": 0.8013021477997427,
         "macro_f1_truth": 0.8679627599330249
       },
-      "items_shown_per_user": 0.5797101449275363,
+      "open_items_per_user": 1.2608695652173914,
+      "items_resolved_per_user": 0.5797101449275363,
+      "share_resolved": 0.45977011494252873,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1222,
       "global_labels": 48
     },
@@ -490,7 +588,14 @@
         "macro_f1_view": 0.7987633735221369,
         "macro_f1_truth": 0.8702891119282116
       },
-      "items_shown_per_user": 0.5942028985507246,
+      "open_items_per_user": 1.0869565217391304,
+      "items_resolved_per_user": 0.5942028985507246,
+      "share_resolved": 0.5466666666666666,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1265,
       "global_labels": 48
     },
@@ -521,7 +626,14 @@
         "macro_f1_view": 0.8271463644566608,
         "macro_f1_truth": 0.8512933655199695
       },
-      "items_shown_per_user": 0.855072463768116,
+      "open_items_per_user": 1.5072463768115942,
+      "items_resolved_per_user": 0.855072463768116,
+      "share_resolved": 0.5673076923076923,
+      "isolation": {
+        "evaluation_rows_changed": 1200,
+        "after_promotion": true,
+        "evaluation_votes": 0
+      },
       "votes": 1327,
       "global_labels": 50
     },
@@ -552,7 +664,14 @@
         "macro_f1_view": 0.7818396933403067,
         "macro_f1_truth": 0.8363070109923827
       },
-      "items_shown_per_user": 0.6376811594202898,
+      "open_items_per_user": 0.927536231884058,
+      "items_resolved_per_user": 0.6376811594202898,
+      "share_resolved": 0.6875,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1373,
       "global_labels": 53
     },
@@ -583,7 +702,14 @@
         "macro_f1_view": 0.7902262446284362,
         "macro_f1_truth": 0.8524272282488757
       },
-      "items_shown_per_user": 0.37681159420289856,
+      "open_items_per_user": 0.6811594202898551,
+      "items_resolved_per_user": 0.37681159420289856,
+      "share_resolved": 0.5531914893617021,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1405,
       "global_labels": 57
     },
@@ -614,7 +740,14 @@
         "macro_f1_view": 0.8101668908306845,
         "macro_f1_truth": 0.8559821110340547
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.5942028985507246,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.43902439024390244,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1425,
       "global_labels": 58
     },
@@ -645,7 +778,14 @@
         "macro_f1_view": 0.7676321639142852,
         "macro_f1_truth": 0.8206504101850814
       },
-      "items_shown_per_user": 0.463768115942029,
+      "open_items_per_user": 0.6666666666666666,
+      "items_resolved_per_user": 0.463768115942029,
+      "share_resolved": 0.6956521739130435,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1458,
       "global_labels": 58
     },
@@ -676,7 +816,14 @@
         "macro_f1_view": 0.7686741738829949,
         "macro_f1_truth": 0.7914381632833832
       },
-      "items_shown_per_user": 0.4057971014492754,
+      "open_items_per_user": 0.6086956521739131,
+      "items_resolved_per_user": 0.4057971014492754,
+      "share_resolved": 0.6666666666666666,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1490,
       "global_labels": 58
     },
@@ -707,7 +854,14 @@
         "macro_f1_view": 0.7893420776254111,
         "macro_f1_truth": 0.8302168289378304
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.42028985507246375,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.6206896551724138,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1514,
       "global_labels": 58
     },
@@ -738,7 +892,14 @@
         "macro_f1_view": 0.8260084046917903,
         "macro_f1_truth": 0.8589227671704543
       },
-      "items_shown_per_user": 0.391304347826087,
+      "open_items_per_user": 0.5652173913043478,
+      "items_resolved_per_user": 0.391304347826087,
+      "share_resolved": 0.6923076923076923,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1543,
       "global_labels": 58
     },
@@ -769,7 +930,14 @@
         "macro_f1_view": 0.8274004266273688,
         "macro_f1_truth": 0.8579577636632606
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.463768115942029,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.5625,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1563,
       "global_labels": 59
     },
@@ -800,7 +968,14 @@
         "macro_f1_view": 0.815250633697425,
         "macro_f1_truth": 0.8903144035767613
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.4057971014492754,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.6428571428571429,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1583,
       "global_labels": 58
     },
@@ -831,7 +1006,14 @@
         "macro_f1_view": 0.7503675788501658,
         "macro_f1_truth": 0.8431819784233981
       },
-      "items_shown_per_user": 0.30434782608695654,
+      "open_items_per_user": 0.4782608695652174,
+      "items_resolved_per_user": 0.30434782608695654,
+      "share_resolved": 0.6363636363636364,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1608,
       "global_labels": 60
     },
@@ -862,7 +1044,14 @@
         "macro_f1_view": 0.7883101801945148,
         "macro_f1_truth": 0.8834719651293058
       },
-      "items_shown_per_user": 0.2318840579710145,
+      "open_items_per_user": 0.5217391304347826,
+      "items_resolved_per_user": 0.2318840579710145,
+      "share_resolved": 0.4444444444444444,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1625,
       "global_labels": 60
     },
@@ -893,7 +1082,14 @@
         "macro_f1_view": 0.7914795059978165,
         "macro_f1_truth": 0.8731624700380364
       },
-      "items_shown_per_user": 0.37681159420289856,
+      "open_items_per_user": 0.5942028985507246,
+      "items_resolved_per_user": 0.37681159420289856,
+      "share_resolved": 0.6341463414634146,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1656,
       "global_labels": 60
     },
@@ -924,7 +1120,14 @@
         "macro_f1_view": 0.80714539079758,
         "macro_f1_truth": 0.8301502574712232
       },
-      "items_shown_per_user": 0.2028985507246377,
+      "open_items_per_user": 0.391304347826087,
+      "items_resolved_per_user": 0.2028985507246377,
+      "share_resolved": 0.5185185185185185,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1673,
       "global_labels": 60
     },
@@ -955,7 +1158,14 @@
         "macro_f1_view": 0.7916212634366514,
         "macro_f1_truth": 0.8462196011946569
       },
-      "items_shown_per_user": 0.36231884057971014,
+      "open_items_per_user": 0.4782608695652174,
+      "items_resolved_per_user": 0.36231884057971014,
+      "share_resolved": 0.7575757575757576,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1701,
       "global_labels": 63
     },
@@ -986,7 +1196,14 @@
         "macro_f1_view": 0.8177503069227824,
         "macro_f1_truth": 0.8501046528802195
       },
-      "items_shown_per_user": 0.2318840579710145,
+      "open_items_per_user": 0.4057971014492754,
+      "items_resolved_per_user": 0.2318840579710145,
+      "share_resolved": 0.5714285714285714,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1719,
       "global_labels": 64
     },
@@ -1017,7 +1234,14 @@
         "macro_f1_view": 0.7781736501418409,
         "macro_f1_truth": 0.8703662385747406
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.3333333333333333,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.782608695652174,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1738,
       "global_labels": 65
     },
@@ -1048,7 +1272,14 @@
         "macro_f1_view": 0.8124444339066131,
         "macro_f1_truth": 0.8962651819584139
       },
-      "items_shown_per_user": 0.2028985507246377,
+      "open_items_per_user": 0.391304347826087,
+      "items_resolved_per_user": 0.2028985507246377,
+      "share_resolved": 0.5185185185185185,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1753,
       "global_labels": 65
     },
@@ -1079,7 +1310,14 @@
         "macro_f1_view": 0.8154856392071849,
         "macro_f1_truth": 0.8831886865582751
       },
-      "items_shown_per_user": 0.30434782608695654,
+      "open_items_per_user": 0.4927536231884058,
+      "items_resolved_per_user": 0.30434782608695654,
+      "share_resolved": 0.6176470588235294,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1779,
       "global_labels": 65
     },
@@ -1110,7 +1348,14 @@
         "macro_f1_view": 0.8113120948544438,
         "macro_f1_truth": 0.8809393028261168
       },
-      "items_shown_per_user": 0.37681159420289856,
+      "open_items_per_user": 0.6086956521739131,
+      "items_resolved_per_user": 0.37681159420289856,
+      "share_resolved": 0.6190476190476191,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1806,
       "global_labels": 65
     },
@@ -1141,7 +1386,14 @@
         "macro_f1_view": 0.7735694376809926,
         "macro_f1_truth": 0.8505069268852218
       },
-      "items_shown_per_user": 0.2608695652173913,
+      "open_items_per_user": 0.43478260869565216,
+      "items_resolved_per_user": 0.2608695652173913,
+      "share_resolved": 0.6,
+      "isolation": {
+        "evaluation_rows_changed": 0,
+        "after_promotion": false,
+        "evaluation_votes": 0
+      },
       "votes": 1825,
       "global_labels": 65
     }
@@ -1269,6 +1521,272 @@
         ]
       ],
       "revoked": [],
+      "inputs": {
+        "cutoff": "2024-04-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "progressive": "Insurance & Fees",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "uber": "Travel",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "sam s club": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "apple.com/bill": "Entertainment",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "fastrak": "Transportation",
+          "sittercity": "Childcare & Education"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004"
+          ],
+          "uber": [
+            "u_te_yp_0008",
+            "u_te_yp_0012",
+            "u_te_yp_0034",
+            "u_te_yp_0030",
+            "u_te_fl_0035"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025"
+          ],
+          "sam s club": [
+            "u_te_fb_0017",
+            "u_te_fb_0025",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fb_0003"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ]
+        }
+      },
       "relabelled_rows": 48804,
       "added_rows": 1834,
       "training_rows": 581205,
@@ -1294,8 +1812,8 @@
         },
         {
           "name": "unfamiliar_brier",
-          "passed": false,
-          "detail": "0.137 vs 0.132"
+          "passed": true,
+          "detail": "0.118 vs 0.132"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1459,6 +1977,336 @@
         ]
       ],
       "revoked": [],
+      "inputs": {
+        "cutoff": "2024-07-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "starlight bowling": "Entertainment",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "peacock": "Entertainment",
+          "cvs/pharmacy": "Shopping",
+          "sittercity": "Childcare & Education",
+          "riverside mini": "Entertainment",
+          "wayfair dallas tx": "Shopping"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024",
+            "u_te_fb_0004",
+            "u_te_fb_0038"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014"
+          ],
+          "cvs/pharmacy": [
+            "u_te_yp_0011",
+            "u_te_fl_0031",
+            "u_te_fb_0029"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ]
+        }
+      },
       "relabelled_rows": 15623,
       "added_rows": 2695,
       "training_rows": 582066,
@@ -1485,7 +2333,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.092 vs 0.127"
+          "detail": "0.077 vs 0.127"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1536,6 +2384,409 @@
         "cvs/pharmacy",
         "netflix.com"
       ],
+      "inputs": {
+        "cutoff": "2024-10-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "spotify": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "p.f. chang s mi": "Dining"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024",
+            "u_te_fb_0004",
+            "u_te_fb_0038"
+          ],
+          "spotify": [
+            "u_te_fb_0004",
+            "u_te_fb_0019",
+            "u_te_fb_0034"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ]
+        }
+      },
       "relabelled_rows": 7623,
       "added_rows": 3981,
       "training_rows": 583352,
@@ -1562,7 +2813,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.065 vs 0.089"
+          "detail": "0.067 vs 0.089"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1604,6 +2855,458 @@
       "revoked": [
         "amazon prime"
       ],
+      "inputs": {
+        "cutoff": "2025-01-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "spotify": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "paramount+": "Entertainment",
+          "disney plus": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024",
+            "u_te_fb_0004",
+            "u_te_fb_0038"
+          ],
+          "spotify": [
+            "u_te_fb_0004",
+            "u_te_fb_0019",
+            "u_te_fb_0034"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "disney plus": [
+            "u_te_fl_0013",
+            "u_te_fl_0002",
+            "u_te_fb_0034"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011"
+          ]
+        }
+      },
       "relabelled_rows": 6877,
       "added_rows": 5180,
       "training_rows": 584551,
@@ -1682,6 +3385,547 @@
         ]
       ],
       "revoked": [],
+      "inputs": {
+        "cutoff": "2025-04-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "spotify": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "disney plus": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "apple icloud": "Entertainment",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024",
+            "u_te_fb_0004",
+            "u_te_fb_0038"
+          ],
+          "spotify": [
+            "u_te_fb_0004",
+            "u_te_fb_0019",
+            "u_te_fb_0034"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "disney plus": [
+            "u_te_fl_0013",
+            "u_te_fl_0002",
+            "u_te_fb_0034"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010"
+          ]
+        }
+      },
       "relabelled_rows": 13471,
       "added_rows": 6462,
       "training_rows": 585833,
@@ -1708,7 +3952,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.053 vs 0.057"
+          "detail": "0.055 vs 0.057"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1770,6 +4014,569 @@
       "revoked": [
         "disney plus"
       ],
+      "inputs": {
+        "cutoff": "2025-07-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify usa": "Entertainment",
+          "spotify": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "apple icloud": "Entertainment",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel",
+          "safewa": "Groceries",
+          "laugh track c": "Entertainment"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013",
+            "u_te_fb_0014"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032",
+            "u_te_yp_0010"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003",
+            "u_te_fl_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003",
+            "u_te_fb_0011"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015",
+            "u_te_fb_0018"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034",
+            "u_te_fl_0026",
+            "u_te_yp_0012"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036",
+            "u_te_fl_0037"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify usa": [
+            "u_te_yp_0027",
+            "u_te_yp_0008",
+            "u_te_yp_0024",
+            "u_te_fb_0004",
+            "u_te_fb_0038"
+          ],
+          "spotify": [
+            "u_te_fb_0004",
+            "u_te_fb_0019",
+            "u_te_fb_0034"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003",
+            "u_te_yp_0027"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029",
+            "u_te_fb_0019",
+            "u_te_fb_0018"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007",
+            "u_te_yp_0011"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023",
+            "u_te_fb_0002",
+            "u_te_fl_0037"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035",
+            "u_te_fb_0026",
+            "u_te_yp_0017"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010"
+          ],
+          "safewa": [
+            "u_te_fb_0019",
+            "u_te_fb_0015",
+            "u_te_fl_0001"
+          ],
+          "laugh track c": [
+            "u_te_yp_0011",
+            "u_te_fb_0004",
+            "u_te_fl_0030"
+          ]
+        }
+      },
       "relabelled_rows": 11537,
       "added_rows": 7447,
       "training_rows": 586818,
@@ -1796,7 +4603,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.055 vs 0.062"
+          "detail": "0.056 vs 0.062"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1867,6 +4674,585 @@
         "disney plus",
         "spotify usa"
       ],
+      "inputs": {
+        "cutoff": "2025-10-01",
+        "agreed": {
+          "hulu.com/bill": "Entertainment",
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "spotify": "Entertainment",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "apple icloud": "Entertainment",
+          "pep boys dallas t": "Transportation",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "walgreens dalla": "Shopping",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel",
+          "safewa": "Groceries",
+          "laugh track c": "Entertainment"
+        },
+        "contributors": {
+          "hulu.com/bill": [
+            "u_te_fb_0000",
+            "u_te_fb_0026",
+            "u_te_yp_0011"
+          ],
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036",
+            "u_te_fb_0014",
+            "u_te_yp_0030"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013",
+            "u_te_fb_0014",
+            "u_te_fb_0029"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032",
+            "u_te_yp_0010"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003",
+            "u_te_fl_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003",
+            "u_te_fb_0011"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fb_0008"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015",
+            "u_te_fb_0018",
+            "u_te_yp_0014"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034",
+            "u_te_fl_0026",
+            "u_te_yp_0012",
+            "u_te_fb_0008",
+            "u_te_fb_0017"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034",
+            "u_te_fb_0022"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036",
+            "u_te_fl_0037"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011",
+            "u_te_fb_0000"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "spotify": [
+            "u_te_fb_0004",
+            "u_te_fb_0019",
+            "u_te_fb_0034"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003",
+            "u_te_yp_0027"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021",
+            "u_te_fb_0023"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029",
+            "u_te_fb_0019",
+            "u_te_fb_0018"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0034"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023",
+            "u_te_fb_0002",
+            "u_te_fl_0037"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011"
+          ],
+          "pep boys dallas t": [
+            "u_te_fl_0029",
+            "u_te_fl_0030",
+            "u_te_fl_0033"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016",
+            "u_te_fb_0036"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "walgreens dalla": [
+            "u_te_yp_0030",
+            "u_te_yp_0008",
+            "u_te_fl_0034"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035",
+            "u_te_fb_0026",
+            "u_te_yp_0017"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010"
+          ],
+          "safewa": [
+            "u_te_fb_0019",
+            "u_te_fb_0015",
+            "u_te_fl_0001"
+          ],
+          "laugh track c": [
+            "u_te_yp_0011",
+            "u_te_fb_0004",
+            "u_te_fl_0030"
+          ]
+        }
+      },
       "relabelled_rows": 10084,
       "added_rows": 8626,
       "training_rows": 587997,
@@ -1893,7 +5279,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.048 vs 0.058"
+          "detail": "0.049 vs 0.058"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -1978,6 +5364,603 @@
         "spotify",
         "spotify usa"
       ],
+      "inputs": {
+        "cutoff": "2026-01-01",
+        "agreed": {
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "walgreens": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "apple icloud": "Entertainment",
+          "pep boys dallas t": "Transportation",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "walgreens dalla": "Shopping",
+          "food lion": "Groceries",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel",
+          "safewa": "Groceries",
+          "laugh track c": "Entertainment",
+          "lakeside toy": "Shopping"
+        },
+        "contributors": {
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036",
+            "u_te_fb_0014",
+            "u_te_yp_0030",
+            "u_te_fl_0018"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021",
+            "u_te_yp_0012"
+          ],
+          "walgreens": [
+            "u_te_fb_0016",
+            "u_te_yp_0008",
+            "u_te_fl_0031",
+            "u_te_yp_0027"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013",
+            "u_te_fb_0014",
+            "u_te_fb_0029",
+            "u_te_fl_0030"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032",
+            "u_te_yp_0010"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003",
+            "u_te_fl_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003",
+            "u_te_fb_0011"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fb_0008"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015",
+            "u_te_fb_0018",
+            "u_te_yp_0014"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034",
+            "u_te_fl_0026",
+            "u_te_yp_0012",
+            "u_te_fb_0008",
+            "u_te_fb_0017",
+            "u_te_fb_0026"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034",
+            "u_te_fb_0022"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036",
+            "u_te_fl_0037"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011",
+            "u_te_fb_0000"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003",
+            "u_te_yp_0027"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003",
+            "u_te_fb_0001"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021",
+            "u_te_fb_0023"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029",
+            "u_te_fb_0019",
+            "u_te_fb_0018"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0034"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016",
+            "u_te_fb_0028"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023",
+            "u_te_fb_0002",
+            "u_te_fl_0037",
+            "u_te_fl_0001"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011"
+          ],
+          "pep boys dallas t": [
+            "u_te_fl_0029",
+            "u_te_fl_0030",
+            "u_te_fl_0033"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016",
+            "u_te_fb_0036"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "walgreens dalla": [
+            "u_te_yp_0030",
+            "u_te_yp_0008",
+            "u_te_fl_0034",
+            "u_te_yp_0027"
+          ],
+          "food lion": [
+            "u_te_yp_0024",
+            "u_te_fb_0038",
+            "u_te_fl_0004",
+            "u_te_fb_0025"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035",
+            "u_te_fb_0026",
+            "u_te_yp_0017"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010",
+            "u_te_fb_0000"
+          ],
+          "safewa": [
+            "u_te_fb_0019",
+            "u_te_fb_0015",
+            "u_te_fl_0001"
+          ],
+          "laugh track c": [
+            "u_te_yp_0011",
+            "u_te_fb_0004",
+            "u_te_fl_0030"
+          ],
+          "lakeside toy": [
+            "u_te_fb_0039",
+            "u_te_fb_0013",
+            "u_te_fb_0017",
+            "u_te_fb_0038"
+          ]
+        }
+      },
       "relabelled_rows": 11270,
       "added_rows": 9847,
       "training_rows": 589218,
@@ -2004,7 +5987,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.058 vs 0.062"
+          "detail": "0.057 vs 0.062"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -2101,6 +6084,635 @@
         "spotify",
         "spotify usa"
       ],
+      "inputs": {
+        "cutoff": "2026-04-01",
+        "agreed": {
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "walgreens": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "netflix": "Entertainment",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "apple icloud": "Entertainment",
+          "pep boys dallas t": "Transportation",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "walgreens dalla": "Shopping",
+          "food lion": "Groceries",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel",
+          "max.com": "Entertainment",
+          "safewa": "Groceries",
+          "laugh track c": "Entertainment",
+          "disney+": "Entertainment",
+          "lakeside toy": "Shopping"
+        },
+        "contributors": {
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036",
+            "u_te_fb_0014",
+            "u_te_yp_0030",
+            "u_te_fl_0018",
+            "u_te_fb_0000"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021",
+            "u_te_yp_0012"
+          ],
+          "walgreens": [
+            "u_te_fb_0016",
+            "u_te_yp_0008",
+            "u_te_fl_0031",
+            "u_te_yp_0027",
+            "u_te_fl_0013"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013",
+            "u_te_fb_0014",
+            "u_te_fb_0029",
+            "u_te_fl_0030"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032",
+            "u_te_yp_0010"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003",
+            "u_te_fl_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003",
+            "u_te_fb_0011"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fb_0008"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015",
+            "u_te_fb_0018",
+            "u_te_yp_0014"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034",
+            "u_te_fl_0026",
+            "u_te_yp_0012",
+            "u_te_fb_0008",
+            "u_te_fb_0017",
+            "u_te_fb_0026",
+            "u_te_fl_0013"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034",
+            "u_te_fb_0022"
+          ],
+          "netflix": [
+            "u_te_fb_0024",
+            "u_te_fb_0029",
+            "u_te_fb_0031"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036",
+            "u_te_fl_0037"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011",
+            "u_te_fb_0000"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003",
+            "u_te_yp_0027"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003",
+            "u_te_fb_0001",
+            "u_te_fb_0004"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021",
+            "u_te_fb_0023"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029",
+            "u_te_fb_0019",
+            "u_te_fb_0018",
+            "u_te_fl_0016",
+            "u_te_yp_0038"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0034"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018",
+            "u_te_fb_0005"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016",
+            "u_te_fb_0028"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023",
+            "u_te_fb_0002",
+            "u_te_fl_0037",
+            "u_te_fl_0001"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011",
+            "u_te_fb_0036",
+            "u_te_yp_0033"
+          ],
+          "pep boys dallas t": [
+            "u_te_fl_0029",
+            "u_te_fl_0030",
+            "u_te_fl_0033"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016",
+            "u_te_fb_0036"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "walgreens dalla": [
+            "u_te_yp_0030",
+            "u_te_yp_0008",
+            "u_te_fl_0034",
+            "u_te_yp_0027"
+          ],
+          "food lion": [
+            "u_te_yp_0024",
+            "u_te_fb_0038",
+            "u_te_fl_0004",
+            "u_te_fb_0025"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035",
+            "u_te_fb_0026",
+            "u_te_yp_0017"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010",
+            "u_te_fb_0000"
+          ],
+          "max.com": [
+            "u_te_fl_0029",
+            "u_te_yp_0030",
+            "u_te_fl_0004",
+            "u_te_fb_0015",
+            "u_te_fb_0038",
+            "u_te_fl_0018",
+            "u_te_fb_0004",
+            "u_te_fl_0031"
+          ],
+          "safewa": [
+            "u_te_fb_0019",
+            "u_te_fb_0015",
+            "u_te_fl_0001"
+          ],
+          "laugh track c": [
+            "u_te_yp_0011",
+            "u_te_fb_0004",
+            "u_te_fl_0030"
+          ],
+          "disney+": [
+            "u_te_yp_0021",
+            "u_te_fl_0013",
+            "u_te_fl_0035"
+          ],
+          "lakeside toy": [
+            "u_te_fb_0039",
+            "u_te_fb_0013",
+            "u_te_fb_0017",
+            "u_te_fb_0038"
+          ]
+        }
+      },
       "relabelled_rows": 12646,
       "added_rows": 10973,
       "training_rows": 590344,
@@ -2127,7 +6739,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.054 vs 0.060"
+          "detail": "0.053 vs 0.060"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -2232,6 +6844,654 @@
         "spotify",
         "spotify usa"
       ],
+      "inputs": {
+        "cutoff": "2026-07-01",
+        "agreed": {
+          "arco": "Transportation",
+          "temu": "Shopping",
+          "amazon prime": "Entertainment",
+          "riverside mini go": "Entertainment",
+          "panda express": "Dining",
+          "target seattle wa": "Shopping",
+          "walgreens": "Shopping",
+          "netflix.com": "Entertainment",
+          "progressive": "Insurance & Fees",
+          "progressive web pmt": "Insurance & Fees",
+          "publix": "Groceries",
+          "starlight bowling": "Entertainment",
+          "costcowhse": "Shopping",
+          "five below": "Shopping",
+          "target phoenix az": "Shopping",
+          "scholastic book fair": "Childcare & Education",
+          "zara": "Shopping",
+          "sweetgreen": "Dining",
+          "subway": "Dining",
+          "in-n-out burger": "Dining",
+          "chick-fil-a": "Dining",
+          "pho saigo": "Dining",
+          "seatgeek": "Entertainment",
+          "one medical": "Health & Fitness",
+          "the children's place": "Shopping",
+          "wayfair": "Shopping",
+          "netflix": "Entertainment",
+          "target los angeles ca": "Groceries",
+          "five below phoenix az": "Shopping",
+          "apple.com/bill": "Entertainment",
+          "h-e-b": "Groceries",
+          "tjmaxx": "Shopping",
+          "sprouts farmers market sto": "Groceries",
+          "fastrak": "Transportation",
+          "lowe's": "Shopping",
+          "dollar tree": "Shopping",
+          "peacock": "Entertainment",
+          "max": "Entertainment",
+          "sittercity": "Childcare & Education",
+          "vrbo": "Travel",
+          "eventbrite": "Entertainment",
+          "taget": "Shopping",
+          "google": "Entertainment",
+          "paramount+": "Entertainment",
+          "intuit": "Subscriptions",
+          "riverside mini": "Entertainment",
+          "ace hardware": "Shopping",
+          "citymd": "Health & Fitness",
+          "target sore": "Shopping",
+          "apple icloud": "Entertainment",
+          "pep boys dallas t": "Transportation",
+          "wayfair dallas tx": "Shopping",
+          "bright smile dental": "Health & Fitness",
+          "bp": "Transportation",
+          "walgreens dalla": "Shopping",
+          "food lion": "Groceries",
+          "p.f. chang s mi": "Dining",
+          "little ow": "Dining",
+          "p.f. chang s": "Dining",
+          "expedia": "Travel",
+          "max.com": "Entertainment",
+          "safewa": "Groceries",
+          "laugh track c": "Entertainment",
+          "disney+": "Entertainment",
+          "lakeside toy": "Shopping"
+        },
+        "contributors": {
+          "arco": [
+            "u_te_fb_0038",
+            "u_te_fl_0017",
+            "u_te_yp_0014",
+            "u_te_yp_0030",
+            "u_te_fb_0008",
+            "u_te_fb_0015"
+          ],
+          "temu": [
+            "u_te_fb_0018",
+            "u_te_yp_0003",
+            "u_te_yp_0017",
+            "u_te_yp_0034",
+            "u_te_fb_0028",
+            "u_te_fl_0003",
+            "u_te_fb_0002",
+            "u_te_fb_0015"
+          ],
+          "amazon prime": [
+            "u_te_fb_0004",
+            "u_te_yp_0012",
+            "u_te_fl_0017",
+            "u_te_yp_0027",
+            "u_te_fl_0035",
+            "u_te_fb_0036",
+            "u_te_fb_0014",
+            "u_te_yp_0030",
+            "u_te_fl_0018",
+            "u_te_fb_0000"
+          ],
+          "riverside mini go": [
+            "u_te_fb_0005",
+            "u_te_yp_0017",
+            "u_te_fb_0022",
+            "u_te_yp_0027",
+            "u_te_yp_0012",
+            "u_te_fl_0007",
+            "u_te_fl_0018"
+          ],
+          "panda express": [
+            "u_te_fb_0010",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0038",
+            "u_te_yp_0017",
+            "u_te_fb_0007",
+            "u_te_fl_0003",
+            "u_te_fb_0017",
+            "u_te_fb_0036"
+          ],
+          "target seattle wa": [
+            "u_te_fb_0013",
+            "u_te_fb_0024",
+            "u_te_yp_0021",
+            "u_te_yp_0012"
+          ],
+          "walgreens": [
+            "u_te_fb_0016",
+            "u_te_yp_0008",
+            "u_te_fl_0031",
+            "u_te_yp_0027",
+            "u_te_fl_0013"
+          ],
+          "netflix.com": [
+            "u_te_fb_0019",
+            "u_te_fb_0016",
+            "u_te_fb_0022",
+            "u_te_fb_0013",
+            "u_te_fb_0014",
+            "u_te_fb_0029",
+            "u_te_fl_0030"
+          ],
+          "progressive": [
+            "u_te_fb_0022",
+            "u_te_yp_0008",
+            "u_te_yp_0038",
+            "u_te_fb_0023",
+            "u_te_fb_0039",
+            "u_te_yp_0024"
+          ],
+          "progressive web pmt": [
+            "u_te_fb_0023",
+            "u_te_fb_0022",
+            "u_te_fb_0039",
+            "u_te_yp_0008",
+            "u_te_yp_0024"
+          ],
+          "publix": [
+            "u_te_fb_0023",
+            "u_te_fl_0009",
+            "u_te_fl_0002"
+          ],
+          "starlight bowling": [
+            "u_te_yp_0038",
+            "u_te_fl_0029",
+            "u_te_yp_0016",
+            "u_te_yp_0032",
+            "u_te_yp_0010"
+          ],
+          "costcowhse": [
+            "u_te_fb_0031",
+            "u_te_fb_0007"
+          ],
+          "five below": [
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0015",
+            "u_te_fb_0016",
+            "u_te_fb_0025",
+            "u_te_fb_0004",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_fb_0038",
+            "u_te_fb_0039"
+          ],
+          "target phoenix az": [
+            "u_te_fb_0031",
+            "u_te_yp_0011"
+          ],
+          "scholastic book fair": [
+            "u_te_fb_0034",
+            "u_te_fb_0028",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0039"
+          ],
+          "zara": [
+            "u_te_fl_0002",
+            "u_te_yp_0011",
+            "u_te_yp_0016",
+            "u_te_fb_0024",
+            "u_te_fl_0033",
+            "u_te_yp_0021",
+            "u_te_fl_0004",
+            "u_te_fb_0003",
+            "u_te_fl_0003"
+          ],
+          "sweetgreen": [
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0024",
+            "u_te_fb_0013",
+            "u_te_yp_0038",
+            "u_te_fb_0005",
+            "u_te_fl_0018",
+            "u_te_fb_0000",
+            "u_te_fl_0001",
+            "u_te_fl_0002",
+            "u_te_fl_0004",
+            "u_te_fl_0030",
+            "u_te_yp_0027",
+            "u_te_fl_0003",
+            "u_te_fb_0011"
+          ],
+          "subway": [
+            "u_te_fl_0007",
+            "u_te_yp_0014",
+            "u_te_yp_0017",
+            "u_te_yp_0024",
+            "u_te_fb_0031",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0011",
+            "u_te_fb_0026",
+            "u_te_fb_0028",
+            "u_te_fl_0033",
+            "u_te_fl_0016",
+            "u_te_fl_0018",
+            "u_te_fl_0001",
+            "u_te_yp_0027"
+          ],
+          "in-n-out burger": [
+            "u_te_yp_0021",
+            "u_te_yp_0028",
+            "u_te_fl_0035",
+            "u_te_fb_0008",
+            "u_te_yp_0010",
+            "u_te_yp_0003",
+            "u_te_yp_0027",
+            "u_te_fb_0038",
+            "u_te_yp_0012",
+            "u_te_fb_0010",
+            "u_te_fb_0025",
+            "u_te_fl_0030",
+            "u_te_fl_0029"
+          ],
+          "chick-fil-a": [
+            "u_te_fl_0031",
+            "u_te_yp_0034",
+            "u_te_fl_0034",
+            "u_te_fb_0019",
+            "u_te_fb_0023",
+            "u_te_fl_0000",
+            "u_te_yp_0028",
+            "u_te_fb_0005",
+            "u_te_fb_0007",
+            "u_te_fb_0026",
+            "u_te_fl_0025",
+            "u_te_fl_0037",
+            "u_te_yp_0016",
+            "u_te_fb_0029",
+            "u_te_fl_0004",
+            "u_te_fl_0002",
+            "u_te_fl_0011",
+            "u_te_fb_0025",
+            "u_te_fl_0016",
+            "u_te_fl_0026",
+            "u_te_fb_0017",
+            "u_te_fl_0033",
+            "u_te_fl_0009"
+          ],
+          "pho saigo": [
+            "u_te_yp_0008",
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fb_0008"
+          ],
+          "seatgeek": [
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0001",
+            "u_te_fb_0015",
+            "u_te_fb_0018",
+            "u_te_yp_0014"
+          ],
+          "one medical": [
+            "u_te_yp_0028",
+            "u_te_yp_0032",
+            "u_te_yp_0008",
+            "u_te_fb_0000",
+            "u_te_fb_0019",
+            "u_te_fb_0024",
+            "u_te_yp_0034",
+            "u_te_fl_0018",
+            "u_te_fb_0013",
+            "u_te_fb_0038",
+            "u_te_yp_0024",
+            "u_te_fl_0035",
+            "u_te_fb_0003",
+            "u_te_fl_0030",
+            "u_te_fb_0034",
+            "u_te_fl_0026",
+            "u_te_yp_0012",
+            "u_te_fb_0008",
+            "u_te_fb_0017",
+            "u_te_fb_0026",
+            "u_te_fl_0013",
+            "u_te_fl_0029"
+          ],
+          "the children's place": [
+            "u_te_fb_0003",
+            "u_te_fb_0038",
+            "u_te_fb_0002",
+            "u_te_fb_0024",
+            "u_te_fb_0005",
+            "u_te_fb_0025",
+            "u_te_fb_0019",
+            "u_te_fb_0036",
+            "u_te_fb_0013",
+            "u_te_fb_0011",
+            "u_te_fb_0022",
+            "u_te_fb_0015",
+            "u_te_fb_0028",
+            "u_te_fb_0014"
+          ],
+          "wayfair": [
+            "u_te_fb_0017",
+            "u_te_yp_0016",
+            "u_te_yp_0030",
+            "u_te_fb_0026",
+            "u_te_yp_0010",
+            "u_te_fb_0003",
+            "u_te_yp_0014",
+            "u_te_fb_0004",
+            "u_te_fb_0034",
+            "u_te_fb_0022"
+          ],
+          "netflix": [
+            "u_te_fb_0024",
+            "u_te_fb_0029",
+            "u_te_fb_0031"
+          ],
+          "target los angeles ca": [
+            "u_te_fb_0029",
+            "u_te_fb_0036",
+            "u_te_fl_0037"
+          ],
+          "five below phoenix az": [
+            "u_te_fb_0031",
+            "u_te_fb_0016",
+            "u_te_yp_0011"
+          ],
+          "apple.com/bill": [
+            "u_te_fb_0036",
+            "u_te_fb_0002",
+            "u_te_yp_0008",
+            "u_te_fb_0023"
+          ],
+          "h-e-b": [
+            "u_te_fb_0039",
+            "u_te_fl_0011",
+            "u_te_yp_0012",
+            "u_te_fb_0004",
+            "u_te_fb_0014",
+            "u_te_fl_0002",
+            "u_te_fl_0013"
+          ],
+          "tjmaxx": [
+            "u_te_fl_0004",
+            "u_te_yp_0003",
+            "u_te_fb_0025",
+            "u_te_fl_0000",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_fb_0039",
+            "u_te_yp_0030",
+            "u_te_yp_0032",
+            "u_te_fb_0018",
+            "u_te_fb_0011",
+            "u_te_fb_0000"
+          ],
+          "sprouts farmers market sto": [
+            "u_te_fl_0004",
+            "u_te_fl_0026",
+            "u_te_fb_0000",
+            "u_te_fb_0002",
+            "u_te_fb_0022",
+            "u_te_fl_0001"
+          ],
+          "fastrak": [
+            "u_te_fb_0008",
+            "u_te_fb_0002",
+            "u_te_fb_0031",
+            "u_te_fb_0011"
+          ],
+          "lowe's": [
+            "u_te_fb_0011",
+            "u_te_fb_0015",
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_yp_0011",
+            "u_te_fb_0013",
+            "u_te_fb_0036",
+            "u_te_fb_0003",
+            "u_te_yp_0027"
+          ],
+          "dollar tree": [
+            "u_te_fb_0029",
+            "u_te_fb_0002",
+            "u_te_fb_0008",
+            "u_te_fb_0011",
+            "u_te_fb_0003",
+            "u_te_fb_0001",
+            "u_te_fb_0004"
+          ],
+          "peacock": [
+            "u_te_yp_0010",
+            "u_te_yp_0030",
+            "u_te_yp_0014",
+            "u_te_fb_0029",
+            "u_te_yp_0008",
+            "u_te_yp_0034",
+            "u_te_yp_0011"
+          ],
+          "max": [
+            "u_te_fb_0004",
+            "u_te_fb_0038",
+            "u_te_yp_0030",
+            "u_te_fb_0015",
+            "u_te_fl_0004",
+            "u_te_fl_0029",
+            "u_te_yp_0017",
+            "u_te_fb_0008",
+            "u_te_fl_0031",
+            "u_te_fl_0018"
+          ],
+          "sittercity": [
+            "u_te_fb_0005",
+            "u_te_fb_0026",
+            "u_te_fb_0028"
+          ],
+          "vrbo": [
+            "u_te_fb_0024",
+            "u_te_yp_0010",
+            "u_te_fb_0039",
+            "u_te_yp_0034",
+            "u_te_yp_0021",
+            "u_te_fb_0023"
+          ],
+          "eventbrite": [
+            "u_te_yp_0027",
+            "u_te_fl_0037",
+            "u_te_yp_0021",
+            "u_te_fl_0025",
+            "u_te_fl_0005",
+            "u_te_fb_0029",
+            "u_te_fb_0019",
+            "u_te_fb_0018",
+            "u_te_fl_0016",
+            "u_te_yp_0038"
+          ],
+          "taget": [
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0000"
+          ],
+          "google": [
+            "u_te_fb_0022",
+            "u_te_fb_0004",
+            "u_te_fl_0007",
+            "u_te_yp_0011",
+            "u_te_yp_0034",
+            "u_te_fb_0015"
+          ],
+          "paramount+": [
+            "u_te_fb_0023",
+            "u_te_fb_0024",
+            "u_te_fl_0037",
+            "u_te_fb_0014",
+            "u_te_yp_0003"
+          ],
+          "intuit": [
+            "u_te_fl_0017",
+            "u_te_fl_0009",
+            "u_te_fl_0007"
+          ],
+          "riverside mini": [
+            "u_te_yp_0027",
+            "u_te_fl_0007",
+            "u_te_fb_0022",
+            "u_te_yp_0017",
+            "u_te_yp_0012",
+            "u_te_fl_0018",
+            "u_te_fb_0005"
+          ],
+          "ace hardware": [
+            "u_te_fb_0018",
+            "u_te_fb_0025",
+            "u_te_yp_0024",
+            "u_te_yp_0030",
+            "u_te_fb_0011",
+            "u_te_fb_0024",
+            "u_te_fb_0036",
+            "u_te_yp_0028",
+            "u_te_yp_0011",
+            "u_te_yp_0012",
+            "u_te_yp_0016",
+            "u_te_fb_0028"
+          ],
+          "citymd": [
+            "u_te_yp_0038",
+            "u_te_fb_0034",
+            "u_te_yp_0017",
+            "u_te_fl_0000",
+            "u_te_yp_0011",
+            "u_te_fb_0028",
+            "u_te_fb_0039",
+            "u_te_fb_0010",
+            "u_te_fb_0031",
+            "u_te_fb_0014",
+            "u_te_fb_0003",
+            "u_te_fb_0023",
+            "u_te_fb_0002",
+            "u_te_fl_0037",
+            "u_te_fl_0001"
+          ],
+          "target sore": [
+            "u_te_fb_0002",
+            "u_te_fb_0005",
+            "u_te_fb_0034"
+          ],
+          "apple icloud": [
+            "u_te_fb_0002",
+            "u_te_fl_0034",
+            "u_te_fb_0011",
+            "u_te_fb_0036",
+            "u_te_yp_0033",
+            "u_te_fl_0018"
+          ],
+          "pep boys dallas t": [
+            "u_te_fl_0029",
+            "u_te_fl_0030",
+            "u_te_fl_0033"
+          ],
+          "wayfair dallas tx": [
+            "u_te_fb_0003",
+            "u_te_yp_0030"
+          ],
+          "bright smile dental": [
+            "u_te_fl_0005",
+            "u_te_yp_0014",
+            "u_te_fb_0010",
+            "u_te_fb_0013",
+            "u_te_yp_0012",
+            "u_te_fb_0007",
+            "u_te_fb_0016",
+            "u_te_fb_0036",
+            "u_te_fb_0034"
+          ],
+          "bp": [
+            "u_te_fl_0011",
+            "u_te_fb_0031",
+            "u_te_fl_0003"
+          ],
+          "walgreens dalla": [
+            "u_te_yp_0030",
+            "u_te_yp_0008",
+            "u_te_fl_0034",
+            "u_te_yp_0027"
+          ],
+          "food lion": [
+            "u_te_yp_0024",
+            "u_te_fb_0038",
+            "u_te_fl_0004",
+            "u_te_fb_0025"
+          ],
+          "p.f. chang s mi": [
+            "u_te_fb_0019",
+            "u_te_yp_0017",
+            "u_te_fl_0000"
+          ],
+          "little ow": [
+            "u_te_fl_0011",
+            "u_te_fb_0000",
+            "u_te_yp_0011",
+            "u_te_fl_0013"
+          ],
+          "p.f. chang s": [
+            "u_te_yp_0024",
+            "u_te_yp_0012",
+            "u_te_yp_0032",
+            "u_te_fl_0035",
+            "u_te_fb_0026",
+            "u_te_yp_0017"
+          ],
+          "expedia": [
+            "u_te_fb_0024",
+            "u_te_yp_0011",
+            "u_te_fl_0003",
+            "u_te_yp_0010",
+            "u_te_fb_0000",
+            "u_te_yp_0027",
+            "u_te_yp_0008"
+          ],
+          "max.com": [
+            "u_te_fl_0029",
+            "u_te_yp_0030",
+            "u_te_fl_0004",
+            "u_te_fb_0015",
+            "u_te_fb_0038",
+            "u_te_fl_0018",
+            "u_te_fb_0004",
+            "u_te_fl_0031"
+          ],
+          "safewa": [
+            "u_te_fb_0019",
+            "u_te_fb_0015",
+            "u_te_fl_0001"
+          ],
+          "laugh track c": [
+            "u_te_yp_0011",
+            "u_te_fb_0004",
+            "u_te_fl_0030"
+          ],
+          "disney+": [
+            "u_te_yp_0021",
+            "u_te_fl_0013",
+            "u_te_fl_0035"
+          ],
+          "lakeside toy": [
+            "u_te_fb_0039",
+            "u_te_fb_0013",
+            "u_te_fb_0017",
+            "u_te_fb_0038"
+          ]
+        }
+      },
       "relabelled_rows": 12655,
       "added_rows": 12059,
       "training_rows": 591430,
@@ -2258,7 +7518,7 @@
         {
           "name": "unfamiliar_brier",
           "passed": true,
-          "detail": "0.049 vs 0.058"
+          "detail": "0.048 vs 0.058"
         },
         {
           "name": "truth_macro_f1 (reported, not gated)",
@@ -3230,7 +8490,9 @@
     },
     "evaluation_last_quarter_macro_f1_view": 0.858442452772099,
     "personal_accuracy_last_quarter": 0.941588756072981,
-    "items_shown_per_user_month": 0.6747181964573268,
-    "seconds": 2279
+    "open_items_per_user_month": 1.2822061191626408,
+    "items_resolved_per_user_month": 0.6747181964573268,
+    "isolation_holds": true,
+    "seconds": 2231
   }
 }
