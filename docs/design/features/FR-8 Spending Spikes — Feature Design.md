@@ -1,6 +1,6 @@
 # FR-8 Spending Spikes — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Accepted with conditions** (owner, Oct 4, 2026, on #58; see [Decisions](#decisions-and-open-questions)) · Branch: `docs/fr-8-design`
+Oct 4, 2026 · @Sidd · Status: **Accepted with conditions** (owner, Oct 4, 2026, on #58; see [Decisions](#decisions-and-open-questions)) · **Implemented** (#59–#63): `count_negbin` promoted on Oct 4, 2026 as `8c428c54-d85b4650-64917ea6` (test precision 0.705, recall at 0.035 flags per user-month 0.521) · Branch: `docs/fr-8-design`
 
 ## Summary
 

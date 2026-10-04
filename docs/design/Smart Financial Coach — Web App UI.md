@@ -7,7 +7,7 @@ Oct 2, 2026 · Owner: @Sidd · Status: **Accepted** (owner decisions, Oct 2, 202
 Hi-fi mockups for the v1 web app are in [`mockups/`](mockups/). This note maps each screen to its requirement, the tools behind it and the milestone that ships it, records the UI decisions, and lists what the mockups need that no design or tool provides yet.
 
 - **Build to the mockups, in the Delivery Plan's order.** Panels ship in a "not available yet" or "coming next" state first and switch to real numbers in the PR that promotes the model behind them (the Delivery Plan's sync rule).
-- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data; Worth a look shows unusual charges since FR-7's promotion (spikes follow with FR-8); Goals runs on real data with FR-10 (setting up, editing and removing goals) and FR-11–12 (each goal's status, the goal detail with its likely range and top-up, and the setup check's fit badge). See [Demo build](#demo-build-oct-6-2026).
+- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data; Worth a look shows unusual charges since FR-7's promotion, and spending spikes from the promoted FR-8 model (Oct 4, 2026; before a model is promoted, a simple rule, labelled as such); Goals runs on real data with FR-10 (setting up, editing and removing goals) and FR-11–12 (each goal's status, the goal detail with its likely range and top-up, and the setup check's fit badge). See [Demo build](#demo-build-oct-6-2026).
 - **Open items** are in [Gaps](#gaps-the-mockups-need-that-nothing-provides-yet) and [Open questions](#open-questions).
 
 ## Mockups
@@ -27,7 +27,7 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 | 1e Transactions list | FR-3, FR-17 | `get_transactions` with confidence | Demo, read-only; P2 |
 | 1e "Not sure?" review panel | FR-5, FR-6 (P1) | #15: `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction` | After #15 milestone 3 |
 | 1d, 1k Coach chat with sources | FR-13–16 | Read tools, plus goal and category writes with confirmation | Demo; P3 |
-| 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | Unusual charges: live since FR-7's promotion (Oct 3, 2026), last 60 days; spikes when FR-8 promotes; actions with FR-9 (v1.1) |
+| 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | Unusual charges: live since FR-7's promotion (Oct 3, 2026), last 60 days. Spending spikes: months that ended in the last 60 days, each with its reason and largest charges, from the promoted FR-8 model since Oct 4, 2026. Without a promoted model, the simple rule serves, with a "Simple rule" badge on the card. Actions with FR-9 (v1.1) |
 | 1h Goal setup, and the Goals list | FR-10, FR-11 | `list_goals`, `check_goal`, `create_goal`, `update_goal`, `archive_goal`, `undo_goal_change` | FR-10 (#42, #43, #45); the fit badge and statuses in FR-11 (#56) |
 | 1g, 1l Goal detail | FR-11, FR-12 | `forecast_goal`, `list_goals` | Built (#56): status, likely amount and 80% range, top-up, a chart of each month's range, what it accounts for, the short-history notice and the assumption line. The "what this accounts for" bullets are generic, not 1g's user-specific facts ("December spending usually runs about 15% higher for you") |
 | 1b Coach-first summary, 1c Mosaic | — | — | Not built (see decision 2) |
@@ -81,6 +81,6 @@ A short-lived deployment for a presentation, up from Oct 3 and torn down on Oct 
 
 ## Open questions
 
-- [ ] **What "usual" means** ("$150 more than your usual month"). May come from a model's baseline (FR-8's expected spend) rather than a fixed statistic. Until then, the dashboard shows the month's amount without a comparison.
+- [x] **What "usual" means** ("$150 more than your usual month"). Settled in FR-8 (decision 7): the user's average month in the category over the previous 12 months, from their own numbers only. It's as accurate as the model's own expectation (median error 9.0% against 9.8%), and the coach can recompute it from the spending summary. Spike reasons use it; the Overview can use the same definition later.
 - [ ] Owner for readable merchant names (gap 1).
 - [x] Mutable data in a shared demo: neither a nightly reset nor a copy per session. Corrections and goal changes are keyed by browser session in SQLite files in the container, kept until it restarts or redeploys (owner, Oct 3, 2026; FR-5 and FR-6 design, §3; FR-10 design, option F).
