@@ -176,8 +176,21 @@ def _show(args: argparse.Namespace) -> int:
 
 
 def _predict(args: argparse.Namespace) -> int:
+    if args.task == "unusual_transactions":
+        from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
+
+        flags = flag_dataset(
+            args.data, args.out, artifacts_dir=args.artifacts_dir, overwrite=args.overwrite
+        )
+        print(
+            f"flagged {flags.flagged:,} of {flags.scored:,} charges with model "
+            f"{flags.model_version} into {args.out} in {flags.seconds:.1f} s"
+        )
+        return 0
     if args.task != "categorization":
-        raise ValueError(f"predict supports the categorization task only, not {args.task!r}")
+        raise ValueError(
+            f"predict supports categorization and unusual_transactions, not {args.task!r}"
+        )
     run = categorize_dataset(
         args.data,
         args.out,
@@ -297,7 +310,8 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     show.set_defaults(handler=_show)
 
     pred = commands.add_parser(
-        "predict", help="categorize a dataset with the promoted model into a predictions file"
+        "predict",
+        help="categorize (or flag unusual charges in) a dataset with the promoted model",
     )
     pred.add_argument("--task", required=True)
     pred.add_argument("--data", type=Path, required=True, help="a generated dataset")

@@ -1,0 +1,17 @@
+{# One unusual charge (FR-7, screen 1f): what, when, how much, its kind and its reason. #}
+{% macro flag_row(f) -%}
+<li class="flag">
+  <div class="flag-head">
+    <span class="badge look">{{ f.kind }}</span>
+    <span class="muted num" style="white-space:nowrap">{{ f.date | day }}</span>
+  </div>
+  <div class="flag-body">
+    <div>
+      <div class="merchant">{{ f.merchant }}</div>
+      <div class="raw">{{ f.description }}</div>
+    </div>
+    <div class="amount num">{{ f.amount | money(cents=True, sign=True) }}</div>
+  </div>
+  <div class="flag-reason">{{ f.reason }}</div>
+</li>
+{%- endmacro %}
