@@ -11,6 +11,9 @@ dependencies = [
     "scikit-learn",
     "pydantic",
     "pydantic-settings",
+    # access/mcp_server.py's _reject_unknown_arguments uses the SDK's private _tool_manager and
+    # fn_metadata.arg_model (#47): after upgrading mcp, check it still makes tools strict
+    # (tests/unit/access/test_mcp.py fails if it doesn't)
     "mcp",
     "pyyaml",
     "holidays",

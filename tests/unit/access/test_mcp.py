@@ -7,8 +7,10 @@ import time
 from collections.abc import Callable, Iterator
 from datetime import date, timedelta
 from functools import partial
+from pathlib import Path
 from typing import Any, TypeVar
 
+import anyio
 import anyio.to_thread
 import pytest
 from anyio.lowlevel import EventLoopToken, current_token
@@ -16,8 +18,10 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 from starlette.types import ASGIApp
 
+from smart_financial_coach.access.goals import GoalStore
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
+from smart_financial_coach.access.mcp_server import build_mcp_server
 from smart_financial_coach.access.tokens import AccessTokens
 from smart_financial_coach.access.tools import ToolError, Tools, ToolsUnavailableError
 from smart_financial_coach.config import Settings
@@ -133,6 +137,11 @@ def test_the_server_lists_the_tools_with_no_user_argument(
         "undo_correction",
         "list_corrections",
         "list_goals",
+        "check_goal",
+        "create_goal",
+        "update_goal",
+        "archive_goal",
+        "undo_goal_change",
         "detect_anomalies",
         "forecast_goal",
     }
@@ -201,8 +210,11 @@ def test_tool_errors_come_back_as_tool_errors(client: TestClient, users: list[st
         in_worker_thread(
             client, lambda: tools.call("get_transactions", {**SEPTEMBER, "limit": "ten"})
         )
+    goal_id = in_worker_thread(client, lambda: tools.call("list_goals", {})).data["goals"][0][
+        "goal_id"
+    ]
     not_available = in_worker_thread(
-        client, lambda: tools.call("forecast_goal", {"goal_name": "x"})
+        client, lambda: tools.call("forecast_goal", {"goal_id": goal_id})
     )
     assert not_available.data["status"] == "not_available"
 
@@ -274,3 +286,87 @@ def test_a_token_from_before_feedback_gets_read_only_tools(
     assert listed["open_items"] > 0  # reading works
     with pytest.raises(ToolError, match="isn't available"):
         in_worker_thread(client, lambda: tools.call("list_corrections", {}))
+
+
+TRIP = {"name": "Trip", "target_amount": 3000, "target_date": "2027-06-01"}
+
+
+def test_goal_changes_follow_the_tokens_subject_and_client(
+    client: TestClient, users: list[str], goals_db: Path
+) -> None:
+    """Wren (client "coach") and an outside assistant on one session change that session's goals,
+    each recorded as itself; another session on the same account sees neither change (FR-10)."""
+    tokens = AccessTokens(SECRET, users)
+    lifetime = timedelta(minutes=5)
+    loop = app_loop(client)
+    wren_token = tokens.issue(users[0], lifetime, client="coach", feedback_subject="session-a")
+    wren = McpTools(client.app, wren_token, as_of=AS_OF, loop=loop)
+    outside = mcp_tools(client, users[0], feedback_subject="session-a")
+    other = mcp_tools(client, users[0], feedback_subject="session-b")
+    bike = {"name": "Bike", "target_amount": 800.5, "target_date": "2027-03-31", "confirm": True}
+
+    def scenario() -> tuple[dict[str, Any], ...]:
+        preview = wren.call("create_goal", TRIP).data
+        wren.call("create_goal", {**TRIP, "confirm": True})
+        outside.call("create_goal", bike)
+        mine = outside.call("list_goals", {}).data
+        theirs = other.call("list_goals", {}).data
+        return preview, mine, theirs
+
+    preview, mine, theirs = in_worker_thread(client, scenario)
+
+    assert preview["status"] == "needs_confirmation"
+    assert preview["target_date"] == "2027-06-30"
+    assert {"Trip", "Bike"} <= {g["name"] for g in mine["goals"]}
+    assert {"Trip", "Bike"}.isdisjoint(g["name"] for g in theirs["goals"])
+    revisions = GoalStore(goals_db).revisions("session-a", users[0])
+    assert [(r.name, r.source) for r in revisions] == [("Bike", "assistant"), ("Trip", "coach")]
+    assert revisions[0].target_amount_cents == 800_50
+
+
+def test_a_token_from_before_feedback_reads_goals_but_cant_change_them(
+    client: TestClient, users: list[str]
+) -> None:
+    tokens = AccessTokens(SECRET, users)
+    expires = int(time.time()) + 300
+    old = "sfc_" + tokens._signer.dumps({"sub": users[0], "exp": expires, "client": "assistant"})
+    tools = McpTools(client.app, old, as_of=AS_OF, loop=app_loop(client))
+
+    listed = in_worker_thread(client, lambda: tools.call("list_goals", {}).data)
+    assert listed["goals"]
+    assert in_worker_thread(client, lambda: tools.call("check_goal", TRIP).data)["valid"]
+    with pytest.raises(ToolError, match="isn't available for this sign-in"):
+        in_worker_thread(client, lambda: tools.call("create_goal", {**TRIP, "confirm": True}))
+
+
+def test_goal_problems_come_back_with_their_fields_and_codes(
+    client: TestClient, users: list[str]
+) -> None:
+    tools = mcp_tools(client, users[0], feedback_subject="session-a")
+    args = {**TRIP, "name": "", "target_amount": 5, "confirm": True}
+    result = in_worker_thread(client, lambda: tools.call("create_goal", args))
+
+    assert result.data["status"] == "invalid"
+    assert {(p["field"], p["code"]) for p in result.data["problems"]} == {
+        ("name", "name_missing"),
+        ("target_amount", "amount_range"),
+    }
+    assert "Goals start at $50." in result.data["message"]
+    assert result.source.title == "Goal not changed"
+
+
+def test_reads_are_marked_read_only_and_writes_not(sources: DataSources, users: list[str]) -> None:
+    server, _ = build_mcp_server(
+        sources, AccessTokens(SECRET, users), public_url="http://127.0.0.1:8000"
+    )
+    hints = {t.name: t.annotations for t in anyio.run(server.list_tools)}
+
+    for name in ("list_goals", "check_goal", "forecast_goal"):
+        hint = hints[name]
+        assert hint is not None
+        assert hint.read_only_hint is True
+    for name in ("create_goal", "update_goal", "archive_goal", "undo_goal_change"):
+        hint = hints[name]
+        assert hint is not None
+        assert hint.read_only_hint is False
+        assert hint.destructive_hint is False

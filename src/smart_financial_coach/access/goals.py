@@ -45,6 +45,7 @@ AMOUNT_MIN_CENTS = 50_00
 AMOUNT_MAX_CENTS = 1_000_000_00
 MONTHS_MAX = 120
 ACTIVE_MAX = 10
+MIN_HISTORY_MONTHS = 3  # below this the median monthly savings isn't given
 # Longer text isn't an amount a person typed; refusing it keeps parsing cheap (review on #42)
 AMOUNT_TEXT_MAX = 32
 
@@ -206,6 +207,32 @@ def generated_goals(frame: pd.DataFrame) -> list[Goal]:
         )
         for g in frame.to_dict("records")
     ]
+
+
+def median_monthly_savings(transactions: pd.DataFrame, today: date) -> tuple[int | None, int]:
+    """Income minus spending per calendar month, the median over the last 12 full months, in
+    cents, and how many full months there are. It's the sum of the ledger's amounts, so no category
+    or correction changes it. The first month with data counts as full only if its first
+    transaction is on the 1st (review on #43). None with fewer than `MIN_HISTORY_MONTHS` full
+    months (PRD risk: short histories)."""
+    if transactions.empty:
+        return None, 0
+    days = pd.to_datetime(transactions["ts"])
+    month = days.dt.year * 12 + days.dt.month - 1
+    last = _month_index(today) - (0 if today == month_end(today) else 1)
+    first_day = days.min()
+    first = int(month.min()) + (0 if first_day.day == 1 else 1)
+    full = range(max(first, last - 11), last + 1)
+    # Ledger amounts are dollars with two decimals, so rounding them to cents is exact
+    cents = (transactions["amount"] * 100).round().astype("int64").groupby(month).sum()
+    net = [int(cents.get(m, 0)) for m in full]
+    months = max(0, last - first + 1)
+    if months < MIN_HISTORY_MONTHS:
+        return None, months
+    ordered = sorted(net)
+    mid = len(ordered) // 2
+    median = ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) // 2
+    return median, months
 
 
 # Validation (§3)
@@ -476,14 +503,6 @@ class GoalStore:
         with self._connect() as conn:
             events = self._select(conn, "subject = ? AND user_id = ?", (subject, user_id))
         return sorted(events, key=lambda e: e.seq, reverse=True)
-
-    def check(
-        self, ledger: "Ledger", subject: str, draft: GoalDraft, goal_id: str | None = None
-    ) -> Checked:
-        """Validate a new goal, or an edit of `goal_id`, without writing anything."""
-        with self._connect() as conn:
-            goals = self._replay(conn, ledger, subject)
-        return _check(goals, draft, goal_id, ledger.as_of)
 
     # Writes
 
