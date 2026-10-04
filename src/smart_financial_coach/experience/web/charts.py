@@ -182,3 +182,47 @@ def trend(months: list[tuple[str, float]], highlight: str) -> list[dict[str, obj
             }
         )
     return bars
+
+
+LINE_W, LINE_H, LINE_PAD = 920.0, 220.0, 28.0
+
+
+def lines(
+    series: dict[str, list[float | None]], months: list[str], markers: list[str]
+) -> dict[str, Any]:
+    """Line chart geometry for the "How it learns" page: one SVG polyline per series (shares in
+    [0, 1]), the y range fitted to the data, and x positions of markers (promotions)."""
+    values = [v for vs in series.values() for v in vs if v is not None]
+    if not values or not months:
+        return {"series": {}, "ticks": [], "markers": [], "width": LINE_W, "height": LINE_H}
+    lo = max(0.0, (min(values) // 0.05) * 0.05)
+    hi = min(1.0, (max(values) // 0.05 + 1) * 0.05)
+    span = (hi - lo) or 1.0
+
+    def x(i: int) -> float:
+        return LINE_PAD + (LINE_W - 2 * LINE_PAD) * (i / max(1, len(months) - 1))
+
+    def y(v: float) -> float:
+        return LINE_H - LINE_PAD - (LINE_H - 2 * LINE_PAD) * ((v - lo) / span)
+
+    paths = {
+        name: " ".join(f"{x(i):.1f},{y(v):.1f}" for i, v in enumerate(vs) if v is not None)
+        for name, vs in series.items()
+    }
+    steps = 4
+    ticks = [
+        {"y": round(y(lo + span * k / steps), 1), "label": f"{(lo + span * k / steps) * 100:.0f}%"}
+        for k in range(steps + 1)
+    ]
+    at = {m: i for i, m in enumerate(months)}
+    marks = [{"x": round(x(at[m]), 1), "month": m} for m in markers if m in at]
+    first, last = months[0], months[-1]
+    return {
+        "series": paths,
+        "ticks": ticks,
+        "markers": marks,
+        "width": LINE_W,
+        "height": LINE_H,
+        "first": first,
+        "last": last,
+    }

@@ -272,7 +272,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   .sources { position: static; }
 }
 @media (max-width: 760px) {
-  .shell { grid-template-columns: 1fr; background: none; }
+  .shell { grid-template-columns: minmax(0, 1fr); background: none; }  /* never wider than the screen */
   .sidebar { display: none; }
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--sidebar); position: sticky; top: 0; z-index: 20; }
   .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 20; padding-bottom: env(safe-area-inset-bottom); }
@@ -281,7 +281,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   main { padding: 20px 16px 96px; gap: 16px; }
   .page-title { font-size: 24px; }
   .big { font-size: 34px; }
-  .grid-3, .grid-2, .coming { grid-template-columns: 1fr; }
+  .grid-3, .grid-2, .coming { grid-template-columns: minmax(0, 1fr); }
   .field-pair { grid-template-columns: 1fr; }
   .flow { display: none; }
   .cat-list { display: block; }
@@ -289,7 +289,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   table.txns th.cat, table.txns td.cat { display: none; }
   .m-only { display: block; margin-top: 6px; }
   table.txns td { padding: 10px; }
-  .search { min-width: 0; flex: 1; }
+  .search { min-width: 0; flex: 1 1 100%; }  /* its own row above the chips on a phone */
   .composer { bottom: 58px; }
   .q { max-width: 90%; }
 }
@@ -334,3 +334,33 @@ details.edit-cat[open] .edit-form { background: var(--surface); border: 1px soli
 .flag .raw { overflow-wrap: anywhere; }
 .flag .amount { font-weight: 700; white-space: nowrap; }
 .flag-reason { font-size: 13.5px; line-height: 1.45; }
+
+/* How it learns (FR-5/FR-6 §7) */
+.learn-intro { color: var(--muted); font-size: 14.5px; max-width: 860px; margin: 0; line-height: 1.5; }
+.line-chart { width: 100%; height: auto; }
+.line-chart .grid-line { stroke: var(--divider); stroke-width: 1; }
+.line-chart .tick { fill: var(--faint); font-size: 11px; }
+.line-chart .series { fill: none; stroke-width: 2.5; stroke-linejoin: round; }
+.line-chart .series.evaluation { stroke: var(--accent); }
+.line-chart .series.personal { stroke: var(--good); stroke-dasharray: 5 4; }
+.line-chart .promo { stroke: var(--look); stroke-width: 1.5; stroke-dasharray: 3 3; }
+.legend { display: flex; gap: 12px; align-items: center; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+.legend .key { display: inline-block; width: 14px; height: 3px; border-radius: 2px; margin-right: -6px; }
+.legend .key.evaluation { background: var(--accent); }
+.legend .key.personal { background: var(--good); }
+.legend .key.mark { background: var(--look); }
+.steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; font-size: 14px; }
+table.retrain { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.retrain th { text-align: left; font-size: 11.5px; font-weight: 600; color: var(--faint); text-transform: uppercase; letter-spacing: .05em; padding: 8px 10px; border-bottom: 1px solid var(--divider); }
+table.retrain td { padding: 8px 10px; border-bottom: 1px solid var(--divider); vertical-align: top; }
+.gate { font-size: 12.5px; white-space: nowrap; }
+.gate.fail { color: var(--warn); }
+.decision.promoted { color: var(--good); }
+.decision.rejected { color: var(--warn); }
+.remap { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.table-scroll { overflow-x: auto; max-width: 100%; }
+@media (max-width: 760px) {
+  .gate { white-space: normal; }
+  .card-head { flex-wrap: wrap; }
+  table.retrain td, table.retrain th { padding: 6px; }
+}
