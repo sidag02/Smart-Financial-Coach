@@ -64,6 +64,7 @@ class NaivePace(BaseModel):
                     ),
                     "share": None,
                     "share_source": None,
+                    "may_draw_down": False if reached else None,  # no paths: nothing to fall
                 }
             )
         return output_frame(rows, self.version)
@@ -84,10 +85,11 @@ class Flat(BaseModel):
         rows: list[dict[str, Any]] = []
         for r in x.to_dict("records"):
             saved, target = float(r["saved"]), float(r["target_amount"])
+            reached = saved >= target
             rows.append(
                 {
                     "example_id": r["example_id"],
-                    "status": status_for(self.p, saved >= target),
+                    "status": status_for(self.p, reached),
                     "p_goal_met": self.p,
                     "projected_balance": saved,
                     "range_lo": saved,
@@ -96,6 +98,7 @@ class Flat(BaseModel):
                     "extra_per_month": None,
                     "share": None,
                     "share_source": None,
+                    "may_draw_down": False if reached else None,  # no paths: nothing to fall
                 }
             )
         return output_frame(rows, self.version)

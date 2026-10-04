@@ -5,12 +5,14 @@ in:  one row per goal to forecast, with what a forecast may use: the goal (targe
      its goal set (the user's goals that share their savings) and the user's monthly net savings
      up to the forecast's `as_of_date`, as JSON (`history_json`)
 out: example_id, status, p_goal_met, projected_balance, range_lo, range_hi, gap,
-     extra_per_month, share, share_source, model_version
+     extra_per_month, share, share_source, may_draw_down, model_version
 
 `range_lo`/`range_hi` are the 10th and 90th percentiles of the balance by the target date: an 80%
 interval, fixed here (Web App UI, gap 4). `p_goal_met` is always set, so a reached goal can still
-be scored; the tools hide it for a reached goal (owner decision on #50). `extra_per_month` is the
-monthly deposit that would bring a goal to the on-track band, or null when it's already there.
+be scored here; the tools hide its probability, range and top-up (owner decision on #50, what a
+reached goal shows). `may_draw_down` is set only for a reached goal: whether 10% or more of the
+paths end below the target, which drives the drawdown note. `extra_per_month` is the monthly
+deposit that would bring a goal to the on-track band, or null when it's already there.
 A model without a share (a baseline) leaves `share` and `share_source` null.
 """
 
@@ -53,6 +55,7 @@ OUTPUT_COLUMNS = (
     "extra_per_month",
     "share",
     "share_source",
+    "may_draw_down",
     "model_version",
 )
 STATUSES = ("on_track", "either_way", "off_track", "reached")
@@ -62,6 +65,7 @@ ORIGINS = ("existing", "yours")
 ON_TRACK = 0.7
 OFF_TRACK = 0.3
 INTERVAL = (0.1, 0.9)  # the 80% range's percentiles
+DRAW_DOWN = 0.1  # a reached goal gets the drawdown note when this share of paths ends below
 
 
 def history_json(net: pd.Series) -> str:
@@ -126,6 +130,11 @@ def _check(out: pd.DataFrame) -> list[str]:
     reached = out["status"] == "reached"
     if extra[reached].notna().any():
         errors.append("a reached goal with an extra_per_month")
+    draw = out["may_draw_down"]
+    if draw[reached].isna().any() or draw[~reached].notna().any():
+        errors.append("may_draw_down must be set for reached goals and only for them")
+    if not draw.dropna().map(lambda v: isinstance(v, bool | np.bool_)).all():
+        errors.append("may_draw_down must be true or false")
     banded = out.loc[~reached, "status"]
     expected = [status_for(float(v), False) for v in p[~reached]]
     if list(banded) != expected:
@@ -138,7 +147,7 @@ CONTRACT = Contract(
     id_column="example_id",
     columns=OUTPUT_COLUMNS,
     check=_check,
-    nullable=("extra_per_month", "share", "share_source"),
+    nullable=("extra_per_month", "share", "share_source", "may_draw_down"),
 )
 register_service(CONTRACT)
 
@@ -150,9 +159,8 @@ def output_frame(rows: list[dict[str, object]], version: str) -> pd.DataFrame:
     for c in ("p_goal_met", "projected_balance", "range_lo", "range_hi", "gap", "share"):
         frame[c] = frame[c].astype(float)
     frame["extra_per_month"] = frame["extra_per_month"].astype(float)
-    frame["share_source"] = (
-        frame["share_source"].astype(object).where(frame["share_source"].notna(), None)
-    )
+    for c in ("share_source", "may_draw_down"):
+        frame[c] = frame[c].astype(object).where(frame[c].notna(), None)
     return frame
 
 
