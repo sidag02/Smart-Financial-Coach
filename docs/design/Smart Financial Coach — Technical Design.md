@@ -40,7 +40,7 @@ The system is nine modules in four layers, plus a cross-cutting evaluation harne
 | --- | --- | --- | --- | --- |
 | Data | Data generator | Generate persona-based multi-user transactions, goals and planted events (unusual charges, spending spikes) with ground truth, from a parameter spec | Spec file (personas, catalog, events, seeds) | One SQLite file: model-visible tables + `truth_*` tables |
 | Data | Data store | Hold transactions, users and goals; data-access layer exposes only model-visible tables to models. Model outputs live in separate predictions files, one per model version and dataset, so the generator's file stays a pure function of its spec | Generator SQLite file; predictions files | Queryable tables |
-| Data | Feature pipeline | Clean merchant text; build per-user history and weekly/monthly aggregates | Raw transactions | Feature tables per model |
+| Data | Feature pipeline | Clean merchant text; build per-user point-in-time history and weekly/monthly aggregates; build merchant profiles (a merchant's typical price and spread across users, as of each month, from ≥ 3 distinct other users; FR-7) | Raw transactions | Feature tables per model |
 | Intelligence | Categorization service | Assign category + confidence, in batches on ingestion | Batches of transaction rows | Category, confidence, model version |
 | Intelligence | Anomaly service | Flag unusual transactions and spending spikes against the user's baseline | Transaction and aggregate features | Flags, scores, reasons |
 | Intelligence | Forecasting service | Forecast savings and estimate goal likelihood | Monthly net-savings series, goal | Forecast, interval, P(goal met), gap |
@@ -76,7 +76,7 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 **Service contracts** (each model service implements one of these)
 
 - `categorize(transactions) → [{transaction_id, category, confidence, model_version, familiar}]`: batch-first over model-visible transaction rows (`transaction_id, user_id, ts, amount, currency, merchant_raw, channel`), one output row per input in order. Whole rows keep the contract stable whichever features a model uses; a single transaction is a one-row batch. Every service's output is checked against its contract at runtime (FR-3). `familiar` says whether the row's normalized merchant string occurs in the model's training rows; the review policy uses it (FR-5 and FR-6 design, §1)
-- `score_transactions(user_id, transactions) → [{transaction_id, score, is_flagged, reason_code, reason}]` (`reason_code` is `duplicate`, `amount_unusual` or `new_merchant`, so reason accuracy can be scored)
+- `score_transactions(rows) → [{transaction_id, score, is_flagged, reason_code, evidence, model_version}]`: batch-first, like `categorize`, over the outflows of one or more users, each with its full earlier history, plus merchant-profile columns (`scoring_rows`). A charge is scored only against what came before it (point in time): rows in later minutes never change its score, and two identical charges in the same minute count as each other's repeat, since their order is unknowable. `reason_code` is `duplicate`, `amount_unusual` or `new_merchant`, so reason accuracy can be scored; `evidence` holds the numbers the plain-language reason is rendered from (templates, not model or LLM text). A flag without a reason breaks the contract (FR-7)
 - `detect_spikes(user_id, period, granularity) → [{category, period, actual, expected, deviation, top_transactions}]` (v1: `granularity="month"` only; at most 5 `top_transactions`)
 - `forecast_goal(user_id, goal_id) → {projected_balance, interval, p_goal_met, gap, monthly_forecast[]}`
 
@@ -86,7 +86,7 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 | --- | --- |
 | get\_spending\_summary | Totals by category and month for a date range |
 | get\_transactions | Filtered, categorized transactions |
-| detect\_anomalies | Unusual transactions and spending spikes for a period |
+| detect\_anomalies | Unusual charges for a period, each with its kind, reason and evidence (FR-7); spending spikes (FR-8) |
 | forecast\_goal | On-track status and gap for a goal, by `goal_id` |
 | list\_goals | The user's goals: status (active, reached, ended), months left and the amount needed per month, and the user's median monthly savings |
 | check\_goal | Validates a new goal or an edit and states the facts for the setup screen; writes nothing (FR-10) |
@@ -147,7 +147,7 @@ No model is chosen in this doc. Once each interface and feature set is fixed, ca
 | Problem | Candidate families to evaluate | Decided by |
 | --- | --- | --- |
 | Categorization | Linear models on n-gram text features · gradient-boosted trees · sentence-embedding classifiers · small fine-tuned transformer | Experiment, incl. the unseen-merchant test. **Decided (Oct 3, 2026, FR-4):** logistic regression over character n-grams and frozen `bge-small-en-v1.5` embeddings, without class weights, trained on clean labels and calibrated per familiarity group. It replaced FR-3's Oct 2 choice (bge-base, trained under the injected noise) (FR-3 Categorization Model Selection; FR-4 Categorization — Round Results) |
-| Unusual transactions | Isolation-based ensembles · one-class boundary methods · density methods · robust statistical rules | Experiment on precision / recall at a fixed alert rate |
+| Unusual transactions | Isolation-based ensembles · one-class boundary methods · density methods · robust statistical rules | Experiment on recall at a fixed alert rate. **Decided (Oct 3, 2026, FR-7):** an isolation forest across users on one-sided, point-in-time relative features (merchant z, merchant-profile price ratio, first visit, exact repeat, history rank), cut at precision 0.80 on train users; it beat robust rules and a per-(user, merchant) Student-t at 0.11 flags per user-month (FR-7 Unusual Transactions — Round Results). Reasons come from the kind of charge, rendered from stored evidence |
 | Spending spikes | Robust per-user statistics on aggregates · seasonal decomposition residuals · forecast-residual methods | Experiment; theory narrows to seasonality-aware options |
 | Goal forecasting | Additive trend + seasonality models · ARIMA-family models · exponential smoothing | Experiment via rolling backtest; theory rules out options needing long history |
 | Coach LLM | Hosted models of different size and cost tiers | Experiment on grounding accuracy, rubric score, cost per answer |
@@ -161,7 +161,7 @@ Every model is scored against planted ground truth and a simple baseline, with o
 | Problem | Data split | Baseline | Metrics |
 | --- | --- | --- | --- |
 | Categorization | Stratified 80/20 by transaction within train users (known merchants), plus test users' transactions at holdout merchants never seen in training. Hyperparameters and calibrators come from grouped cross-fitting over merchants within train users | Keyword rules | Macro F1 over the 12 spending categories (Income on its own line), per-class F1, confusion matrix; a merchant-level bootstrap interval for unseen merchants; calibration (Brier, ECE) on every test set. Gates: known ≥ 0.90 and unseen ≥ 0.66 in v1, each above keyword |
-| Unusual transactions | All transactions scored; labels hidden from training; thresholds tuned on train users, reported on test users | Per-user z-score on amount | Precision, recall, PR-AUC, precision at fixed alert rate, reason accuracy |
+| Unusual transactions | Every outflow scored; labels hidden from scorers and used only to place cutoffs and tune parameters within user-grouped folds; validation profiles from train users only; reported on test users | Per-user z-score on amount | Recall at 0.11 flags per post-warm-up user-month (ranking), precision at the run's own cutoff, recall per kind and on `clear` labels, reason accuracy, PR-AUC; user-bootstrap intervals. Gates: precision ≥ 0.70 and recall above the baseline's at the same flag rate |
 | Spending spikes | Monthly aggregates of all spend on true categories; labels hidden; thresholds tuned on train users, reported on test users | Per-user mean ± k·std per category | Period-level precision and recall (all and `clear` labels); excess coverage of driving transactions vs. a top-5-by-amount baseline |
 | Goal forecasting | Rolling-origin backtest: train on months 1..k, predict k+1..k+3 | Seasonal-naive | RMSE, MAPE; Brier score for P(goal met) |
 | Coach | \~30 scripted questions with expected facts, plus adversarial cases | None | Grounding accuracy, refusal accuracy, rubric score (LLM judge, 1–5) |

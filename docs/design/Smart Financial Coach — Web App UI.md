@@ -7,7 +7,7 @@ Oct 2, 2026 · Owner: @Sidd · Status: **Accepted** (owner decisions, Oct 2, 202
 Hi-fi mockups for the v1 web app are in [`mockups/`](mockups/). This note maps each screen to its requirement, the tools behind it and the milestone that ships it, records the UI decisions, and lists what the mockups need that no design or tool provides yet.
 
 - **Build to the mockups, in the Delivery Plan's order.** Panels ship in a "not available yet" or "coming next" state first and switch to real numbers in the PR that promotes the model behind them (the Delivery Plan's sync rule).
-- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data, and so does Goals with FR-10 (setting up, editing and removing goals). Worth a look links to its mockup until FR-7/8 land; the goal detail (1g) isn't built until FR-11–12. See [Demo build](#demo-build-oct-6-2026).
+- **Demo for Oct 6, 2026:** sign-in, Overview, Transactions and coach chat run on real data; Worth a look shows unusual charges since FR-7's promotion (spikes follow with FR-8); Goals runs on real data with FR-10 (setting up, editing and removing goals), and the goal detail (1g) isn't built until FR-11–12. See [Demo build](#demo-build-oct-6-2026).
 - **Open items** are in [Gaps](#gaps-the-mockups-need-that-nothing-provides-yet) and [Open questions](#open-questions).
 
 ## Mockups
@@ -27,7 +27,7 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
 | 1e Transactions list | FR-3, FR-17 | `get_transactions` with confidence | Demo, read-only; P2 |
 | 1e "Not sure?" review panel | FR-5, FR-6 (P1) | #15: `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction` | After #15 milestone 3 |
 | 1d, 1k Coach chat with sources | FR-13–16 | Read tools, plus goal and category writes with confirmation | Demo; P3 |
-| 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | When FR-7/8 promote |
+| 1f Worth a look | FR-7, FR-8, FR-9 | `detect_anomalies` | Unusual charges: live since FR-7's promotion (Oct 3, 2026), last 60 days; spikes when FR-8 promotes; actions with FR-9 (v1.1) |
 | 1h Goal setup, and the Goals list | FR-10 | `list_goals`, `check_goal`, `create_goal`, `update_goal`, `archive_goal`, `undo_goal_change` | FR-10 (#42, #43, #45); no fit badge until FR-11 |
 | 1g, 1l Goal detail | FR-11, FR-12 | `forecast_goal`, `list_goals` | When FR-11–12 land |
 | 1b Coach-first summary, 1c Mosaic | — | — | Not built (see decision 2) |
@@ -74,7 +74,7 @@ A short-lived deployment for a presentation, up from Oct 3 and torn down on Oct 
 3. **Sources for every number (FR-16).** 1d links each number to a numbered source ("Savings forecast · 21 months"). Tools need to return source metadata and the coach a number-to-source mapping. P1, but cheaper to build into the first chat than to add later.
 4. **Goal tools.** Mostly closed by FR-10: `check_goal` gives 1h's "How it fits" facts for an unsaved goal, and `create_goal`, `update_goal`, `archive_goal` and `undo_goal_change` write. Still open, for FR-11: the fit badge and a probability for an unsaved goal (`check_goal` gains them), "Set aside $75 more a month" from a tool, and the 80% interval in the forecast contract.
 5. **What-if forecasts.** Two mockup answers forecast a hypothetical: the freelancer's "Spending $900 in November would lower your likely tax reserve … to about $5,800" and the family's "Even a December like last year's keeps you on track". `forecast_goal` forecasts only a saved goal on actual history, and the number must come from a tool (FR-14, NFR-1). Either add a scenario input (an extra expense in a month, or a month replaced by last year's) or drop those answers.
-6. **Flag actions.** "I recognize this", "Not me — what now?", "Expected, all good" and the sensitivity control (FR-9) belong in the FR-7/8 design.
+6. **Flag actions.** "I recognize this", "Not me — what now?", "Expected, all good" and the sensitivity control (FR-9). *Settled in FR-7 §8 (owner, Oct 3, 2026, on #30):* v1 shows flags without actions; actions and sensitivity come in v1.1 with FR-9, stored per user and keyed by a stable flag id (model version plus transaction id). "Not me" gives guidance only.
 7. **Copy.** 1e says a correction updates "your goal forecast"; forecasts are precomputed nightly and net savings rarely depend on categories. Change the copy or define the behavior.
 8. **The app's date.** Data ends Sep 30, 2026, so "today" comes from the dataset's `as_of`, not the clock.
 9. **Missing screens:** "not available yet" and "coming next" panels, chat with the LLM unavailable (NFR-6), short histories, loading and error states.

@@ -3,8 +3,9 @@
 No tool takes a `user_id`: a `Tools` is built around one user's `Ledger`, which the caller makes
 from the signed-in session, so a tool argument can't name whose data is read. Every result is
 JSON with amounts in the user's currency, so the coach quotes numbers without doing arithmetic.
-Services that aren't built yet (anomalies, forecasts) return a typed "not available yet", never a
-number (FR-14, Delivery Plan sync rule).
+Services that aren't released yet (spending spikes, forecasts, and unusual charges until an FR-7
+model is promoted) return a typed "not available yet", never a number (FR-14, Delivery Plan sync
+rule).
 
 For the Oct 6 demo the tools run inside the web app; the tool server (Delivery Plan P1) will serve
 the same functions over HTTP and MCP.
@@ -27,7 +28,8 @@ or an outside assistant are previewed, not applied, until the call says `confirm
 applies on submit. Without a `GoalAccess` the goal tools are read-only.
 """
 
-from collections.abc import Callable, Mapping
+import json
+from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
 from typing import Any, Protocol, TypeVar
@@ -50,6 +52,7 @@ from smart_financial_coach.access.goals import (
 )
 from smart_financial_coach.access.ledger import INCOME, Ledger
 from smart_financial_coach.access.review_items import item_id, open_review_items
+from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
 
 CURRENCY = "USD"
 DASH = "\u2013"  # en dash, for date ranges
@@ -292,7 +295,10 @@ TOOL_SPECS: list[ToolSpec] = [
     },
     {
         "name": "detect_anomalies",
-        "description": "Unusual transactions and spending spikes in a date range.",
+        "description": (
+            "Unusual charges in a date range, each with its kind, a plain-language reason and the "
+            "numbers behind it, and spending spikes (not available yet)."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {"start_date": _DATE, "end_date": _DATE},
@@ -376,6 +382,28 @@ def span_label(start: date, end: date) -> str:
     if start.year == end.year:
         return f"{start:%b} {start.day} {DASH} {end:%b} {end.day}, {end.year}"
     return f"{start:%b} {start.day}, {start.year} {DASH} {end:%b} {end.day}, {end.year}"
+
+
+def _one_per_pair(flags: pd.DataFrame) -> pd.DataFrame:
+    """Flags with each same-minute duplicate pair shown once (FR-7 §8, review on #33).
+
+    Two identical charges in one minute are each other's repeat, since their order is unknowable,
+    so both can be flagged. The user sees one "Possible duplicate", on the charge with the later
+    ID; the stored flags keep both."""
+    duplicates = flags[flags["reason_code"] == "duplicate"]
+    if duplicates.empty:  # an empty .map is string-typed under pandas 3, and & would raise
+        return flags
+    evidence = [json.loads(e) for e in duplicates["evidence"]]
+    ids = duplicates["transaction_id"].to_numpy()
+    flagged = set(ids)
+    hidden = {
+        t
+        for t, e in zip(ids, evidence, strict=True)
+        if e["minutes_apart"] == 0
+        and e["original_transaction_id"] in flagged
+        and t < e["original_transaction_id"]
+    }
+    return flags[~flags["transaction_id"].isin(hidden)]
 
 
 class ToolGateway(Protocol):
@@ -1067,9 +1095,62 @@ class Tools:
 
     def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
         start, end = self._range(start_date, end_date)
-        return self._not_available(
-            "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
+        flags = self.ledger.flags
+        if flags is None:
+            return self._not_available(
+                "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
+            )
+        rows = self.ledger.between(start, end)
+        rows = rows.merge(
+            _one_per_pair(flags)[["transaction_id", "reason_code", "evidence"]], on="transaction_id"
         )
+        rows = rows.assign(evidence=[self._with_category(r) for r in rows.to_dict("records")])
+        data = {
+            "currency": CURRENCY,
+            "start_date": start.isoformat(),
+            "end_date": end.isoformat(),
+            "count": len(rows),
+            "unusual_transactions": [
+                {
+                    "transaction_id": r["transaction_id"],
+                    "date": r["day"].isoformat(),
+                    "merchant": r["merchant"],
+                    "description": r["merchant_raw"],
+                    "amount": money(r["amount"]),
+                    "category": r["category"],
+                    "kind": KIND_LABELS[r["reason_code"]],
+                    "reason_code": r["reason_code"],
+                    "reason": reason(r["reason_code"], r["evidence"]),
+                    "evidence": json.loads(r["evidence"]),
+                }
+                for r in rows.to_dict("records")
+            ],
+            "spending_spikes": self._not_available(
+                "Spending spikes", span_label(start, end), "FR-8"
+            ).data,
+        }
+        title = f"Unusual charges · {span_label(start, end)}"
+        return ToolResult(data, Source(title, f"{len(rows)} flagged"))
+
+    def _with_category(self, flag: Mapping[Hashable, Any]) -> str:
+        """A new-merchant flag's evidence with its predicted category and the latest earlier
+        charge in that category at least as large, from the user's own ledger (FR-7 §7)."""
+        evidence = json.loads(flag["evidence"])
+        if flag["reason_code"] != "new_merchant":
+            return str(flag["evidence"])
+        t = self.ledger.transactions
+        earlier = t[
+            (t["category"] == flag["category"])
+            & (t["ts"] < flag["ts"])
+            & (t["amount"] <= flag["amount"])  # outflows: at least as large
+        ]
+        latest = earlier["ts"].max() if len(earlier) else None
+        evidence |= {
+            "category": flag["category"],
+            "date": flag["day"].isoformat(),
+            "category_largest_since": latest.strftime("%Y-%m-%d") if latest is not None else None,
+        }
+        return json.dumps(evidence)
 
     def forecast_goal(self, goal_id: str) -> ToolResult:
         goal = self._goal_by_id(goal_id, self._goals(include_archived=False))

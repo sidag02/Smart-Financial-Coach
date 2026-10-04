@@ -22,7 +22,11 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from smart_financial_coach.intelligence.anomaly.contract import EVIDENCE, AnomalyModel
+from smart_financial_coach.intelligence.anomaly.contract import (
+    EVIDENCE,
+    EXTRA_EVIDENCE,
+    AnomalyModel,
+)
 from smart_financial_coach.intelligence.anomaly.features import (
     DUPLICATE_MINUTES,
     MIN_SPREAD,
@@ -125,7 +129,8 @@ def evidence_dicts(scored: pd.DataFrame, flagged: npt.NDArray[np.bool_]) -> list
     out: list[Any] = [None] * len(scored)
     codes = scored["reason_code"].to_numpy()
     for i in np.flatnonzero(flagged):
-        keys = EVIDENCE[str(codes[i])]
+        code = str(codes[i])
+        keys = EVIDENCE[code] + tuple(k for k in EXTRA_EVIDENCE.get(code, ()) if k in scored)
         out[i] = {k: _plain(scored[k].iat[int(i)]) for k in keys}
     return out
 

@@ -186,3 +186,56 @@ def test_every_reason_code_has_a_kind_label() -> None:
     from smart_financial_coach.intelligence.anomaly.contract import REASON_CODES
 
     assert set(KIND_LABELS) == set(REASON_CODES)
+
+
+@pytest.mark.parametrize(
+    ("extra", "text"),
+    [
+        ({"category_largest_since": None}, "your largest Shopping charge yet."),
+        ({"category_largest_since": "2024-10-02"}, "your largest Shopping charge since Oct 2024."),
+        # A recent "since" says little: the whole-history wording is used instead
+        ({"category_largest_since": "2026-08-01"}, "your largest charge yet."),
+    ],
+)
+def test_new_merchant_reasons_use_the_category_when_given(extra: dict[str, Any], text: str) -> None:
+    evidence = {**NEW, "category": "Shopping", "date": "2026-09-10", **extra}
+
+    assert reason("new_merchant", evidence).endswith(text)
+
+
+def test_short_histories_ignore_the_category() -> None:
+    evidence = {**NEW, "prior_charges": 5, "category": "Shopping", "date": "2026-09-10"}
+
+    assert "one of your first charges" in reason(
+        "new_merchant", evidence | {"category_largest_since": None}
+    )
+
+
+CHEAP = {**NEW, "amount": 9.56, "rank_in_history": 0.28, "largest_since": "2026-09-01 12:00"}
+
+
+def test_a_cheap_first_visit_above_the_merchants_price_names_no_number() -> None:
+    text = reason("new_merchant", {**CHEAP, "above_merchant_usual": True})
+
+    assert text == "First charge here, and more than this merchant usually charges."
+    assert not any(ch.isdigit() for ch in text)
+
+
+@pytest.mark.parametrize(
+    "evidence",
+    [
+        {**CHEAP, "above_merchant_usual": False},
+        {**CHEAP, "above_merchant_usual": None},
+        CHEAP,  # flags written before the key existed
+        {**CHEAP, "rank_in_history": 0.6, "above_merchant_usual": True},  # not below the median
+    ],
+)
+def test_other_new_merchant_charges_keep_their_wording(evidence: dict[str, Any]) -> None:
+    assert "more than this merchant usually charges" not in reason("new_merchant", evidence)
+
+
+def test_above_merchant_usual_must_be_a_yes_or_no() -> None:
+    from smart_financial_coach.intelligence.anomaly.contract import evidence_errors
+
+    assert evidence_errors("new_merchant", json.dumps({**CHEAP, "above_merchant_usual": 3.1}))
+    assert not evidence_errors("new_merchant", json.dumps({**CHEAP, "above_merchant_usual": True}))

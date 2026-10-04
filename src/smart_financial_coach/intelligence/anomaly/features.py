@@ -85,5 +85,9 @@ def scores_frame(f: pd.DataFrame, score: np.ndarray, reason: np.ndarray) -> pd.D
             "prior_charges": np.where(amount_reason, f["key_prior"], f["overall_prior"]),
             "rank_in_history": np.round(f["rank_in_history"].to_numpy(dtype=float), 3),
             "largest_since": f["largest_since"].to_numpy(),
+            # Yes/no only: above the merchant profile's typical price (None without a profile)
+            "above_merchant_usual": pd.Series(f["profile_log_ratio"] > 0, dtype=object)
+            .where(f["profile_log_ratio"].notna(), None)
+            .to_numpy(),
         }
     )

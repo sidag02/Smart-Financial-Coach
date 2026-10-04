@@ -56,6 +56,11 @@ EVIDENCE: dict[str, tuple[str, ...]] = {
 REASON_CODES = tuple(EVIDENCE)
 TEXT = frozenset({"original_transaction_id", "largest_since"})
 OPTIONAL = frozenset({"rank_in_history", "largest_since"})  # absent without earlier charges
+# Evidence a reason may carry beyond what its template needs: a yes/no, never a number, so
+# flag files written before it was added still render. `above_merchant_usual`: a new-merchant
+# charge above its merchant profile's typical price (owner wording decision on #40). It says
+# nothing about what other users pay beyond that one comparison (NFR-2)
+EXTRA_EVIDENCE: dict[str, tuple[str, ...]] = {"new_merchant": ("above_merchant_usual",)}
 
 
 def scoring_rows(
@@ -99,6 +104,9 @@ def evidence_errors(reason_code: str, evidence: Any) -> list[str]:
             or not math.isfinite(value)
         ):
             errors.append(f"{reason_code} evidence {key!r} is not a finite number")
+    for key in EXTRA_EVIDENCE.get(reason_code, ()):
+        if values.get(key) is not None and not isinstance(values[key], bool):
+            errors.append(f"{reason_code} evidence {key!r} is not true, false or null")
     return errors
 
 

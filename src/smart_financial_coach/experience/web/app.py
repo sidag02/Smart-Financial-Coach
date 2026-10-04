@@ -63,6 +63,8 @@ MAX_QUESTION = 500
 MAX_CONVERSATIONS = 1_000
 MINUS = "\u2212"  # a real minus sign for amounts
 COACH_TOKEN_LIFETIME = timedelta(minutes=5)  # one question's worth of tool calls
+FLAG_WINDOW_DAYS = 60  # "Worth a look" shows a fixed window in v1 (owner, Oct 3, 2026, on #30)
+OVERVIEW_FLAGS = 3  # the newest flags shown on the overview
 HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Year"}
 REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
 ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
@@ -141,14 +143,15 @@ def money(value: float, cents: bool = False, sign: bool = False) -> str:
 
 
 def goal_form_data(
-    name: Annotated[str, Form(max_length=200)] = "",
-    target_amount: Annotated[str, Form(max_length=40)] = "",
-    target_month: Annotated[str, Form(max_length=20)] = "",
-    saved: Annotated[str, Form(max_length=40)] = "",
+    name: Annotated[str, Form()] = "",
+    target_amount: Annotated[str, Form()] = "",
+    target_month: Annotated[str, Form()] = "",
+    saved: Annotated[str, Form()] = "",
     # The edit form's hidden goal_id; named apart from the /goals/{goal_id} path parameter
-    editing: Annotated[str, Form(alias="goal_id", max_length=40)] = "",
+    editing: Annotated[str, Form(alias="goal_id")] = "",
 ) -> dict[str, str]:
-    """The goal form as posted: the dependency every goal handler shares."""
+    """The goal form as posted: the dependency every goal handler shares. No length limits here:
+    over-long values get the form's own messages from the tools, not a 422 (review on #45)."""
     return {
         "name": name,
         "target_amount": target_amount,
@@ -222,6 +225,7 @@ def create_app(
     by_user = {a.user_id: a for a in accounts}
     password = SharedPassword(settings.demo_password.get_secret_value())
     as_of = sources.as_of()
+    flags_live = sources.flags is not None  # an FR-7 model is promoted and its flags are here
     essentials = frozenset(settings.essentials)
     unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
     if unknown:
@@ -365,6 +369,7 @@ def create_app(
                 "theme": theme if theme in ("light", "dark") else None,
                 "mockups": mockups,
                 "mockup_page": MOCKUP_PAGE,
+                "flags_live": flags_live,
                 **context,
             },
         )
@@ -476,6 +481,9 @@ def create_app(
             essentials=essential_spend,
             goal=featured_goal(tools),
             trend=charts.trend(months, month_key(period.start)),
+            flags=recent_flags(tools) if flags_live else [],
+            overview_flags=OVERVIEW_FLAGS,
+            window_days=FLAG_WINDOW_DAYS,
             **flow_context(tools, period, horizon),
         )
 
@@ -569,6 +577,9 @@ def create_app(
             changes=tools.list_corrections(limit=CHANGES_SHOWN).data["corrections"],
             flash=request.session.pop("flash", None),
             back=str(request.url.path) + (f"?{request.url.query}" if request.url.query else ""),
+            # Unusual charges are marked in the list (FR-7 §8), one per same-minute pair as in
+            # "Worth a look"
+            flagged=flagged_ids(tools, period),
         )
 
     def back_to(back: str) -> RedirectResponse:
@@ -717,10 +728,34 @@ def create_app(
 
     # Coming next (Delivery Plan sync rule): real data where it exists, mockups for the rest
 
+    def flagged_ids(tools: Tools, period: Period) -> set[str]:
+        if not flags_live:
+            return set()
+        found = tools.detect_anomalies(period.start.isoformat(), period.end.isoformat()).data
+        return {f["transaction_id"] for f in found.get("unusual_transactions", [])}
+
+    def recent_flags(tools: Tools) -> list[dict[str, Any]]:
+        """The last `FLAG_WINDOW_DAYS` days' unusual charges, newest first (FR-7 §8)."""
+        start = as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)
+        found = tools.detect_anomalies(start.isoformat(), as_of.isoformat()).data
+        flags: list[dict[str, Any]] = found.get("unusual_transactions", [])
+        return sorted(flags, key=lambda f: (f["date"], f["transaction_id"]), reverse=True)
+
     @app.get("/worth-a-look")
     def worth_a_look(request: Request) -> Response:
         account = signed_in(request)
-        return page(request, "coming.html", account, active="flags")
+        if not flags_live:
+            return page(request, "coming.html", account, active="flags")
+        return page(
+            request,
+            "worth_a_look.html",
+            account,
+            active="flags",
+            flags=recent_flags(tools_for(account, request)),
+            start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
+            end=as_of.isoformat(),
+            window_days=FLAG_WINDOW_DAYS,
+        )
 
     # Goals (FR-10; mockups 1g, 1h). The page writes through the same tools as the coach, as
     # "edit", which applies on submit. Writes are plain posts that redirect back to the list with
@@ -738,15 +773,17 @@ def create_app(
         """The form's fields as the tools take them: amounts without "$" or commas, and the month
         picker's "2027-06" as a day in that month. A blank name, amount or month stays blank, so
         it's reported rather than left unchanged; a blank saved amount means 0, or unchanged. An
-        amount must be a plain decimal (no exponent: "1e999999" would be costly to read), and
-        anything else is reported as not an amount (review on #45)."""
+        amount must be a plain decimal ("50", "50.", ".50", "50.25"; no exponent: "1e999999"
+        would be costly to read), and anything else is reported as not an amount (review on
+        #45)."""
 
         def text(key: str) -> str:
             return form.get(key, "").strip()
 
         def amount(key: str) -> str:
             value = text(key).replace("$", "").replace(",", "")
-            return value if not value or re.fullmatch(r"\d{1,16}(\.\d{1,16})?", value) else "?"
+            plain = re.fullmatch(r"(?=\.?\d)\d{0,16}(\.\d{0,16})?", value)
+            return value if not value or plain else "?"
 
         month = text("target_month")
         return {
