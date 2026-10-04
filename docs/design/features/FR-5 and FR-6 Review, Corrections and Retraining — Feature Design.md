@@ -1,6 +1,6 @@
 # FR-5 and FR-6 Review, Corrections and Retraining — Feature Design
 
-Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026); N, the majority and the retraining cadence are **provisional** until the replay · Branch: `docs/fr-5-design` · **Start with [Status and handoff](#status-and-handoff-oct-3-2026)**
+Oct 2, 2026 · @Sidd · Status: **Accepted** (owner, Oct 3, 2026); N, the majority and the retraining cadence **stay provisional** after the replay (#44): at N = 3 it let 4 minority-preference or ambiguous labels through (open question 1), and they're to be tuned on a separate half of the test users · Branch: `docs/fr-5-design` · **Start with [Status and handoff](#status-and-handoff-oct-3-2026)**
 
 ## Summary
 
@@ -197,7 +197,7 @@ flowchart LR
   | `review_items` | `item_id` | `user_id`, `merchant_key`, `first_seen`, `suggested_category`, `confidence`, `reason`, `status` (`open`, `confirmed`, `corrected`, `superseded`), `model_version` |
 
 - **Precedence:** transaction override, then merchant override, then the model's prediction. A transaction override handles the ambiguous merchants (a warehouse club where one purchase was electronics) without overriding the merchant.
-  - **A later merchant-wide change supersedes earlier single-transaction changes at that merchant** (review on #35): "every <merchant> transaction" means every one. A single-transaction change made after it still wins for its row.
+  - **A later merchant-wide change supersedes earlier single-transaction changes at that merchant** (owner, Oct 3, 2026; review on #35): "every <merchant> transaction" means every one. A single-transaction change made after it still wins for its row.
   - **Merchant overrides leave rows predicted as Income alone** (review on #35, following the owner's spending-only decision on #32): settling a spending flag never moves a refund or a transfer at the same merchant. Income rows can be changed one at a time.
 - **Effective categories are computed per user, after the shared inference.** The data-access layer joins that user's predictions to that user's overrides, scoped by the session's `user_id`. Overrides never enter the batch's shared work, so one user's override can't reach another user's rows (Technical Design, feedback constraints).
 - **Undo** marks the event undone and rebuilds that user's affected overrides. Nothing is deleted, so the log stays an audit trail.
@@ -360,7 +360,7 @@ Written for the session that continues FR-5 and FR-6, human or agent. Read it fi
 
 ### Where it stands
 
-- **Accepted by the owner (Oct 3, 2026),** with N = 3, the two-thirds majority and the retraining cadence **provisional** until the replay. Earlier owner decisions stand:
+- **Accepted by the owner (Oct 3, 2026),** with N = 3, the two-thirds majority and the retraining cadence **provisional**. The replay has run (#44) and they stay provisional: at N = 3, 4 minority-preference or ambiguous labels got through (open question 1). Earlier owner decisions stand:
   - **the data contract** (§7): `truth_preferences`, schema 4, the preference-aware label contract (`Truth.user_categories()`), and the preference profiles. It's built and in the default dataset (#20; data hash `44781bc4e4a5`);
   - **clean labels:** the shipped model and models retrained from feedback train with `label_noise: 0`;
   - **retrained promotions** use §5's gates against users' own view; FR-3's and FR-4's truth-based numbers are reported, not gated;
@@ -427,7 +427,7 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 - [x] Review per (user, merchant string); per-familiarity thresholds chosen at promotion by the rule in §1 (60% of unfamiliar errors; familiar flags at least 25% errors, capped at 0.95; owner, Oct 3, 2026).
 - [x] `familiar` added to the categorizer contract.
 - [x] Overrides applied per user after shared inference, with transaction over merchant over model.
-- [x] Global labels by distinct-user agreement (N = 3, two-thirds majority, both provisional until the replay).
+- [x] Global labels by distinct-user agreement (N = 3, two-thirds majority; still provisional after the replay, #44, to be tuned on a separate half of the test users).
 - [x] Retraining scheduled, evaluated on later months from non-contributing users, promoted through the FR-3 gates.
 - [x] The web app and the coach use the same tools; bulk coach changes need confirmation.
 - [x] A global label needs at least one independent correction; confirmations alone never create one (from review).
@@ -455,5 +455,5 @@ One PR per step, each small, since the demo deploys on every merge. After each m
 2. [ ] **Retraining cadence** and the minimum number of new labels per retraining. Quarterly in the replay for now.
 3. [x] **Should retraining (and the shipped model) train on injected label noise?** **Decided (owner, Oct 2, 2026): no.** Injected noise stays for experiments that compare candidates, the Technical Design's control against flattering results. The shipped model and models retrained from feedback train on clean labels, with `label_noise: 0` explicit in the promoted configuration (§5). Robustness to the natural noise in feedback labels is measured in the replay instead. Basis: without the injected noise, validation unseen-merchant macro F1 is 0.714 against 0.512 (known 0.988 against 0.969; FR-4 feasibility), and the Travel fallback is the noise's most visible cost in the shipped model. This refines the Oct 1 decision to keep noise, which was about comparing candidates; that discipline is unchanged.
 4. [ ] **"Cheap to retrain" as a selection criterion** (carried from the Technical Design): deferred past the demo (owner, Oct 3, 2026); the replay records retraining time per cycle.
-6. [ ] **Agreement in the demo: what counts as a distinct user** (review on #38). The demo counts each browser session as a user (owner, Oct 3, 2026), and each sign-in starts a new session, so one visitor signing in three times could meet N = 3 alone, including the required independent correction. Options before the agreement-rule milestone: count one subject per browser cookie or client address for agreement; or show visitors' agreement as illustrative only and keep global labels to the replay's simulated users. *Proposed: the latter for the demo.*
+6. [x] **Agreement in the demo: what counts as a distinct user** (review on #38). The demo counts each browser session as a user (owner, Oct 3, 2026), and each sign-in starts a new session, so one visitor signing in three times could meet N = 3 alone. **Decided (owner, Oct 3, 2026): visitors' agreement is illustrative only.** Their votes are counted and shown on "How it learns", but global labels and retraining come only from the replay's simulated users. #44 shows a merchant's tally only once at least 2 different sessions have voted, so no single visitor's choice is visible to others (§4).
 5. [x] **Coach answers during review:** should the coach mention open review items when they affect an answer ("$120 of this is still unconfirmed")? **Yes** (owner, Oct 3, 2026), using `unreviewed_spend`.
