@@ -14,6 +14,7 @@ from smart_financial_coach.intelligence.spikes.contract import (
     SpikeModel,
     SpikeScorer,
     evidence_errors,
+    evidence_for,
     scoring_periods,
 )
 from smart_financial_coach.intelligence.spikes.reasons import reason
@@ -171,6 +172,22 @@ def flag_all(out: pd.DataFrame) -> pd.DataFrame:
 def test_the_contract_catches_broken_flags(broken: Any, message: str) -> None:
     with pytest.raises(ContractError, match=message):
         scorer(broken).score_periods(rows())
+
+
+def test_evidence_is_consistent_to_the_cent() -> None:
+    rng = np.random.default_rng(0)
+    rows = pd.DataFrame(
+        {
+            "category": "Dining",
+            "period_start": "2025-07-01",
+            "spend": rng.uniform(130, 5000, 5000),
+            "usual": rng.uniform(1, 100, 5000),
+            "usual_months": 12,
+            "count": 20,
+            "usual_count": 4.0,
+        }
+    )
+    assert all(evidence_errors(json.dumps(e)) == [] for e in evidence_for(rows))
 
 
 def test_evidence_must_be_complete() -> None:
