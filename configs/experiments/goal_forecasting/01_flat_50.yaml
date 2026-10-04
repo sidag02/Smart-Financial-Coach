@@ -1,0 +1,9 @@
+# FR-11 round 0: a flat 50% for every goal, the honest floor a calibrated forecast must beat (a
+# Brier of 0.25 on any outcomes; FR-11 and FR-12 design, §5).
+name: flat_50
+task: goal_forecasting
+model:
+  type: goal_forecasting/flat
+  params: {p: 0.5}
+baseline: true
+tags: {plan: fr11-round}

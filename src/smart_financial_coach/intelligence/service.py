@@ -27,6 +27,7 @@ from smart_financial_coach.intelligence.models.contract import Checked, Contract
 SERVICE_MODULES: tuple[str, ...] = (
     "smart_financial_coach.intelligence.categorization.contract",
     "smart_financial_coach.intelligence.anomaly.contract",
+    "smart_financial_coach.intelligence.forecasting.contract",
 )
 
 

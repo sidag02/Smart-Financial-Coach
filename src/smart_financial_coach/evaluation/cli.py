@@ -171,7 +171,10 @@ def _promote(args: argparse.Namespace) -> int:
     else:
         print("  model file not published: other clones can't load this promotion")
     for gate in entry["gates"]:
-        print(f"  {'pass' if gate['passed'] else 'FAIL'} {gate['name']}: {gate['detail']}")
+        verdict = "pass" if gate["passed"] else "FAIL"
+        if not gate["passed"] and not gate.get("blocking", True):
+            verdict += " (non-blocking)"
+        print(f"  {verdict} {gate['name']}: {gate['detail']}")
     return 0
 
 

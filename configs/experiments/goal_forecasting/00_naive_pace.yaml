@@ -1,0 +1,9 @@
+# FR-11 round 0: the PRD's "naive" on-track call (FR-11 and FR-12 design, §4). The balance so far
+# over the months since the goal was created, extended to the target date: a 0/1 call. Every
+# candidate must beat its Brier on both paths (§5).
+name: naive_pace
+task: goal_forecasting
+model:
+  type: goal_forecasting/naive_pace
+baseline: true
+tags: {plan: fr11-round}
