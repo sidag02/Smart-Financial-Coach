@@ -19,17 +19,37 @@ where calls come from), the tools read the ledger as that subject sees it, with 
 applied, and `list_review_items`, `resolve_review_item`, `correct_category`, `undo_correction`
 and `list_corrections` read and write their feedback. A change the coach makes to more than one
 transaction is previewed, not applied, until the call says `confirm` (#15 \u00a73).
+
+Savings goals (FR-10): with a `GoalAccess` (the goal store, whose goals these are, and where calls
+come from), `list_goals` shows the subject's goals and `create_goal`, `update_goal`,
+`archive_goal` and `undo_goal_change` change them. `check_goal` validates a goal and states the
+facts for the setup screen (FR-10 design, "The setup check") without writing. Writes from the coach
+or an outside assistant are previewed, not applied, until the call says `confirm`; the Goals page
+applies on submit. Without a `GoalAccess` the goal tools are read-only.
 """
 
 import json
 from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
 
 import pandas as pd
 
 from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
+from smart_financial_coach.access.goals import (
+    Checked,
+    Goal,
+    GoalDraft,
+    GoalError,
+    GoalStore,
+    Problem,
+    check_draft,
+    edited_draft,
+    generated_goals,
+    median_monthly_savings,
+    replay,
+)
 from smart_financial_coach.access.ledger import INCOME, Ledger
 from smart_financial_coach.access.review_items import item_id, open_review_items
 from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
@@ -41,8 +61,27 @@ MAX_ITEMS = 25
 LOW_CONFIDENCE = 0.5  # below this a review item's confidence band is "low", else "medium"
 
 ToolSpec = dict[str, Any]
+T = TypeVar("T")
 
 _DATE = {"type": "string", "format": "date", "description": "YYYY-MM-DD, inclusive"}
+_GOAL_ID = {"type": "string", "description": "a goal_id from list_goals"}
+_GOAL_FIELDS = {
+    "name": {"type": "string", "description": "what the user is saving for, up to 40 characters"},
+    "target_amount": {"type": "number", "description": "US dollars, to the cent"},
+    "target_date": {
+        "type": "string",
+        "format": "date",
+        "description": "YYYY-MM-DD; the goal is due at the end of that month",
+    },
+    "saved": {"type": "number", "description": "US dollars saved toward it so far"},
+}
+_CONFIRM = {"type": "boolean", "description": "the user agreed to the preview"}
+_ASK_FIRST = (
+    "Only when the user asked. From an assistant, returns a preview (status "
+    "`needs_confirmation`) and changes nothing until called again with `confirm: true` after the "
+    "user agrees. A change that breaks a rule returns status `invalid` with the problems; tell "
+    "the user their messages."
+)
 TOOL_SPECS: list[ToolSpec] = [
     {
         "name": "get_spending_summary",
@@ -166,10 +205,93 @@ TOOL_SPECS: list[ToolSpec] = [
     {
         "name": "list_goals",
         "description": (
-            "The signed-in user's savings goals: name, target amount and date, and the saved "
-            "balance on the date it was last recorded."
+            "The signed-in user's savings goals: name, target amount and date (the end of the "
+            "month it's due), the amount saved and the day it was recorded, and `status`: "
+            "`active`, `reached` (saved the whole amount before the date) or `ended` (the date has "
+            "passed; the outcome isn't known). Active goals have `months_left` and "
+            "`needed_per_month`. `undo_revision_id` is the goal's latest change that can be "
+            "undone. Also the user's median monthly savings over the last 12 full months. Whether "
+            "a goal is on track isn't available yet."
         ),
-        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "include_ended": {"type": "boolean", "description": "default true"},
+                "include_archived": {
+                    "type": "boolean",
+                    "description": "also removed goals, to undo a removal; default false",
+                },
+            },
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "check_goal",
+        "description": (
+            "Check a savings goal before creating or editing it; saves nothing. Returns any "
+            "problems, each with a message for the user, and when it's valid: the date it's due "
+            "(the end of its month), the months left, the amount needed each month, what the "
+            "user's other active goals need each month, and their median monthly savings. Call it "
+            "before suggesting or creating a goal and quote its numbers; never work out a monthly "
+            "amount yourself. For an edit, pass `goal_id` and only the fields that change."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {**_GOAL_FIELDS, "goal_id": _GOAL_ID},
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "create_goal",
+        "description": f"Create a savings goal; `saved` defaults to 0. {_ASK_FIRST}",
+        "input_schema": {
+            "type": "object",
+            "properties": {**_GOAL_FIELDS, "confirm": _CONFIRM},
+            "required": ["name", "target_amount", "target_date"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "update_goal",
+        "description": (
+            "Change a savings goal's name, target amount, date or the amount saved so far. "
+            "Fields left out stay as they are; a new saved amount is recorded as of today. "
+            f"{_ASK_FIRST}"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"goal_id": _GOAL_ID, **_GOAL_FIELDS, "confirm": _CONFIRM},
+            "required": ["goal_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "archive_goal",
+        "description": (
+            "Remove a savings goal from the user's goals. Nothing is deleted, and it can be "
+            f"undone. {_ASK_FIRST}"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"goal_id": _GOAL_ID, "confirm": _CONFIRM},
+            "required": ["goal_id"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "undo_goal_change",
+        "description": (
+            "Undo the latest change to a savings goal (creating, editing or removing it), by the "
+            "`revision_id` a change returned or a goal's `undo_revision_id` from list_goals. Only "
+            "when the user asks to undo. Returns the goal as it is now, or `removed: true` when "
+            "undoing its creation; an undo that would break a rule returns status `invalid`."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"revision_id": {"type": "string"}},
+            "required": ["revision_id"],
+            "additionalProperties": False,
+        },
     },
     {
         "name": "detect_anomalies",
@@ -189,8 +311,8 @@ TOOL_SPECS: list[ToolSpec] = [
         "description": "Whether the user is on track for a savings goal, the gap and its range.",
         "input_schema": {
             "type": "object",
-            "properties": {"goal_name": {"type": "string"}},
-            "required": ["goal_name"],
+            "properties": {"goal_id": _GOAL_ID},
+            "required": ["goal_id"],
             "additionalProperties": False,
         },
     },
@@ -200,6 +322,14 @@ _SPECS = {spec["name"]: spec for spec in TOOL_SPECS}
 
 class ToolError(ValueError):
     """A tool call the caller can fix (bad dates, unknown category): reported, not raised on."""
+
+
+class GoalProblemsError(ToolError):
+    """A goal change that breaks a rule: the problems, each for a form field, with its message."""
+
+    def __init__(self, problems: tuple[Problem, ...]) -> None:
+        super().__init__(" ".join(p.message for p in problems))
+        self.problems = problems
 
 
 class ToolsUnavailableError(Exception):
@@ -215,6 +345,8 @@ def _check_type(tool: str, key: str, value: Any, prop: dict[str, Any]) -> None:
         ok = isinstance(value, int) and not isinstance(value, bool)
     elif kind == "boolean":
         ok = isinstance(value, bool)
+    elif kind == "number":
+        ok = isinstance(value, int | float) and not isinstance(value, bool)
     else:
         ok = True
     if not ok:
@@ -300,10 +432,27 @@ class Feedback:
     source: str = "edit"
 
 
+@dataclass(frozen=True)
+class GoalAccess:
+    """Whose goals the tools read and write, and where calls come from (FR-10).
+
+    `subject` comes from the session or the bearer token, as for `Feedback`. `source` is "edit"
+    for the Goals page, which applies on submit, and "coach" (Wren) or "assistant" (any other MCP
+    client), whose writes are previewed until they say `confirm`.
+    """
+
+    store: GoalStore
+    subject: str
+    source: str = "edit"
+
+
 class Tools:
-    def __init__(self, ledger: Ledger, feedback: Feedback | None = None) -> None:
+    def __init__(
+        self, ledger: Ledger, feedback: Feedback | None = None, goals: GoalAccess | None = None
+    ) -> None:
         self.base = ledger  # the model's categories
         self.feedback = feedback
+        self.goals = goals
         self.ledger = ledger.seen_by(feedback.store, feedback.subject) if feedback else ledger
         known = feedback.store.categories if feedback else set(ledger.transactions["category"])
         self.categories = sorted(known)
@@ -316,6 +465,11 @@ class Tools:
             "undo_correction": self.undo_correction,
             "list_corrections": self.list_corrections,
             "list_goals": self.list_goals,
+            "check_goal": self.check_goal,
+            "create_goal": self.create_goal,
+            "update_goal": self.update_goal,
+            "archive_goal": self.archive_goal,
+            "undo_goal_change": self.undo_goal_change,
             "detect_anomalies": self.detect_anomalies,
             "forecast_goal": self.forecast_goal,
         }
@@ -685,23 +839,259 @@ class Tools:
             "undoable": not c.undone,
         }
 
-    def list_goals(self) -> ToolResult:
-        goals = self.ledger.goals.sort_values("target_date")
+    # Savings goals (FR-10)
+
+    def list_goals(self, include_ended: bool = True, include_archived: bool = False) -> ToolResult:
+        today = self.as_of
+        goals = [
+            g
+            for g in self._goals(include_archived=include_archived)
+            if include_ended or g.status(today) != "ended"
+        ]
         data = {
             "currency": CURRENCY,
-            "goals": [
-                {
-                    "name": g["name"],
-                    "target_amount": money(g["target_amount"]),
-                    "target_date": g["target_date"],
-                    "saved": money(g["current_balance"]),
-                    "saved_as_of": g["as_of_date"],
-                }
-                for g in goals.to_dict("records")
-            ],
+            "as_of": today.isoformat(),
+            "goals": [self._goal_data(g) for g in goals],
+            **self._savings(),
             "forecast": "not_available",
         }
         return ToolResult(data, Source("Savings goals", f"{len(goals)} goals"))
+
+    def check_goal(
+        self,
+        name: str | None = None,
+        target_amount: float | None = None,
+        target_date: str | None = None,
+        saved: float | None = None,
+        goal_id: str | None = None,
+    ) -> ToolResult:
+        fields = {"name": name, "target_amount": target_amount, "target_date": target_date}
+        checked, others = self._check({**fields, "saved": saved}, goal_id)
+        data = self._check_data(checked, others)
+        if checked.goal is not None:
+            title = f"Goal check · {checked.goal.name}"
+            detail = f"${data['needed_per_month']:,.0f} a month"
+        else:
+            title, detail = "Goal check", f"{len(checked.problems)} problems"
+        return ToolResult(data, Source(title, detail))
+
+    def create_goal(
+        self,
+        name: str,
+        target_amount: float,
+        target_date: str,
+        saved: float | None = None,
+        confirm: bool = False,
+    ) -> ToolResult:
+        access = self._goal_writes()
+        fields = {"name": name, "target_amount": target_amount, "target_date": target_date}
+        checked, others = self._check({**fields, "saved": saved}, None)
+        if checked.goal is None:
+            raise GoalProblemsError(checked.problems)
+        if self._needs_confirmation(confirm):
+            return self._preview(checked, others, f"This creates the goal {checked.goal.name}.")
+        draft = GoalDraft(name, target_amount, target_date, 0 if saved is None else saved)
+        revision = self._goal_write(
+            lambda: access.store.create(self.ledger, access.subject, draft, source=access.source)
+        )
+        return self._applied(revision.goal_id, revision.revision_id, f"Created {checked.goal.name}")
+
+    def update_goal(
+        self,
+        goal_id: str,
+        name: str | None = None,
+        target_amount: float | None = None,
+        target_date: str | None = None,
+        saved: float | None = None,
+        confirm: bool = False,
+    ) -> ToolResult:
+        access = self._goal_writes()
+        changes = {
+            k: v
+            for k, v in {
+                "name": name,
+                "target_amount": target_amount,
+                "target_date": target_date,
+                "saved": saved,
+            }.items()
+            if v is not None
+        }
+        if not changes:
+            raise ToolError(
+                "update_goal needs at least one of name, target_amount, target_date, saved"
+            )
+        checked, others = self._check(changes, goal_id)
+        if checked.goal is None:
+            raise GoalProblemsError(checked.problems)
+        if self._needs_confirmation(confirm):
+            return self._preview(checked, others, f"This changes the goal {checked.goal.name}.")
+        revision = self._goal_write(
+            lambda: access.store.update(
+                self.ledger, access.subject, goal_id, changes, source=access.source
+            )
+        )
+        return self._applied(goal_id, revision.revision_id, f"Changed {checked.goal.name}")
+
+    def archive_goal(self, goal_id: str, confirm: bool = False) -> ToolResult:
+        access = self._goal_writes()
+        goal = self._goal_by_id(goal_id, self._goals())
+        if self._needs_confirmation(confirm):
+            data = {
+                "status": "needs_confirmation",
+                "currency": CURRENCY,
+                "goal": self._goal_data(goal),
+                "message": (
+                    f"This removes the goal {goal.name}. Ask the user, and call again with "
+                    "confirm: true only if they agree."
+                ),
+            }
+            return ToolResult(data, Source(f"Preview · {goal.name}", "remove"))
+        revision = self._goal_write(
+            lambda: access.store.archive(self.ledger, access.subject, goal_id, source=access.source)
+        )
+        archived = self._goal_by_id(goal_id, self._goals(include_archived=True))
+        data = {
+            "status": "applied",
+            "currency": CURRENCY,
+            "goal": self._goal_data(archived),
+            "revision_id": revision.revision_id,
+        }
+        return ToolResult(data, Source(f"Removed {goal.name}", "can be undone"))
+
+    def undo_goal_change(self, revision_id: str) -> ToolResult:
+        access = self._goal_writes()
+        goal = self._goal_write(lambda: access.store.undo(self.ledger, access.subject, revision_id))
+        data = {
+            "status": "applied",
+            "currency": CURRENCY,
+            "removed": goal is None,
+            "goal": None if goal is None else self._goal_data(goal),
+        }
+        title = "Undid a goal change"
+        detail = "the goal was removed" if goal is None else goal.name
+        return ToolResult(data, Source(title, detail))
+
+    def _goals(self, include_archived: bool = False) -> list[Goal]:
+        """The user's goals as this subject sees them; just the generated ones without access."""
+        if self.goals is None:
+            return replay(generated_goals(self.ledger.goals), [])
+        access = self.goals
+        return access.store.goals(self.ledger, access.subject, include_archived=include_archived)
+
+    @staticmethod
+    def _goal_by_id(goal_id: str, goals: list[Goal]) -> Goal:
+        found = next((g for g in goals if g.goal_id == goal_id), None)
+        if found is None:
+            raise ToolError(f"no goal {goal_id!r}; goal ids come from list_goals")
+        return found
+
+    def _check(self, fields: dict[str, Any], goal_id: str | None) -> tuple[Checked, list[Goal]]:
+        """Validate a new goal, or an edit of `goal_id` with the fields given; and the other
+        goals it was checked against."""
+        goals = self._goals()
+        if goal_id is None:
+            saved = 0 if fields.get("saved") is None else fields["saved"]
+            draft = GoalDraft(
+                fields.get("name"), fields.get("target_amount"), fields.get("target_date"), saved
+            )
+            others, editing = goals, None
+        else:
+            editing = self._goal_by_id(goal_id, goals)
+            draft = edited_draft(editing, {k: v for k, v in fields.items() if v is not None})
+            others = [g for g in goals if g.goal_id != goal_id]
+        return check_draft(draft, self.as_of, others, editing=editing), others
+
+    def _check_data(self, checked: Checked, others: list[Goal]) -> dict[str, Any]:
+        today = self.as_of
+        data: dict[str, Any] = {
+            "currency": CURRENCY,
+            "as_of": today.isoformat(),
+            "valid": checked.valid,
+            "problems": [
+                {"field": p.field, "code": p.code, "message": p.message} for p in checked.problems
+            ],
+        }
+        goal = checked.goal
+        if goal is not None:
+            this = goal.needed_per_month_cents(today)
+            other = sum(g.needed_per_month_cents(today) for g in others)
+            data |= {
+                "name": goal.name,
+                "target_amount": goal.target_cents / 100,
+                "target_date": goal.target_date.isoformat(),
+                "saved": goal.saved_cents / 100,
+                "months_left": goal.months_left(today),
+                "needed_per_month": this / 100,
+                "other_goals_per_month": other / 100,
+                "all_goals_per_month": (this + other) / 100,
+            }
+        return data | self._savings() | {"forecast": "not_available"}
+
+    def _savings(self) -> dict[str, Any]:
+        median, months = median_monthly_savings(self.ledger.transactions, self.as_of)
+        return {
+            "median_monthly_savings_12m": None if median is None else median / 100,
+            "months_of_history": months,
+        }
+
+    def _goal_data(self, g: Goal) -> dict[str, Any]:
+        today = self.as_of
+        status = g.status(today)
+        active = status == "active"
+        return {
+            "goal_id": g.goal_id,
+            "name": g.name,
+            "target_amount": g.target_cents / 100,
+            "target_date": g.target_date.isoformat(),
+            "saved": g.saved_cents / 100,
+            "saved_as_of": g.saved_as_of.isoformat(),
+            "created_date": g.created_date.isoformat(),
+            "status": status,
+            "origin": g.origin,
+            "months_left": g.months_left(today) if active else None,
+            "needed_per_month": g.needed_per_month_cents(today) / 100 if active else None,
+            "undo_revision_id": g.undo_revision_id,
+        }
+
+    def _goal_writes(self) -> GoalAccess:
+        if self.goals is None:
+            raise ToolError("changing goals isn't available for this sign-in")
+        return self.goals
+
+    def _needs_confirmation(self, confirm: bool) -> bool:
+        """Wren and outside assistants preview every goal change until the user agrees."""
+        return self._goal_writes().source != "edit" and not confirm
+
+    def _preview(self, checked: Checked, others: list[Goal], what: str) -> ToolResult:
+        data = self._check_data(checked, others) | {
+            "status": "needs_confirmation",
+            "message": (
+                f"{what} Tell the user the date and monthly amount above, ask, and call again "
+                "with confirm: true only if they agree."
+            ),
+        }
+        name = checked.goal.name if checked.goal else "goal"
+        return ToolResult(
+            data, Source(f"Preview · {name}", f"${data['needed_per_month']:,.0f} a month")
+        )
+
+    def _goal_write(self, write: Callable[[], T]) -> T:
+        try:
+            return write()
+        except GoalError as error:
+            if error.problems:
+                raise GoalProblemsError(error.problems) from error
+            raise ToolError(str(error)) from error
+
+    def _applied(self, goal_id: str, revision_id: str, title: str) -> ToolResult:
+        goal = self._goal_by_id(goal_id, self._goals())
+        data = {
+            "status": "applied",
+            "currency": CURRENCY,
+            "goal": self._goal_data(goal),
+            "revision_id": revision_id,
+        }
+        return ToolResult(data, Source(title, "can be undone"))
 
     def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
         start, end = self._range(start_date, end_date)
@@ -762,8 +1152,9 @@ class Tools:
         }
         return json.dumps(evidence)
 
-    def forecast_goal(self, goal_name: str) -> ToolResult:
-        return self._not_available("Goal forecast", goal_name, "FR-10 to FR-12")
+    def forecast_goal(self, goal_id: str) -> ToolResult:
+        goal = self._goal_by_id(goal_id, self._goals(include_archived=False))
+        return self._not_available("Goal forecast", goal.name, "FR-11 and FR-12")
 
     # Helpers
 

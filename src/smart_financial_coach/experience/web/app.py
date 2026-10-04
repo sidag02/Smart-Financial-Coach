@@ -30,13 +30,21 @@ from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
 from smart_financial_coach.access.feedback import FeedbackStore
+from smart_financial_coach.access.goals import GoalStore
 from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
 from smart_financial_coach.access.mcp_server import PATH as MCP_PATH
 from smart_financial_coach.access.mcp_server import build_mcp_server
 from smart_financial_coach.access.review_items import alternatives, open_review_items
 from smart_financial_coach.access.tokens import AccessTokens
-from smart_financial_coach.access.tools import Feedback, Source, ToolError, Tools, span_label
+from smart_financial_coach.access.tools import (
+    Feedback,
+    GoalAccess,
+    Source,
+    ToolError,
+    Tools,
+    span_label,
+)
 from smart_financial_coach.config import PROJECT_ROOT, Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
@@ -225,8 +233,10 @@ def create_app(
     tokens = AccessTokens(settings.session_secret.get_secret_value(), by_user)
     # Category feedback (FR-5, FR-6), keyed by browser session: visitors share demo accounts
     feedback = FeedbackStore(settings.feedback_db, sources.categories())
+    # Savings goals (FR-10), keyed by browser session like feedback
+    goal_store = GoalStore(settings.goals_db)
     mcp_server, mcp_asgi = build_mcp_server(
-        sources, tokens, public_url=public_url, feedback=feedback
+        sources, tokens, public_url=public_url, feedback=feedback, goals=goal_store
     )
 
     loop: dict[str, EventLoopToken] = {}  # the app's event loop, for the coach's MCP calls
@@ -319,8 +329,11 @@ def create_app(
         return str(request.session["fid"])
 
     def tools_for(account: Account, request: Request) -> Tools:
+        subject = feedback_id(request)  # the same session subject for corrections and goals
         return Tools(
-            Ledger.load(sources, account.user_id), Feedback(feedback, feedback_id(request))
+            Ledger.load(sources, account.user_id),
+            Feedback(feedback, subject),
+            GoalAccess(goal_store, subject),
         )
 
     def page(request: Request, name: str, account: Account | None, **context: Any) -> Response:
