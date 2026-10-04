@@ -55,7 +55,9 @@ The design asks for global gain with 5% and 20% adversarial users (users who cor
 
 - **5%** (3 of 69 feedback users): the results above.
 - **About 9%** (6 of 69; a run configured at 20% before the replay picked an exact count): gain held (accuracy against their own view 0.904 → 0.941, new-merchant macro F1 against the truth 0.751 → 0.868; 4 of 10 promoted), and **no random correction became a global label**: the 13 labels that differ from the truth are all real shared preferences (streaming, Costco, Rite Aid). All-merchant macro F1 against the truth ended at 0.912, as more of the streaming preference was learned.
-- **20%** (14 of 69): see the follow-up below once it's in.
+- **20%** (14 of 69; `fr5-replay-adversarial-20.json`, `--adversarial 0.2`): the gain is smaller but holds. Accuracy against their own view 0.904 → 0.934; new-merchant macro F1 against the truth 0.751 → **0.829** (still past 0.80); 4 of 10 promoted; isolation holds. Of 52 global labels, 37 fix model errors, and **each of the other 15 points the way a real preference does** (streaming → Entertainment, warehouse and pharmacy → Shopping, gym → Subscriptions): none of the random corrections, 14 users' worth, became a label. The cost: all-merchant macro F1 against the truth ends at 0.919, and feedback users' personal accuracy at 0.911 (the adversaries are among them).
+
+The distinct-user rule is what holds: a random correction rarely agrees with two others on the same merchant and category.
 
 ## Caveats
 
