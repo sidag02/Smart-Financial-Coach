@@ -26,7 +26,7 @@ and the same goal once saved get identical numbers, and two goals share one futu
 
 import hashlib
 import warnings
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Self
 
@@ -471,13 +471,39 @@ class PathsModel(BaseModel):
         return state.simulate(HORIZON, self.n_paths, _seed(user_id, month, self.version))
 
     def predict(self, x: pd.DataFrame) -> pd.DataFrame:
+        def fitted(r: Mapping[Any, Any]) -> ForecastState:
+            return self.state_for(parse_history(str(r["history_json"])), str(r["persona"]))
+
+        return self._predict(x, fitted)
+
+    def predict_with_states(
+        self, x: pd.DataFrame, states: Mapping[str, ForecastState]
+    ) -> pd.DataFrame:
+        """`predict` with each user's state given, as the nightly batch stored it (§7), instead
+        of fitted from `history_json`. The history is still read, for a goal's track record.
+        A state must end at its rows' `as_of` month: one fitted at another `as_of` would forecast
+        months that already happened."""
+
+        def stored(r: Mapping[Any, Any]) -> ForecastState:
+            state = states[str(r["user_id"])]
+            if state.end != pd.Period(to_date(r["as_of_date"]), freq="M"):
+                raise ValueError(
+                    f"{r['user_id']}'s forecast state ends {state.end}, not at {r['as_of_date']}"
+                )
+            return state
+
+        return self._predict(x, stored)
+
+    def _predict(
+        self, x: pd.DataFrame, state_of: Callable[[Mapping[Any, Any]], ForecastState]
+    ) -> pd.DataFrame:
         cache: dict[tuple[str, str], tuple[ForecastState, Floats]] = {}
         rows: list[dict[str, Any]] = []
         shares = _shares(x, self.typical_total)
         for r, (share, source) in zip(x.to_dict("records"), shares, strict=True):
             key = (str(r["user_id"]), str(r["as_of_date"]))
             if key not in cache:
-                state = self.state_for(parse_history(str(r["history_json"])), str(r["persona"]))
+                state = state_of(r)
                 cache[key] = (state, self.paths_for(key[0], r["as_of_date"], state))
             state, paths = cache[key]
             rows.append(self._forecast(r, state, paths, share, source))
