@@ -6,7 +6,8 @@ Oct 4, 2026 · @Sidd · Milestone 2 of FR-11 and FR-12 Goal Forecasting — Feat
 
 - **Round 4's finalists were scored on test users once and failed** 4 of 30 blocking calibration gates, freelancers' "on track" band above all; nothing was promoted ([test results](#round-4-test-results-first-scoring)).
 - **Train users showed why:** stage 9 plants targets from the realized future, a leak that's strongest for volatile users. The freelancer forecast itself is honest, and round 4's model read a persona label real users don't have.
-- **Round 5** (owner decisions 10–13 in the design) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals,** ahead of both other candidates; it passes every gate on its own validation metrics ([round 5](#round-5-no-persona-label-targets-without-the-future)). Test users are scored a second time next, under a recorded override.
+- **Round 5** (owner decisions 10–13 in the design) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals** on validation, ahead of both other candidates ([round 5](#round-5-no-persona-label-targets-without-the-future)).
+- **On test (the second scoring, under the recorded override), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
 
 ## Round 4 summary (as written for milestone 2)
 
@@ -138,6 +139,35 @@ Rank 1 by persona (goals and met rate per band; below and above the 80% range, w
 - **The trend centers salaried ranges** (families 10% below, 16% above) **but loses on Brier and RMSE**, so salaried forecasts stay pessimistic; a better trend is a follow-up.
 - **Spread:** 1.016 for rank 1, tuned on 892 realized goal balances (fewer than round 4's 973: the dataset's own goals are gone). Typical total: 0.686.
 
+## Round 5 test results (second scoring)
+
+`sfc-experiment finalize --override "…"` scored round 5's top three and the baselines on the 120 test users (935 goals per path) on Oct 4, from code version `5e7cefbd`. The override names decisions 10–13 and is recorded on every run it scored. All three finalists pass every gate; rank 1, `paths_seasonal_mixture`, was promoted:
+
+| Gate | Test | Target |
+| --- | --- | --- |
+| Brier, track | 0.168 | below naive pace (0.396) and 0.25 |
+| Brier, new | 0.202 | below 0.25 |
+| Brier per persona (track; new) | family 0.180, 0.212; freelancer 0.177, 0.197; young professional 0.148, 0.198 | ≤ 0.25 + tolerance |
+| Calibration, all personas (track; new) | off 0.16, 0.19; either 0.65, 0.55; on 0.82, 0.73 | inside each band ± tolerance |
+| Coverage of the 80% range | 0.74 track, 0.74 new | 0.70–0.90 |
+| RMSE, 6 months | 0.28 of last-month naive, 0.88 of seasonal-naive | ≤ 0.85, ≤ 1.0 |
+
+By persona (goals · met rate per band; below and above the 80% range):
+
+| Path | Persona | Off track | Either way | On track | Below | Above |
+| --- | --- | --- | --- | --- | --- | --- |
+| track | family | 100 · 0.20 | 109 · 0.74 | 111 · 0.81 | 0.08 | 0.27 |
+| track | freelancer | 124 · 0.17 | 136 · 0.60 | 38 · 0.76 | 0.06 | 0.15 |
+| track | young professional | 101 · 0.11 | 111 · 0.63 | 105 · 0.86 | 0.05 | 0.18 |
+| new | family | 74 · 0.23 | 94 · 0.67 | 152 · 0.73 | 0.07 | 0.26 |
+| new | freelancer | 88 · 0.18 | 156 · 0.50 | 54 · 0.69 | 0.05 | 0.15 |
+| new | young professional | 73 · 0.15 | 92 · 0.52 | 152 · 0.74 | 0.05 | 0.18 |
+
+- **Freelancers' "on track" band holds on test** (0.76 and 0.69, against 0.44 and 0.40 for round 4's model on planted targets), as train users predicted.
+- **The closest calls** are families' "could go either way" goals with a track record (0.74, inside 0.70 + 0.08) and freelancers' new goals at "on track" (0.69, inside 0.70 − 0.07). Both lean toward being met more often than said, or right at the edge.
+- **Salaried balances still land above the range** about a quarter of the time for families, as on validation: forecasts for them are pessimistic. A better trend is the follow-up.
+- **Promotion:** `promote` checked the gates in the design's order and logged them in `artifacts/goal_forecasting/promotions.jsonl`; the model file is a GitHub Release tagged at `5dc69c6`.
+
 ## Round history
 
 | Round | Commit | What changed | Seasonal: track / new | ETS | Flat level | Typical total |
@@ -154,6 +184,5 @@ Rank 1 by persona (goals and met rate per band; below and above the 80% range, w
 
 ## Next
 
-- `finalize` scores round 5's top three and the baselines on test users, the second scoring, under an override naming decisions 10–13.
-- `promote` checks the gates in the design's order; a failure goes back to the owner, and no gate moves.
 - Milestone 3 serves the promoted model: the nightly forecast states in the bundle, `forecast_goal` and `check_goal` live, and the coach prompt.
+- Follow-ups: a trend that fixes salaried users' pessimism without costing Brier; target-free calibration as a gate once the owner decides it; `set_goals` out of `INPUT_COLUMNS`.
