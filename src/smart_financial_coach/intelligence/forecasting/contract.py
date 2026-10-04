@@ -44,6 +44,9 @@ INPUT_COLUMNS = (
     "first_saved_as_of",  # its date; None without one
     "origin",  # "existing" (generated: a track record from $0) or "yours" (entered by hand)
     "active_goals",  # goals in the set still running at `as_of_date`, this one included
+    # Every goal in the set, whenever created: only for estimating the typical total allocation
+    # in `fit`, where every goal's share is measured (review on #52). Predictions never read it
+    "set_goals",
     "history_json",
 )
 OUTPUT_COLUMNS = (

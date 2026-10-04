@@ -141,6 +141,7 @@ def goal_rows(**overrides: object) -> pd.DataFrame:
         "first_saved_as_of": None,
         "origin": "existing",
         "active_goals": 1,
+        "set_goals": 1,
         "history_json": history_json(
             pd.Series([500.0] * 6, index=pd.period_range("2025-10", periods=6, freq="M"))
         ),

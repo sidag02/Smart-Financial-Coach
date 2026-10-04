@@ -15,6 +15,7 @@ from smart_financial_coach.intelligence.forecasting.paths import (
     PathsModel,
     PersonaPrior,
     _shares,
+    _typical_total,
     fit_state,
     run_with_deposit,
 )
@@ -45,6 +46,7 @@ def row(**overrides: object) -> dict[str, object]:
         "first_saved_as_of": None,
         "origin": "existing",
         "active_goals": 1,
+        "set_goals": 1,
         "history_json": history_json(history),
     }
     return base | overrides
@@ -222,3 +224,20 @@ def test_a_reached_goal_on_a_falling_future_may_draw_down() -> None:
     assert out.iloc[0]["status"] == "reached"
     assert out.iloc[0]["may_draw_down"] is True
     assert out.iloc[1]["may_draw_down"] is False
+
+
+def test_the_typical_total_sums_a_sets_shares_over_all_its_goals() -> None:
+    """Per set, the measured goals' mean share times every goal in the set, created before or
+    after this as_of; the median over sets (§3, review on #52)."""
+    a = row(goal_id="a", example_id="a:track", goal_set="u1:0:track", set_goals=2, active_goals=1)
+    b = row(goal_id="b", example_id="b:track", goal_set="u1:0:track", set_goals=2, active_goals=2)
+    share = _shares(frame(a), 0.0)[0][0]  # each one's own track-record share
+    assert _typical_total(frame(a, b)) == pytest.approx(min(1.0, 2 * share))
+
+
+def test_predictions_never_read_set_goals() -> None:
+    model = PathsModel(seasonal=True, spread=1.0, n_paths=200).fit(frame(row()))
+    new = row(example_id="g1:new", origin="yours", created_date="2025-12-31", active_goals=1)
+    one = Checked(model, CONTRACT).predict(frame(new | {"set_goals": 1}))
+    many = Checked(model, CONTRACT).predict(frame(new | {"set_goals": 5}))
+    assert one.equals(many)

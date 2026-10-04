@@ -477,20 +477,17 @@ def _entries_share(r: Mapping[Any, Any]) -> float | None:
 
 
 def _typical_total(x: pd.DataFrame) -> float:
-    """The typical total allocation: per goal set, its known goals' mean inferred share times
-    the goals active alongside them, then the median over sets (§3). Goals only with a track
-    record count; outcomes are never read."""
+    """The typical total allocation (§3, as feasibility measured it): per goal set, the summed
+    shares of all its goals, then the median over sets. Only goals with a track record have a
+    measured share, so a set's sum is their mean share times its number of goals (`set_goals`,
+    whenever created: the training set is fully known, review on #52). Outcomes are never
+    read."""
     totals = []
     track = x[x["origin"] == "existing"]
     for _, part in track.groupby("goal_set"):
-        shares, active = [], []
-        for r in part.to_dict("records"):
-            s = _track_record_share(r)
-            if s is not None:
-                shares.append(s)
-                active.append(int(r["active_goals"]))
+        shares = [s for r in part.to_dict("records") if (s := _track_record_share(r)) is not None]
         if shares:
-            totals.append(float(np.mean(shares)) * float(np.median(active)))
+            totals.append(float(np.mean(shares)) * float(part["set_goals"].iloc[0]))
     return float(np.clip(np.median(totals), 0.0, SHARE_CAP)) if totals else 0.5
 
 

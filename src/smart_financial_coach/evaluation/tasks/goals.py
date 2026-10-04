@@ -182,6 +182,7 @@ def _set_rows(
             "first_saved": float("nan"),
             "first_saved_as_of": None,
             "active_goals": active,
+            "set_goals": len(goal_set),
             "history_json": history_json(history),
             # Evaluation only
             "split": user["split"],
