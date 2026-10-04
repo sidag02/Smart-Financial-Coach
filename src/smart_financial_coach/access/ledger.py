@@ -4,7 +4,8 @@ A `Ledger` is built for a single `user_id` and every read under it goes through 
 user-scoped readers, so nothing built on it can reach another user's rows (Technical Design,
 "Security and data isolation", step 3). Categories come from the predictions file of the promoted
 model (FR-3); merchant display names from the shared normalizer, title-cased (Web App UI, gap 1);
-unusual-charge flags from the promoted FR-7 model's flag file, when there is one (FR-7 §8).
+unusual-charge flags from the promoted FR-7 model's flag file, when there is one (FR-7 §8); goal
+forecasts from the promoted FR-11 model's forecasts file, when there is one (FR-11 and FR-12, §7).
 
     sources = DataSources.from_dir(settings.demo_dir)
     ledger = Ledger.load(sources, user_id)
@@ -25,6 +26,7 @@ from smart_financial_coach.data import store
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
 from smart_financial_coach.data.flags import load_flags
 from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
+from smart_financial_coach.intelligence.forecasting.batch import FORECASTS_FILE, GoalForecaster
 
 INCOME = "Income"
 
@@ -53,13 +55,22 @@ class DataSources:
     # The promoted FR-7 model's flags for it; None until a model is promoted, and unusual
     # charges stay "not available yet" (the Delivery Plan's sync rule)
     flags: Path | None = None
+    # The promoted goal-forecasting model's states for it (FR-11, FR-12); None until a model is
+    # promoted, and goal forecasts stay "not available yet"
+    forecasts: Path | None = None
 
     @classmethod
     def from_dir(cls, root: Path) -> "DataSources":
-        flags = root / "flags.sqlite"
+        flags, forecasts = root / "flags.sqlite", root / FORECASTS_FILE
         return cls(
-            root / "dataset.sqlite", root / "predictions.sqlite", flags if flags.exists() else None
+            root / "dataset.sqlite",
+            root / "predictions.sqlite",
+            flags if flags.exists() else None,
+            forecasts if forecasts.exists() else None,
         )
+
+    def forecaster(self) -> GoalForecaster | None:
+        return _forecaster(self.forecasts) if self.forecasts is not None else None
 
     def as_of(self) -> date:
         """The dataset's last day: the app's "today" (Web App UI, gap 8)."""
@@ -104,6 +115,8 @@ class Ledger:
     as_of: date
     # The user's unusual-charge flags (data.flags columns), or None when no model is promoted
     flags: pd.DataFrame | None = None
+    # The goal forecast (shared by every user of the bundle), or None when no model is promoted
+    forecaster: GoalForecaster | None = None
 
     @classmethod
     def load(cls, sources: DataSources, user_id: str) -> "Ledger":
@@ -145,4 +158,10 @@ def _load(sources: DataSources, user_id: str) -> Ledger:
         goals=store.load_goals(sources.dataset, user_id=user_id),
         as_of=sources.as_of(),
         flags=load_flags(sources.flags, user_id=user_id) if sources.flags else None,
+        forecaster=sources.forecaster(),
     )
+
+
+@lru_cache(maxsize=4)  # one forecasts file per bundle, read once
+def _forecaster(path: Path) -> GoalForecaster:
+    return GoalForecaster.load(path)

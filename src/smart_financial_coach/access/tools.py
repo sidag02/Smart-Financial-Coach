@@ -26,9 +26,15 @@ come from), `list_goals` shows the subject's goals and `create_goal`, `update_go
 facts for the setup screen (FR-10 design, "The setup check") without writing. Writes from the coach
 or an outside assistant are previewed, not applied, until the call says `confirm`; the Goals page
 applies on submit. Without a `GoalAccess` the goal tools are read-only.
+
+Goal forecasts (FR-11, FR-12): once a goal-forecasting model is promoted, `forecast_goal` says
+whether a goal is on track, `check_goal` adds the same forecast and a fit badge for a draft, and
+`list_goals` each running goal's status. A user's running goals and a draft are forecast together,
+as one set over one future, so a draft's numbers are the saved goal's (design §3, §7).
 """
 
 import json
+import logging
 from collections.abc import Callable, Hashable, Mapping
 from dataclasses import dataclass
 from datetime import date, timedelta
@@ -37,6 +43,13 @@ from typing import Any, Protocol, TypeVar
 import pandas as pd
 
 from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
+from smart_financial_coach.access.goal_forecasts import (
+    FITS,
+    first_entries,
+    forecast_fields,
+    goal_rows,
+    thin,
+)
 from smart_financial_coach.access.goals import (
     Checked,
     Goal,
@@ -53,6 +66,10 @@ from smart_financial_coach.access.goals import (
 from smart_financial_coach.access.ledger import INCOME, Ledger
 from smart_financial_coach.access.review_items import item_id, open_review_items
 from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
+from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
+from smart_financial_coach.intelligence.forecasting.savings import monthly_net
+
+log = logging.getLogger(__name__)
 
 CURRENCY = "USD"
 DASH = "\u2013"  # en dash, for date ranges
@@ -210,8 +227,10 @@ TOOL_SPECS: list[ToolSpec] = [
             "`active`, `reached` (saved the whole amount before the date) or `ended` (the date has "
             "passed; the outcome isn't known). Active goals have `months_left` and "
             "`needed_per_month`. `undo_revision_id` is the goal's latest change that can be "
-            "undone. Also the user's median monthly savings over the last 12 full months. Whether "
-            "a goal is on track isn't available yet."
+            "undone. Also the user's median monthly savings over the last 12 full months. Active "
+            "and reached goals have `forecast_status` (`on_track`, `either_way`, `off_track` or "
+            "`reached`) and `p_goal_met`, the chance of reaching it by its date (null once "
+            "reached); call forecast_goal for the range and what would close the gap."
         ),
         "input_schema": {
             "type": "object",
@@ -231,9 +250,12 @@ TOOL_SPECS: list[ToolSpec] = [
             "Check a savings goal before creating or editing it; saves nothing. Returns any "
             "problems, each with a message for the user, and when it's valid: the date it's due "
             "(the end of its month), the months left, the amount needed each month, what the "
-            "user's other active goals need each month, and their median monthly savings. Call it "
-            "before suggesting or creating a goal and quote its numbers; never work out a monthly "
-            "amount yourself. For an edit, pass `goal_id` and only the fields that change."
+            "user's other active goals need each month, and their median monthly savings. A valid "
+            "goal also gets `forecast` (as forecast_goal returns it) and `fit`: `within_reach`, "
+            "`either_way` or `stretch`, from the chance of making it alongside the user's other "
+            "goals. Call it before suggesting or creating a goal and quote its numbers; never work "
+            "out a monthly amount or a chance yourself. For an edit, pass `goal_id` and only the "
+            "fields that change."
         ),
         "input_schema": {
             "type": "object",
@@ -308,7 +330,22 @@ TOOL_SPECS: list[ToolSpec] = [
     },
     {
         "name": "forecast_goal",
-        "description": "Whether the user is on track for a savings goal, the gap and its range.",
+        "description": (
+            "Whether the user is on track for an active or reached savings goal, from simulated "
+            "futures of their own monthly savings. `status`: `on_track` (a 70%+ chance), "
+            "`either_way`, `off_track` (under 30%) or `reached`. `p_goal_met` is the chance; "
+            "`projected_balance` the likely amount by the date, `range` the 80% range around it; "
+            "`gap` how far the likely amount falls short; `extra_per_month` the monthly amount "
+            "that would put it on track (null when it already is). `share_source` says how much "
+            "of their savings the goal is assumed to get: `track_record` (its own history), "
+            "`your_entries` (their saved amounts over time) or `typical` (a new goal: a typical "
+            "share). `short_history` means fewer than 6 months of history. A reached goal has no "
+            "chance, range, gap or top-up; `may_draw_down` says months of spending more than "
+            "they earn could take it back below the target. The forecast assumes such months "
+            "draw on what's set aside. `method` is `simulation`, or `simple_projection` while no "
+            "forecasting model is released: the pace so far extended to the date, with no "
+            "chance or range; its status only says whether that pace gets there."
+        ),
         "input_schema": {
             "type": "object",
             "properties": {"goal_id": _GOAL_ID},
@@ -454,6 +491,7 @@ class Tools:
         self.feedback = feedback
         self.goals = goals
         self.ledger = ledger.seen_by(feedback.store, feedback.subject) if feedback else ledger
+        self._history: str | None = None  # the user's monthly net savings, for goal forecasts
         known = feedback.store.categories if feedback else set(ledger.transactions["category"])
         self.categories = sorted(known)
         self._handlers: dict[str, Callable[..., ToolResult]] = {
@@ -848,12 +886,26 @@ class Tools:
             for g in self._goals(include_archived=include_archived)
             if include_ended or g.status(today) != "ended"
         ]
+        forecasts = self._forecasts([g for g in self._goals() if g.running(today)])
+        listed = []
+        for g in goals:
+            data = self._goal_data(g)
+            if forecasts is not None and g.goal_id in forecasts:
+                f = forecasts[g.goal_id]
+                reached = f["status"] == "reached"
+                simple = self.ledger.forecaster is not None and self.ledger.forecaster.baseline
+                data |= {
+                    "forecast_status": f["status"],
+                    "forecast_method": "simple_projection" if simple else "simulation",
+                    "p_goal_met": None if reached or simple else round(float(f["p_goal_met"]), 3),
+                }
+            listed.append(data)
         data = {
             "currency": CURRENCY,
             "as_of": today.isoformat(),
-            "goals": [self._goal_data(g) for g in goals],
+            "goals": listed,
             **self._savings(),
-            "forecast": "not_available",
+            "forecast": "available" if forecasts is not None else "not_available",
         }
         return ToolResult(data, Source("Savings goals", f"{len(goals)} goals"))
 
@@ -1025,7 +1077,17 @@ class Tools:
                 "other_goals_per_month": other / 100,
                 "all_goals_per_month": (this + other) / 100,
             }
-        return data | self._savings() | {"forecast": "not_available"}
+            if not goal.running(today):  # an edit of a goal whose date has passed
+                return data | self._savings() | {"forecast": "ended"}
+            forecast = (
+                None if self._new_draft_on_baseline(goal) else self._forecast_of(goal, others)
+            )
+            if forecast is None:
+                return data | self._savings() | {"forecast": "not_available"}
+            # No badge for a goal already reached, or from the baseline, which has no chance
+            fit = None if forecast["method"] != "simulation" else FITS.get(str(forecast["status"]))
+            return data | self._savings() | {"forecast": forecast, "fit": fit}
+        return data | self._savings() | {"forecast": None}  # nothing to forecast until it's valid
 
     def _savings(self) -> dict[str, Any]:
         median, months = median_monthly_savings(self.ledger.transactions, self.as_of)
@@ -1153,8 +1215,122 @@ class Tools:
         return json.dumps(evidence)
 
     def forecast_goal(self, goal_id: str) -> ToolResult:
-        goal = self._goal_by_id(goal_id, self._goals(include_archived=False))
-        return self._not_available("Goal forecast", goal.name, "FR-11 and FR-12")
+        goals = self._goals(include_archived=False)
+        goal = self._goal_by_id(goal_id, goals)
+        today = self.as_of
+        if goal.status(today) == "ended":
+            ended = {
+                "status": "ended",
+                "message": (
+                    f"{goal.name}'s date has passed, so there's nothing to forecast; whether "
+                    "it was reached isn't known."
+                ),
+            }
+            return ToolResult(ended, Source(f"Goal forecast · {goal.name}", "ended"))
+        forecast = self._forecast_of(goal, [g for g in goals if g.goal_id != goal_id], monthly=True)
+        if forecast is None:
+            return self._not_available("Goal forecast", goal.name, "FR-11 and FR-12")
+        data: dict[str, Any] = {
+            "currency": CURRENCY,
+            "as_of": today.isoformat(),
+            "goal_id": goal.goal_id,
+            "name": goal.name,
+            "target_amount": goal.target_cents / 100,
+            "target_date": goal.target_date.isoformat(),
+            "saved": goal.saved_cents / 100,
+            "months_left": goal.months_left(today),
+            **forecast,
+        }
+        labels = {
+            "on_track": "on track",
+            "either_way": "could go either way",
+            "off_track": "off track",
+            "reached": "reached",
+        }
+        return ToolResult(
+            data, Source(f"Goal forecast · {goal.name}", labels[str(forecast["status"])])
+        )
+
+    def _forecasts(
+        self, goals: list[Goal], only: str | None = None
+    ) -> dict[str, dict[str, Any]] | None:
+        """The forecast of one goal set, by goal id: the user's running goals, a draft
+        included, or just `only`'s (the set still shares out the typical allocation). None
+        when there's no forecast for this user (no model promoted, or one that can't forecast
+        this day: logged, not raised)."""
+        forecaster = self.ledger.forecaster
+        user = self.ledger.user_id
+        if forecaster is None or not forecaster.covers(user) or forecaster.as_of != self.as_of:
+            return None
+        if not goals:
+            return {}
+        entries = (
+            first_entries(self.goals.store.revisions(self.goals.subject, user))
+            if self.goals is not None
+            else {}
+        )
+        rows = goal_rows(user, goals, self.as_of, self._net_history(), entries)
+        try:
+            out = forecaster.forecast(rows, only=None if only is None else [only])
+        except ValueError:
+            log.exception("goal forecast %s failed for %s", forecaster.version, user)
+            return None
+        return {
+            str(r["example_id"]): {str(k): v for k, v in r.items()} for r in out.to_dict("records")
+        }
+
+    def _forecast_of(
+        self, goal: Goal, others: list[Goal], *, monthly: bool = False
+    ) -> dict[str, Any] | None:
+        """`goal`'s forecast alongside the user's other running goals (`others` may list ended
+        or archived ones too), as the tools return it; None without a forecast. An ended goal,
+        or a draft that's already ended, has none."""
+        today = self.as_of
+        if not goal.running(today):
+            return None
+        running = [g for g in others if g.running(today) and g.goal_id != goal.goal_id]
+        forecasts = self._forecasts([*running, goal], only=goal.goal_id)
+        if forecasts is None:
+            return None
+        out = forecasts[goal.goal_id]
+        forecaster = self.ledger.forecaster
+        assert forecaster is not None  # _forecasts returned forecasts
+        months = len(parse_history(self._net_history()))
+        fields = forecast_fields(out, months, money, baseline=forecaster.baseline)
+        if monthly:
+            series = (
+                []
+                if out["status"] == "reached" or forecaster.baseline
+                else forecaster.monthly(
+                    self.ledger.user_id,
+                    goal.saved_cents / 100,
+                    float(out["share"]),
+                    goal.months_left(today),
+                )
+            )
+            fields["monthly"] = [
+                {
+                    "month": m["month"],
+                    "median": money(m["median"]),
+                    "low": money(m["low"]),
+                    "high": money(m["high"]),
+                }
+                for m in thin(series)
+            ]
+        return fields
+
+    def _net_history(self) -> str:
+        """The user's monthly net savings up to today, as the forecast's `history_json`."""
+        if self._history is None:
+            columns = self.ledger.transactions[["ts", "amount"]]
+            self._history = history_json(monthly_net(columns, self.as_of))
+        return self._history
+
+    def _new_draft_on_baseline(self, goal: Goal) -> bool:
+        """A goal not saved yet has no pace, so the baseline can't project it."""
+        forecaster = self.ledger.forecaster
+        saved = {g.goal_id for g in self._goals(include_archived=True)}
+        return forecaster is not None and forecaster.baseline and goal.goal_id not in saved
 
     # Helpers
 

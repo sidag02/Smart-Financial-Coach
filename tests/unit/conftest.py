@@ -117,3 +117,35 @@ def flagged_sources(
     flags = tmp_path_factory.mktemp("flags") / "flags.sqlite"
     flag_dataset(sources.dataset, flags, artifacts_dir=flag_artifacts)
     return DataSources(sources.dataset, sources.predictions, flags)
+
+
+@pytest.fixture(scope="session")
+def forecast_artifacts(small_sqlite: Path, tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """An artifacts folder with a promoted goal-forecasting model: the seasonal paths model with
+    the persona mixture, fitted on the small data's train users (a test fixture, not a
+    measurement)."""
+    from smart_financial_coach.evaluation.tasks.goals import GoalForecastingTask
+    from smart_financial_coach.intelligence.forecasting.contract import INPUT_COLUMNS
+    from smart_financial_coach.intelligence.forecasting.paths import PathsModel
+    from smart_financial_coach.intelligence.models.artifact import record_promotion, save_artifact
+
+    frame = GoalForecastingTask(reps=10, draws=1).load(small_sqlite).frame
+    train = frame.loc[frame["split"] == "train", list(INPUT_COLUMNS)]
+    model = PathsModel(seasonal=True, personas="mixture").fit(train)
+    model.version = "fr11-test"
+    root = tmp_path_factory.mktemp("artifacts")
+    save_artifact(model, root / "goal_forecasting" / model.version, {})
+    record_promotion(root / "goal_forecasting", {"version": model.version})
+    return root
+
+
+@pytest.fixture(scope="session")
+def forecast_sources(
+    sources: DataSources, forecast_artifacts: Path, tmp_path_factory: pytest.TempPathFactory
+) -> DataSources:
+    """`sources` with the promoted goal-forecasting model's states for the small dataset."""
+    from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
+
+    forecasts = tmp_path_factory.mktemp("forecasts") / "forecasts.json"
+    forecast_dataset(sources.dataset, forecasts, artifacts_dir=forecast_artifacts)
+    return DataSources(sources.dataset, sources.predictions, sources.flags, forecasts)

@@ -17,6 +17,8 @@ sfc-model attach-serving-files --task categorization --run ID --version VERSION 
     --data data/synthetic/default.sqlite --note "..."   # e.g. a review policy, after promotion
 sfc-model predict --task categorization --data data/synthetic/default.sqlite \
     --out data/predictions/default.sqlite
+sfc-model predict --task goal_forecasting --data data/synthetic/default.sqlite \
+    --out data/forecasts/default.json   # the nightly forecast states (FR-11 and FR-12, §7)
 """
 
 import argparse
@@ -218,9 +220,21 @@ def _predict(args: argparse.Namespace) -> int:
             f"{flags.model_version} into {args.out} in {flags.seconds:.1f} s"
         )
         return 0
+    if args.task == "goal_forecasting":
+        from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
+
+        states = forecast_dataset(
+            args.data, args.out, artifacts_dir=args.artifacts_dir, overwrite=args.overwrite
+        )
+        print(
+            f"wrote {states.users:,} users' forecast states from model {states.model_version} "
+            f"to {args.out} in {states.seconds:.1f} s"
+        )
+        return 0
     if args.task != "categorization":
         raise ValueError(
-            f"predict supports categorization and unusual_transactions, not {args.task!r}"
+            "predict supports categorization, unusual_transactions and goal_forecasting, "
+            f"not {args.task!r}"
         )
     run = categorize_dataset(
         args.data,
@@ -360,7 +374,8 @@ def model_main(argv: Sequence[str] | None = None) -> int:
 
     pred = commands.add_parser(
         "predict",
-        help="categorize (or flag unusual charges in) a dataset with the promoted model",
+        help="categorize a dataset (or flag unusual charges, or fit goal forecast states) with "
+        "the promoted model",
     )
     pred.add_argument("--task", required=True)
     pred.add_argument("--data", type=Path, required=True, help="a generated dataset")

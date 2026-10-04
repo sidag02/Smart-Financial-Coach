@@ -8,7 +8,11 @@ writes `dataset.sqlite` (the demo accounts' model-visible rows and the dataset's
 when one has been committed, and, once an FR-7 model is promoted, `flags.sqlite`: its
 unusual-charge flags for them, scored against merchant profiles of every user in `--data` (FR-7
 §8). Without a promoted FR-7 model the bundle has no flag file and unusual charges stay "not
-available yet".
+available yet". Likewise, once a goal-forecasting model is promoted, `forecasts.json`: each demo
+account's forecast state and what serving needs of the model (FR-11 and FR-12 design, §7); without
+one, the file has naive pace behind it (owner decision 10 on #54): a simple projection of each
+goal's pace so far, with no chance or range, so the pipeline runs end to end until a model is
+promoted.
 The image ships this bundle, so serving needs no model, no network and no writable disk
 (Web App UI, "Demo build").
 """
@@ -25,6 +29,8 @@ from smart_financial_coach.experience.accounts import load_accounts
 from smart_financial_coach.intelligence.anomaly.batch import SERVICE as FLAG_SERVICE
 from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
 from smart_financial_coach.intelligence.categorization.batch import categorize_dataset
+from smart_financial_coach.intelligence.forecasting.batch import FORECASTS_FILE, forecast_dataset
+from smart_financial_coach.intelligence.forecasting.contract import SERVICE as FORECAST_SERVICE
 from smart_financial_coach.intelligence.models.artifact import POINTER_FILE
 
 ACCOUNTS_FILE = "accounts.yaml"
@@ -40,6 +46,7 @@ class DemoBundle:
     model_version: str
     flag_model_version: str | None = None  # None: no FR-7 model promoted, no flags
     flags: int = 0
+    forecast_model_version: str | None = None  # BASELINE_VERSION: no forecasting model promoted
 
 
 def _ddl(name: str) -> str:
@@ -99,8 +106,15 @@ def build_demo(
     flags_file = out / "flags.sqlite"
     flags_file.unlink(missing_ok=True)  # a stale file would show another model's flags
     flag_run = None
-    if ((artifacts_dir or get_settings().artifacts_dir) / FLAG_SERVICE / POINTER_FILE).exists():
+    artifacts = artifacts_dir or get_settings().artifacts_dir
+    if (artifacts / FLAG_SERVICE / POINTER_FILE).exists():
         flag_run = flag_dataset(dataset, flags_file, pool=data, artifacts_dir=artifacts_dir)
+    forecasts_file = out / FORECASTS_FILE
+    forecasts_file.unlink(missing_ok=True)  # a stale file would forecast with another model
+    promoted = (artifacts / FORECAST_SERVICE / POINTER_FILE).exists()
+    forecast_run = forecast_dataset(
+        dataset, forecasts_file, artifacts_dir=artifacts_dir, baseline=not promoted
+    )
     shutil.copyfile(accounts_file, out / ACCOUNTS_FILE)
     if replay.exists():
         shutil.copyfile(replay, out / REPLAY_FILE)
@@ -115,4 +129,5 @@ def build_demo(
         run.model_version,
         flag_run.model_version if flag_run else None,
         flag_run.flagged if flag_run else 0,
+        forecast_run.model_version,
     )

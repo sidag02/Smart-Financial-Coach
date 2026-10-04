@@ -1,6 +1,7 @@
 """The ledger and tools read one user's data only, and their numbers add up."""
 
 import json
+from dataclasses import replace
 from datetime import date
 from pathlib import Path
 
@@ -121,7 +122,10 @@ def test_end_dates_past_the_data_are_cut_at_as_of(tools: Tools) -> None:
 
 
 def test_unbuilt_services_say_not_available_and_give_no_numbers(tools: Tools) -> None:
-    goal_id = tools.call("list_goals", {}).data["goals"][0]["goal_id"]
+    # An active goal: an ended one has nothing to forecast, model or not
+    goals = tools.ledger.goals.head(1).assign(target_date="2027-06-30", current_balance=0.0)
+    tools = Tools(replace(tools.ledger, goals=goals))
+    goal_id = str(goals["goal_id"].iloc[0])
     for name, args in (("detect_anomalies", month(tools)), ("forecast_goal", {"goal_id": goal_id})):
         result = tools.call(name, args)
         assert result.data["status"] == "not_available"

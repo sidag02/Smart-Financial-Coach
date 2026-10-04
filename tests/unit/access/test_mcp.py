@@ -210,13 +210,13 @@ def test_tool_errors_come_back_as_tool_errors(client: TestClient, users: list[st
         in_worker_thread(
             client, lambda: tools.call("get_transactions", {**SEPTEMBER, "limit": "ten"})
         )
-    goal_id = in_worker_thread(client, lambda: tools.call("list_goals", {})).data["goals"][0][
-        "goal_id"
-    ]
+    trip = {"name": "Trip", "target_amount": 3000, "target_date": "2027-06-01", "confirm": True}
+    created = in_worker_thread(client, lambda: tools.call("create_goal", trip))
+    goal_id = created.data["goal"]["goal_id"]
     not_available = in_worker_thread(
         client, lambda: tools.call("forecast_goal", {"goal_id": goal_id})
     )
-    assert not_available.data["status"] == "not_available"
+    assert not_available.data["status"] == "not_available"  # no goal-forecasting model here
 
 
 def test_the_connect_page_hands_out_a_working_token_for_the_signed_in_user(

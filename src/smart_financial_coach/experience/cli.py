@@ -21,6 +21,7 @@ DEV_PASSWORD = "demo-password"
 
 def _build(args: argparse.Namespace) -> int:
     from smart_financial_coach.experience.demo import build_demo
+    from smart_financial_coach.intelligence.forecasting.batch import BASELINE_VERSION
 
     bundle = build_demo(args.data, args.accounts, args.out)
     print(
@@ -31,6 +32,10 @@ def _build(args: argparse.Namespace) -> int:
         print(f"  {bundle.flags} unusual charges flagged by {bundle.flag_model_version}")
     else:
         print("  no unusual-transaction model promoted: unusual charges stay not available")
+    if bundle.forecast_model_version == BASELINE_VERSION:
+        print("  no goal-forecasting model promoted: goals get a simple projection (naive pace)")
+    else:
+        print(f"  goal forecast states from {bundle.forecast_model_version}")
     return 0
 
 
