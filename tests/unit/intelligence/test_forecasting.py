@@ -90,6 +90,18 @@ def test_a_goal_that_fell_is_inferred_too() -> None:
     assert share == pytest.approx(0.4)
 
 
+@pytest.mark.parametrize(
+    ("net", "start", "end"),
+    [([-1000.0, -1000.0, 2500.0], 3000.0, 2900.0), ([500.0, -500.0], 3000.0, 2800.0)],
+)
+def test_a_fall_no_share_explains_carries_no_share(
+    net: list[float], start: float, end: float
+) -> None:
+    """Money taken out while net savings rose: no share reproduces it, and the cap would be the
+    most optimistic forecast for a goal that went down (review on #51)."""
+    assert infer_share(np.array(net), start, end) is None
+
+
 def test_months_left_and_status_bands() -> None:
     assert months_left(date(2026, 9, 30), date(2027, 6, 30)) == 9
     assert months_left(date(2026, 9, 15), date(2027, 6, 30)) == 10
