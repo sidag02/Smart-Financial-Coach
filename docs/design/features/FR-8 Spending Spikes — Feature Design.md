@@ -482,7 +482,32 @@ From milestone 3 (the round on validation, FR-8 Spending Spikes — Round Result
   - the estimator is documented as run, not changed after the results.
 - **Ablations are report-only runs:** a config tag `report_only: "true"` keeps a run out of the ranking and out of `finalize`. It's a tag rather than a config field, so no existing run's config hash changes. The ablation without the spend floor isn't possible, since the contract enforces the floor on every flag; the POC's measurement stands for it.
 - **Seasonality earns nothing out of fold** (0.518 without, 0.516 with), and κ landed on the top of the decided grid (2). Both are reported, not acted on.
-- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3 are owner decisions: it runs with both product rules, and its expected count is floored at 0.3 like every count model's.
+- **The simple count rule is a baseline run** (reported, never gated), so `finalize` scores it on test users with the gated baseline, as FR-7's report-only baseline was. Since decision 15 it's cut at the fallback's rate, not at precision 0.80. Its departures from §3: it runs with both product rules (an owner decision), and its expected count is floored at 0.3, an implementation detail shared by every count model.
+
+From milestone 4, test scoring and promotion (FR-8 Spending Spikes — Round Results):
+
+- **Test users were scored once** (owner's go-ahead on #61, after decisions 15 and 16). Rank 1, `count_negbin`, passed every gate:
+  - precision **0.705** (0.634–0.770) against 0.70;
+  - recall at the rate **0.521** against the baseline's 0.158;
+  - every flag with evidence and valid drivers.
+- **Promoted** as `8c428c54-d85b4650-64917ea6` under milestone 4's rule (promote if the gates pass), and accepted by the owner after seeing the test results (Oct 4, 2026, on #62). The go-ahead on #61 covered test scoring, not promotion in advance. **Known limit:** the precision margin is thin, 0.799 out of fold and 0.705 on test, with the flag rate rising from 0.035 to 0.039. Reviewing the cutoff on real data is part of v2's re-validation.
+- On predicted categories, precision is 0.777 and recall at the rate 0.526. The fallback simple rule would also have passed precision (0.705).
+
+From milestone 4, serving (built before test scoring, so the simple rule served until the promotion):
+
+- **`spikes.json`** holds the scorer (its spec and what it fitted) and the season table's sums and counts per (category, month of year, as-of month): no row of any user (a test checks it). It's 21 KB for the default data.
+- **The simple rule's cutoff is fitted on the whole pool at 0.035 flags per user-month,** without labels (decision 12). On the default data's 360 users it's a tail score of 8.93. A promoted model replaces it in the same file, and nothing else changes.
+- **The demo bundle categorizes the full `--data` pool** with the promoted categorizer for the season table: 51 s for 1.1 million transactions. The whole `build-demo` takes about 1 minute 45 seconds.
+- **Per request:** one user's spikes take about 75 ms (`detect_anomalies` over their whole history), well inside NFR-5. A test holds it under 1 s.
+- **`detect_anomalies`' two halves are independent:** unusual charges are "not available" without an FR-7 model, and spikes without a spikes file. Each spike says `simple_rule` when the simple rule found it. The card shows a "Simple rule" badge and the coach says so.
+- **`/healthz` scores every demo account's spikes,** so a deploy's smoke test reads user data (and reports which scorer serves).
+- **Review on #62:**
+  - the card and the coach say "simple rule" whenever that scorer serves, even with no spike;
+  - the deploy's smoke test requires a spikes scorer in `/healthz`;
+  - `spikes.json` records the categorizer its table was built on, and loading it fails against other predictions;
+  - the source line says when unusual charges weren't checked.
+- **The table's cells are cumulative by as-of month,** so differencing two consecutive cells shows the total change of the users who joined or changed that month. Every cell has at least 20 other users (65+ on the default data), within the decided format (review on #62).
+- **What the simple rule got wrong in the demo:** it has no season, so the family account's August 2024 Shopping, a seasonal peak, reads as a spike. The candidates' season term exists to explain such months. It's outside "Worth a look"'s 60-day window, but the coach can find it when asked about 2024.
 
 ## Decisions and open questions
 

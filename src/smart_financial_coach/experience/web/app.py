@@ -258,6 +258,10 @@ def create_app(
     password = SharedPassword(settings.demo_password.get_secret_value())
     as_of = sources.as_of()
     flags_live = sources.flags is not None  # an FR-7 model is promoted and its flags are here
+    spikes_live = sources.spikes is not None  # a spikes file: the FR-8 model or the simple rule
+    state = sources.spike_state()
+    spike_method = state.method if state is not None else None  # "model" or "simple_rule"
+    alerts_live = flags_live or spikes_live
     essentials = frozenset(settings.essentials)
     unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
     if unknown:
@@ -401,7 +405,7 @@ def create_app(
                 "theme": theme if theme in ("light", "dark") else None,
                 "mockups": mockups,
                 "mockup_page": MOCKUP_PAGE,
-                "flags_live": flags_live,
+                "flags_live": alerts_live,
                 **context,
             },
         )
@@ -434,11 +438,20 @@ def create_app(
         container's health check then catch an unreadable or incomplete bundle."""
         try:
             for account in accounts:
-                Ledger.load(sources, account.user_id)  # cached after the first check
+                ledger = Ledger.load(sources, account.user_id)  # cached after the first check
+                if ledger.spikes is not None:  # scoring reads the user's data, so check it runs
+                    ledger.spikes.score(ledger.user_id, ledger.transactions, ledger.transactions)
         except Exception:
             log.exception("health check: the demo data doesn't load")
             return JSONResponse({"status": "error", "as_of": as_of.isoformat()}, 503)
-        return JSONResponse({"status": "ok", "as_of": as_of.isoformat(), "users": len(accounts)})
+        return JSONResponse(
+            {
+                "status": "ok",
+                "as_of": as_of.isoformat(),
+                "users": len(accounts),
+                "spikes": spike_method,
+            }
+        )
 
     @app.get("/signin")
     def signin_page(request: Request) -> Response:
@@ -514,6 +527,8 @@ def create_app(
             goal=featured_goal(tools),
             trend=charts.trend(months, month_key(period.start)),
             flags=recent_flags(tools) if flags_live else [],
+            spikes=recent_spikes(tools) if spikes_live else [],
+            spike_method=spike_method,
             overview_flags=OVERVIEW_FLAGS,
             window_days=FLAG_WINDOW_DAYS,
             **flow_context(tools, period, horizon),
@@ -829,17 +844,33 @@ def create_app(
         flags: list[dict[str, Any]] = found.get("unusual_transactions", [])
         return sorted(flags, key=lambda f: (f["date"], f["transaction_id"]), reverse=True)
 
+    def recent_spikes(tools: Tools) -> list[dict[str, Any]]:
+        """Spikes in months that ended in the last `FLAG_WINDOW_DAYS` days, newest first (FR-8
+        §8, decision 9). Only complete months are judged."""
+        start = as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)
+        first = start.replace(day=1)
+        found = tools.detect_anomalies(first.isoformat(), as_of.isoformat()).data
+        spiking = found.get("spending_spikes", {})
+        if spiking.get("status") != "ok":
+            return []
+        return [s for s in spiking["spikes"] if s["period_end"] >= start.isoformat()]
+
     @app.get("/worth-a-look")
     def worth_a_look(request: Request) -> Response:
         account = signed_in(request)
-        if not flags_live:
+        if not alerts_live:
             return page(request, "coming.html", account, active="flags")
+        tools = tools_for(account, request)
         return page(
             request,
             "worth_a_look.html",
             account,
             active="flags",
-            flags=recent_flags(tools_for(account, request)),
+            unusual_live=flags_live,
+            spikes_live=spikes_live,
+            flags=recent_flags(tools) if flags_live else [],
+            spikes=recent_spikes(tools) if spikes_live else [],
+            spike_method=spike_method,
             start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
             end=as_of.isoformat(),
             window_days=FLAG_WINDOW_DAYS,

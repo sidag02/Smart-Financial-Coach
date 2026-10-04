@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% from "_macros.html" import month_picker, goal_status %}
-{% from "_flags.html" import flag_row %}
+{% from "_flags.html" import flag_row, spike_row %}
 {% block title %}Overview · Smart Financial Coach{% endblock %}
 {% block main %}
 <div class="page-head">
@@ -59,10 +59,12 @@
 
   <section class="card stack">
     {% if flags_live %}
-    <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">{% if flags %}See all {{ flags | length }}{% else %}Open{% endif %}</a></div>
-    {% if flags %}
+    {% set alerts = (spikes | length) + (flags | length) %}
+    <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">{% if alerts %}See all {{ alerts }}{% else %}Open{% endif %}</a></div>
+    {% if alerts %}
     <ul class="flags">
-      {% for f in flags[:overview_flags] %}{{ flag_row(f) }}{% endfor %}
+      {% for s in spikes[:overview_flags] %}{{ spike_row(s, charges=False) }}{% endfor %}
+      {% for f in flags[:overview_flags - (spikes[:overview_flags] | length)] %}{{ flag_row(f) }}{% endfor %}
     </ul>
     {% else %}
     <div class="soon-box"><span>Nothing unusual in the last {{ window_days }} days.</span></div>

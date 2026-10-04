@@ -1,15 +1,17 @@
 {% extends "base.html" %}
-{% from "_flags.html" import flag_row %}
+{% from "_flags.html" import flag_row, spike_row %}
 {% block title %}Worth a look · Smart Financial Coach{% endblock %}
 {% block main %}
 <div class="page-head"><div>
   <h1 class="page-title">Worth a look</h1>
-  <div class="page-sub">Charges that look different from your usual pattern, {{ start | day }} to {{ end | day }}. Nothing here means something is wrong.</div>
+  <div class="page-sub">Charges and months that look different from your usual pattern, {{ start | day }} to {{ end | day }}. Nothing here means something is wrong.</div>
 </div></div>
 <div class="coming">
   <section class="card stack">
     <div class="card-title">Unusual charges</div>
-    {% if flags %}
+    {% if not unusual_live %}
+    <p class="muted" style="margin:0">This switches on when the unusual-charge model (FR-7) is released.</p>
+    {% elif flags %}
     <ul class="flags">
       {% for f in flags %}{{ flag_row(f) }}{% endfor %}
     </ul>
@@ -18,10 +20,19 @@
     {% endif %}
   </section>
   <section class="card stack">
+    <div class="card-head"><div class="card-title">Spending spikes</div>{% if spike_method == "simple_rule" %}<span class="badge soon" title="No spending-spike model is released yet">Simple rule</span>{% endif %}</div>
+    {% if not spikes_live %}
     <span class="badge soon" style="align-self:flex-start">Coming next</span>
-    <div class="card-title">Spending spikes</div>
     <p class="muted" style="margin:0">A month where a category runs well above your normal level, with the charges behind it. This switches on when the spending-spike model (FR-8) is released.</p>
-    <p class="muted" style="margin:0">Ask {{ coach_name }} about any of these charges.</p>
+    {% elif spikes %}
+    <p class="muted" style="margin:0">Whole months where a category ran well above your average month over the past year{% if spike_method == "simple_rule" %}, found by a simple rule while the spending-spike model isn't released{% endif %}.</p>
+    <ul class="flags">
+      {% for s in spikes %}{{ spike_row(s) }}{% endfor %}
+    </ul>
+    {% else %}
+    <div class="empty">No category ran well above your usual level in the months that ended in the last {{ window_days }} days{% if spike_method == "simple_rule" %}, by a simple rule (the spending-spike model isn't released yet){% endif %}.</div>
+    {% endif %}
+    <p class="muted" style="margin:0">Ask {{ coach_name }} about any of these.</p>
     <a class="btn" style="align-self:flex-start" href="/chat">Ask {{ coach_name }}</a>
   </section>
 </div>

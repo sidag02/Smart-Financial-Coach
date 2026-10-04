@@ -12,19 +12,24 @@ available yet". Likewise, once a goal-forecasting model is promoted, `forecasts.
 account's forecast state and what serving needs of the model (FR-11 and FR-12 design, §7); without
 one, the file has naive pace behind it (owner decision 10 on #54): a simple projection of each
 goal's pace so far, with no chance or range, so the pipeline runs end to end until a model is
-promoted.
+promoted. And `spikes.json` (FR-8 §8): the spike scorer and the category season profiles, built
+from every user in `--data` on the promoted categorizer's predictions, since the demo accounts
+alone are too few for a profile. Without a promoted spike model it holds the simple rule (owner
+decision 12 on #58), labelled as such.
 The image ships this bundle, so serving needs no model, no network and no writable disk
 (Web App UI, "Demo build").
 """
 
 import shutil
 import sqlite3
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
 from smart_financial_coach.config import PROJECT_ROOT, get_settings
 from smart_financial_coach.data import store
 from smart_financial_coach.data.generator.dataset import MODEL_TABLES, TABLES
+from smart_financial_coach.data.predictions import load_categories
 from smart_financial_coach.experience.accounts import load_accounts
 from smart_financial_coach.intelligence.anomaly.batch import SERVICE as FLAG_SERVICE
 from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
@@ -32,6 +37,12 @@ from smart_financial_coach.intelligence.categorization.batch import categorize_d
 from smart_financial_coach.intelligence.forecasting.batch import FORECASTS_FILE, forecast_dataset
 from smart_financial_coach.intelligence.forecasting.contract import SERVICE as FORECAST_SERVICE
 from smart_financial_coach.intelligence.models.artifact import POINTER_FILE
+from smart_financial_coach.intelligence.spikes.batch import (
+    SPIKES_FILE,
+    SpikeState,
+    build_state,
+    write_state,
+)
 
 ACCOUNTS_FILE = "accounts.yaml"
 REPLAY_FILE = "replay.json"
@@ -47,6 +58,8 @@ class DemoBundle:
     flag_model_version: str | None = None  # None: no FR-7 model promoted, no flags
     flags: int = 0
     forecast_model_version: str | None = None  # BASELINE_VERSION: no forecasting model promoted
+    spike_model_version: str | None = None  # SIMPLE_RULE: no spike model promoted
+    spike_method: str | None = None
 
 
 def _ddl(name: str) -> str:
@@ -115,6 +128,7 @@ def build_demo(
     forecast_run = forecast_dataset(
         dataset, forecasts_file, artifacts_dir=artifacts_dir, baseline=not promoted
     )
+    spike_state = _spikes(data, out / SPIKES_FILE, artifacts_dir)
     shutil.copyfile(accounts_file, out / ACCOUNTS_FILE)
     if replay.exists():
         shutil.copyfile(replay, out / REPLAY_FILE)
@@ -130,4 +144,23 @@ def build_demo(
         flag_run.model_version if flag_run else None,
         flag_run.flagged if flag_run else 0,
         forecast_run.model_version,
+        spike_state.version,
+        spike_state.method,
     )
+
+
+def _spikes(data: Path, out: Path, artifacts_dir: Path | None) -> SpikeState:
+    """The spikes file: season profiles from every user in `data`, on the promoted categorizer's
+    predictions (FR-8 §2: shared, nobody's corrections), and the scorer."""
+    out.unlink(missing_ok=True)  # a stale file would score with another model
+    with tempfile.TemporaryDirectory() as tmp:
+        predictions = Path(tmp) / "pool_predictions.sqlite"
+        run = categorize_dataset(data, predictions, artifacts_dir=artifacts_dir, overwrite=True)
+        pool = store.load_transactions(data).merge(
+            load_categories(predictions)[["transaction_id", "category"]], on="transaction_id"
+        )
+    state = build_state(
+        pool, as_of=store.load_meta(data)["calendar_end"], artifacts_dir=artifacts_dir
+    )
+    write_state(state, out, users=int(pool["user_id"].nunique()), categorizer=run.model_version)
+    return state

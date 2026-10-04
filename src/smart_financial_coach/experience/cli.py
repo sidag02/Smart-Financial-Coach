@@ -22,6 +22,7 @@ DEV_PASSWORD = "demo-password"
 def _build(args: argparse.Namespace) -> int:
     from smart_financial_coach.experience.demo import build_demo
     from smart_financial_coach.intelligence.forecasting.batch import BASELINE_VERSION
+    from smart_financial_coach.intelligence.spikes.batch import METHOD_SIMPLE
 
     bundle = build_demo(args.data, args.accounts, args.out)
     print(
@@ -36,6 +37,10 @@ def _build(args: argparse.Namespace) -> int:
         print("  no goal-forecasting model promoted: goals get a simple projection (naive pace)")
     else:
         print(f"  goal forecast states from {bundle.forecast_model_version}")
+    if bundle.spike_method == METHOD_SIMPLE:
+        print("  no spending-spike model promoted: spikes come from the simple rule")
+    else:
+        print(f"  spending spikes scored by {bundle.spike_model_version}")
     return 0
 
 

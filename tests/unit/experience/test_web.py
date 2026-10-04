@@ -110,7 +110,12 @@ def test_pages_need_a_signed_in_user(client: TestClient) -> None:
     htmx = client.get("/flow", headers={"HX-Request": "true"})
     assert htmx.status_code == 204
     assert htmx.headers["HX-Redirect"] == "/signin"
-    assert client.get("/healthz").json() == {"status": "ok", "as_of": "2026-09-30", "users": 2}
+    assert client.get("/healthz").json() == {
+        "status": "ok",
+        "as_of": "2026-09-30",
+        "users": 2,
+        "spikes": None,
+    }
 
 
 def test_sign_in_checks_email_and_password(client: TestClient) -> None:
@@ -435,6 +440,78 @@ def test_worth_a_look_lists_the_users_flags(
     assert ("Nothing unusual" in page) == (not shown)
     assert "once the alert models are released" not in overview
     assert overview.count('class="flag"') == min(len(shown), 3)
+
+
+def test_worth_a_look_lists_spending_spikes_from_the_simple_rule(
+    spike_sources: DataSources, accounts: list[Account]
+) -> None:
+    from smart_financial_coach.access.tools import Tools
+
+    ledger = Ledger.load(spike_sources, accounts[0].user_id)
+    found = Tools(ledger).detect_anomalies("2026-08-01", "2026-09-30").data["spending_spikes"]
+    shown = found["spikes"]
+    with make_client(spike_sources, accounts) as c:
+        sign_in(c)
+        page = c.get("/worth-a-look").text
+        overview = c.get("/").text
+        health = c.get("/healthz").json()
+
+    assert "Spending spikes" in page
+    assert "Coming next" not in page
+    # The simple rule is labelled on the card itself, whether or not it found anything
+    assert 'title="No spending-spike model is released yet">Simple rule' in page
+    assert ("by a simple rule (the spending-spike model" in page) == (not shown)
+    assert "unusual-charge model (FR-7) is released" in page  # no FR-7 flags in these sources
+    assert page.count("Spending spike</span>") == len(shown)
+    assert ("No category ran well above" in page) == (not shown)
+    assert "once the alert models are released" not in overview
+    assert health["spikes"] == "simple_rule"
+
+
+def test_a_promoted_model_isnt_labelled_a_simple_rule(
+    promoted_spike_sources: DataSources, accounts: list[Account]
+) -> None:
+    with make_client(promoted_spike_sources, accounts) as c:
+        sign_in(c)
+        page = c.get("/worth-a-look").text
+        health = c.get("/healthz").json()
+    assert "Simple rule" not in page
+    assert "by a simple rule" not in page
+    assert health["spikes"] == "model"
+
+
+def test_spike_rows_name_the_largest_charges_not_the_cause() -> None:
+    from jinja2 import Environment, FileSystemLoader
+
+    from smart_financial_coach.experience.web.app import day, month_name
+
+    folder = Path(create_app.__code__.co_filename).parent / "templates"
+    env = Environment(loader=FileSystemLoader(folder), autoescape=True)
+    env.filters.update(money=money, day=day, month_name=month_name)
+    row = env.from_string('{% from "_flags.html" import spike_row %}{{ spike_row(s) }}')
+    spike = {
+        "kind": "Spending spike",
+        "simple_rule": True,
+        "period_start": "2026-08-01",
+        "category": "Dining",
+        "count": 48,
+        "usual_count": 18.6,
+        "actual": 1853.0,
+        "reason": "You spent $1,853 on Dining in August 2026, …",
+        "largest_charges": [
+            {"date": "2026-08-14", "merchant": "Blue Bottle", "amount": 212.4},
+        ],
+        "other_purchases": 47,
+    }
+    html = row.render(s=spike)
+
+    assert "Largest charges" in html
+    assert "and 47 more purchases" in html
+    assert "Simple rule" in html
+    assert "Aug 2026" in html
+    assert "48 purchases against about 19" in html
+    assert "caus" not in html.lower()
+    assert "Largest charges" not in row.render(s=spike | {"largest_charges": []})
 
 
 def test_transactions_mark_flagged_charges(
