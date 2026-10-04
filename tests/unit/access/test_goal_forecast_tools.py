@@ -1,6 +1,7 @@
 """FR-11/FR-12 tools: forecast_goal, check_goal's forecast and fit badge, list_goals' statuses;
 a draft gets the saved goal's numbers; reached goals hide the probability."""
 
+import sqlite3
 from collections.abc import Iterator
 from dataclasses import replace
 from datetime import date
@@ -27,9 +28,13 @@ from smart_financial_coach.config import Settings
 from smart_financial_coach.data.store import load_goals
 from smart_financial_coach.experience.accounts import Account
 from smart_financial_coach.experience.web.app import create_app
-from smart_financial_coach.intelligence.forecasting.batch import GoalForecaster
-from smart_financial_coach.intelligence.forecasting.contract import ON_TRACK
-from smart_financial_coach.intelligence.forecasting.paths import run_with_deposit
+from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
+from smart_financial_coach.intelligence.forecasting.contract import (
+    ON_TRACK,
+    history_json,
+    parse_history,
+)
+from smart_financial_coach.intelligence.forecasting.paths import PathsModel, run_with_deposit
 from tests.unit.access.test_mcp import SECRET, in_worker_thread, mcp_tools
 
 TODAY = date(2026, 9, 30)
@@ -180,6 +185,7 @@ def test_a_new_goal_shares_the_typical_allocation(page: Tools) -> None:
     trip = by_name(page)["Trip"]
     out = page._forecasts([g for g in page._goals() if g.running(TODAY)])
     assert out is not None
+    assert isinstance(forecaster.model, PathsModel)
     assert out[trip["goal_id"]]["share"] == pytest.approx(forecaster.model.typical_total / 3)
 
 
@@ -190,15 +196,11 @@ def test_an_invalid_draft_has_no_forecast(page: Tools) -> None:
     assert "fit" not in data
 
 
-def test_a_short_history_says_so(page: Tools, ledger: Ledger) -> None:
-    forecaster = ledger.forecaster
-    assert forecaster is not None
-    states = dict(forecaster.states)
-    states[ledger.user_id] = replace(states[ledger.user_id], months=4)
-    short = GoalForecaster(forecaster.model, states, forecaster.as_of)
-    tools = Tools(replace(ledger, forecaster=short), goals=page.goals)
-
-    f = tools.call("forecast_goal", {"goal_id": "g_x_1"}).data
+def test_a_short_history_says_so(page: Tools) -> None:
+    """Fewer than 6 full months of the user's own history: "a rough guide"."""
+    history = parse_history(page._net_history())
+    page._history = history_json(history[-4:])
+    f = page.call("forecast_goal", {"goal_id": "g_x_1"}).data
     assert f["months_of_history"] == 4
     assert f["short_history"] is True
 
@@ -269,7 +271,7 @@ def test_forecast_fields_round_and_hide() -> None:
         "may_draw_down": np.True_,
         "model_version": "v",
     }
-    f = forecast_fields(out, 30, lambda v: round(float(v), 2))
+    f = forecast_fields(out, 30, lambda v: round(float(v), 2), target=2000.0)
     assert f["projected_balance"] == 2300.46
     assert f["may_draw_down"] is True
     assert f["p_goal_met"] is None
@@ -308,3 +310,63 @@ def test_mcp_gives_the_same_forecast_as_the_tools(
         args = {"goal_id": goal["goal_id"]}
         over_mcp = in_worker_thread(forecast_client, partial(remote.call, "forecast_goal", args))
         assert over_mcp.data == local.call("forecast_goal", args).data
+
+
+@pytest.fixture
+def baseline_page(
+    sources: DataSources, two_users: tuple[str, str], store: GoalStore, tmp_path: Path
+) -> Tools:
+    """No model promoted: naive pace behind the same pipeline (owner decision 10 on #54)."""
+    forecast_dataset(sources.dataset, tmp_path / "forecasts.json", baseline=True)
+    baseline = DataSources(
+        sources.dataset, sources.predictions, sources.flags, tmp_path / "forecasts.json"
+    )
+    ledger = replace(Ledger.load(baseline, two_users[0]), goals=GOALS)
+    return Tools(ledger, goals=GoalAccess(store, "s1"))
+
+
+def test_the_baseline_is_a_simple_projection_with_no_chance(baseline_page: Tools) -> None:
+    f = baseline_page.call("forecast_goal", {"goal_id": "g_x_1"}).data
+    assert f["method"] == "simple_projection"
+    assert f["status"] in ("on_track", "off_track")
+    assert f["p_goal_met"] is None
+    assert f["range"] is None
+    assert f["monthly"] == []
+    assert f["share_source"] is None
+    # The pace so far, extended: $2,140 over Jan-Sep (9 months), 3 more months
+    assert f["projected_balance"] == pytest.approx(2140 + 2140 / 9 * 3, abs=0.01)
+    vacation = by_name(baseline_page)["Vacation fund"]
+    assert vacation["forecast_method"] == "simple_projection"
+    assert vacation["p_goal_met"] is None
+
+
+def test_the_baseline_gives_no_fit_and_no_projection_for_a_new_goal(baseline_page: Tools) -> None:
+    assert baseline_page.call("check_goal", TRIP).data["forecast"] == "not_available"
+    edit = baseline_page.call("check_goal", {"goal_id": "g_x_1", "target_amount": 2500}).data
+    assert edit["forecast"]["method"] == "simple_projection"
+    assert edit["fit"] is None
+
+
+def test_a_goal_you_keep_up_gets_a_share_from_your_entries(page: Tools, store: GoalStore) -> None:
+    """An FR-10 goal with two saved entries 3+ months apart: the share comes from them (§3)."""
+    page.call("create_goal", {**TRIP, "saved": 400})
+    trip = by_name(page)["Trip"]
+    with sqlite3.connect(store.path) as conn:  # the first entry, six months ago
+        conn.execute(
+            "UPDATE goal_revisions SET saved_as_of = '2026-03-31', created_date = '2026-03-31' "
+            "WHERE goal_id = ?",
+            (trip["goal_id"],),
+        )
+    page.call("update_goal", {"goal_id": trip["goal_id"], "saved": 2400})
+    f = page.call("forecast_goal", {"goal_id": trip["goal_id"]}).data
+    assert f["share_source"] == "your_entries"
+
+
+def test_forecasting_one_goal_matches_the_whole_set(page: Tools) -> None:
+    running = [g for g in page._goals() if g.running(TODAY)]
+    whole = page._forecasts(running)
+    one = page._forecasts(running, only="g_x_1")
+    assert whole is not None
+    assert one is not None
+    assert list(one) == ["g_x_1"]
+    assert one["g_x_1"] == whole["g_x_1"]

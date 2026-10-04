@@ -10,6 +10,7 @@
 {% set f = check.forecast %}
 {% if f is mapping and f.status != "reached" %}
 <div style="font-size:13.5px">Alongside your other goals, you'd likely have <b>{{ f.projected_balance | money }}</b> by then, between {{ f.range.low | money }} and {{ f.range.high | money }}: {{ f.p_goal_met | chance }} you'd make it.{% if f.extra_per_month %} Setting aside {{ f.extra_per_month | money }} more a month would put it within reach.{% endif %}</div>
+<div class="muted" style="font-size:13px">This assumes a month where you spend more than you earn draws on what you've set aside.</div>
 {% if f.short_history %}<div class="muted" style="font-size:13px">Based on only {{ f.months_of_history }} month{{ "s" if f.months_of_history != 1 }} of your history, so this is a rough guide.</div>{% endif %}
 {% endif %}
 {% elif problems %}

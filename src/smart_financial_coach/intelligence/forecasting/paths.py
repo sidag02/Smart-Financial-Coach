@@ -26,7 +26,7 @@ and the same goal once saved get identical numbers, and two goals share one futu
 
 import hashlib
 import warnings
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, replace
 from typing import Any, Self
 
@@ -487,12 +487,21 @@ class PathsModel(BaseModel):
         return self._predict(x, fitted)
 
     def predict_with_states(
-        self, x: pd.DataFrame, states: Mapping[str, ForecastState]
+        self,
+        x: pd.DataFrame,
+        states: Mapping[str, ForecastState],
+        *,
+        paths_of: Callable[[str], Floats] | None = None,
+        only: Collection[str] | None = None,
     ) -> pd.DataFrame:
         """`predict` with each user's state given, as the nightly batch stored it (§7), instead
         of fitted from `history_json`. The history is still read, for a goal's track record.
         A state must end at its rows' `as_of` month: one fitted at another `as_of` would forecast
-        months that already happened."""
+        months that already happened.
+
+        Serving passes `paths_of`, its per-user cache of the same paths (`paths_for`), and
+        `only`, the example ids it needs: every row still shares in the goal set's split (§3),
+        but only those are forecast and returned (review on #55)."""
 
         def stored(r: Mapping[Any, Any]) -> ForecastState:
             state = states[str(r["user_id"])]
@@ -502,19 +511,31 @@ class PathsModel(BaseModel):
                 )
             return state
 
-        return self._predict(x, stored)
+        return self._predict(x, stored, paths_of=paths_of, only=only)
 
     def _predict(
-        self, x: pd.DataFrame, state_of: Callable[[Mapping[Any, Any]], ForecastState]
+        self,
+        x: pd.DataFrame,
+        state_of: Callable[[Mapping[Any, Any]], ForecastState],
+        *,
+        paths_of: Callable[[str], Floats] | None = None,
+        only: Collection[str] | None = None,
     ) -> pd.DataFrame:
         cache: dict[tuple[str, str], tuple[ForecastState, Floats]] = {}
         rows: list[dict[str, Any]] = []
         shares = _shares(x, self.typical_total)
         for r, (share, source) in zip(x.to_dict("records"), shares, strict=True):
+            if only is not None and str(r["example_id"]) not in only:
+                continue
             key = (str(r["user_id"]), str(r["as_of_date"]))
             if key not in cache:
                 state = state_of(r)
-                cache[key] = (state, self.paths_for(key[0], r["as_of_date"], state))
+                paths = (
+                    paths_of(key[0])
+                    if paths_of is not None
+                    else self.paths_for(key[0], r["as_of_date"], state)
+                )
+                cache[key] = (state, paths)
             state, paths = cache[key]
             rows.append(self._forecast(r, state, paths, share, source))
         return output_frame(rows, self.version)

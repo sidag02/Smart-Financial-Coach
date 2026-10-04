@@ -97,6 +97,7 @@ main { padding: 32px 36px 48px; display: flex; flex-direction: column; gap: 20px
 .badge.soon { background: var(--warn-soft); color: var(--warn); }
 .badge.good { background: var(--good-soft); color: var(--good); }
 .badge.either { background: var(--accent-soft); color: var(--accent-strong); }
+.badge.ended { background: var(--pill); color: var(--muted); }
 .row-split { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--divider); padding-top: 10px; margin-top: 10px; }
 .row-split b { color: var(--text); }
 .grid-3 { display: grid; grid-template-columns: 1fr 1.15fr 1.15fr; gap: 16px; }

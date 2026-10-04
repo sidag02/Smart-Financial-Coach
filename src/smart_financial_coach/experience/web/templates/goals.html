@@ -21,17 +21,23 @@
   <section class="card stack goal-card">
     <div class="card-head">
       <b>{{ g.name }}</b>
-      {{ goal_status(g.status, g.forecast_status) }}
+      {{ goal_status(g.status, g.forecast_status, g.forecast_method) }}
     </div>
     <div><span class="mid">{{ g.saved | money }}</span> <span class="muted">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
     <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
     {% if g.status == "active" %}
     <div class="row-split"><span>{{ g.months_left }} month{{ "s" if g.months_left != 1 }} left</span><b class="num">{{ g.needed_per_month | money }} a month</b></div>
     {% if g.projected_balance is defined and g.projected_balance is not none %}
+    {% if g.forecast_method == "simple_projection" %}
+    <div style="font-size:13.5px">At your pace so far, about <b>{{ g.projected_balance | money }}</b> by then (a simple projection). <a href="/goals/{{ g.goal_id }}">Details</a></div>
+    {% else %}
     <div style="font-size:13.5px">Likely <b>{{ g.projected_balance | money }}</b> by then: {{ g.p_goal_met | chance }} you'll make it. <a href="/goals/{{ g.goal_id }}">See the forecast</a></div>
+    {% endif %}
+    {% if g.short_history %}<div class="muted" style="font-size:13px">Based on only a few months of your history, so this is a rough guide.</div>{% endif %}
     {% endif %}
     {% else %}
     <div class="row-split"><span>Saved the whole amount</span><b class="num">{{ g.target_amount | money }}</b></div>
+    {% if g.may_draw_down %}<div class="muted" style="font-size:13px">Months where you spend more than you earn could draw it down before {{ g.target_date | day }}.</div>{% endif %}
     {% endif %}
     <div class="goal-actions">
       <a class="btn-ghost" href="/goals/{{ g.goal_id }}">Forecast</a>
