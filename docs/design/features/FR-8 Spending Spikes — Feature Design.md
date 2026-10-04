@@ -441,6 +441,21 @@ One PR per milestone, stacked as FR-7's were.
 4. **Finalize, promote and serve:** finalists scored once on test users; promote if the gates pass. A failing gate means no promotion and a root-cause analysis (open question 1). Then the serving state, the on-request scoring, `detect_anomalies`' spikes half, the 1f card (with the simple-rule fallback), the coach and the demo bundle with its season profile file. This milestone ships whether or not a scorer is promoted.
 5. **Docs:** the Technical Design (contract, the feature-pipeline row, model selection, the evaluation row), the PRD's first-measurement note, and the Web App UI (1f, the "usual" question).
 
+## Implementation notes
+
+Departures and results from milestone 1:
+
+- **The season-profile check holds** (decision 13; `scripts/fr8_season_check.py`, train users only). At 0.035 flags per user-month, the POC leader with milestone 1's season profile has recall **0.513** and precision **0.762**, inside the fixed intervals (0.506–0.578, 0.737–0.860). The same script rebuilds the POC's median profile and reproduces the POC exactly (0.545, 0.809), so the difference comes from the profile alone:
+  - the clipped mean with milestone 1's own season, still pooled like the POC's (every user and month, nobody left out): 0.530 and 0.787;
+  - then as of each month, the scored user left out and at least 20 others: 0.513 and 0.762.
+
+  Most of the cost is the as-of rule, which is the honest part. The POC's pooled profile saw later years. As of the month, no earlier same-month observation exists anywhere in 2024 (observations start once a user has 3 months, in January 2024), so 36.4% of scored periods, all in 2024, get a season of 1. Floor on the plain usual or on the seasonal one: the same result.
+- **The user's own season averages every earlier year,** in log ratios clipped like the profile's (§2's table said "a year earlier"; `years` counts the observations). Under the as-of profile, the leader's recall and precision are the same either way at 0.035 (the two flag sets differ by 30 periods).
+- **Season observations need 3 earlier months,** as in the POC, so a user's first months never shape a season.
+- **A period's id** is `"<user_id>|<category>|<period_start>"`, since the framework's contracts key on one column. The tool and the label contract still use the three columns.
+- **Models supply only a score and a flag decision.** The base class applies both product rules on top and builds the evidence from the input row, so no model can flag a month the rules exclude or quote a number that isn't the user's own. The scorer passes models only the contract's input columns.
+- **Reason wording:** the month carries its year ("in August 2026"), since three years of history make "August" ambiguous. Amounts are whole dollars, and evidence keeps the cents. "About" is dropped when the usual count is a whole number.
+
 ## Decisions and open questions
 
 **Decisions** (owner, Oct 4, 2026, confirmed on #58). Any later decision that affects evaluation or test scoring goes to the owner before it runs.

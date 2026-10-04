@@ -28,6 +28,7 @@ SERVICE_MODULES: tuple[str, ...] = (
     "smart_financial_coach.intelligence.categorization.contract",
     "smart_financial_coach.intelligence.anomaly.contract",
     "smart_financial_coach.intelligence.forecasting.contract",
+    "smart_financial_coach.intelligence.spikes.contract",
 )
 
 
