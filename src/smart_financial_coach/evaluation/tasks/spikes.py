@@ -25,7 +25,8 @@ budget, as a deployed cutoff can't know them (FR-7's rule, review on #34). Each 
 its own tuned cutoff is reported beside it, and gates eligibility and promotion.
 """
 
-from collections.abc import Mapping
+import tempfile
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -33,9 +34,10 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
-from smart_financial_coach.data.features.monthly import period_ids
+from smart_financial_coach.data.features.monthly import month_index, period_ids
 from smart_financial_coach.data.labels import PERIOD_KEY, Truth, load_truth
 from smart_financial_coach.data.labels import metrics as outcome_metrics
+from smart_financial_coach.data.predictions import load_categories
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
 from smart_financial_coach.evaluation.metrics.classification import interval
 from smart_financial_coach.evaluation.splits import (
@@ -74,9 +76,17 @@ BASKET_ROWS = {"train": 400, "test": 200}
 BASKET_SEED = 0
 BASKET_MARK = "#basket"  # in a simulated row's period id, after the user id
 MAX_DRIVERS = 5
+LOOKALIKE_LIFT = 1.5  # spend this times usual makes a normal month a look-alike (FR-8 Main risk)
 COUNT_BANDS = ((0, 3.999, "under 4"), (4, 15.999, "4-15"), (16, 10**9, "16+"))
 HISTORY_BANDS = ((0, 11, "< 12 months"), (12, 23, "12-23"), (24, 10**9, "24+"))
 EVAL_COLUMNS = ["user_id", "category", "period_start", "label", "tier", "month", "split"]
+
+
+def _categorize(data: Path, out: Path) -> Any:
+    """The promoted categorizer's predictions for every transaction in `data`, into `out`."""
+    from smart_financial_coach.intelligence.categorization.batch import categorize_dataset
+
+    return categorize_dataset(data, out, overwrite=True)
 
 
 def labels_for(truth: Truth, periods: pd.DataFrame) -> pd.DataFrame:
@@ -131,6 +141,7 @@ class SpendingSpikesTask:
         "val_flag_rate",
         "val_recall_clear",
         "val_average_precision",
+        "val_basket_recall",
         "val_basket_recall_at_rate",
         "val_excess_coverage",
         "val_usual_error",
@@ -147,6 +158,10 @@ class SpendingSpikesTask:
         "test_flag_rate",
         "test_recall_clear",
         "test_basket_recall",
+        "test_basket_recall_at_rate",
+        "test_precision_predicted",
+        "test_recall_predicted",
+        "test_recall_at_rate_predicted",
     )
     required_baselines: tuple[str, ...] = (BASELINE,)
     bootstrap_unit = "user"
@@ -157,10 +172,15 @@ class SpendingSpikesTask:
         self.truth: Truth | None = None
         self.train_transactions: pd.DataFrame | None = None
         self.as_of = ""
+        self.data: Path | None = None
+        self.planted: set[str] = set()
+        # How test scoring gets the promoted categorizer's predictions (a seam for tests)
+        self.categorize: Callable[[Path, Path], Any] | None = _categorize
 
     # --- Data and splits -------------------------------------------------------------------
 
     def load(self, data: Path) -> Examples:
+        self.data = data
         meta = load_meta(data)
         truth = load_truth(data)
         self.truth = truth
@@ -180,6 +200,10 @@ class SpendingSpikesTask:
             ),
         ]
         frame = pd.concat(parts, ignore_index=True)
+        # History length counts from the user's first transaction's month, warm-up included
+        # (review on #60): scoring periods start 3 months later
+        first = txns.groupby("user_id")["ts"].min().astype(str).str[:7] + "-01"
+        frame["first_month"] = frame["user_id"].map(month_index(first)).astype(int)
         frame = frame[frame["period_start"] >= truth.warmup_end_month].reset_index(drop=True)
         frame = frame.merge(users, on="user_id", how="left")
         frame = pd.concat([frame, labels_for(truth, frame)], axis=1)
@@ -189,7 +213,7 @@ class SpendingSpikesTask:
             for i, (s, n) in enumerate(BASKET_ROWS.items())
         ]
         frame = pd.concat([frame, *extra], ignore_index=True)
-        frame["first_month"] = frame.groupby("user_id")["month"].transform("min")
+        self.planted = planted
         return Examples(
             frame=frame,
             labels=frame["label"],
@@ -335,6 +359,15 @@ class SpendingSpikesTask:
         top = inside.sort_values(["amount", "transaction_id"], kind="mergesort").groupby(PERIOD_KEY)
         return top.head(MAX_DRIVERS)[[*PERIOD_KEY, "transaction_id"]]
 
+    def _invalid_drivers(self, flagged: pd.DataFrame) -> float:
+        """Flags whose drivers break FR-2's rules (more than 5, or outside the period and
+        category): §5's gate 3 with the drivers serving shows, the 5 largest charges."""
+        assert self.truth is not None
+        if flagged.empty:
+            return 0.0
+        scored = self.truth.score_drivers(self._drivers(flagged))
+        return float((~scored["valid"].astype(bool)).sum())
+
     def _explanation(self, rows: pd.DataFrame, hits: pd.DataFrame) -> dict[str, float]:
         """Excess coverage of the drivers, and the error of the quoted usual, on true spikes."""
         assert self.truth is not None
@@ -356,6 +389,7 @@ class SpendingSpikesTask:
         months = user_months(rows[real])
         out["flag_rate"] = float((flagged & real).sum() / max(months, 1))
         out["flags_without_evidence"] = float((flagged & rows["evidence"].isna().to_numpy()).sum())
+        out["flags_with_invalid_drivers"] = self._invalid_drivers(rows[flagged & real])
         out["cutoff_shortfall"] = 1.0 - out["precision"]
 
         at_rate, basket_at_rate = self._at_rate(rows)
@@ -392,7 +426,42 @@ class SpendingSpikesTask:
         out["recall_at_rate_lo"], out["recall_at_rate_hi"] = interval(
             self._ratio(weights, at_rate, "tp", "positives")
         )
-        return out
+        return out | self._on_predicted_categories(model)
+
+    def _on_predicted_categories(self, model: Checked) -> dict[str, float]:
+        """Test precision and recall when the periods are built on the promoted categorizer's
+        predictions instead of the truth: what serving sees (FR-8 §5, reported, never gated).
+        Test users only, since train users' predictions are in-sample for the categorizer."""
+        if self.data is None or self.categorize is None or self.truth is None:
+            return {}
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp) / "predictions.sqlite"
+            self.categorize(self.data, out)
+            predicted = load_categories(out)[["transaction_id", "category"]]
+        txns = load_transactions(self.data).merge(predicted, on="transaction_id")
+        users = load_users(self.data)
+        test = txns["user_id"].isin(set(users.loc[users["split"] == "test", "user_id"]))
+        periods = scoring_periods(txns[test], txns, as_of=self.as_of)
+        periods = periods[periods["period_start"] >= self.truth.warmup_end_month]
+        periods = periods.reset_index(drop=True)
+        scored = model.predict(periods[list(INPUT_COLUMNS)])
+        rows = pd.concat(
+            [
+                scored[["period_id", "score", "is_flagged", "evidence"]],
+                periods[["user_id", "category", "period_start", "month", "usual", "usual_count"]],
+                periods[["spend"]],
+                labels_for(self.truth, periods),
+            ],
+            axis=1,
+        ).assign(fold=0)
+        rows["eligible"] = SpikeModel.eligible(rows)
+        own = outcome_metrics(self._outcomes(rows, rows["is_flagged"].to_numpy(dtype=bool)))
+        at_rate = outcome_metrics(self._outcomes(rows, self._at_rate(rows)[0]))
+        return {
+            "precision_predicted": own["precision"],
+            "recall_predicted": own["recall"],
+            "recall_at_rate_predicted": at_rate["recall"],
+        }
 
     # --- User bootstrap ----------------------------------------------------------------------
 
@@ -502,7 +571,16 @@ class SpendingSpikesTask:
             ]
             return head + body
 
+        planted = rows["category"].isin(self.planted).to_numpy()
+        lookalike = planted & (rows["label"] == NORMAL).to_numpy()
+        lookalike &= (rows["spend"] >= LOOKALIKE_LIFT * rows["usual"]).to_numpy()
+        n_spikes = max(len(spikes), 1)
         return [
+            f"Look-alikes (the main risk): {int(lookalike.sum())} normal months in the planted "
+            f"categories with spend at least {LOOKALIKE_LIFT}x usual "
+            f"({lookalike.sum() / n_spikes:.1f} per label); {int((lookalike & flagged).sum())} "
+            "flagged at the run's own cutoff.",
+            "",
             *counts("False positives by category", fp["category"]),
             "",
             *counts("By month of year", fp["period_start"].str[5:7]),
@@ -534,11 +612,13 @@ class SpendingSpikesTask:
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> list[Gate]:
         """§5: precision at least 0.70 on test users; recall above the mean ± k·std baseline's
-        at the same flag rate; and every flag carries its evidence (reason and size)."""
+        at the same flag rate; and every flag carries its evidence (reason and size) and valid
+        drivers."""
         precision = metrics.get("test_precision", float("nan"))
         recall = metrics.get("test_recall_at_rate", float("nan"))
         theirs = baselines.get(BASELINE, {}).get("test_recall_at_rate")
         unexplained = metrics.get("test_flags_without_evidence", float("nan"))
+        unexplained += metrics.get("test_flags_with_invalid_drivers", float("nan"))
         interval_text = (
             f" ({metrics.get('test_precision_lo', float('nan')):.3f}-"
             f"{metrics.get('test_precision_hi', float('nan')):.3f})"
@@ -554,7 +634,11 @@ class SpendingSpikesTask:
                 theirs is not None and recall > theirs,
                 f"{recall:.3f} vs {theirs:.3f}" if theirs is not None else "no baseline run",
             ),
-            Gate("every_flag_has_evidence", unexplained == 0, f"{unexplained:.0f} without it"),
+            Gate(
+                "every_flag_has_evidence_and_drivers",
+                unexplained == 0,
+                f"{unexplained:.0f} without a reason, a size or valid drivers",
+            ),
         ]
 
     def serving_files(

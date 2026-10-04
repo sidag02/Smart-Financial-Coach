@@ -5,6 +5,7 @@ import pandas as pd
 import pytest
 
 from smart_financial_coach.config import PROJECT_ROOT
+from smart_financial_coach.data.features.monthly import month_index
 from smart_financial_coach.evaluation.experiment import load_experiment
 from smart_financial_coach.evaluation.promote import leaderboard
 from smart_financial_coach.evaluation.runner import run_experiment
@@ -151,6 +152,7 @@ def test_perfect_predictions_score_perfectly(task: SpendingSpikesTask, examples:
     budget = round(FLAG_RATE * user_months(rows[rows["label"] != "basket"]))
     assert m["recall_at_rate"] == pytest.approx(min(budget, allowed.sum()) / len(spikes))
     assert m["basket_recall"] == 0.0
+    assert m["flags_with_invalid_drivers"] == 0
 
 
 def test_flags_on_normal_months_are_false_positives(
@@ -188,10 +190,15 @@ def test_eligibility_and_gates(task: SpendingSpikesTask) -> None:
         "test_precision": 0.72,
         "test_recall_at_rate": 0.5,
         "test_flags_without_evidence": 0.0,
+        "test_flags_with_invalid_drivers": 0.0,
     }
     assert all(g.passed for g in task.gates(passing, baselines))
     failing = task.gates({**passing, "test_precision": 0.69}, baselines)
     assert [g.name for g in failing if not g.passed] == ["precision"]
+    bad_drivers = task.gates({**passing, "test_flags_with_invalid_drivers": 1.0}, baselines)
+    assert [g.name for g in bad_drivers if not g.passed] == ["every_flag_has_evidence_and_drivers"]
+    missing = {k: v for k, v in passing.items() if k != "test_flags_with_invalid_drivers"}
+    assert not all(g.passed for g in task.gates(missing, baselines))  # unknown is a failure
 
 
 def test_the_tie_breaks_follow_decision_6(task: SpendingSpikesTask) -> None:
@@ -212,3 +219,46 @@ def test_baseline_runs_through_the_framework(small_sqlite: Path, tmp_path: Path)
     assert result.metrics["val_flags_without_evidence"] == 0
     assert result.metrics["fit.assumes_poisson"] == 0.0
     assert leaderboard("spending_spikes", small_sqlite, tracker) == []  # baselines only
+
+
+def test_history_length_counts_the_warm_up(task: SpendingSpikesTask, examples: Examples) -> None:
+    assert task.truth is not None
+    f = examples.frame
+    warmup = month_index(pd.Series([task.truth.warmup_end_month])).iloc[0]
+    assert (f["first_month"] < warmup).all()  # before the first scored month (review on #60)
+
+
+def test_diagnostics_count_the_look_alikes(task: SpendingSpikesTask, examples: Examples) -> None:
+    train = task.split(examples, {}, seed=0).sets[TRAIN]
+    lines = task.diagnostics(examples, predictions(examples, train))
+    assert lines[0].startswith("Look-alikes (the main risk): ")
+
+
+def test_test_scoring_reports_precision_on_predicted_categories(
+    task: SpendingSpikesTask, examples: Examples, small_sqlite: Path
+) -> None:
+    from smart_financial_coach.data import store
+    from smart_financial_coach.data.predictions import CategoryWriter
+    from smart_financial_coach.intelligence.models.contract import Checked
+    from smart_financial_coach.intelligence.spikes.baseline import MeanKStd
+    from smart_financial_coach.intelligence.spikes.contract import CONTRACT
+    from smart_financial_coach.intelligence.spikes.threshold import SpikeThresholded
+    from tests.unit.conftest import STUB_META, stub_categories
+
+    def stub(data: Path, out: Path) -> None:
+        txns = store.load_transactions(data)
+        with CategoryWriter(out, STUB_META, overwrite=True) as writer:
+            writer.append(txns["user_id"], stub_categories(txns))
+
+    splits = task.split(examples, {}, seed=0)
+    x, _ = task.training_rows(examples, splits.sets[TRAIN], {}, seed=0)
+    model = Checked(SpikeThresholded(MeanKStd(), precision=None, rate=0.05).fit(x), CONTRACT)
+    original = task.categorize
+    task.categorize = stub
+    try:
+        m = task.test_metrics(examples, splits, model)
+    finally:
+        task.categorize = original
+    for key in ("precision_predicted", "recall_predicted", "recall_at_rate_predicted"):
+        assert key in m
+    assert 0 <= m["recall_predicted"] <= 1
