@@ -1,6 +1,6 @@
 # FR-11 and FR-12 Goal Forecasting — Feature Design
 
-Oct 3, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #50) · Branch: `docs/fr-11-12-design`
+Oct 3, 2026 · @Sidd · Status: **Implemented** (Oct 4, 2026; accepted by the owner on #50) · Branch: `docs/fr-11-12-design`
 
 ## Summary
 
@@ -463,56 +463,37 @@ Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (
 - The synthetic personas are easier to tell apart than real people, so the persona mixture is a good sign, not proof.
 - Salaried users' forecasts stay pessimistic: the trend that fixes the ranges loses on Brier. A better trend is a follow-up.
 
-## Status and handoff (Oct 4, 2026)
+## Status (Oct 4, 2026)
 
-### Where it stands
+**Implemented.** The promoted model is `cbc08f6c-4e5378f2-5e7cefbd` (`paths_seasonal_mixture`), served in the demo.
 
-| Milestone | PR | State |
-| --- | --- | --- |
-| Design | #50 | Merged, Accepted. Amended in #52 (§2, §6, §7) |
-| 1. Contracts, the task, the sampler, baselines | #51 | Merged (`792fd6e`) |
-| 2. Candidates and the validation round | #52 | Merged (`d416a29`) |
-| 3. Test scoring, promotion, serving | — | Not started |
-| 4. Pages | — | Not started |
-| 5. Docs | — | Not started |
+| Milestone | PR |
+| --- | --- |
+| Design | #50, amended in #52 (§2, §6, §7) and #54 (Round 5) |
+| 1. Contracts, the task, the sampler, baselines | #51 |
+| 2. Candidates and the validation round (round 4) | #52 |
+| Round 4's test scoring, round 5, promotion | #54 |
+| 3. Serving, tools, coach | #55 |
+| 4. Pages | #56 |
+| 5. Docs | #57 |
 
-**The validation round's result** (round 4, `docs/reports/FR-11 and FR-12 Goal Forecasting — Round Results.md`):
-- **Rank 1:** `paths_seasonal_persona`, Brier 0.196 (track) and 0.229 (new). It's ahead of `paths_ets` and `paths_flat_level` on the paired user bootstrap.
-- **Fitted values:** typical total 0.686, spread 1.039.
-- **Gates:** it passes every gate on validation; freelancers on new goals score 0.248.
-- **No test user has been scored.**
+**What happened on the way** (the round results report has the numbers):
+- Round 4's rank 1 failed 4 calibration gates on test; nothing was promoted.
+- Train users showed why: stage 9's targets leak the realized future, and the model read a persona label.
+- Round 5 (decisions 10–13, decided on #54 with conditions) is persona-free and scores evaluation goals with projected targets. All three finalists passed every gate on the second, and last, test scoring for v1.
 
-### Reproducing the round
+**Reproducing it**
+- **Data:** `uv run sfc-data generate --spec configs/data/default.yaml --out <path>/default.sqlite` (content hash `b4d43bf4…`).
+- **Round 5:** `uv run sfc-experiment run configs/experiments/goal_forecasting --data <path>/default.sqlite --tracking-uri sqlite:///<path>/mlflow.db`, about 3 minutes. Data hash `4e5378f2ac3c`, split hash `e9c47c9fcb03`. Round 4's configs are in `round4/`.
+- **Serving:** `sfc-web build-demo` writes `forecasts.json` from the promoted model, or `sfc-model predict --task goal_forecasting --data … --out …`.
 
-- **Data:** `uv run sfc-data generate --spec configs/data/default.yaml --out <path>/default.sqlite --force`, about 80 s. It should give content hash `b4d43bf4…`, the same as `main`'s generator before #51; a test pins the stage-9 goals.
-- **Data and split hashes:** the task's are `a650268fd2a0` and `6f2fc4ed8b7c`, at 2,004 validation goals per path.
-- **Tracking:** MLflow needs a database URI, e.g. `--tracking-uri sqlite:///<path>/mlflow.db`, because the file store is refused.
-- **Rerun the round from `main` once #52 has merged:** `uv run sfc-experiment run configs/experiments/goal_forecasting --data <path>/default.sqlite --tracking-uri sqlite:///<path>/mlflow.db`, about 2.5 minutes. `finalize` refuses runs from mixed code versions, so all five must come from one commit.
-- **`statsmodels`** (the ETS candidate) is in the `train` dependency group, so a plain `uv sync` includes it.
-
-### Milestone 3, step by step
-
-1. **Test scoring,** once: `uv run sfc-experiment finalize --task goal_forecasting --data … --tracking-uri …` scores the top three and the baselines on test users. Read the gate output in §5's order. The freelancer Brier gate on new goals is non-blocking (decision 6), and the CLI marks it so.
-2. **Promotion:** run `promote` for `goal_forecasting` (see `evaluation/promote.py` and how FR-7's #39 did it). It records the gates, with `blocking`, in the promotion log. Record the test results in the round report's "test results" section, as FR-7 did.
-3. **Serving:**
-   - Serialize the promoted `PathsModel`'s learned values (its params, typical total and spread) as promoted: the model the gates passed on test, not a refit.
-   - Build each user's `ForecastState` at the dataset's `as_of` into the demo bundle (`sfc-web build-demo`), like FR-3's predictions file and FR-7's flag file.
-   - Paths are simulated per request with `paths_for(user_id, as_of, state)`.
-4. **Tools** (`access/tools.py`):
-   - `forecast_goal` returns the §"Tools" fields. **For a reached goal it hides p, the range and the top-up,** and adds the drawdown note when `may_draw_down`; test this at the tool level (review on #51).
-   - `check_goal` adds the forecast and the `fit` badge for a valid draft. A draft must give the saved goal's numbers: one future per user, `active_goals` counting the draft.
-   - `list_goals` adds `status` and `p_goal_met`.
-   - Goals from FR-10's store need their input row built from `goal_revisions`: `first_saved`/`first_saved_as_of` from the earliest live entry, `origin` and `active_goals` (the running goals, a draft counted for `check_goal`).
-   - `set_goals` is fit-only: it counts every goal in a set, including ones created later, which a live user can't know, and no forecast reads it (`test_predictions_never_read_set_goals`). Serving rows fill it with `active_goals`. Moving it out of `INPUT_COLUMNS` would change the task's data hash, so it waits until after test scoring (review on #53).
-5. **Coach:** the §8 prompt rules.
-6. **Tests:** contract tests in-process and over MCP; a draft equal to the saved goal; reached-goal hiding; a short-history notice under 6 months.
-
-### Practical notes
-
-- **Reviews:** before saying a PR is up to date, list every review and inline comment with no time filter. Re-reviews arrive often, and filtering by time hid two of them in this session.
-- **Stacked PRs:** keep each branch current by merging `main` (or the branch below), not by rebasing. GitHub retargets the next PR only when its base branch is deleted on merge. This repo keeps merged branches (another session's worktree uses one), so retarget by hand: `gh pr edit <n> --base main` (review on #53).
-- **Tolerances:** the gates read the run's own validation intervals (`val_*_lo/_hi`) as tolerances. Don't recompute them from test.
-- **The CLI:** the experiment runner prints a run's metrics. `sfc-experiment report --out` writes the comparison table, and `fit.*` metrics carry the spread and typical total.
+**Follow-ups, not in v1**
+- **Salaried users' forecasts are pessimistic:** about a quarter of families' realized balances land above the range. The damped trend fixed the ranges but lost on Brier, so a better trend is needed. Measure its prior slope the new way (#54).
+- **A target-free calibration gate** (`below.*`, `above.*` per persona), since planted or projected targets both shape what band calibration measures. That needs an owner decision, and a fresh test set: v1's test users have been scored twice.
+- **The number of gates:** 30 calibration gates with validation tolerances on half as many test users will fail some by chance. Consider fewer, or a multiplicity-aware tolerance.
+- **Moving `set_goals` out of `INPUT_COLUMNS`** (fit-only; #53).
+- **What-if forecasts** (decision 7), and 1g's user-specific "what this accounts for" facts.
+- **`your_entries`** is built and tested, but the demo's "today" is fixed, so no goal has entries 3 months apart there.
 
 ## Decisions and open questions
 
