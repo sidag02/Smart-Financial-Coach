@@ -1,0 +1,169 @@
+train: 240 users, 36 months (2023-10..2026-09); goals 358, known 153
+
+Scaled RMSE (error per month / user's mean absolute monthly net), ratio to seasonal-naive:
+h                   3      6      12
+model                               
+hindsight_level  0.951  0.833  0.594
+snaive           1.000  1.000  1.000
+profile_pool4    0.986  1.010  1.083
+mean12           1.027  1.012  1.000
+profile_pool2    0.981  1.021  1.103
+profile_shrink2  0.988  1.022  1.061
+mean24           1.040  1.026  1.018
+mean_all         1.053  1.043  1.018
+profile_pool1    0.983  1.043  1.132
+trim24_10        1.070  1.083  1.140
+profile          1.056  1.154  1.249
+median12         1.125  1.220  1.373
+median24         1.136  1.237  1.411
+naive            2.205  3.044  3.760
+  family_budgeter: naive 2.778, mean12 1.028, mean24 1.090, profile_pool4 0.998, hindsight_level 0.874
+  freelancer: naive 3.394, mean12 1.017, mean24 0.969, profile_pool4 1.025, hindsight_level 0.809
+  young_professional: naive 3.002, mean12 0.992, mean24 1.003, profile_pool4 1.009, hindsight_level 0.810
+
+RMSE of cumulative net over h months, all train users ($):
+h                      3        6       12  vs_mean12_h6  vs_snaive_h6
+model                                                                 
+hindsight_level   4451.0   5428.0   5260.0         0.806         0.812
+mean24            4878.0   6573.0   8392.0         0.976         0.983
+mean_all          4892.0   6619.0   8392.0         0.983         0.990
+snaive            5280.0   6685.0   9268.0         0.993         1.000
+mean12            4950.0   6734.0   9268.0         1.000         1.007
+trim24_10         4950.0   6773.0   9078.0         1.006         1.013
+profile_shrink2   4854.0   6801.0  10137.0         1.010         1.017
+profile_pool4     4827.0   6878.0  11155.0         1.021         1.029
+profile_pool2     4851.0   6956.0  11308.0         1.033         1.041
+profile_pool1     4938.0   7118.0  11559.0         1.057         1.065
+median24          5347.0   7910.0  12240.0         1.175         1.183
+profile           5545.0   7984.0  12671.0         1.186         1.194
+median12          5407.0   8048.0  12962.0         1.195         1.204
+naive            12261.0  23196.0  41475.0         3.445         3.470
+
+RMSE ratio to mean12, by persona (h=3, 6, 12):
+  family_budgeter:
+h                   3      6      12
+    model                               
+    hindsight_level  0.950  0.853  0.597
+    profile_pool4    0.933  0.963  1.027
+    snaive           0.944  0.972  1.000
+    profile_pool2    0.925  0.976  1.050
+    profile_shrink2  0.945  0.998  1.048
+    profile_pool1    0.925  0.999  1.084
+    mean12           1.000  1.000  1.000
+    mean24           1.027  1.049  1.102
+    mean_all         1.052  1.087  1.102
+    trim24_10        1.053  1.107  1.217
+    profile          0.995  1.116  1.216
+    median12         1.077  1.178  1.297
+    median24         1.103  1.233  1.435
+    naive            2.022  2.867  3.631
+  freelancer:
+h                   3      6      12
+    model                               
+    hindsight_level  0.882  0.795  0.557
+    mean_all         0.966  0.954  0.835
+    mean24           0.971  0.956  0.835
+    trim24_10        0.978  0.971  0.871
+    snaive           1.112  0.996  1.000
+    mean12           1.000  1.000  1.000
+    profile_shrink2  0.994  1.012  1.109
+    profile_pool4    0.986  1.034  1.257
+    profile_pool2    0.996  1.046  1.273
+    profile_pool1    1.021  1.070  1.298
+    median24         1.065  1.142  1.244
+    median12         1.091  1.186  1.397
+    profile          1.165  1.203  1.417
+    naive            2.594  3.564  4.685
+  young_professional:
+h                   3      6      12
+    model                               
+    hindsight_level  0.933  0.821  0.590
+    snaive           0.914  0.998  1.000
+    mean12           1.000  1.000  1.000
+    profile_pool4    0.970  1.013  1.065
+    profile_shrink2  0.945  1.013  1.053
+    mean24           1.020  1.020  1.031
+    profile_pool2    0.952  1.020  1.081
+    mean_all         1.035  1.038  1.031
+    profile_pool1    0.941  1.040  1.108
+    trim24_10        1.066  1.119  1.254
+    profile          0.984  1.154  1.228
+    median12         1.125  1.309  1.577
+    median24         1.151  1.348  1.642
+    naive            2.301  3.318  4.175
+
+Prior for $0-balance goals (median inferred share, goals with a balance): 0.476 (n=137)
+Typical total allocation (median over users of their goals' summed shares): 0.662 (n=240)
+
+Goals with known outcome (train): 153  met rate 0.50
+            count  mean
+cls                    
+borderline     44  0.55
+off_track      56  0.00
+on_track       53  1.00
+  oracle_call Brier 0.020  accuracy 0.980
+  naive_call  Brier 0.320  accuracy 0.680
+  flat_call   Brier 0.301  accuracy 0.699
+  point_call  Brier 0.268  accuracy 0.732
+  p_sim       Brier 0.171  accuracy 0.739
+  climatology (0.5) Brier 0.250
+  80% range covers the actual final balance (inferred share): 0.83
+
+Brier by class:
+            naive_call  p_sim
+cls                          
+borderline       0.432  0.270
+off_track        0.179  0.091
+on_track         0.377  0.175
+
+Brier by persona:
+                    naive_call  p_sim
+persona                              
+family_budgeter          0.400  0.154
+freelancer               0.340  0.239
+young_professional       0.241  0.127
+
+Reliability of p_sim:
+              count  mean
+bin                      
+(-0.01, 0.1]     39  0.08
+(0.1, 0.3]       25  0.40
+(0.3, 0.5]       30  0.53
+(0.5, 0.7]       18  0.72
+(0.7, 0.9]       22  0.77
+(0.9, 1.0]       19  0.95
+
+Share inferred: median 0.48, 10-90% 0.18-0.76
+
+Where p_sim <= 0.1 but met:
+                persona         cls  left  share   target   lo        hi  oracle_call
+51           freelancer  borderline    10   0.38  14450.0  0.0  12073.08            1
+62           freelancer  borderline     6   0.48  22350.0  0.0  14049.00            0
+129  young_professional    on_track    11   0.24   1200.0  0.0    923.82            1
+months left: {'count': 153.0, 'mean': 6.2, 'std': 3.0, 'min': 3.0, '25%': 3.0, '50%': 6.0, '75%': 9.0, 'max': 12.0}
+
+Spread 1.1: coverage of the 80% range 0.83
+p_sim: Brier 0.171  (user bootstrap 90%: 0.139-0.203)
+                  count  mean
+p_sim                        
+off (<0.3)           64  0.20
+either (0.3-0.7)     48  0.60
+on (>=0.7)           41  0.85
+  by persona: family_budgeter 0.154, freelancer 0.239, young_professional 0.127
+p_new: Brier 0.228  (user bootstrap 90%: 0.190-0.269)
+                  count  mean
+p_new                        
+off (<0.3)           67  0.30
+either (0.3-0.7)     51  0.59
+on (>=0.7)           35  0.77
+  by persona: family_budgeter 0.220, freelancer 0.274, young_professional 0.194
+Reliability of p_sim (fine bins):
+              count  mean
+bin                      
+(-0.01, 0.1]     39  0.08
+(0.1, 0.3]       25  0.40
+(0.3, 0.5]       30  0.53
+(0.5, 0.7]       18  0.72
+(0.7, 0.9]       22  0.77
+(0.9, 1.0]       19  0.95
+Share column median (after the $0 prior): 0.476
