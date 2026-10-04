@@ -1,10 +1,12 @@
-"""Server-rendered chart geometry: the money-flow diagram and the monthly trend (mockup 1a).
+"""Server-rendered chart geometry: the money-flow diagram and the monthly trend (mockup 1a), and
+a goal's projection (mockups 1g, 1l).
 
 Pure functions of tool results, so the charts can't disagree with the numbers beside them.
 Positions are percentages of the chart box; ribbons are SVG paths in a 920 x 260 viewBox.
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Any
 
 WIDTH, HEIGHT = 920.0, 260.0
@@ -182,6 +184,32 @@ def trend(months: list[tuple[str, float]], highlight: str) -> list[dict[str, obj
             }
         )
     return bars
+
+
+def goal_projection(saved: float, target: float, monthly: list[dict[str, Any]]) -> dict[str, Any]:
+    """Columns for a goal's chart: what's saved now, then each month's likely balance (the
+    median, a mark) inside its 80% range (a band), from `forecast_goal`'s `monthly`. The target
+    is a line across. Heights are percentages of the tallest of the target and the ranges."""
+    top = max([target, saved, *(m["high"] for m in monthly)]) * 1.1 or 1.0
+    columns = [{"label": "Now", "now": True, "bar": pct(saved, top)}]
+    every = 1 if len(monthly) <= 12 else -(-len(monthly) // 8)  # at most about 8 labels
+    for i, m in enumerate(monthly):
+        month = date.fromisoformat(f"{m['month']}-01")
+        shown = i == len(monthly) - 1 or (len(monthly) - 1 - i) % every == 0
+        year = i == 0 or month.month == 1 or every > 1
+        columns.append(
+            {
+                "label": (f"{month:%b} '{month:%y}" if year else f"{month:%b}") if shown else "",
+                "now": False,
+                "band_bottom": pct(m["low"], top),
+                "band_height": pct(m["high"] - m["low"], top),
+                "mark": pct(m["median"], top),
+                "median": m["median"],
+                "low": m["low"],
+                "high": m["high"],
+            }
+        )
+    return {"columns": columns, "target": pct(target, top)}
 
 
 LINE_W, LINE_H, LINE_PAD = 920.0, 220.0, 28.0

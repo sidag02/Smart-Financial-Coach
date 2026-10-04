@@ -271,7 +271,7 @@ def test_forecast_fields_round_and_hide() -> None:
         "may_draw_down": np.True_,
         "model_version": "v",
     }
-    f = forecast_fields(out, 30, lambda v: round(float(v), 2))
+    f = forecast_fields(out, 30, lambda v: round(float(v), 2), target=2000.0)
     assert f["projected_balance"] == 2300.46
     assert f["may_draw_down"] is True
     assert f["p_goal_met"] is None

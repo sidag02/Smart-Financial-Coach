@@ -96,6 +96,8 @@ main { padding: 32px 36px 48px; display: flex; flex-direction: column; gap: 20px
 .badge { display: inline-block; border-radius: 99px; padding: 3px 10px; font-size: 12.5px; font-weight: 700; }
 .badge.soon { background: var(--warn-soft); color: var(--warn); }
 .badge.good { background: var(--good-soft); color: var(--good); }
+.badge.either { background: var(--accent-soft); color: var(--accent-strong); }
+.badge.ended { background: var(--pill); color: var(--muted); }
 .row-split { display: flex; justify-content: space-between; font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--divider); padding-top: 10px; margin-top: 10px; }
 .row-split b { color: var(--text); }
 .grid-3 { display: grid; grid-template-columns: 1fr 1.15fr 1.15fr; gap: 16px; }
@@ -363,4 +365,30 @@ table.retrain td { padding: 8px 10px; border-bottom: 1px solid var(--divider); v
   .gate { white-space: normal; }
   .card-head { flex-wrap: wrap; }
   table.retrain td, table.retrain th { padding: 6px; }
+}
+
+/* A goal's projection (mockups 1g, 1l): now, then each month's 80% range and likely balance */
+.projection { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.projection .plots { position: relative; display: flex; gap: 8px; height: 200px; }
+.projection .plot { flex: 1; position: relative; min-width: 0; }
+.projection .now { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px 8px 3px 3px; background: var(--accent); }
+.projection .band { position: absolute; left: 0; right: 0; border-radius: 8px; background: color-mix(in srgb, var(--accent) 20%, transparent); border: 1.5px dashed color-mix(in srgb, var(--accent-strong) 35%, transparent); }
+.projection .mark { position: absolute; left: 3px; right: 3px; height: 3px; border-radius: 2px; background: var(--accent-strong); }
+.projection .target { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); pointer-events: none; z-index: 1; }
+.projection .target span { position: absolute; right: 0; top: -19px; font-size: 11px; color: var(--muted); background: var(--surface); padding: 0 4px; border-radius: 4px; }
+.projection .labels { display: flex; gap: 8px; }
+/* A label may run into its neighbours' columns: long goals leave those empty */
+.projection .labels div { flex: 1; min-width: 0; display: flex; justify-content: center; font-size: 11px; color: var(--faint); white-space: nowrap; }
+.goal-detail { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.tip { border-radius: 20px; padding: 18px 20px; display: flex; flex-direction: column; gap: 6px; }
+.tip.good { background: var(--good-soft); } .tip.good .tip-head { color: var(--good); }
+.tip.either { background: var(--accent-soft); } .tip.either .tip-head { color: var(--accent-strong); }
+.tip.soon { background: var(--warn-soft); } .tip.soon .tip-head { color: var(--warn); }
+.tip-head { font-size: 12.5px; font-weight: 700; }
+.tip-title { font: 600 20px/1.25 var(--display); }
+@media (max-width: 860px) {
+  .goal-detail { grid-template-columns: minmax(0, 1fr); }
+  .projection .plots { height: 160px; gap: 3px; }
+  .projection .labels { gap: 3px; }
+  .projection .labels div { font-size: 9.5px; }
 }

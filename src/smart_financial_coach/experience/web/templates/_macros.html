@@ -15,3 +15,22 @@
   <noscript><button class="btn-ghost" type="submit">Show</button></noscript>
 </form>
 {%- endmacro %}
+
+{# A goal's status (FR-11): the forecast's band, "Reached", or "Forecast soon" without a model #}
+{% macro goal_status(status, forecast_status=None, method=None) -%}
+{%- set fs = forecast_status or ("reached" if status == "reached" else None) -%}
+{%- if status == "ended" %}<span class="badge ended">Ended</span>
+{%- elif fs == "reached" %}<span class="badge good">Reached</span>
+{%- elif method == "simple_projection" and fs == "on_track" %}<span class="badge good">On pace</span>
+{%- elif method == "simple_projection" %}<span class="badge soon">Behind pace</span>
+{%- elif fs == "on_track" %}<span class="badge good">On track</span>
+{%- elif fs == "either_way" %}<span class="badge either">Could go either way</span>
+{%- elif fs == "off_track" %}<span class="badge soon">Off track</span>
+{%- else %}<span class="badge soon">Forecast soon</span>{% endif -%}
+{%- endmacro %}
+
+{% macro fit_badge(fit) -%}
+{%- if fit == "within_reach" %}<span class="badge good">Within reach</span>
+{%- elif fit == "either_way" %}<span class="badge either">Could go either way</span>
+{%- elif fit == "stretch" %}<span class="badge soon">A stretch</span>{% endif -%}
+{%- endmacro %}

@@ -229,8 +229,9 @@ TOOL_SPECS: list[ToolSpec] = [
             "`needed_per_month`. `undo_revision_id` is the goal's latest change that can be "
             "undone. Also the user's median monthly savings over the last 12 full months. Active "
             "and reached goals have `forecast_status` (`on_track`, `either_way`, `off_track` or "
-            "`reached`) and `p_goal_met`, the chance of reaching it by its date (null once "
-            "reached); call forecast_goal for the range and what would close the gap."
+            "`reached`), `p_goal_met`, the chance of reaching it by its date, and "
+            "`projected_balance`, the likely amount by then (both null once reached); call "
+            "forecast_goal for the range and what would close the gap."
         ),
         "input_schema": {
             "type": "object",
@@ -335,7 +336,8 @@ TOOL_SPECS: list[ToolSpec] = [
             "futures of their own monthly savings. `status`: `on_track` (a 70%+ chance), "
             "`either_way`, `off_track` (under 30%) or `reached`. `p_goal_met` is the chance; "
             "`projected_balance` the likely amount by the date, `range` the 80% range around it; "
-            "`gap` how far the likely amount falls short; `extra_per_month` the monthly amount "
+            "`gap` how far the likely amount falls short, `ahead` how far past the target it is; "
+            "`extra_per_month` the monthly amount "
             "that would put it on track (null when it already is). `share_source` says how much "
             "of their savings the goal is assumed to get: `track_record` (its own history), "
             "`your_entries` (their saved amounts over time) or `typical` (a new goal: a typical "
@@ -891,13 +893,16 @@ class Tools:
         for g in goals:
             data = self._goal_data(g)
             if forecasts is not None and g.goal_id in forecasts:
-                f = forecasts[g.goal_id]
-                reached = f["status"] == "reached"
-                simple = self.ledger.forecaster is not None and self.ledger.forecaster.baseline
+                f = self._fields(forecasts[g.goal_id], g)
                 data |= {
                     "forecast_status": f["status"],
-                    "forecast_method": "simple_projection" if simple else "simulation",
-                    "p_goal_met": None if reached or simple else round(float(f["p_goal_met"]), 3),
+                    "forecast_method": f["method"],
+                    "p_goal_met": f["p_goal_met"],
+                    "projected_balance": None
+                    if f["status"] == "reached"
+                    else f["projected_balance"],
+                    "short_history": f["short_history"],
+                    "may_draw_down": f["may_draw_down"],
                 }
             listed.append(data)
         data = {
@@ -1295,8 +1300,7 @@ class Tools:
         out = forecasts[goal.goal_id]
         forecaster = self.ledger.forecaster
         assert forecaster is not None  # _forecasts returned forecasts
-        months = len(parse_history(self._net_history()))
-        fields = forecast_fields(out, months, money, baseline=forecaster.baseline)
+        fields = self._fields(out, goal)
         if monthly:
             series = (
                 []
@@ -1318,6 +1322,15 @@ class Tools:
                 for m in thin(series)
             ]
         return fields
+
+    def _fields(self, out: Mapping[str, Any], goal: Goal) -> dict[str, Any]:
+        """A forecast row as the tools return it."""
+        forecaster = self.ledger.forecaster
+        baseline = forecaster is not None and forecaster.baseline
+        months = len(parse_history(self._net_history()))
+        return forecast_fields(
+            out, months, money, target=goal.target_cents / 100, baseline=baseline
+        )
 
     def _net_history(self) -> str:
         """The user's monthly net savings up to today, as the forecast's `history_json`."""
