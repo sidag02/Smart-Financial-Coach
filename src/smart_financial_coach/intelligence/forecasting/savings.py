@@ -73,8 +73,9 @@ def infer_share(net: Floats, start: float, end: float, cap: float = SHARE_CAP) -
     for a generated goal's track record, or from the first saved entry for a goal the user keeps
     up (§3). A goal that fell is inferred too (net savings below zero draw it down).
 
-    None when there's no information: no months, or a balance that didn't move. `cap` when even
-    that share falls short.
+    None when there's no information: no months, a balance that didn't move, or a fall no share
+    explains (the balance went down while net savings mostly rose: money taken out). A rise that
+    even the cap can't reach gets the cap.
 
     Bisection is sound because the final balance is the largest of straight lines in the share
     (the floor resets the sum after each emptying month), so it's convex, and it equals `start`
@@ -91,7 +92,9 @@ def infer_share(net: Floats, start: float, end: float, cap: float = SHARE_CAP) -
         return b < end if rising else b > end
 
     if short(cap):
-        return cap
+        # A rise beyond reach is a goal saving hard: the cap. A fall beyond reach isn't a share
+        # at all, and the cap would be the most optimistic answer for it (review on #51)
+        return cap if rising else None
     lo, hi = 0.0, cap
     for _ in range(_BISECTION_STEPS):
         mid = (lo + hi) / 2
