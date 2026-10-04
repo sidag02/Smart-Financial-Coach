@@ -190,7 +190,7 @@ All features come from model-visible columns. Nothing reads `truth_*`, and the e
 
 | Feature | Source | Used for |
 | --- | --- | --- |
-| Monthly aggregates | `spend` and `count` per (user, category, month), zero-filled for the user's months without a purchase in a category they've used | The score; the reason |
+| Monthly aggregates | `spend` and `count` per (user, category, month), zero-filled from the user's first purchase in the category | The score; the reason |
 | Usual level | The mean `spend` and `count` over the previous 12 months (at least 3) | The Poisson rate; the reason's "usual"; the spend floor |
 | The user's own season | That category's count in the same month a year earlier, over the user's trailing mean then | Seasonality, once a year of history exists |
 | **Category season profile** | Per (category, month of year, as-of month): across other users, the average of each user's log ratio of count to their trailing mean, clipped to ±log 3, from months before the as-of month | Seasonality before the user has a year, and shrinkage after |
@@ -440,6 +440,24 @@ One PR per milestone, stacked as FR-7's were.
 3. **The round:** the simple count rule, both count models and the ablations on validation, with a round results report that states the main risk and its measured size.
 4. **Finalize, promote and serve:** finalists scored once on test users; promote if the gates pass. A failing gate means no promotion and a root-cause analysis (open question 1). Then the serving state, the on-request scoring, `detect_anomalies`' spikes half, the 1f card (with the simple-rule fallback), the coach and the demo bundle with its season profile file. This milestone ships whether or not a scorer is promoted.
 5. **Docs:** the Technical Design (contract, the feature-pipeline row, model selection, the evaluation row), the PRD's first-measurement note, and the Web App UI (1f, the "usual" question).
+
+## Implementation notes
+
+Departures and results from milestone 1 (#59, revised after its review):
+
+- **The season-profile check holds** (decision 13; `scripts/fr8_season_check.py`, train users only). At 0.035 flags per user-month, the POC leader with milestone 1's season profile has recall **0.518** and precision **0.769**, inside the fixed intervals (0.506–0.578, 0.737–0.860). The margin on recall is about 3 true positives. Step by step, on milestone 1's grid:
+  - the POC's median profile, rebuilt: 0.543 and 0.805. On the POC's own grid the script reproduced the POC exactly (0.545, 0.809); categories now start at their first purchase (below);
+  - the clipped mean, still pooled like the POC's (every user and month, nobody left out): 0.533 and 0.791;
+  - then as of each month, the scored user left out and at least 20 others: 0.518 and 0.769.
+
+  Most of the cost is the as-of rule, which is the honest part. The POC's pooled profile saw later years. As of the month, no earlier same-month observation exists anywhere in 2024 (observations start once a user has 3 months, in January 2024), so 35.4% of scored periods, all in 2024, get a season of 1. Floor on the plain usual or on the seasonal one: the same result.
+- **The user's own season is the same month a year earlier,** as §2 decided. The first version averaged every earlier year; the review on #59 measured it as slightly worse (0.513 and 0.762) and asked for the decided design.
+- **A category starts at the user's first purchase in it** (review on #59). Zero-filling from the user's first month put pre-adoption zeros in 5.1% of scored periods' windows and a +log 3 season observation at adoption. The grid shrinks from 89,760 to 88,232 periods.
+- **Only complete months are kept** (decision 10, review on #59). `scoring_periods` takes a required scoring date, `as_of`, and keeps months that have ended by then. Evaluation passes the dataset's last day, which ends a month. A user's partial first month still counts towards their usual level; synthetic users all start on the 1st. Real accounts linked mid-month need an account start date (v2).
+- **Season observations need 3 earlier months,** as in the POC, so a user's first months never shape a season.
+- **A period's id** is `"<user_id>|<category>|<period_start>"`, since the framework's contracts key on one column. The tool and the label contract still use the three columns. A flag's evidence must name its own period, and its ratio must equal actual over usual.
+- **Models supply only a score and a flag decision.** The base class applies both product rules on top and builds the evidence from the input row, so no model can flag a month the rules exclude or quote a number that isn't the user's own. The scorer passes models only the contract's input columns, and rejects persona and the truth tables' columns by name.
+- **Reason wording:** the month carries its year ("in August 2026"), since three years of history make "August" ambiguous. Amounts are whole dollars, rounded half up, and the excess shown is the rounded actual minus the rounded usual, so the sentence adds up. Evidence keeps the cents. "About" is dropped when the usual count is a whole number.
 
 ## Decisions and open questions
 
