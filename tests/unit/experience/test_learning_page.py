@@ -94,6 +94,7 @@ def test_the_replay_story_and_visitors_agreement(
     assert "model error fixed" not in page  # Netflix was a preference, not an error
     assert "promoted" in page
     assert "<polyline" in page
+    assert "the demo still serves the original model" in page  # owner, Oct 3
     assert "75.0% → 75.0% (macro F1, true categories)" in page
     # One session's correction isn't shown to others (§4): only that a merchant has a vote
     assert f"{item['merchant_key'].title()} → {target}" not in page
