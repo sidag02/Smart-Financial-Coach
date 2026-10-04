@@ -6,8 +6,8 @@ Oct 4, 2026 · @Sidd · Milestone 2 of FR-11 and FR-12 Goal Forecasting — Feat
 
 - **Round 4's finalists were scored on test users once and failed** 4 of 30 blocking calibration gates, freelancers' "on track" band above all; nothing was promoted ([test results](#round-4-test-results-first-scoring)).
 - **Train users showed why:** stage 9 plants targets from the realized future, a leak that's strongest for volatile users. The freelancer forecast itself is honest, and round 4's model read a persona label real users don't have.
-- **Round 5** (owner decisions 10–13 in the design) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals** on validation, ahead of both other candidates ([round 5](#round-5-no-persona-label-targets-without-the-future)).
-- **On test (the second scoring, under the recorded override), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
+- **Round 5** (owner decisions 10–13 in the design, prompted by the first test failure) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals** on validation, ahead of both other candidates ([round 5](#round-5-no-persona-label-targets-without-the-future)).
+- **On test (the second and last scoring for v1, of users seen once before, so optimistic), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
 
 ## Round 4 summary (as written for milestone 2)
 
@@ -109,7 +109,7 @@ The other 26 calibration gates passed. `paths_ets` failed 3 of the same gates an
 
 ## Round 5: no persona label, targets without the future
 
-- **Changes** (owner decisions 10–13, recorded in the design before this round ran):
+- **Changes** (owner decisions 10–13 in the design; 12 and 13 decided on #54 with conditions):
   - **Evaluation goals:** the sampler's 10 draws per user, each inside-history target a multiple of the balance projected at `as_of`. The dataset's own goals, planted from the future, aren't examples. 1,851 validation goals per path (was 2,004). Data hash `4e5378f2ac3c`, split hash `e9c47c9fcb03`.
   - **No persona label:** every candidate weighs the personas' priors by `PersonaWeights` over the user's own history.
   - **New reported checks:** the share of realized balances below and above the 80% range, per path and persona, which never read a target.
@@ -146,7 +146,12 @@ Rank 1 by persona (goals and met rate per band; below and above the 80% range, w
 
 `sfc-experiment finalize --override "…"` scored round 5's top three and the baselines on the 120 test users (935 goals per path) on Oct 4, from code version `5e7cefbd`. The override names decisions 10–13 and is recorded on every run it scored. All three finalists pass every gate; rank 1, `paths_seasonal_mixture`, was promoted.
 
-The scoring ran before the review on #54 asked to hold it until the owner confirmed decisions 10–13 on the PR; the owner's confirmation is pending there.
+**Read these results with three caveats** (owner, on #54):
+- **Test users were seen once before,** in round 4's scoring, and round 5's changes were prompted by that failure, though the leak was diagnosed on train users only. So this result is optimistic relative to an untouched test set.
+- **Projected targets sit close to the model's own median,** so the bands mainly check calibration around that projection ([round 5](#round-5-no-persona-label-targets-without-the-future)), and the Brier isn't comparable with rounds 1–4.
+- **This is the last test scoring for v1.** There's no round 6 against test.
+
+The scoring ran before the owner's decisions and conditions were recorded on #54, where the review had asked to hold it until they were.
 
 | Gate | Test | Target |
 | --- | --- | --- |
