@@ -3,7 +3,10 @@
     sfc-web build-demo --data data/synthetic/default.sqlite --out build/demo
 
 writes `dataset.sqlite` (the demo accounts' model-visible rows and the dataset's meta),
-`predictions.sqlite` (the promoted categorizer's output for them, FR-3) and `accounts.yaml`.
+`predictions.sqlite` (the promoted categorizer's output for them, FR-3), `accounts.yaml`, and,
+once an FR-7 model is promoted, `flags.sqlite`: its unusual-charge flags for them, scored against
+merchant profiles of every user in `--data` (FR-7 §8). Without a promoted FR-7 model the bundle
+has no flag file and unusual charges stay "not available yet".
 The image ships this bundle, so serving needs no model, no network and no writable disk
 (Web App UI, "Demo build").
 """
@@ -13,10 +16,14 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from smart_financial_coach.config import get_settings
 from smart_financial_coach.data import store
 from smart_financial_coach.data.generator.dataset import MODEL_TABLES, TABLES
 from smart_financial_coach.experience.accounts import load_accounts
+from smart_financial_coach.intelligence.anomaly.batch import SERVICE as FLAG_SERVICE
+from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
 from smart_financial_coach.intelligence.categorization.batch import categorize_dataset
+from smart_financial_coach.intelligence.models.artifact import POINTER_FILE
 
 ACCOUNTS_FILE = "accounts.yaml"
 
@@ -27,6 +34,8 @@ class DemoBundle:
     users: int
     transactions: int
     model_version: str
+    flag_model_version: str | None = None  # None: no FR-7 model promoted, no flags
+    flags: int = 0
 
 
 def _ddl(name: str) -> str:
@@ -78,9 +87,21 @@ def build_demo(
     )
     if run.rows != rows:
         raise RuntimeError(f"categorized {run.rows} of {rows} transactions")
+    flags_file = out / "flags.sqlite"
+    flags_file.unlink(missing_ok=True)  # a stale file would show another model's flags
+    flag_run = None
+    if ((artifacts_dir or get_settings().artifacts_dir) / FLAG_SERVICE / POINTER_FILE).exists():
+        flag_run = flag_dataset(dataset, flags_file, pool=data, artifacts_dir=artifacts_dir)
     shutil.copyfile(accounts_file, out / ACCOUNTS_FILE)
     # Readable by everyone: the predictions file is written through a temporary file, which is
     # owner-only, and the image serves the bundle as a different user from the one that built it
     for path in out.iterdir():
         path.chmod(0o644)
-    return DemoBundle(out, len(user_ids), rows, run.model_version)
+    return DemoBundle(
+        out,
+        len(user_ids),
+        rows,
+        run.model_version,
+        flag_run.model_version if flag_run else None,
+        flag_run.flagged if flag_run else 0,
+    )

@@ -53,6 +53,9 @@ tool. If no tool gives what the question needs, say what you can't tell yet.
 a source_id.
 - If a tool returns status "not_available", say that feature isn't available yet. Don't fill \
 the gap yourself.
+- Unusual charges from detect_anomalies look different from the person's usual pattern; that \
+doesn't mean anything is wrong. Give the tool's reason, never call a charge fraud, and don't \
+flag charges yourself. If they say a charge isn't theirs, suggest contacting their bank.
 - Today is {as_of:%B %-d, %Y}, the latest day with data. "This month" is {as_of:%B %Y} and "last \
 month" is the month before.
 - Spending amounts in tool results are positive numbers of dollars spent; transaction amounts \

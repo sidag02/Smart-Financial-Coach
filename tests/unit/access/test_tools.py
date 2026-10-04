@@ -1,6 +1,8 @@
 """The ledger and tools read one user's data only, and their numbers add up."""
 
+import json
 from datetime import date
+from pathlib import Path
 
 import pytest
 
@@ -148,3 +150,127 @@ def test_span_labels() -> None:
     assert span_label(date(2026, 9, 24), date(2026, 9, 30)) == f"Sep 24{DASH}30, 2026"
     assert span_label(date(2026, 7, 1), date(2026, 9, 30)) == f"Jul 1 {DASH} Sep 30, 2026"
     assert span_label(date(2025, 10, 1), date(2026, 9, 30)) == f"Oct 1, 2025 {DASH} Sep 30, 2026"
+
+
+def test_detect_anomalies_returns_only_the_users_flags_with_reasons(
+    flagged_sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    assert flagged_sources.flags is not None
+    from smart_financial_coach.data.flags import load_flags
+
+    every = load_flags(flagged_sources.flags)
+    mine, theirs = (Tools(Ledger.load(flagged_sources, u)) for u in two_users)
+    start = date(2023, 1, 1).isoformat()
+    end = mine.as_of.isoformat()
+
+    found = mine.call("detect_anomalies", {"start_date": start, "end_date": end}).data
+    ids = {f["transaction_id"] for f in found["unusual_transactions"]}
+    assert ids == set(every.loc[every["user_id"] == two_users[0], "transaction_id"])
+    assert found["count"] == len(ids)
+    other = theirs.call("detect_anomalies", {"start_date": start, "end_date": end}).data
+    assert ids.isdisjoint(f["transaction_id"] for f in other["unusual_transactions"])
+    for f in found["unusual_transactions"]:
+        assert f["reason"]
+        assert f["kind"] in {
+            "Possible duplicate",
+            "Larger than usual",
+            "New merchant, large amount",
+        }
+        assert f["amount"] < 0
+    assert found["spending_spikes"]["status"] == "not_available"
+
+
+def test_new_merchant_reasons_name_the_category_from_the_users_ledger(
+    flagged_sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    for user in two_users:
+        tools = Tools(Ledger.load(flagged_sources, user))
+        found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+        for f in found["unusual_transactions"]:
+            if f["reason_code"] != "new_merchant":
+                continue
+            assert f["evidence"]["category"] == f["category"]
+            assert f["evidence"]["date"] == f["date"]
+            since = f["evidence"]["category_largest_since"]
+            assert since is None or since < f["date"]
+
+
+def test_a_same_minute_duplicate_pair_is_shown_once(
+    sources: DataSources, two_users: tuple[str, str]
+) -> None:
+    from dataclasses import replace
+
+    import pandas as pd
+
+    ledger = Ledger.load(sources, two_users[0])
+    a, b, c = sorted(ledger.transactions["transaction_id"].head(3))
+    evidence = {"minutes_apart": 0.0, "amount": 5.0}
+    flags = pd.DataFrame(
+        {
+            "transaction_id": [a, b, c],
+            "reason_code": "duplicate",
+            "evidence": [
+                json.dumps({**evidence, "original_transaction_id": b}),
+                json.dumps({**evidence, "original_transaction_id": a}),
+                json.dumps({**evidence, "minutes_apart": 6.0, "original_transaction_id": a}),
+            ],
+        }
+    )
+    tools = Tools(replace(ledger, flags=flags))
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+
+    assert {f["transaction_id"] for f in found["unusual_transactions"]} == {b, c}
+
+
+@pytest.mark.parametrize("kinds", [[], ["amount_unusual"]], ids=["no flags", "no duplicates"])
+def test_detect_anomalies_without_duplicate_flags(
+    sources: DataSources, two_users: tuple[str, str], kinds: list[str]
+) -> None:
+    from dataclasses import replace
+
+    import pandas as pd
+
+    ledger = Ledger.load(sources, two_users[0])
+    ids = ledger.transactions["transaction_id"].head(len(kinds)).tolist()
+    evidence = json.dumps({"usual_amount": 5.0, "ratio": 9.0, "prior_charges": 14})
+    flags = pd.DataFrame(
+        {"transaction_id": ids, "reason_code": kinds, "evidence": [evidence] * len(kinds)},
+        dtype=object,
+    )
+    tools = Tools(replace(ledger, flags=flags))
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+
+    assert found["count"] == len(kinds)
+
+
+def test_flags_loaded_from_the_file_without_duplicates(
+    sources: DataSources, two_users: tuple[str, str], tmp_path: Path
+) -> None:
+    """Maya's case from review on #39: some flags, none a duplicate, read back from the flag
+    file (string-typed columns under pandas 3)."""
+    from dataclasses import replace
+
+    import pandas as pd
+
+    from smart_financial_coach.data.flags import FlagWriter, load_flags
+
+    ledger = Ledger.load(sources, two_users[0])
+    ids = ledger.transactions["transaction_id"].head(2).to_numpy()
+    evidence = json.dumps({"usual_amount": 5.0, "ratio": 9.0, "prior_charges": 14})
+    scored = pd.DataFrame(
+        {
+            "transaction_id": ids,
+            "score": 9.0,
+            "is_flagged": True,
+            "reason_code": "amount_unusual",
+            "evidence": evidence,
+            "model_version": "v",
+        }
+    )
+    path = tmp_path / "flags.sqlite"
+    with FlagWriter(path, {"model_version": "v"}) as writer:
+        writer.append(pd.Series([two_users[0]] * 2), scored)
+    tools = Tools(replace(ledger, flags=load_flags(path, user_id=two_users[0])))
+
+    found = tools.detect_anomalies("2023-01-01", tools.as_of.isoformat()).data
+    assert {f["transaction_id"] for f in found["unusual_transactions"]} == set(ids)

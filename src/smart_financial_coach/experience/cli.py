@@ -27,6 +27,10 @@ def _build(args: argparse.Namespace) -> int:
         f"{bundle.root}: {bundle.users} users, {bundle.transactions} transactions, "
         f"categorized by {bundle.model_version}"
     )
+    if bundle.flag_model_version:
+        print(f"  {bundle.flags} unusual charges flagged by {bundle.flag_model_version}")
+    else:
+        print("  no unusual-transaction model promoted: unusual charges stay not available")
     return 0
 
 

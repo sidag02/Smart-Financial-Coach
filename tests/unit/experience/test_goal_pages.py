@@ -247,7 +247,7 @@ def test_saving_an_edit_unchanged_keeps_the_amounts_exactly(client: TestClient) 
 
 def test_amounts_must_be_plain_decimals(client: TestClient) -> None:
     started = time.perf_counter()
-    for amount in ("1e100000000", "1e999990", "3e3", "0x10", "12.5.1"):
+    for amount in ("1e100000000", "1e999990", "3e3", "0x10", "12.5.1", ".", "1" * 17):
         fit = client.post("/goals/check", data={**TRIP, "target_amount": amount}).text
         assert "Enter an amount in dollars." in fit, amount
         refused = client.post("/goals", data={**TRIP, "target_amount": amount})
@@ -291,3 +291,22 @@ def test_the_live_check_on_an_edit_leaves_the_goal_out_of_other_goals(client: Te
     assert "You already have a goal called Trip." not in fit  # not clashing with itself
     unknown = client.post("/goals/check", data={**TRIP, "goal_id": "gu_nobody"})
     assert unknown.status_code == 404
+
+
+@pytest.mark.parametrize(("typed", "monthly"), [(".50", None), ("3000.", "$334"), ("450.5", "$51")])
+def test_amounts_may_start_or_end_with_the_point(
+    client: TestClient, typed: str, monthly: str | None
+) -> None:
+    fit = client.post("/goals/check", data={**TRIP, "target_amount": typed}).text
+    assert "Enter an amount in dollars." not in fit
+    if monthly is None:
+        assert "Goals start at $50." in fit  # read as $0.50, then held to the limits
+    else:
+        assert monthly in fit
+
+
+def test_over_long_fields_get_the_forms_messages_not_a_422(client: TestClient) -> None:
+    reply = client.post("/goals", data={**TRIP, "name": "x" * 500, "target_amount": "9" * 50})
+    assert reply.status_code == 200
+    assert "Keep the name to 40 characters." in reply.text
+    assert "Enter an amount in dollars." in reply.text
