@@ -1,6 +1,6 @@
 # FR-8 Spending Spikes — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Accepted with conditions** (owner, Oct 4, 2026, on #58; see [Decisions](#decisions-and-open-questions)) · Branch: `docs/fr-8-design`
+Oct 4, 2026 · @Sidd · Status: **Accepted with conditions** (owner, Oct 4, 2026, on #58; see [Decisions](#decisions-and-open-questions)) · **Milestones 1–4 (serving) and 5 built; test scoring and promotion held by the owner** (#59–#63) · Branch: `docs/fr-8-design`
 
 ## Summary
 
