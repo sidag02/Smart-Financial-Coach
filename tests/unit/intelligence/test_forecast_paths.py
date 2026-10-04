@@ -312,3 +312,19 @@ def test_the_trend_follows_a_raise_and_is_damped() -> None:
     steps = np.diff(ahead)
     assert (steps > 0).all()
     assert steps[-1] < steps[0] / 5  # damped: it levels off
+
+
+def test_the_mixture_pools_every_personas_deviations_for_short_histories() -> None:
+    """Under 6 months of the user's own deviations, each persona's pool joins in proportion to
+    its weight; with no history at all, the personas weigh equally and no label is read."""
+    x = mixture_rows()
+    model = PathsModel(seasonal=True, personas="mixture", n_paths=200, spread=1.0).fit(x)
+    short = series([700.0, 650.0, 820.0, 760.0])
+    state = model.state_for(short, "freelancer")
+    assert state.mixture is not None
+    assert len(state.residuals) > 4  # the user's 4, then the personas' pools
+    assert state == model.state_for(short, "")
+    empty = model.state_for(series([]), "freelancer")
+    assert empty.mixture is not None
+    assert [w for w, _ in empty.mixture] == pytest.approx([1 / 3] * 3)
+    assert empty == model.state_for(series([]), "")
