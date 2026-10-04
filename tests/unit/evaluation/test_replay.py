@@ -85,6 +85,12 @@ def test_the_replay_runs_the_loop_and_reports_it(
     assert len(result.months) == 24
     assert result.summary["votes"] > 0
     assert result.summary["global_labels"] > 0
+    assert result.summary["isolation_holds"]  # evaluation users change only at promotions
+    assert all(m["isolation"]["evaluation_votes"] == 0 for m in result.months)
+    assert (
+        result.summary["open_items_per_user_month"]
+        >= result.summary["items_resolved_per_user_month"]
+    )
     assert result.retrainings, "a retraining was considered"
     trained = [s for s in result.retrainings if "gates" in s]
     assert trained, result.retrainings

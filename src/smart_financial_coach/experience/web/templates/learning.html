@@ -30,12 +30,12 @@
   <section class="card stack" style="gap:6px">
     <div class="card-label">Agreed and learned</div>
     <div class="big">{{ replay.summary.global_labels }}</div>
-    <div class="muted" style="font-size:13.5px">merchants where at least {{ replay.config.rule.n }} people agreed, from {{ replay.summary.corrections }} corrections; {{ replay.summary.labels_matching_truth }} fixed real model errors, the rest are shared preferences</div>
+    <div class="muted" style="font-size:13.5px">merchants where at least {{ replay.config.rule.n }} people agreed, from {{ replay.summary.corrections }} corrections; {{ replay.summary.labels_matching_truth }} fixed real model errors; the rest are preferences many share, and a few that slipped through with only 3 votes</div>
   </section>
   <section class="card stack" style="gap:6px">
     <div class="card-label">Retrained</div>
     <div class="big">{{ replay.summary.promotions }} of {{ replay.retrainings | selectattr("gates") | list | length }}</div>
-    <div class="muted" style="font-size:13.5px">candidates passed the gates and were promoted · about {{ "%.1f" | format(replay.summary.items_shown_per_user_month) }} review items per person a month</div>
+    <div class="muted" style="font-size:13.5px">candidates passed the gates and were promoted · about {{ "%.1f" | format(replay.summary.open_items_per_user_month) }} items in a person's review queue a month, {{ "%.1f" | format(replay.summary.items_resolved_per_user_month) }} resolved</div>
   </section>
 </div>
 
@@ -105,13 +105,13 @@
 
 <section class="card stack">
   <div class="card-title">Demo visitors' agreement, live</div>
-  <p class="muted" style="margin:0;font-size:13.5px">How visitors' corrections in this demo count toward agreement. Illustrative only: each sign-in is a new session here, so the demo doesn't retrain from it; the model learns from the replay above.</p>
+  <p class="muted" style="margin:0;font-size:13.5px">How visitors' corrections in this demo count toward agreement. A merchant shows here once at least 2 different sessions have corrected it, so no single person's choice is visible to others. Illustrative only: each sign-in is a new session here, so the demo doesn't retrain from it; the model learns from the replay above.</p>
   {% if visitors %}
   {% for v in visitors %}
   <div class="row-split"><span>{{ v.merchant }} → {{ v.category }}</span><b class="num">{{ v.agreeing }} of {{ v.voters }} agree · {% if v.label %}agreed{% else %}{{ v.needed }} people needed{% endif %}</b></div>
   {% endfor %}
   {% else %}
-  <div class="muted" style="font-size:13.5px">No corrections yet. Fix a category on the Transactions page and it shows up here.</div>
+  <div class="muted" style="font-size:13.5px">{% if single_votes %}{{ single_votes }} merchant{{ "s" if single_votes != 1 }} corrected by one session so far; they show here once another session agrees or disagrees.{% else %}No corrections yet. Fix a category on the Transactions page; it counts here once another session corrects the same merchant.{% endif %}</div>
   {% endif %}
 </section>
 {% endblock %}

@@ -9,7 +9,8 @@ Training data for a retraining with cutoff `cutoff`:
 
 Nobody else's rows enter training: evaluation scores users who supplied no labels, in later
 months, and their rows in training would leak into it. `leak_errors` stops a retraining whose
-added rows include an evaluation user's transaction or anything after the cutoff.
+training rows include an evaluation user's transaction, or whose added rows include anything after
+the cutoff.
 
 Like a run, the model is cross-fitted on merchant-grouped folds, calibrated on the pooled
 held-out outputs, and gets its review policy from them (§1). Labels are clean (`label_noise: 0`,
@@ -54,11 +55,18 @@ class Retrained:
 
 
 def leak_errors(
-    added: pd.DataFrame, evaluation_users: Collection[str], cutoff: pd.Timestamp
+    training: pd.DataFrame,
+    added: pd.DataFrame,
+    evaluation_users: Collection[str],
+    cutoff: pd.Timestamp,
 ) -> list[str]:
+    """The whole training set holds no evaluation user's transaction, and the rows feedback added
+    hold nothing on or after the cutoff. (The original training rows are train users' and span
+    the whole calendar, as the shipped model's do; the cutoff bounds what feedback contributes.)
+    `retrain` selects rows so both hold; this guards the selection against later changes."""
     errors = []
-    if added["user_id"].isin(set(evaluation_users)).any():
-        errors.append("added rows include an evaluation user's transactions")
+    if training["user_id"].isin(set(evaluation_users)).any():
+        errors.append("training rows include an evaluation user's transactions")
     if (pd.to_datetime(added["ts"]) >= cutoff).any():
         errors.append(f"added rows include transactions on or after the cutoff {cutoff.date()}")
     return errors
@@ -91,7 +99,7 @@ def retrain(
         [(u, k) in voter_of for u, k in zip(frame["user_id"], key, strict=True)], index=frame.index
     )
     added &= ~in_train & agreed.notna() & (pd.to_datetime(frame["ts"]) < cutoff)
-    if errors := leak_errors(frame[added], evaluation_users, cutoff):
+    if errors := leak_errors(frame[in_train | added], frame[added], evaluation_users, cutoff):
         raise RetrainError("; ".join(errors))
 
     new_labels = examples.labels.where(~(relabel | added), agreed)  # type: ignore[union-attr]

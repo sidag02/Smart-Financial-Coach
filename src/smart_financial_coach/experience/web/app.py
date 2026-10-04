@@ -75,6 +75,7 @@ HORIZONS = {"week": "Week", "month": "Month", "quarter": "Quarter", "year": "Yea
 REVIEW_SHOWN = 5  # review items in the transactions page's panel (FR-5)
 ALTERNATIVES = 2  # quick-pick categories offered next to an item's suggestion
 CHANGES_SHOWN = 5  # recent corrections listed with an undo button (FR-6)
+MIN_VISIBLE = 2  # sessions that must vote on a merchant before others see its tally
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "X-Frame-Options": "DENY",
@@ -703,7 +704,9 @@ def create_app(
                 "label": key in labels_now,
             }
             for key, counts in sorted(tallies.items(), key=lambda kv: -sum(kv[1].values()))[:8]
+            if sum(counts.values()) >= MIN_VISIBLE  # one person's choice stays theirs (§4)
         ]
+        context["single_votes"] = sum(1 for c in tallies.values() if sum(c.values()) < MIN_VISIBLE)
         return page(request, "learning.html", account, active="learning", **context)
 
     # Chat (mockup 1d)

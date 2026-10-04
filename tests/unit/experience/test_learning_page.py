@@ -44,7 +44,8 @@ REPLAY = {
          "label_changes": [{"seq": 3, "merchant_key": "netflix", "category": None, "voters": 4}]},
     ],
     "summary": {"global_labels": 4, "corrections": 120, "labels_matching_truth": 1,
-                "promotions": 1, "items_shown_per_user_month": 1.5},
+                "promotions": 1, "open_items_per_user_month": 3.0,
+                "items_resolved_per_user_month": 1.5},
 }  # fmt: skip
 
 
@@ -93,5 +94,29 @@ def test_the_replay_story_and_visitors_agreement(
     assert "promoted" in page
     assert "<polyline" in page
     assert "75.0% → 75.0% (macro F1, true categories)" in page
-    assert f"{item['merchant_key'].title()} → {target}" in page  # the visitor's vote, live
-    assert "1 of 1 agree · 3 people needed" in page
+    # One session's correction isn't shown to others (§4): only that a merchant has a vote
+    assert f"{item['merchant_key'].title()} → {target}" not in page
+    assert "1 merchant corrected by one session so far" in page
+
+
+def test_a_merchant_shows_once_two_sessions_have_voted(
+    sources: DataSources, two_users: tuple[str, str], tmp_path: Path
+) -> None:
+    from fastapi.testclient import TestClient
+
+    data = bundle(sources, tmp_path / "b", REPLAY)
+    with make_client(data, accounts(two_users)) as c:
+        other = TestClient(c.app)  # a second visitor, same app
+        sign_in(c)
+        sign_in(other)
+        ledger = Ledger.load(data, two_users[0])
+        item = open_review_items(ledger.transactions, two_users[0]).iloc[0]
+        target = "Travel" if item["suggested_category"] != "Travel" else "Entertainment"
+        for client in (c, other):
+            client.post(
+                f"/review/{item['item_id']}", data={"action": "correct", "category": target}
+            )
+        page = c.get("/learning").text
+
+    assert f"{item['merchant_key'].title()} → {target}" in page
+    assert "2 of 2 agree · 3 people needed" in page

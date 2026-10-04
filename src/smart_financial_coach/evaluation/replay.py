@@ -249,6 +249,8 @@ def run_replay(
     votes: list[_Vote] = []
     labels_in_model: dict[str, str] = {}
     seq = 0
+    last_eval = pd.Series(dtype=object)  # evaluation users' predictions after the last month
+    promoted_since = False
 
     def vote(user: str, key: str, category: str, corrected: bool) -> None:
         nonlocal seq
@@ -260,13 +262,14 @@ def run_replay(
         rows = tx[tx["month"] == month]
         preds = pd.concat([preds, current.categorize(rows)])
         seen = tx.loc[preds.index]
-        shown = 0
+        shown = queued = 0  # items resolved, and items open in the queues, this month
         for user in feedback:
             mine = seen[seen["user_id"] == user]
             p = preds.loc[mine.index]
             spend = mine[mine["user_category"] != INCOME]
             mine_over = overrides[user]
             open_items = p[p["needs_review"] & ~mine["merchant_key"].isin(mine_over)]
+            queued += mine.loc[open_items.index, "merchant_key"].nunique()
             if len(open_items) and rng.random() < b.engagement:
                 ranked = (
                     _spend(mine.loc[open_items.index, "amount"])
@@ -316,9 +319,23 @@ def run_replay(
             zip(fb_rows["user_id"], fb_rows["merchant_key"], strict=True),
             strict=True,
         ):
-            if k in overrides[u] and fb_rows.at[idx, "category"] != INCOME:
+            # Overrides leave rows the model predicted as Income alone (§3), as the app does
+            if k in overrides[u] and predicted.at[idx] != INCOME:
                 effective.at[idx] = overrides[u][k]
         ev_rows = month_rows[month_rows["user_id"].isin(set(evaluation))]
+        # Isolation: evaluation users' categories change only when a model is promoted, and
+        # they never vote; nobody's overrides reach another user (each user's view applies only
+        # their own, above)
+        ev_all = preds.index[tx.loc[preds.index, "user_id"].isin(set(evaluation))]
+        before = last_eval.reindex(ev_all).dropna()
+        changed = int((preds.loc[before.index, "predicted"] != before).sum())
+        isolation = {
+            "evaluation_rows_changed": changed,
+            "after_promotion": promoted_since,
+            "evaluation_votes": sum(v.subject in set(evaluation) for v in votes),
+        }
+        last_eval = preds.loc[ev_all, "predicted"].copy()
+        promoted_since = False
         result.months.append(
             {
                 "month": month,
@@ -329,7 +346,10 @@ def run_replay(
                 "evaluation_unseen": _scores(
                     ev_rows[ev_rows["unseen"]], predicted.loc[ev_rows.index], spending
                 ),
-                "items_shown_per_user": shown / len(feedback),
+                "open_items_per_user": queued / len(feedback),
+                "items_resolved_per_user": shown / len(feedback),
+                "share_resolved": shown / queued if queued else None,
+                "isolation": isolation,
                 "votes": len(votes),
                 "global_labels": len(global_labels(current_votes(votes), config.rule)),
             }
@@ -408,6 +428,7 @@ def run_replay(
         if passed:
             current = _Model(candidate.model, candidate.policy, f"retrained {month}")
             labels_in_model = agreed
+            promoted_since = True
             preds = current.categorize(tx.loc[preds.index])
         progress(f"{month}: {step['decision']}")
 
@@ -548,8 +569,8 @@ def _gates(
                 "detail": f"{l_new:.3f} vs {l_old:.3f} on {int(at.sum())} rows",
             }
         )
-    unf = ~new["familiar"].astype(bool)
-    b_old, b_new = brier(old, ~fam), brier(new, unf)
+    # Both on the rows unfamiliar to the incumbent, so the comparison is on the same rows
+    b_old, b_new = brier(old, ~fam), brier(new, ~fam)
     out.append(
         {
             "name": "unfamiliar_brier",
@@ -666,9 +687,22 @@ def _report(
         )
         if result.months
         else None,
-        "items_shown_per_user_month": float(
-            np.mean([m["items_shown_per_user"] for m in result.months])
+        # Burden (§7): items open in a feedback user's queue in a month, and how many they resolve
+        "open_items_per_user_month": float(
+            np.mean([m["open_items_per_user"] for m in result.months])
         )
         if result.months
         else None,
+        "items_resolved_per_user_month": float(
+            np.mean([m["items_resolved_per_user"] for m in result.months])
+        )
+        if result.months
+        else None,
+        "isolation_holds": all(
+            m["isolation"]["evaluation_votes"] == 0
+            and (
+                m["isolation"]["evaluation_rows_changed"] == 0 or m["isolation"]["after_promotion"]
+            )
+            for m in result.months
+        ),
     }
