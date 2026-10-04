@@ -4,7 +4,7 @@ Oct 4, 2026 · @Sidd · Milestone 2 of FR-11 and FR-12 Goal Forecasting — Feat
 
 ## Where it stands
 
-- **Round 4's finalists were scored on test users once and failed** 4 of 30 blocking calibration gates, freelancers' "on track" band above all; nothing was promoted ([test results](#round-4-test-results-first-scoring)).
+- **Round 4's finalists were scored on test users once and failed** 4 of 24 blocking calibration gates, freelancers' "on track" band above all; nothing was promoted ([test results](#round-4-test-results-first-scoring)).
 - **Train users showed why:** stage 9 plants targets from the realized future, a leak that's strongest for volatile users. The freelancer forecast itself is honest, and round 4's model read a persona label real users don't have.
 - **Round 5** (owner decisions 10–13 in the design, prompted by the first test failure) uses persona-free candidates and evaluation targets set without the future. **Rank 1: `paths_seasonal_mixture`, Brier 0.167 with a track record and 0.199 for new goals** on validation, ahead of both other candidates ([round 5](#round-5-no-persona-label-targets-without-the-future)).
 - **On test (the second scoring, of users seen once before, so optimistic), rank 1 passes all 37 gates:** Brier 0.168 and 0.202, coverage 0.74, RMSE 0.28 of last-month naive and 0.88 of seasonal-naive. **It's promoted as `cbc08f6c-4e5378f2-5e7cefbd`** ([test results](#round-5-test-results-second-scoring)).
