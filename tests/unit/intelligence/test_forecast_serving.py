@@ -4,6 +4,7 @@ the same code and numbers as the scored model."""
 import stat
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -12,7 +13,12 @@ import pytest
 from smart_financial_coach.access.ledger import DataSources
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
 from smart_financial_coach.evaluation.cli import model_main
-from smart_financial_coach.intelligence.forecasting.batch import GoalForecaster, forecast_dataset
+from smart_financial_coach.intelligence.forecasting.baseline import NaivePace
+from smart_financial_coach.intelligence.forecasting.batch import (
+    BASELINE_VERSION,
+    GoalForecaster,
+    forecast_dataset,
+)
 from smart_financial_coach.intelligence.forecasting.contract import INPUT_COLUMNS, history_json
 from smart_financial_coach.intelligence.forecasting.paths import ForecastState, PathsModel
 from smart_financial_coach.intelligence.forecasting.savings import monthly_net
@@ -143,8 +149,8 @@ def test_a_broken_forecast_is_refused(
     )
     good = PathsModel.predict_with_states
 
-    def broken(self: PathsModel, x: pd.DataFrame, states: object) -> pd.DataFrame:
-        return good(self, x, states).assign(p_goal_met=1.5)  # type: ignore[arg-type]
+    def broken(self: PathsModel, x: pd.DataFrame, states: Any, **kwargs: Any) -> pd.DataFrame:
+        return good(self, x, states, **kwargs).assign(p_goal_met=1.5)
 
     monkeypatch.setattr(PathsModel, "predict_with_states", broken)
     with pytest.raises(ContractError, match="p_goal_met outside 0-1"):
@@ -168,6 +174,7 @@ def test_the_monthly_series_ends_where_the_forecast_does(
     )
     assert all(m["low"] <= m["median"] <= m["high"] for m in monthly)
     # The same paths every time (NFR-8)
+    assert isinstance(forecaster.model, PathsModel)
     assert np.array_equal(
         forecaster.paths(user_id),
         forecaster.model.paths_for(user_id, forecaster.as_of, forecaster.states[user_id]),
@@ -190,3 +197,69 @@ def test_cli_writes_forecast_states(
 def test_the_batch_needs_a_promoted_model(small_sqlite: Path, flag_artifacts: Path) -> None:
     with pytest.raises(Exception, match="no promoted model"):
         forecast_dataset(small_sqlite, small_sqlite.parent / "x.json", artifacts_dir=flag_artifacts)
+
+
+def test_without_a_promoted_model_the_baseline_runs_the_same_pipeline(
+    forecast_sources: DataSources, tmp_path: Path
+) -> None:
+    """Owner decision 10 on #54: naive pace behind the pipeline until a model is promoted."""
+    out = tmp_path / "forecasts.json"
+    run = forecast_dataset(forecast_sources.dataset, out, baseline=True)
+    assert run.model_version == BASELINE_VERSION
+    forecaster = GoalForecaster.load(out)
+    assert forecaster.baseline
+    assert forecaster.covers("anyone")
+    user_id = str(load_users(forecast_sources.dataset)["user_id"].iloc[0])
+    rows = pd.DataFrame(
+        [goal_row(user_id, user_history(forecast_sources, user_id))], columns=list(INPUT_COLUMNS)
+    )
+    expected = NaivePace().predict(rows).assign(model_version=BASELINE_VERSION)
+    pd.testing.assert_frame_equal(forecaster.forecast(rows), expected)
+    with pytest.raises(ValueError, match="no paths"):
+        forecaster.paths(user_id)
+
+
+def test_forecasting_only_some_goals_matches_the_whole_set(
+    forecast_sources: DataSources, forecaster: GoalForecaster
+) -> None:
+    user_id = next(iter(forecaster.states))
+    history = user_history(forecast_sources, user_id)
+    rows = pd.DataFrame(
+        [
+            goal_row(user_id, history),
+            goal_row(user_id, history, example_id="g2", goal_id="g2", origin="yours"),
+        ],
+        columns=list(INPUT_COLUMNS),
+    )
+    whole = forecaster.forecast(rows)
+    one = forecaster.forecast(rows, only=["g2"])
+    pd.testing.assert_frame_equal(one, whole.iloc[[1]].reset_index(drop=True))
+
+
+def test_the_batch_refuses_a_partial_last_month_and_a_persona_label(
+    small_sqlite: Path,
+    tmp_path: Path,
+    forecast_artifacts: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from smart_financial_coach.data import store
+    from smart_financial_coach.evaluation.tasks.goals import GoalForecastingTask
+    from smart_financial_coach.intelligence.forecasting import batch
+    from smart_financial_coach.intelligence.models.artifact import (
+        record_promotion,
+        save_artifact,
+    )
+
+    real = store.load_meta
+    monkeypatch.setattr(batch, "load_meta", lambda d: {**real(d), "calendar_end": "2026-09-15"})
+    with pytest.raises(ValueError, match="not on a month end"):
+        forecast_dataset(small_sqlite, tmp_path / "a.json", artifacts_dir=forecast_artifacts)
+    monkeypatch.undo()
+
+    frame = GoalForecastingTask(reps=10, draws=1).load(small_sqlite).frame
+    label = PathsModel(seasonal=True).fit(frame[list(INPUT_COLUMNS)])
+    label.version = "label"
+    save_artifact(label, tmp_path / "art" / "goal_forecasting" / "label", {})
+    record_promotion(tmp_path / "art" / "goal_forecasting", {"version": "label"})
+    with pytest.raises(TypeError, match="persona label"):
+        forecast_dataset(small_sqlite, tmp_path / "b.json", artifacts_dir=tmp_path / "art")

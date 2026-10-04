@@ -44,8 +44,12 @@ def test_the_bundle_holds_only_the_accounts_and_everyone_can_read_it(
     assert set(store.load_users(bundle.root / "dataset.sqlite")["user_id"]) == {two_users[0]}
     assert bundle.flag_model_version is None
     assert not (bundle.root / "flags.sqlite").exists()
-    assert bundle.forecast_model_version is None  # nor a goal-forecasting one
-    assert not (bundle.root / "forecasts.json").exists()
+    # Nor a goal-forecasting one: naive pace stands in (owner decision 10 on #54)
+    assert bundle.forecast_model_version == "naive-pace"
+    assert (
+        load_forecasts(bundle.root / "forecasts.json").model["name"]
+        == "goal_forecasting/naive_pace"
+    )
     assert bundle.transactions == len(store.load_transactions(small_sqlite, user_id=two_users[0]))
     for path in bundle.root.iterdir():
         mode = stat.S_IMODE(path.stat().st_mode)
