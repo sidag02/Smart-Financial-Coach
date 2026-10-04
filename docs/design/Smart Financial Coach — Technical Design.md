@@ -107,7 +107,7 @@ v1 runs as a single Python deployment on one machine; each component has a named
 | --- | --- | --- |
 | Language / runtime | Python 3.11, pinned dependencies | Containerized services |
 | Data store | SQLite (one file per generated dataset) | Managed Postgres with row-level security |
-| Feedback store (FR-5, FR-6) | SQLite file the app writes, apart from the read-only data; in the demo, keyed by browser session and reset on each deploy | Postgres with row-level security, keyed by the signed-in user |
+| Feedback store (FR-5, FR-6) | SQLite file the app writes, apart from the read-only data; in the demo, keyed by browser session and reset whenever the container restarts or is redeployed | Postgres with row-level security, keyed by the signed-in user |
 | Model artifacts | The repo's `artifacts/` holds each service's `PROMOTED` pointer, promotion log and model manifests; model files are attached to GitHub Releases and verified against the committed manifest on first use (FR-3) | Container registry: continuous deployment bakes the promoted model into the serving image |
 | Experiment tracking | MLflow with a local store: runs, metrics and the model registry (`champion` alias); serving never reads it | Shared MLflow server |
 | Tool server | Local process speaking MCP over stdio / HTTP | Hosted service behind auth gateway |
@@ -205,7 +205,7 @@ Categorization ships with a cold-start model that only needs to be decent (FR-3)
 - **Corrections:** events in a feedback store; overrides are replayed from them and applied per user after the shared predictions (a transaction override, then a merchant override, then the model). Undo marks an event; nothing is deleted. In the demo, feedback is keyed by browser session, since visitors share accounts.
 - **Agreement:** a merchant's category becomes a training label when at least N distinct people (3) have a view, two thirds agree, and at least one corrected rather than accepted a suggestion; re-evaluated with every vote. N, the majority and the cadence are provisional.
 - **Retraining:** through the evaluation harness's parts, on clean labels: original rows relabelled at agreed merchants, contributors' rows before the cutoff, a leak check; gated on users who supplied no labels, against their own view, with truth-based numbers reported.
-- **Measured** in a simulated replay (FR-5 Feedback Replay — Results): new-merchant macro F1 for people who never corrected rose from 0.75 to 0.87 against the true categories, and held at 0.83 with a fifth of correctors acting at random. The demo shows it on "How it learns"; no replay model is promoted, and visitors' agreement is illustrative only (owner, Oct 3, 2026).
+- **Measured** in a simulated replay (FR-5 Feedback Replay — Results): new-merchant macro F1 for people who never corrected rose from 0.75 to 0.87 against the true categories, and held at 0.83 with a fifth of correctors acting at random, though some labels they pushed through reached retrained models; N stays provisional. The demo shows it on "How it learns"; no replay model is promoted, and visitors' agreement is illustrative only (owner, Oct 3, 2026).
 
 **A correction means one of two things, and the system has to tell them apart.**
 
