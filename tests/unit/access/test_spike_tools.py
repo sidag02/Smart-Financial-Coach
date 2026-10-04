@@ -154,3 +154,16 @@ def test_the_file_holds_no_rows_of_any_user(spike_sources: DataSources) -> None:
     text = Path(spike_sources.spikes).read_text()
     assert "u_tr_" not in text
     assert "u_te_" not in text
+
+
+def test_the_served_fallback_is_the_rule_finalize_scores() -> None:
+    """Decision 15: the simple count rule scored on test users is decision 12's fallback."""
+    from smart_financial_coach.config import PROJECT_ROOT
+    from smart_financial_coach.evaluation.experiment import load_experiment
+    from smart_financial_coach.intelligence.models.registry import build
+    from smart_financial_coach.intelligence.spikes.batch import _spec, simple_rule
+
+    config = load_experiment(
+        PROJECT_ROOT / "configs" / "experiments" / "spending_spikes" / "01_simple_count.yaml"
+    )
+    assert _spec(build(config.model_spec({}))) == _spec(simple_rule())
