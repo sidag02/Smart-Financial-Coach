@@ -122,6 +122,19 @@ def baseline_runs(runs: list[RunRecord]) -> list[RunRecord]:
     return [r for r in runs if r.tags.get("sfc.baseline") == "true"]
 
 
+REPORT_ONLY_TAG = "user.report_only"  # a config's `tags: {report_only: "true"}`
+
+
+def is_report_only(run: RunRecord) -> bool:
+    """A run that's reported beside the round but never ranked, gated or test-scored, such as an
+    ablation (FR-8 §3). A tag, so it doesn't change the config hash."""
+    return run.tags.get(REPORT_ONLY_TAG) == "true"
+
+
+def report_only_runs(runs: list[RunRecord]) -> list[RunRecord]:
+    return [r for r in runs if is_report_only(r) and r.tags.get("sfc.baseline") != "true"]
+
+
 def is_twin(run: RunRecord) -> bool:
     return TWIN_TAG in run.tags
 
@@ -149,7 +162,11 @@ def leaderboard(
     if any(r.tags.get("sfc.baseline") != "true" for r in runs):
         _require_baselines(task, runs)
     baselines = {r.name: r.metrics for r in baseline_runs(runs)}
-    candidates = [r for r in runs if r.tags.get("sfc.baseline") != "true" and not is_twin(r)]
+    candidates = [
+        r
+        for r in runs
+        if r.tags.get("sfc.baseline") != "true" and not is_twin(r) and not is_report_only(r)
+    ]
     if not candidates:
         return []
     shipping = bool(task.shipping_params)
@@ -301,6 +318,8 @@ def finalize(
             raise SelectionError(f"{run.run_id} is not a finished experiment run")
         if run.tags.get("sfc.baseline") == "true":
             raise SelectionError(f"{run.run_id} is a baseline; baselines are scored automatically")
+        if is_report_only(run):
+            raise SelectionError(f"{run.run_id} is report-only; it's never scored on test sets")
     if len({r.tags["sfc.split_hash"] for r in finalists}) > 1:
         raise SelectionError("finalists were trained on different splits")
     comparable = comparable_runs(tracker, task, finalists[0].tags["sfc.split_hash"])

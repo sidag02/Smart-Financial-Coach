@@ -1,0 +1,12 @@
+# FR-8 round 0, report-only: the simple count rule, a Poisson tail of the month's purchase count
+# against the user's trailing 12-month mean, with no season and no income (decision 5: reported
+# beside the gated baseline, never gated). The product rules apply, as to every flag.
+name: simple_count
+task: spending_spikes
+model:
+  type: spending_spikes/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: spending_spikes/count, params: {season: false, income: false}}}
+baseline: true
+tags: {plan: fr8-round}

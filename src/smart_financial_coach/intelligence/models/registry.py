@@ -27,6 +27,7 @@ MODEL_MODULES: tuple[str, ...] = (
     "smart_financial_coach.intelligence.anomaly.forest",
     "smart_financial_coach.intelligence.spikes.threshold",
     "smart_financial_coach.intelligence.spikes.baseline",
+    "smart_financial_coach.intelligence.spikes.count",
     "smart_financial_coach.intelligence.forecasting.baseline",
     "smart_financial_coach.intelligence.forecasting.paths",
 )
