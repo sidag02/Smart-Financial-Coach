@@ -86,6 +86,9 @@ def test_the_replay_runs_the_loop_and_reports_it(
     assert result.summary["votes"] > 0
     assert result.summary["global_labels"] > 0
     assert result.summary["isolation_holds"]  # evaluation users change only at promotions
+    assert result.adversarial_users == []  # this run has none, so no label is adversarial-driven
+    assert result.summary["adversarial_driven_labels"] == []
+    assert all(s["adversarial_driven"] == [] for s in result.retrainings)
     assert all(m["isolation"]["evaluation_votes"] == 0 for m in result.months)
     assert (
         result.summary["open_items_per_user_month"]

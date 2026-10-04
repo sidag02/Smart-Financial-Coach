@@ -109,6 +109,7 @@ class ReplayResult:
     labels: list[dict[str, Any]] = field(default_factory=list)
     remaps: list[dict[str, Any]] = field(default_factory=list)
     summary: dict[str, Any] = field(default_factory=dict)
+    adversarial_users: list[str] = field(default_factory=list)
 
     def to_json(self) -> str:
         return json.dumps(_plain(asdict(self)), indent=2, default=str) + "\n"
@@ -373,6 +374,9 @@ def run_replay(
             "labels": len(agreed),
             "new_labels": sorted(new.items()),
             "revoked": revoked,
+            # Labels that hold only because of adversarial voters: re-applying the rule without
+            # their votes gives no label or another category (review on #44)
+            "adversarial_driven": _driven(standing, agreed, adversarial, config.rule),
         }
         if len(new) + len(revoked) < config.min_new_labels:
             step["decision"] = "skipped: no new labels"
@@ -432,6 +436,7 @@ def run_replay(
             preds = current.categorize(tx.loc[preds.index])
         progress(f"{month}: {step['decision']}")
 
+    result.adversarial_users = sorted(adversarial)
     _report(result, tx, votes, feedback, evaluation, spending, config, preds, overrides)
     result.summary["seconds"] = round(time.perf_counter() - started)
     return result
@@ -591,6 +596,15 @@ def _gates(
     return out
 
 
+def _driven(
+    standing: list[Vote], agreed: dict[str, str], adversarial: set[str], rule: AgreementRule
+) -> list[str]:
+    honest = global_labels([v for v in standing if v.subject not in adversarial], rule)
+    return sorted(
+        k for k, category in agreed.items() if k not in honest or honest[k].category != category
+    )
+
+
 def _report(
     result: ReplayResult,
     tx: pd.DataFrame,
@@ -604,6 +618,14 @@ def _report(
 ) -> None:
     standing = current_votes(votes)
     final = global_labels(standing, config.rule)
+    driven_final = set(
+        _driven(
+            standing,
+            {k: lab.category for k, lab in final.items()},
+            set(result.adversarial_users),
+            config.rule,
+        )
+    )
     stream = [
         Vote(v.subject, v.merchant_key, v.to_category, v.action == "correct", v.seq) for v in votes
     ]
@@ -620,6 +642,7 @@ def _report(
                 "voters": lab.voters,
                 "agreeing": lab.agreeing,
                 "corrections": lab.corrections,
+                "adversarial_driven": key in driven_final,
             }
         )
     # Per remap: who holds it, what the model now says to evaluation users, label churn
@@ -698,6 +721,14 @@ def _report(
         )
         if result.months
         else None,
+        # Robustness by contributors: labels that hold only because of adversarial voters, now and
+        # in the models that were promoted (review on #44)
+        "adversarial_driven_labels": sorted(driven_final),
+        "adversarial_driven_in_promoted_models": {
+            s["month"]: s["adversarial_driven"]
+            for s in result.retrainings
+            if s["decision"] == "promoted" and s["adversarial_driven"]
+        },
         "isolation_holds": all(
             m["isolation"]["evaluation_votes"] == 0
             and (

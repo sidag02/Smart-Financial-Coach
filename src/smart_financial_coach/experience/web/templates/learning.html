@@ -35,7 +35,7 @@
   <section class="card stack" style="gap:6px">
     <div class="card-label">Retrained</div>
     <div class="big">{{ replay.summary.promotions }} of {{ replay.retrainings | selectattr("gates") | list | length }}</div>
-    <div class="muted" style="font-size:13.5px">candidates passed the gates and were promoted · about {{ "%.1f" | format(replay.summary.open_items_per_user_month) }} items in a person's review queue a month, {{ "%.1f" | format(replay.summary.items_resolved_per_user_month) }} resolved</div>
+    <div class="muted" style="font-size:13.5px">candidates passed the gates and were promoted{% if replay.summary.get("open_items_per_user_month") is not none %} · about {{ "%.1f" | format(replay.summary.open_items_per_user_month) }} items in a person's review queue a month, {{ "%.1f" | format(replay.summary.items_resolved_per_user_month) }} resolved{% endif %}</div>
   </section>
 </div>
 
@@ -62,7 +62,7 @@
     <li><b>Promoted or rejected.</b> A model that passes replaces the current one; one that fails is set aside.</li>
   </ol>
   <p class="muted" style="margin:0;font-size:13.5px">These retrained models were evaluated in the replay; the demo still serves the original model.</p>
-  <table class="retrain">
+  <div class="table-scroll"><table class="retrain">
     <thead><tr><th>Month</th><th>Labels</th><th>Training rows</th><th>Gates</th><th>Decision</th></tr></thead>
     <tbody>
     {% for s in replay.retrainings %}
@@ -75,20 +75,20 @@
       </tr>
     {% endfor %}
     </tbody>
-  </table>
+  </table></div>
 </section>
 
 <div class="grid-2">
   <section class="card stack">
     <div class="card-title">What people agreed on</div>
-    <table class="retrain">
+    <div class="table-scroll"><table class="retrain">
       <thead><tr><th>Merchant</th><th>Agreed</th><th>Was</th><th>People</th></tr></thead>
       <tbody>
       {% for l in labels %}
         <tr><td>{{ l.merchant_key | title }}</td><td>{{ cat_chip(l.category) }}</td><td>{% if l.true_category != l.category %}{{ cat_chip(l.true_category) }}{% else %}<span class="muted">model error fixed</span>{% endif %}</td><td class="num">{{ l.agreeing }} of {{ l.voters }}</td></tr>
       {% endfor %}
       </tbody>
-    </table>
+    </table></div>
   </section>
   <section class="card stack">
     <div class="card-title">Preferences: shared ones teach, personal ones stay personal</div>

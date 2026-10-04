@@ -95,3 +95,16 @@ def test_votes_are_each_subjects_standing_merchant_feedback() -> None:
 def test_the_rule_is_a_setting() -> None:
     votes = [v(1, "a", "Entertainment"), v(2, "b", "Entertainment")]
     assert global_labels(votes, AgreementRule(n=2))["netflix"].category == "Entertainment"
+
+
+def test_a_label_is_adversarial_driven_when_it_needs_the_adversaries_votes() -> None:
+    from smart_financial_coach.evaluation.replay import _driven
+
+    votes = [v(1, "a", "Entertainment"), v(2, "evil", "Entertainment"), v(3, "c", "Subscriptions"),
+             v(4, "x", "Dining", key="cafe"), v(5, "y", "Dining", key="cafe"),
+             v(6, "evil", "Dining", key="cafe"), v(7, "z", "Dining", key="cafe")]  # fmt: skip
+    agreed = {k: lab.category for k, lab in global_labels(votes).items()}
+
+    assert agreed == {"netflix": "Entertainment", "cafe": "Dining"}
+    # netflix: without "evil", 1 of 2 isn't a label; cafe: 3 honest voters still agree
+    assert _driven(votes, agreed, {"evil"}, AgreementRule()) == ["netflix"]

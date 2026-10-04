@@ -122,3 +122,16 @@ def test_a_merchant_shows_once_two_sessions_have_voted(
 
     assert f"{item['merchant_key'].title()} → {target}" in page
     assert "2 of 2 agree · 3 people needed" in page
+
+
+def test_a_replay_file_from_an_older_run_still_renders(
+    sources: DataSources, two_users: tuple[str, str], tmp_path: Path
+) -> None:
+    """A results file without the burden fields (an older run) mustn't take the page down."""
+    summary: dict[str, object] = REPLAY["summary"]  # type: ignore[assignment]
+    old = {**REPLAY, "summary": {k: v for k, v in summary.items() if "items" not in k}}
+    with make_client(bundle(sources, tmp_path / "b", old), accounts(two_users)) as c:
+        sign_in(c)
+        reply = c.get("/learning")
+    assert reply.status_code == 200
+    assert "review queue" not in reply.text

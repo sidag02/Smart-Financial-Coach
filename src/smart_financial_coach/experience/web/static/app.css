@@ -272,7 +272,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   .sources { position: static; }
 }
 @media (max-width: 760px) {
-  .shell { grid-template-columns: 1fr; background: none; }
+  .shell { grid-template-columns: minmax(0, 1fr); background: none; }  /* never wider than the screen */
   .sidebar { display: none; }
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; border-bottom: 1px solid var(--border); background: var(--sidebar); position: sticky; top: 0; z-index: 20; }
   .tabbar { display: flex; position: fixed; bottom: 0; left: 0; right: 0; background: var(--surface); border-top: 1px solid var(--border); z-index: 20; padding-bottom: env(safe-area-inset-bottom); }
@@ -281,7 +281,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   main { padding: 20px 16px 96px; gap: 16px; }
   .page-title { font-size: 24px; }
   .big { font-size: 34px; }
-  .grid-3, .grid-2, .coming { grid-template-columns: 1fr; }
+  .grid-3, .grid-2, .coming { grid-template-columns: minmax(0, 1fr); }
   .field-pair { grid-template-columns: 1fr; }
   .flow { display: none; }
   .cat-list { display: block; }
@@ -289,7 +289,7 @@ td.amount, th.amount { text-align: right; white-space: nowrap; }
   table.txns th.cat, table.txns td.cat { display: none; }
   .m-only { display: block; margin-top: 6px; }
   table.txns td { padding: 10px; }
-  .search { min-width: 0; flex: 1; }
+  .search { min-width: 0; flex: 1 1 100%; }  /* its own row above the chips on a phone */
   .composer { bottom: 58px; }
   .q { max-width: 90%; }
 }
@@ -358,3 +358,9 @@ table.retrain td { padding: 8px 10px; border-bottom: 1px solid var(--divider); v
 .decision.promoted { color: var(--good); }
 .decision.rejected { color: var(--warn); }
 .remap { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.table-scroll { overflow-x: auto; max-width: 100%; }
+@media (max-width: 760px) {
+  .gate { white-space: normal; }
+  .card-head { flex-wrap: wrap; }
+  table.retrain td, table.retrain th { padding: 6px; }
+}
