@@ -26,6 +26,7 @@ MODEL_MODULES: tuple[str, ...] = (
     "smart_financial_coach.intelligence.anomaly.probabilistic",
     "smart_financial_coach.intelligence.anomaly.forest",
     "smart_financial_coach.intelligence.forecasting.baseline",
+    "smart_financial_coach.intelligence.forecasting.paths",
 )
 
 _REGISTRY: dict[str, type[Model]] = {}

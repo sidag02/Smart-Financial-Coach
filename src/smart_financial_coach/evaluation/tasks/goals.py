@@ -62,6 +62,10 @@ BANDS = (("off", 0.0, OFF_TRACK), ("either", OFF_TRACK, ON_TRACK), ("on", ON_TRA
 FLAT = 0.25  # a flat 50% scores 0.25 on any outcomes
 COVERAGE = (0.70, 0.90)  # the 80% range must hold 70-90% of realized balances (§5)
 BASELINES = ("naive_pace", "flat_50")
+# Decision 1 (owner, on #50; a target change recorded before test): RMSE of the next 6 months'
+# net savings at least 15% below last-month naive, and no worse than seasonal-naive
+RMSE_VS_NAIVE = 0.85
+RMSE_VS_SNAIVE = 1.0
 # Decision 6 (owner, on #50): a failing freelancer gate on the new-goal path is reported, not
 # loosened, and doesn't block promotion on its own
 NON_BLOCKING = {("new", "freelancer")}
@@ -148,13 +152,15 @@ def _set_rows(
     """`net` is the generator's monthly net (every month of the calendar), which labels and the
     realized future come from; `visible` is what a model may see."""
     out = []
-    set_id = f"{user['user_id']}:{draw}"
+    n_months = len(net)
     for g in goal_set[goal_set["met"].notna()].to_dict("records"):
         as_of_date, target_date = str(g["as_of_date"]), str(g["target_date"])
         as_of = pd.Period(as_of_date, freq="M")
         a, t = (as_of - start).n, (pd.Period(target_date, freq="M") - start).n
         history = visible[visible.index <= as_of]
         future = pd.Series(net[a + 1 : t + 1], index=pd.period_range(as_of + 1, periods=t - a))
+        # The realized next 6 months, for the RMSE metric; None when the history ends sooner
+        next6 = float(net[a + 1 : a + 7].sum()) if a + 6 < n_months else None
         # Goals of the set already created and not yet ended at this as_of (a sibling created
         # later is the future; review on #51)
         active = int(
@@ -165,7 +171,8 @@ def _set_rows(
         common = {
             "goal_id": g["goal_id"],
             "user_id": user["user_id"],
-            "goal_set": set_id,
+            # Each path is its own world: as tracked, or with every goal in the set as new
+            "goal_set": f"{user['user_id']}:{draw}",
             "persona": user["persona"],
             "as_of_date": as_of_date,
             "target_amount": float(g["target_amount"]),
@@ -175,6 +182,7 @@ def _set_rows(
             "first_saved": float("nan"),
             "first_saved_as_of": None,
             "active_goals": active,
+            "set_goals": len(goal_set),
             "history_json": history_json(history),
             # Evaluation only
             "split": user["split"],
@@ -182,11 +190,13 @@ def _set_rows(
             "outcome_class": g["outcome_class"],
             "future_json": history_json(future),
             "met": int(g["met"]),
+            "next6": next6,
         }
         out.append(
             common
             | {
                 "example_id": f"{g['goal_id']}:track",
+                "goal_set": f"{common['goal_set']}:track",
                 "path": "track",
                 "created_date": g["created_date"],
                 "origin": "existing",
@@ -196,6 +206,7 @@ def _set_rows(
             common
             | {
                 "example_id": f"{g['goal_id']}:new",
+                "goal_set": f"{common['goal_set']}:new",
                 "path": "new",
                 "created_date": as_of_date,
                 "origin": "yours",
@@ -210,9 +221,13 @@ class GoalForecastingTask:
     name = "goal_forecasting"
     selection_metric = "neg_brier"  # minus the mean of the two paths' Brier
     tuning_metric = "neg_brier"
-    # Among tied runs (lower is better): the worst band's calibration error, then batch cost.
-    # Scaled RMSE of net savings joins in milestone 2, with the net-savings forecasters
-    tiebreak_metrics: tuple[str, ...] = ("val_band_error", "latency_batch_ms")
+    # Among tied runs (lower is better): the worst band's calibration error, then scaled RMSE of
+    # the next 6 months' net savings, then batch cost
+    tiebreak_metrics: tuple[str, ...] = (
+        "val_band_error",
+        "val_scaled_rmse_6",
+        "latency_batch_ms",
+    )
     shipping_params: tuple[str, ...] = ()  # nothing trains on labels: no shipping twins
     serving_files_required: tuple[str, ...] = ()
     report_metrics: tuple[str, ...] = (
@@ -221,19 +236,26 @@ class GoalForecastingTask:
         "val_band_error",
         "val_coverage.track",
         "val_coverage.new",
+        "val_rmse_6_vs_naive",
+        "val_rmse_6_vs_snaive",
+        "val_scaled_rmse_6_vs_snaive",
         *(f"val_brier.{p}.{persona}" for p in PATHS for persona in PERSONAS),
         "latency_batch_ms",
     )
-    test_report_metrics: tuple[str, ...] = tuple(
-        f"test_{m}"
-        for p in PATHS
-        for m in (
-            f"brier.{p}",
-            f"brier.{p}_lo",
-            f"brier.{p}_hi",
-            f"coverage.{p}",
-            *(f"brier.{p}.{persona}" for persona in PERSONAS),
-        )
+    test_report_metrics: tuple[str, ...] = (
+        *(
+            f"test_{m}"
+            for p in PATHS
+            for m in (
+                f"brier.{p}",
+                f"brier.{p}_lo",
+                f"brier.{p}_hi",
+                f"coverage.{p}",
+                *(f"brier.{p}.{persona}" for persona in PERSONAS),
+            )
+        ),
+        "test_rmse_6_vs_naive",
+        "test_rmse_6_vs_snaive",
     )
     required_baselines: tuple[str, ...] = BASELINES
     bootstrap_unit = "user"
@@ -315,6 +337,7 @@ class GoalForecastingTask:
 
     def _rows(self, examples: Examples, predictions: pd.DataFrame) -> pd.DataFrame:
         cols = ["user_id", "persona", "path", "met", "saved", "future_json", "outcome_class"]
+        cols += ["as_of_date", "history_json", "next6"]
         f = examples.frame.set_index("example_id")
         joined = f.loc[predictions["example_id"].tolist(), cols].reset_index(drop=True)
         out = pd.concat([predictions.reset_index(drop=True), joined], axis=1)
@@ -340,6 +363,7 @@ class GoalForecastingTask:
                 for band, met_rate, n in _bands(part):
                     out[f"met_rate.{path}.{persona}.{band}"] = met_rate
                     out[f"goals.{path}.{persona}.{band}"] = float(n)
+        out |= _rmse(rows)
         briers = [out[f"brier.{p}"] for p in PATHS if f"brier.{p}" in out]
         out["brier"] = float(np.mean(briers)) if briers else float("nan")
         out["neg_brier"] = -out["brier"]
@@ -473,7 +497,8 @@ class GoalForecastingTask:
         self, metrics: Mapping[str, float], baselines: Mapping[str, Mapping[str, float]]
     ) -> list[Gate]:
         """§5, in order, on test users: Brier below the baselines; per persona below a flat 50%;
-        calibration inside each band, overall and per persona; the range's coverage; RMSE.
+        calibration inside each band, overall and per persona; the range's coverage; RMSE of
+        the next 6 months' net savings (decision 1).
 
         One reading of "within the user-bootstrap tolerance" (review on #51): a gate's target
         widens by half the width of the same metric's 95% interval on validation, which the run
@@ -533,6 +558,22 @@ class GoalForecastingTask:
                     f"{coverage:.2f} vs {COVERAGE[0]}-{COVERAGE[1]}",
                 )
             )
+        vs_naive = metrics.get("test_rmse_6_vs_naive", float("nan"))
+        vs_snaive = metrics.get("test_rmse_6_vs_snaive", float("nan"))
+        gates.append(
+            Gate(
+                "rmse_6_below_naive",
+                vs_naive <= RMSE_VS_NAIVE,
+                f"{vs_naive:.3f} of last-month naive's (at most {RMSE_VS_NAIVE})",
+            )
+        )
+        gates.append(
+            Gate(
+                "rmse_6_not_worse_than_seasonal_naive",
+                vs_snaive <= RMSE_VS_SNAIVE,
+                f"{vs_snaive:.3f} of seasonal-naive's (at most {RMSE_VS_SNAIVE})",
+            )
+        )
         return gates
 
     def serving_files(
@@ -572,6 +613,42 @@ def _covered(rows: pd.DataFrame) -> pd.Series:
         lo, hi = float(r["range_lo"]), float(r["range_hi"])
         out.append(float(lo - 0.005 <= realized <= hi + 0.005))
     return pd.Series(out, index=rows.index, dtype=float)
+
+
+def _rmse(rows: pd.DataFrame) -> dict[str, float]:
+    """RMSE of the next 6 months' total net savings, once per user and as_of (the track rows),
+    against last-month naive (the last month x 6) and seasonal-naive (the same months a year
+    earlier), in dollars and scaled by each user's mean absolute monthly net (decision 1).
+    Empty for a model without a net-savings forecast."""
+    r = rows[(rows["path"] == "track") & rows["next6"].notna() & rows["net_next_6"].notna()]
+    r = r.drop_duplicates(["user_id", "as_of_date"])
+    if r.empty:
+        return {}
+    histories = [parse_history(str(h)).to_numpy() for h in r["history_json"]]
+    keep = np.array([len(h) >= 12 for h in histories])
+    if not keep.any():
+        return {}
+    histories = [h for h, k in zip(histories, keep, strict=True) if k]
+    actual = r["next6"].to_numpy(dtype=float)[keep]
+    forecasts = {
+        "model": r["net_next_6"].to_numpy(dtype=float)[keep],
+        "naive": np.array([6 * h[-1] for h in histories]),
+        "snaive": np.array([h[-12:-6].sum() for h in histories]),
+    }
+    scale = np.array([max(np.abs(h).mean(), 1.0) for h in histories])
+    rmse = {k: float(np.sqrt(np.mean((f - actual) ** 2))) for k, f in forecasts.items()}
+    scaled = {
+        k: float(np.sqrt(np.mean(((f - actual) / (6 * scale)) ** 2))) for k, f in forecasts.items()
+    }
+    return {
+        "rmse_6": rmse["model"],
+        "rmse_6.naive": rmse["naive"],
+        "rmse_6.snaive": rmse["snaive"],
+        "rmse_6_vs_naive": rmse["model"] / rmse["naive"],
+        "rmse_6_vs_snaive": rmse["model"] / rmse["snaive"],
+        "scaled_rmse_6": scaled["model"],
+        "scaled_rmse_6_vs_snaive": scaled["model"] / scaled["snaive"],
+    }
 
 
 def _in_band(p: pd.Series, lo: float, hi: float) -> pd.Series:

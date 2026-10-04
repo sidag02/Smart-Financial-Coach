@@ -1,0 +1,8 @@
+# FR-11 round: the same paths with a month-of-year profile, each user's own shrunk toward their
+# persona's by the years observed (FR-11 and FR-12 design, §2, §4).
+name: paths_seasonal_persona
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: true, shrink: 2.0, window: 24}
+tags: {plan: fr11-round}

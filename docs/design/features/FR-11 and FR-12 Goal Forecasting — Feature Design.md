@@ -238,7 +238,7 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 - **Level:** the mean of the last 24 months, or of the history available if shorter.
 - **Seasonality:** a month-of-year profile, used once 12 months exist. Each user's own deviation is shrunk toward their persona's median profile, by the number of years observed, so two noisy Augusts don't become the forecast. The round decides whether seasonality earns its place at each horizon (§4).
 - **The user's own behavior:** the residual pool is that user's own monthly deviations from the point forecast. A freelancer's paths swing as much as their past did; a salaried user's are tight. With fewer than 6 months of residuals, the pool is pooled with the persona's, scaled to the user's level.
-- **Spread:** residuals are scaled by one factor, tuned on train users so the 80% range covers 80% of realized balances. It reads realized balances, never targets ([why](#why-nothing-is-tuned-on-outcomes)).
+- **Spread:** residuals are scaled by one factor, tuned on train users so the 80% range covers 80% of realized balances. The tuning goals are training goals whose target month lies inside their user's visible history (another of the user's rows reaches it), each run on its own share over the months that followed (#52). It reads realized balances, never targets ([why](#why-nothing-is-tuned-on-outcomes)).
 - **Paths:** the point forecast plus scaled, resampled residuals, 1,000 paths by default.
 
 ### 3. From paths to a goal
@@ -305,13 +305,13 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
   - The sampler is run with more draws per user, under its own seed, into an evaluation-only goal set.
   - **Each draw is scored as its own goal set,** the 1–2 goals stage 9 makes together, with shares summing as the generator's do. Draws never coexist with each other.
   - At today's rate of known-outcome goals (0.64 per train user, 0.79 per test user), 10 draws per user give about 1,500 for train and 950 for test. Their errors are correlated within a user, so precision is reported from the user bootstrap, not from the goal count.
-- **Net-savings backtest:** rolling origins with at least 12 months of history; horizons of 3, 6 and 12 months; RMSE in dollars (for the PRD) and scaled (for ranking), overall and per persona.
+- **Net-savings RMSE, on goal origins** (amended in #52): once per user and `as_of` with at least 12 months of history, the next 6 months' total, against last-month naive and seasonal-naive from the same history. It's in dollars (for the PRD and decision 1's gate) and scaled (for ranking). This replaces the rolling-origin backtest at 3, 6 and 12 months first planned here. The gate needs only the 6-month horizon, and a rolling-origin check in review on #52 gave similar ratios (0.86 against 0.82 of seasonal-naive in dollars), so goal origins don't flatter it.
 - **Splits:** train users for fitting and tuning (the persona profiles, the typical allocation, the spread), test users once. This is the same separation as FR-2.
 
 ### 7. Serving
 
 - **Nightly batch** (the Technical Design's "batch precompute nightly" for forecasts): fit each user's `ForecastState` and write it to a forecasts file, one per model version and dataset, like FR-3's predictions files. In the demo, it's built into the bundle by `sfc-web build-demo`.
-- **Per request:** load the state, simulate with a seed derived from (user, model version), and compute the goal numbers. 1,000 paths × 120 months is a few milliseconds with NumPy, fast enough for the live setup check. Every answer for the same goal and model version is identical (NFR-8).
+- **Per request:** load the state, simulate the user's paths once with a seed derived from (user, `as_of` month, model version), and run each goal over them. Every goal of the user shares one future, and a draft gets the same numbers as the same goal once saved (#52). 1,000 paths × 120 months is a few milliseconds with NumPy, fast enough for the live setup check. Every answer for the same goal and model version is identical (NFR-8).
 - **Saved goals and drafts go through the same function,** so a goal's numbers in `check_goal` before saving match `forecast_goal` after.
 - **FR-10's event log feeds `your_entries`:** the goal store's revisions already hold every saved amount with its date. A new read gives the forecast the first and latest entries.
 
