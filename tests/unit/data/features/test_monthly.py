@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -138,3 +139,13 @@ def test_income_ratio_is_the_previous_two_months_over_the_window() -> None:
     assert pd.isna(p.loc["u1|Dining|2025-01-01", "income_ratio"])
     # May: March and April average 2,500 against 1,750 over January to April
     assert p.loc["u1|Dining|2025-05-01", "income_ratio"] == pytest.approx(2500 / 1750)
+
+
+def test_history_spread_uses_every_earlier_month() -> None:
+    p = by_id(
+        period_history(monthly_aggregates(txns(monthly("u1", "Dining", [1] * 13 + [3] + [1]))))
+    )
+    last = p.loc["u1|Dining|2026-03-01"]  # after 13 months of $10 and one of $30, all counted
+    assert last["history_mean"] == pytest.approx(np.mean([10.0] * 13 + [30.0]))
+    assert last["history_sd"] == pytest.approx(np.std([10.0] * 13 + [30.0], ddof=1))
+    assert pd.isna(p.loc["u1|Dining|2025-02-01", "history_sd"])  # one earlier month

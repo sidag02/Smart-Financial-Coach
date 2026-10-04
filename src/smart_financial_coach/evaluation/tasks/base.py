@@ -146,6 +146,7 @@ TASK_MODULES: tuple[str, ...] = (
     "smart_financial_coach.evaluation.tasks.categorization",
     "smart_financial_coach.evaluation.tasks.unusual",
     "smart_financial_coach.evaluation.tasks.goals",
+    "smart_financial_coach.evaluation.tasks.spikes",
 )
 
 
