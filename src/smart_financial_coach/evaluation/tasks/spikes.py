@@ -33,6 +33,7 @@ import numpy as np
 import numpy.typing as npt
 import pandas as pd
 
+from smart_financial_coach.data.features.monthly import period_ids
 from smart_financial_coach.data.labels import PERIOD_KEY, Truth, load_truth
 from smart_financial_coach.data.labels import metrics as outcome_metrics
 from smart_financial_coach.data.store import load_meta, load_transactions, load_users
@@ -71,6 +72,7 @@ DEFAULTS: dict[str, Any] = {"k": 5}
 BASKET_RANGE = (1.8, 3.0)  # the planted multipliers, applied to spend instead of the rate
 BASKET_ROWS = {"train": 400, "test": 200}
 BASKET_SEED = 0
+BASKET_MARK = "#basket"  # in a simulated row's period id, after the user id
 MAX_DRIVERS = 5
 COUNT_BANDS = ((0, 3.999, "under 4"), (4, 15.999, "4-15"), (16, 10**9, "16+"))
 HISTORY_BANDS = ((0, 11, "< 12 months"), (12, 23, "12-23"), (24, 10**9, "24+"))
@@ -100,7 +102,10 @@ def basket_rows(frame: pd.DataFrame, categories: set[str], n: int, seed: int) ->
     rng = np.random.default_rng(seed)
     picked = pool.loc[rng.choice(pool.index, min(n, len(pool)), replace=False)].copy()
     picked["spend"] = picked["spend"] * rng.uniform(*BASKET_RANGE, len(picked))
-    picked["period_id"] = picked["period_id"] + "|basket"
+    # The id keeps the contract's "<user>|<category>|<month>" shape, with the user part marked
+    picked["period_id"] = period_ids(
+        picked["user_id"] + BASKET_MARK, picked["category"], picked["period_start"]
+    )
     return picked.assign(label=BASKET, tier=None)
 
 

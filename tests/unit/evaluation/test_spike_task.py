@@ -78,7 +78,9 @@ def test_examples_are_periods_after_the_warm_up(
 def test_basket_rows_change_spend_only(examples: Examples) -> None:
     f = examples.frame.set_index("period_id")
     baskets = f[f["label"] == "basket"]
-    originals = f.loc[[i.removesuffix("|basket") for i in baskets.index]]
+    # Their ids keep the contract's shape, so a flag's evidence names its own period
+    assert (baskets.index.str.count("[|]") == 2).all()
+    originals = f.loc[[i.replace("#basket", "", 1) for i in baskets.index]]
 
     assert len(baskets) > 0
     ratio = baskets["spend"].to_numpy() / originals["spend"].to_numpy()
@@ -107,7 +109,7 @@ def test_basket_rows_are_never_trained_on(task: SpendingSpikesTask, examples: Ex
     x, y = task.training_rows(examples, splits.sets[TRAIN], {}, seed=0)
     assert y is not None
     assert "basket" not in set(y)
-    assert not x["period_id"].str.endswith("|basket").any()
+    assert not x["period_id"].str.contains("#basket").any()
 
 
 def test_leak_check_catches_test_users_in_validation_profiles(
