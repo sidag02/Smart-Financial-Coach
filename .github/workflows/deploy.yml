@@ -84,18 +84,43 @@ jobs:
           fqdn=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
             --resource-group "${{ vars.RESOURCE_GROUP }}" \
             --query properties.configuration.ingress.fqdn -o tsv)
-          image=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
-            --resource-group "${{ vars.RESOURCE_GROUP }}" \
-            --query "properties.template.containers[0].image" -o tsv)
-          test "$image" = "${{ vars.ACR_NAME }}.azurecr.io/sfc-web:${GITHUB_SHA::7}"
+          want="${{ vars.ACR_NAME }}.azurecr.io/sfc-web:${GITHUB_SHA::7}"
+          # Wait until this commit's revision is ready and takes all the traffic. Until then
+          # /healthz can still be answered by the previous revision, which could fail a good
+          # deploy or pass a broken one (the deploy of 17b57c8 failed this way)
           for attempt in $(seq 1 30); do
-            if curl -fsS "https://$fqdn/healthz" | grep -q '"status":"ok"'; then break; fi
+            latest=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
+              --query properties.latestRevisionName -o tsv) || true
+            ready=$(az containerapp show --name "${{ vars.CONTAINER_APP }}" \
+              --resource-group "${{ vars.RESOURCE_GROUP }}" \
+              --query properties.latestReadyRevisionName -o tsv) || true
+            read -r image traffic < <(az containerapp revision show \
+              --name "${{ vars.CONTAINER_APP }}" --resource-group "${{ vars.RESOURCE_GROUP }}" \
+              --revision "$latest" \
+              --query "[properties.template.containers[0].image, properties.trafficWeight]" -o tsv \
+              | tr '\n' ' ') || true
+            if [ "$image" = "$want" ] && [ "$latest" = "$ready" ] && [ "$traffic" = "100" ]; then
+              break
+            fi
             sleep 10
           done
-          # Healthy means every demo account's data loads, not just that the process is up
-          curl -fsS "https://$fqdn/healthz" | grep -q '"status":"ok"'
-          # Spending spikes are served (FR-8): a bundle without its spikes file fails here
-          curl -fsS "https://$fqdn/healthz" | grep -Eq '"spikes":"(model|simple_rule)"'
+          test "$image" = "$want"
+          test "$latest" = "$ready"
+          test "$traffic" = "100"
+          # Healthy means every demo account's data loads, not just that the process is up, and
+          # spending spikes are served (FR-8): a bundle without its spikes file fails. Both are
+          # checked on the same response, retried while the old replicas drain
+          healthy() {
+            body=$(curl -fsS "https://$fqdn/healthz") || return 1
+            grep -q '"status":"ok"' <<<"$body" \
+              && grep -Eq '"spikes":"(model|simple_rule)"' <<<"$body"
+          }
+          for attempt in $(seq 1 30); do
+            if healthy; then break; fi
+            sleep 10
+          done
+          healthy
           curl -fsS -o /dev/null "https://$fqdn/signin"
           test "$(curl -s -o /dev/null -w '%{http_code}' "https://$fqdn/")" = 303
           echo "Deployed https://$fqdn" >> "$GITHUB_STEP_SUMMARY"
