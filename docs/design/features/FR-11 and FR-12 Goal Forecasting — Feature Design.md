@@ -420,8 +420,8 @@ One PR each.
 | Milestone | PR | State |
 | --- | --- | --- |
 | Design | #50 | Merged, Accepted. Amended in #52 (§2, §6, §7) |
-| 1. Contracts, the task, the sampler, baselines | #51 | Merged |
-| 2. Candidates and the validation round | #52 | Approved. Rebased on `main` with #51; merges next |
+| 1. Contracts, the task, the sampler, baselines | #51 | Merged (`792fd6e`) |
+| 2. Candidates and the validation round | #52 | Merged (`d416a29`) |
 | 3. Test scoring, promotion, serving | — | Not started |
 | 4. Pages | — | Not started |
 | 5. Docs | — | Not started |
@@ -445,21 +445,22 @@ One PR each.
 1. **Test scoring,** once: `uv run sfc-experiment finalize --task goal_forecasting --data … --tracking-uri …` scores the top three and the baselines on test users. Read the gate output in §5's order. The freelancer Brier gate on new goals is non-blocking (decision 6), and the CLI marks it so.
 2. **Promotion:** run `promote` for `goal_forecasting` (see `evaluation/promote.py` and how FR-7's #39 did it). It records the gates, with `blocking`, in the promotion log. Record the test results in the round report's "test results" section, as FR-7 did.
 3. **Serving:**
-   - Fit the promoted `PathsModel` on all users' rows and serialize its learned values: persona priors, typical total, spread.
+   - Serialize the promoted `PathsModel`'s learned values (its params, typical total and spread) as promoted: the model the gates passed on test, not a refit.
    - Build each user's `ForecastState` at the dataset's `as_of` into the demo bundle (`sfc-web build-demo`), like FR-3's predictions file and FR-7's flag file.
    - Paths are simulated per request with `paths_for(user_id, as_of, state)`.
 4. **Tools** (`access/tools.py`):
    - `forecast_goal` returns the §"Tools" fields. **For a reached goal it hides p, the range and the top-up,** and adds the drawdown note when `may_draw_down`; test this at the tool level (review on #51).
    - `check_goal` adds the forecast and the `fit` badge for a valid draft. A draft must give the saved goal's numbers: one future per user, `active_goals` counting the draft.
    - `list_goals` adds `status` and `p_goal_met`.
-   - Goals from FR-10's store need their input row built from `goal_revisions`: `first_saved`/`first_saved_as_of` from the earliest live entry, `origin`, `active_goals`, `set_goals`.
+   - Goals from FR-10's store need their input row built from `goal_revisions`: `first_saved`/`first_saved_as_of` from the earliest live entry, `origin` and `active_goals` (the running goals, a draft counted for `check_goal`).
+   - `set_goals` is fit-only: it counts every goal in a set, including ones created later, which a live user can't know, and no forecast reads it (`test_predictions_never_read_set_goals`). Serving rows fill it with `active_goals`. Moving it out of `INPUT_COLUMNS` would change the task's data hash, so it waits until after test scoring (review on #53).
 5. **Coach:** the §8 prompt rules.
 6. **Tests:** contract tests in-process and over MCP; a draft equal to the saved goal; reached-goal hiding; a short-history notice under 6 months.
 
 ### Practical notes
 
 - **Reviews:** before saying a PR is up to date, list every review and inline comment with no time filter. Re-reviews arrive often, and filtering by time hid two of them in this session.
-- **Stacked PRs:** keep each branch current by merging `main` (or the branch below), not by rebasing. GitHub retargets the next PR when its base branch merges.
+- **Stacked PRs:** keep each branch current by merging `main` (or the branch below), not by rebasing. GitHub retargets the next PR only when its base branch is deleted on merge. This repo keeps merged branches (another session's worktree uses one), so retarget by hand: `gh pr edit <n> --base main` (review on #53).
 - **Tolerances:** the gates read the run's own validation intervals (`val_*_lo/_hi`) as tolerances. Don't recompute them from test.
 - **The CLI:** the experiment runner prints a run's metrics. `sfc-experiment report --out` writes the comparison table, and `fit.*` metrics carry the spread and typical total.
 
