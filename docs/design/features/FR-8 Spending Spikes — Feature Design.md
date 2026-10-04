@@ -459,6 +459,21 @@ Departures and results from milestone 1 (#59, revised after its review):
 - **Models supply only a score and a flag decision.** The base class applies both product rules on top and builds the evidence from the input row, so no model can flag a month the rules exclude or quote a number that isn't the user's own. The scorer passes models only the contract's input columns, and rejects persona and the truth tables' columns by name.
 - **Reason wording:** the month carries its year ("in August 2026"), since three years of history make "August" ambiguous. Amounts are whole dollars, rounded half up, and the excess shown is the rounded actual minus the rounded usual, so the sentence adds up. Evidence keeps the cents. "About" is dropped when the usual count is a whole number.
 
+From milestone 2:
+
+- **The product rules apply to the baseline too.** The contract checks both rules on every flag, from any model, so the gated mean ± k·std baseline also flags only months with spend ≥ 1.3× usual and at least 2 purchases in a usual month. That makes it a stronger bar than the POC's raw baseline. On validation at 0.035 flags per user-month, its recall is **0.163** (precision 0.289), against the POC's 0.044 (0.065). It still never reaches precision 0.80, so its own cutoff flags nothing. **Confirmed by the owner (Oct 4, 2026), before the round:** the round gates against the baseline with the rules, not the raw one, since no servable model could produce the raw baseline's flags.
+- **Two §3 items run with the product rules too** (owner, Oct 4, 2026, after review on #60). The reported simple count rule, defined in §3 with no spend floor, runs with both rules like every flag. The ablation without the spend floor can't run under the contract, so it's dropped, and the POC's measurement stands for it (the floor alone costs 0.5 points). Both are report-only; nothing gated changes.
+- **Gate 3 checks the drivers too** (review on #60): every flag needs evidence and valid drivers, the 5 largest charges in its period and category, scored by FR-2's rules (`flags_with_invalid_drivers`).
+- **History length counts from the user's first transaction,** warm-up included (review on #60).
+- **Test scoring also reports precision and recall on predicted categories** (§5), from the promoted categorizer's predictions for every user, scored on test users only. It isn't gated.
+- **The diagnostics count the look-alikes** (the main risk): normal months in the planted categories with spend ≥ 1.5× usual, and how many a run flags.
+- **`SpikeThresholded` is its own class,** not FR-7's `Thresholded` generalized. FR-7's class is inside a promoted model, and changing it would risk that model's loading. It reuses `top_k` and keeps the same `precision`, `rate` and `search` parameters.
+- **A rate cutoff is fixed when it's fitted.** `rate=` places the cutoff at the score that flags that many periods per user-month on the rows it was fitted on, and keeps it. FR-7's re-ranks every batch. Serving scores one user's months at a time (§8), and re-ranking within one user would flag their top months whatever they were. This is the simple-rule fallback's path (decision 12).
+- **Ignored periods stay in the rate budget,** as FR-7's duplicate originals do (review on #34): a deployed cutoff can't know them. The POC left them out of its ranking, so its rates are slightly optimistic.
+- **Simulated basket-size spikes are examples labelled `basket`:** 400 for train users and 200 for test users, seeded. They copy normal months in the planted categories that have some spend and at least 2 purchases in a usual month, with spend × U(1.8, 3.0). They're never trained on and never count towards a rate or precision. On validation, the spend-based baseline flags **25%** of them at the common rate, against about 0.3% for the count leader in the POC. That's the main risk, measured.
+- **The negative-binomial tie-break** (decision 6) is a scorer attribute, `assumes_poisson` (1 for the Poisson, 0 otherwise), logged as `fit.assumes_poisson` and read as the second tie-break.
+- **Drivers in evaluation** are the 5 largest outflows in the period on true categories, so excess coverage is reported for true positives at the run's own cutoff. The error of "usual" is measured on the same periods.
+
 ## Decisions and open questions
 
 **Decisions** (owner, Oct 4, 2026, confirmed on #58). Any later decision that affects evaluation or test scoring goes to the owner before it runs.
@@ -470,7 +485,7 @@ Departures and results from milestone 1 (#59, revised after its review):
 2. [x] **Seasonality from the user's own history, shrunk toward cross-user category profiles:** at least 20 users, the scored user left out, as of the month; no persona label (§2, option B-c).
 3. [x] **A month that's high because of one large charge is not a spike;** FR-7 judges the charge (Scope).
 4. [x] **Tune to precision 0.80, gate at 0.70** on test users (§5, option C-b).
-5. [x] **The baseline:** the Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported, not gated (§5, option D-a).
+5. [x] **The baseline:** the Technical Design's mean ± k·std at equal flag volume, gated; the simple count rule reported, not gated (§5, option D-a). Both product rules apply to the baseline's flags too, as the contract requires (owner, Oct 4, 2026, confirmed before the round; implementation notes).
 6. [x] **The decision rule of §4,** fixed before the round runs: recall at 0.035 flags per user-month, user-bootstrap ties, then own-cutoff precision, negative binomial before Poisson, cost and simplicity; no shipping twins.
 7. [x] **Reasons quote only the user's own numbers;** "usual" is the average of the previous 12 months (§7, option F-b).
 8. [x] **Serve on request from the session's ledger with effective categories** (§8, option E-b). For the demo bundle, the season profiles are built from the full `--data` pool at build time and shipped as a bundle file (§2).

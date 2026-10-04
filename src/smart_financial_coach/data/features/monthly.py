@@ -34,6 +34,8 @@ changes a period's history:
     own_years      1 when there is one, else 0: the shrinkage weight's `years`
     income_ratio   mean income over the previous `income_months` over the mean over the window
                    (NaN without income in the window)
+    history_mean   mean spend over *all* earlier months, and their standard deviation (NaN with
+    history_sd     fewer than 2): the Technical Design's mean ± k·std baseline (FR-8 §3)
 """
 
 import numpy as np
@@ -66,6 +68,8 @@ HISTORY_COLUMNS = (
     "own_season",
     "own_years",
     "income_ratio",
+    "history_mean",
+    "history_sd",
 )
 
 
@@ -163,6 +167,10 @@ def period_history(
     # The same month a year earlier (FR-8 §2): rows are consecutive months within a category
     p["own_season"] = p["log_ratio"].groupby(keys, sort=False).shift(YEAR)
     p["own_years"] = p["own_season"].notna().astype(int)
+
+    spend = p["spend"].groupby(keys, sort=False)
+    p["history_mean"] = spend.transform(lambda x: x.shift(1).expanding().mean())
+    p["history_sd"] = spend.transform(lambda x: x.shift(1).expanding(min_periods=2).std())
 
     users = p.drop_duplicates(["user_id", "month"])[["user_id", "month", "income"]]
     by_user = users.groupby("user_id", sort=False)["income"]

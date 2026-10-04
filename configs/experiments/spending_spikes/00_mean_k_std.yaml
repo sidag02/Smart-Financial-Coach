@@ -1,0 +1,13 @@
+# FR-8 round 0: the Technical Design's baseline, per-user mean ± k·std on monthly spend in the
+# category, over all earlier months. The floor every candidate must beat at the common flag rate
+# (FR-8 §4, §5; decision 5). Its cutoff is placed like every candidate's: the deepest with
+# precision 0.80 on the training users, among periods the product rules allow.
+name: mean_k_std
+task: spending_spikes
+model:
+  type: spending_spikes/thresholded
+  params:
+    precision: 0.80
+    base: {$model: {type: spending_spikes/mean_k_std}}
+baseline: true
+tags: {plan: fr8-round}

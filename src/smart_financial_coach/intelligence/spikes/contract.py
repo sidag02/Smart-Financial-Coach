@@ -104,14 +104,15 @@ def scoring_periods(
 
 def evidence_for(rows: pd.DataFrame) -> list[dict[str, Any]]:
     """Each row's evidence: the user's own numbers only, rounded as the reason shows them."""
-    actual = rows["spend"].to_numpy(dtype=float)
-    usual = rows["usual"].to_numpy(dtype=float)
+    # Excess and ratio come from the rounded amounts, so the evidence is consistent to the cent
+    actual = np.round(rows["spend"].to_numpy(dtype=float), 2)
+    usual = np.round(rows["usual"].to_numpy(dtype=float), 2)
     return [
         {
             "category": str(c),
             "period_start": str(s),
-            "actual": round(float(a), 2),
-            "usual": round(float(u), 2),
+            "actual": float(a),
+            "usual": float(u),
             "usual_months": int(n),
             "excess": round(float(a - u), 2),
             "ratio": round(float(a / u), 3) if u > 0 else None,
