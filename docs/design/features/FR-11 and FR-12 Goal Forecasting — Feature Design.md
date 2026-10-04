@@ -27,7 +27,7 @@ This feature tells a user whether they're on track for a savings goal: where it 
   2. **A share per goal:**
      - generated goals: inferred from their history;
      - FR-10 goals: inferred from changes between the user's own saved entries, once two are far enough apart;
-     - any other goal: a prior, which is the typical total allocation split equally across the user's goals.
+     - any other goal: a prior, which is the typical total allocation divided by the number of the user's active goals.
   3. **Any goal is arithmetic over the paths,** saved goals and drafts alike:
      - the chance of making it;
      - the median and the 80% range;
@@ -79,7 +79,7 @@ On top of these come heavy-tailed one-off purchases (travel, repairs, medical, e
 - **FR-10 hand-offs:**
   - `check_goal` gains `p_goal_met` and the range;
   - the 80% interval goes into the forecast contract (Web App UI, gap 4);
-  - FR-11 decides how savings split across goals. FR-10 decision 2's starting point was "in proportion to what each needs per month"; feasibility shows that's worse than an equal split (§3).
+  - FR-11 decides how savings split across goals. FR-10 decision 2's starting point was "in proportion to what each needs per month". This design recommends an equal split instead, on product grounds (§3, [decision 2](#decisions-and-open-questions)).
 
 ## Scope
 
@@ -156,14 +156,14 @@ For the 153 train goals with a known outcome, at each goal's `as_of_date`:
 
 Every FR-10 goal and every draft starts without a track record, so it takes the prior share. To measure that path, each evaluation goal is also scored **as if it were new**: created at its `as_of_date`, its balance entered by hand, its share from the prior.
 
-The prior is the typical total allocation: the median over train users of their goals' summed inferred shares, **0.662**. It's split across the user's goals. Both splits below use the same spread (1.1).
+The prior is the typical total allocation: the median over train users of their goals' summed inferred shares, **0.662**. It's split across the user's goals. Both splits below use the same spread (1.1). The commands are the one above with `--split=equal`, and with `--split=need` (output: `poc/fr11_12_feasibility_train_review_need.txt`).
 
 | Prior split | Brier | Per persona (family, freelancer, young professional) |
 | --- | --- | --- |
 | In proportion to what each goal needs per month (FR-10 decision 2's starting point) | 0.228 (user bootstrap 90%: 0.190–0.269) | 0.220, 0.274, 0.194 |
-| **Equally across the user's goals** | **0.208** (user bootstrap 90%: 0.173–0.243) | 0.198, **0.251**, 0.178 |
+| **Equally: 0.662 ÷ the number of the user's goals** | **0.208** (user bootstrap 90%: 0.173–0.243) | 0.198, **0.251**, 0.178 |
 
-- **The need-based split is worse for a reason that would hold for real users too.** A goal that needs more per month gets a bigger share, so the most over-ambitious goals look the most achievable. The equal split doesn't reward a stretch target.
+- **This comparison can't choose between the rules for real users.** Stage 9 draws each goal's share independently of its target, and plants targets as multiples of the realized outcome, so off-track goals are the ones that need the most per month. Any rule that gives a bigger share to a bigger need loses on generated goals by construction. The two intervals also overlap. The equal split is recommended on product grounds instead: it doesn't make a stretch target look more achievable, and it's easy to explain ([decision 2](#decisions-and-open-questions)).
 - **New goals are less certain than goals with a track record** (0.208 against 0.171), as they should be. They're still better than a flat 50% overall. Freelancers are at the flat 50%.
 
 ### Calibration by status band
@@ -255,10 +255,11 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 | --- | --- | --- |
 | `track_record` | A generated goal with a balance above $0 | Inferred as in feasibility: the recursion from $0 at `created_date` reproduces the balance at `saved_as_of`. Capped at 1 |
 | `your_entries` | An FR-10 goal with two saved entries at least 3 months apart in its event log | The recursion runs **from the first entry's amount and date**, not from $0, and the share is the one that reproduces the latest entry. A goal whose saved amount never changed has no information here and stays on the prior |
-| `typical` | Everything else: new goals, drafts, $0 balances, entries too close together | The typical total allocation (0.662 on train), less the shares of the user's goals that have their own, split **equally** across the goals that don't |
+| `typical` | Everything else: new goals, drafts, $0 balances, entries too close together | The typical total allocation (0.662 on train) **divided by the number of the user's active goals**, a draft included. Goals with their own share keep it; nothing is subtracted, so a new goal never starts at about 0. Ended goals don't count, because they no longer draw on future savings. This is the rule feasibility measured |
 
 - A user's shares never total more than 1.
-- A draft counts as one more goal in the equal split, so `check_goal`'s numbers for a draft match `forecast_goal`'s for the same goal once it's saved.
+- **If a user's shares would total more than 1,** the `typical` shares are scaled down until they total 1. Shares from a track record or the user's entries are evidence, so they stay as measured.
+- A draft counts as one more active goal, so `check_goal`'s numbers for a draft match `forecast_goal`'s for the same goal once it's saved. For example, a demo user with one active generated goal gets 0.662 ÷ 2 = 0.331 for a draft.
 
 **Results from the paths:**
 - `p_goal_met`: the share of paths at or above the target.
@@ -365,8 +366,8 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **(a) The typical total allocation, split equally across the user's goals (recommended)** | No new field; doesn't reward stretch targets; Brier 0.208 | An assumption the user can't see or change (the copy says "typical") |
-| (b) The typical total, split by what each goal needs per month (FR-10 decision 2's starting point) | Intuitive | Makes the most ambitious goals look the most achievable; Brier 0.228 |
+| **(a) The typical total allocation ÷ the number of active goals (recommended)** | No new field; doesn't make a stretch target look more achievable; easy to explain | An assumption the user can't see or change (the copy says "typical") |
+| (b) The typical total, split by what each goal needs per month (FR-10 decision 2's starting point) | Intuitive | Gives the biggest share to the most ambitious goal, so a stretch target looks more achievable than it is |
 | (c) Ask the user for a monthly contribution | Exact | A field FR-10 decided against; most people don't know it |
 | (d) Assume all net savings go to the goal | Simple | Badly optimistic with several goals |
 
@@ -377,7 +378,8 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
   - share inference round-trips (simulate with a share, infer it back), from $0 and from a first entry;
   - an FR-10 goal with one entry, or entries under 3 months apart, stays on the prior;
   - every model falls back correctly on short histories (1, 5, 11 and 13 months);
-  - shares never total more than 1, and the equal split counts a draft;
+  - a `typical` share is 0.662 ÷ active goals, a draft included, ended goals not;
+  - when shares would total more than 1, only the `typical` ones are scaled down;
   - `extra_per_month` brings `p_goal_met` to 0.7 and is null when already on track;
   - reached goals return `reached` with `may_draw_down` set from the paths;
   - paths are identical for the same seed.
@@ -421,7 +423,7 @@ One PR each.
    - rank on scaled RMSE.
 
    The PRD keeps the seasonal-naive numbers next to the new target.
-2. [ ] **A new goal's share:** option D(a). The typical total allocation, split equally across the user's goals. It switches to `your_entries` once the user has two saved entries at least 3 months apart. This changes FR-10 decision 2's starting point (split by need), on the evidence in [Feasibility](#the-on-track-call-new-goals).
+2. [ ] **A new goal's share:** option D(a), the typical total allocation divided by the number of active goals, capped so a user's shares never total more than 1. It switches to `your_entries` once the user has two saved entries at least 3 months apart. This changes FR-10 decision 2's starting point (split by need) **on product grounds**: an equal split doesn't make a stretch target look more achievable, and it's easy to explain. The feasibility numbers (0.208 against 0.228) can't choose between the rules for real users, because the generated data favors the equal split by construction ([Feasibility](#the-on-track-call-new-goals)).
 3. [ ] **Exponential smoothing in the round,** which adds `statsmodels` as a dependency. Recommend yes, but only if it fits in milestone 2's time, and only for users with 24+ months.
 4. [ ] **More evaluation goals** from the refactored stage-9 sampler (§6), without changing the dataset. The alternatives are living with 95 test goals (about 30 per persona) or regenerating the dataset with more goals per user (every model's predictions rebuilt). Recommend the sampler.
 5. [ ] **Status bands, fixed:** "On track" at 0.7 or more, "Off track" below 0.3, "Could go either way" in between, with the setup badge's "Within reach" / "Could go either way" / "A stretch" on the same bands. They're fixed rather than tuned, because outcomes are planted relative to the future ([why](#why-nothing-is-tuned-on-outcomes)); validation checks each band is calibrated.
