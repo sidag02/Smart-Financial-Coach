@@ -81,7 +81,7 @@ Items are estimated by applying the per-group flag rates, measured on transactio
 - **Personal accuracy** for the 69 feedback users: 0.908 → 0.942; burden about 0.7 review items a month.
 - **Retraining:** 3 of 10 candidates promoted; the gates caught a bad first batch (accuracy at labelled merchants 0.70 → 0.52).
 - **Entrenched errors:** of 65 global labels, 50 fix model errors, 11 are the 70% streaming preference, and 4 came from 30% preferences or an ambiguous merchant that met N = 3 (open question 1).
-- **Robustness** at 20% adversarial users wasn't run; the run had 3 adversarial users of 69 (about 5%).
+- **Robustness** (#44): at 5% adversarial users (3 of 69), one label held only because of an adversarial vote, never promoted. At 20% (14 of 69), new-merchant macro F1 against the truth still rose 0.751 → 0.829, but 7 of 52 labels held only because of adversarial votes and every promoted model carried 3 to 7 of them: at N = 3 one random vote can tip a 30% preference or a split (open question 1, and the deferred down-weighting).
 
 - **Sequencing** (owner decision, Oct 2, 2026): FR-4's milestone 1 regenerates the default dataset once, with this design's `truth_preferences` (schema 4). The replay is built after FR-4's milestone 2 (shipping twins and explicit `label_noise`) and runs on FR-4's promoted twin, so its numbers describe the model that ships.
 - The data contract (§7) was accepted on Oct 2 so FR-4's milestone 1 could build it; the rest of the design was accepted on Oct 3, with N, the majority and the cadence provisional until the replay.
