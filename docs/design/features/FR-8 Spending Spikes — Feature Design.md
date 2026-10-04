@@ -62,7 +62,7 @@ A month that is high because of **one** large charge isn't a spike under this de
 
 ## Feasibility
 
-**Evidence:** POC branch `poc/fr-8-spending-spikes`, commit `8f83868` (first version `20806f9`; the revision for review on #58 adds the ablations, the look-alikes and the basket-size simulation, and changes no earlier number): `experiments/fr8_spikes/feasibility.py` and its output, `results/feasibility.md`. One command reproduces every number below.
+**Evidence:** POC branch `poc/fr-8-spending-spikes`, commit `bd5ae63` (first version `20806f9`; the revisions for review on #58 add the ablations, the look-alikes, the basket-size simulation and the user-bootstrap interval at 0.035, and change no earlier number): `experiments/fr8_spikes/feasibility.py` and its output, `results/feasibility.md`. One command reproduces every number below.
 
 Setup: the default dataset as above (`validate` passes). **Train users only:** 240 users, 7,920 post-warm-up user-months, 89,760 scored (user, category, month) periods (1,426 ignored by the contract), 411 labels (373 `clear`), so 0.052 labels per user-month. The file is loaded whole, and every truth table is cut to train users before anything is computed, so **no test user's rows or labels reach any number**. The first version scored all labels and filtered to train users afterwards; the numbers didn't change.
 
@@ -109,7 +109,7 @@ At a fixed flag rate (flags per post-warm-up user-month), and at the best recall
 - **The minimum volume earns the gain, and it rediscovers where the generator plants.** "At least 2 purchases in a usual month" gives the same result as restricting to the four planted categories (0.550 with 277 flags against 0.550 with 276). What it removes is Poisson-tail false positives in low-volume categories. A month that goes from 1 purchase to 4 is improbable but not a meaningful spike, so the rule stands as a product rule fixed at 2 before the round (decision 1). It isn't tuned on labels: tuning it would only search for the generator's eligibility floor.
 - **Negative binomial loses here,** probably for a structural reason: the generator's counts are Poisson by construction, so estimating over-dispersion from 12 months only adds noise. Real counts are over-dispersed, which is why it stays in the round (§3).
 - **The pooled income elasticity is 0.25** (persona-free; the freelancers' true value is 0.5 and the others' is 0). A per-user elasticity is a later candidate.
-- **Uncertainty (user bootstrap, 5–95%, at 0.03):** leader precision 0.81–0.91 and recall 0.47–0.53; baseline precision 0.03–0.08.
+- **Uncertainty (user bootstrap, 5–95%):** at 0.03, leader precision 0.81–0.91 and recall 0.47–0.53, and baseline precision 0.03–0.08. At the common rate of 0.035, leader precision 0.74–0.86 and recall 0.51–0.58. That interval is what milestone 1's check of the season-profile statistic is held to (§2).
 
 ### What the leader gets wrong (at 0.03 flags per user-month)
 
@@ -199,14 +199,14 @@ All features come from model-visible columns. Nothing reads `truth_*`, and the e
 **Season profiles are a feature table, built like FR-7's merchant profiles:**
 
 - built nightly by the feature pipeline from every user's model-visible rows, **as of the first of each month**, so a period never sees later months. The table is keyed by (category, month of year, as-of month);
-- **the scored user's own months are left out** of the profile used to score them. Each cell stores the sum of users' clipped log ratios and the number of users, so leaving one user out is exact: subtract that user's own terms, which serving recomputes from their ledger. The POC used a median over all users, which can't be left out cheaply. Milestone 1 checks that the POC's validation numbers hold with the clipped mean before the round runs;
+- **the scored user's own months are left out** of the profile used to score them. Each cell stores the sum of users' clipped log ratios and the number of users, so leaving one user out is exact: subtract that user's own terms, which serving recomputes from their ledger. The POC used a median over all users, which can't be left out cheaply. Milestone 1 checks that the POC's result holds with the clipped mean before the round runs, against a pass condition fixed now (owner, Oct 4, 2026, on #58): the leader's recall at 0.035 flags per user-month stays within the POC's user-bootstrap interval (0.506–0.578 at 0.035, printed by the script), at precision ≥ 0.80. If it doesn't hold, the statistic goes back to the owner before the round; it isn't swapped silently;
 - a cell needs at least **20 distinct other users**, otherwise the season is 1. It's an aggregate over many people's buying, never a single merchant or a price. FR-7's 3-user minimum is a privacy floor; 20 is about stability.
 - **Which categories the pool uses:**
   - **in evaluation**, true categories, like every FR-8 metric. Validation profiles come from train users only, and test profiles from all users: FR-7's two-pool rule, so test users never shape a validation score;
   - **in serving**, the promoted categorizer's predictions for every user. They're shared and include nobody's corrections, so one user's corrections never reach another user's profile (user story 5). The served user's own terms, subtracted for the leave-out, are computed on the same predicted categories, while their own aggregates use their effective categories (§8).
 - **The demo bundle** (decision 8): the build computes the table from the **full `--data` pool**, not just the 3 demo accounts, and ships it as a bundle file, as FR-7's `flag_dataset(pool=data)` does for merchant profiles. The demo accounts are all test users, so a table built from the bundle alone would have too few users in every cell and fall back to a season of 1. That needs predicted categories for every user, so the build either categorizes the pool with the promoted categorizer or reads a full predictions file it's given. Milestone 4 measures that build time.
 
-**Shrinkage:** the season used is `w · own + (1 − w) · profile`, with `w = years / (years + κ)`. `years` counts the user's earlier same-month observations, and κ is tuned within folds (grid {0.5, 1, 2}; the POC used κ = 1). Two noisy Augusts don't become the user's season. This is FR-11's idea, without the persona.
+**Shrinkage:** the season used is `w · own + (1 − w) · profile`, with `w = years / (years + κ)`. `years` counts the user's earlier same-month observations, and κ is tuned within folds (grid {0.5, 1, 2}, owner, Oct 4, 2026, on #58; the POC used κ = 1). Two noisy Augusts don't become the user's season. This is FR-11's idea, without the persona.
 
 **No persona.** `users.persona` is a label real users don't have (FR-11, decision 11). The only cross-user input is the category profile, which mixes everyone. The contract check rejects a persona column. Folds are still stratified by persona, on the evaluation side only.
 
@@ -346,7 +346,7 @@ Illustrative, with the POC's median flagged spike:
   When the range holds no complete month, or the user has fewer than 3 earlier months, the tool says so (`spikes_status: "too_short"` or `"month_in_progress"`). The coach must then say it can't judge yet, not that nothing was unusual (PRD risk: short histories).
 - **The coach** answers "Why was August so high?" with `detect_anomalies` for August. With no spike, it says no category ran well above usual and uses `get_spending_summary` to name the biggest categories or charges. It doesn't invent a spike (FR-14).
 - **"Worth a look":** the spikes card lists flagged months that ended in the last 60 days, FR-7's window (decision 9). For the demo, dated Sep 30, 2026, that's August and September 2026. Each shows category, month, actual against usual, the reason and the largest charges. The Overview's "Worth a look" card counts them with the unusual charges.
-- **Without a promoted scorer** (open question 1, FR-11's terms): the pipeline ships either way. The spikes card falls back to a clearly labelled simple rule, never "not available". *Proposed, for the owner to confirm:* the fallback is the simple count rule of §3 with the two product rules, cut at the common rate of 0.035 flags per user-month. That cutoff needs no labels. The card and the tool label it "simple rule" (`"method": "simple_rule"`), and the reason wording is unchanged, since it quotes only the user's own numbers. When a scorer is promoted, the PR that promotes it switches the card to the model.
+- **Without a promoted scorer** (open question 1, FR-11's terms): the pipeline ships either way. The spikes card falls back to a clearly labelled simple rule, never "not available". The fallback is the simple count rule of §3 with the two product rules (spend ≥ 1.3× usual, at least 2 purchases in a usual month), cut at the common rate of 0.035 flags per user-month, which needs no labels (owner, Oct 4, 2026, on #58). The card and the tool label it "simple rule" (`"method": "simple_rule"`), and the reason wording is unchanged, since it quotes only the user's own numbers. When a scorer is promoted, the PR that promotes it switches the card to the model.
 - **Flag actions (v1.1, FR-9).** The flag id is the model version plus `user_id`, category and `period_start`, so it stays stable for actions to key on. Actions will be stored per user in FR-5/FR-6's feedback store. "Expected, all good" will suppress that category's flag for that month only.
 
 ## Metrics and why
@@ -435,7 +435,7 @@ Illustrative, with the POC's median flagged spike:
 
 One PR per milestone, stacked as FR-7's were.
 
-1. **Contract and features:** the `SpikeScorer` contract and runtime checks; monthly aggregates over a given category column; season profiles in the feature pipeline (as of the month, exact leave-one-user-out, at least 20 users), with a check that the POC's validation numbers hold with the clipped mean; the income ratio; the reason template.
+1. **Contract and features:** the `SpikeScorer` contract and runtime checks; monthly aggregates over a given category column; season profiles in the feature pipeline (as of the month, exact leave-one-user-out, at least 20 users), with the check that the POC's result holds with the clipped mean, against the fixed pass condition of §2 (if it fails, back to the owner before milestone 3); the income ratio; the reason template.
 2. **Task:** `spending_spikes`, with user-grouped folds, two-pool profiles, `Thresholded` on period keys, metrics through the contract, recall at the common rate, the basket-size diagnostic, the decision rule of §4, and the baseline.
 3. **The round:** the simple count rule, both count models and the ablations on validation, with a round results report that states the main risk and its measured size.
 4. **Finalize, promote and serve:** finalists scored once on test users; promote if the gates pass. A failing gate means no promotion and a root-cause analysis (open question 1). Then the serving state, the on-request scoring, `detect_anomalies`' spikes half, the 1f card (with the simple-rule fallback), the coach and the demo bundle with its season profile file. This milestone ships whether or not a scorer is promoted.
@@ -468,8 +468,8 @@ One PR per milestone, stacked as FR-7's were.
    - a failing gate means no promotion and a root-cause analysis on train and validation data (data, model or criteria); whether test is scored again is decided after it. No gate is loosened.
 2. [x] **A per-user income elasticity: deferred** (owner, Oct 4, 2026, on #58). The pooled value stays for v1.
 
-**Proposed in the revision for #58's review, not yet confirmed**
+**Decided after the revision for #58's review** (owner, Oct 4, 2026, on #58)
 
-- [ ] The fallback rule's definition: the simple count rule with the two product rules, at 0.035 flags per user-month, labelled "simple rule" (§8).
-- [ ] The season profile statistic: a clipped mean of log ratios instead of the POC's median, so leaving a user out is exact. Milestone 1 checks the POC's validation numbers hold with it before the round (§2).
-- [ ] κ's grid, {0.5, 1, 2} (§2).
+12. [x] **The fallback rule:** if no scorer is promoted, the spikes card uses the simple count rule with both product rules (spend ≥ 1.3× usual, at least 2 purchases in a usual month) at 0.035 flags per user-month, which needs no labels, labelled "simple rule" (§8).
+13. [x] **Season profiles use a clipped mean of log ratios,** with the pass condition fixed before milestone 1 checks it. The POC's result holds if the leader's recall at 0.035 flags per user-month stays within the POC's user-bootstrap interval (0.506–0.578, printed by the script at `bd5ae63`) at precision ≥ 0.80. If it doesn't, the statistic comes back to the owner before the round, not swapped silently (§2).
+14. [x] **κ's grid is {0.5, 1, 2},** tuned within folds (§2).
