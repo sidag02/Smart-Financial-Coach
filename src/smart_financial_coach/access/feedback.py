@@ -246,6 +246,13 @@ class FeedbackStore:
             events = self._select(conn, "subject = ? AND user_id = ?", (subject, user_id))
         return Overrides.replay(sorted(events, key=lambda e: e.seq))
 
+    def all_events(self) -> list[Correction]:
+        """Every subject's feedback, in order: for agreement across users (§4), which counts
+        subjects and never shows who they are."""
+        with self._connect() as conn:
+            events = self._select(conn, "1 = 1", ())
+        return sorted(events, key=lambda e: e.seq)
+
     @staticmethod
     def _select(conn: sqlite3.Connection, where: str, params: tuple[str, ...]) -> list[Correction]:
         sql = f"SELECT {', '.join(_COLUMNS)} FROM category_corrections WHERE {where}"
