@@ -59,7 +59,7 @@ Interfaces are fixed before any model is chosen, so model experiments can swap i
 | --- | --- |
 | Transaction | transaction\_id, user\_id, timestamp, amount, currency, merchant\_raw, channel |
 | User | user\_id, persona, monthly\_income\_estimate |
-| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date, as\_of\_date, current\_balance (as of as\_of\_date) |
+| Goal | goal\_id, user\_id, name, target\_amount, created\_date, target\_date (a month end), as\_of\_date, current\_balance (as of as\_of\_date). The dataset holds the generated goals; users' own goals and changes are events in a separate goal store, replayed over them per user and session (FR-10 Savings Goals — Feature Design, §1–2) |
 | Anomaly flag | flag\_id, user\_id, level (transaction or period), ref (transaction\_id or period + category), score, reason |
 
 **Ground truth** (eval only, in separate `truth_*` tables that models never read)
@@ -87,8 +87,11 @@ Full table definitions are in FR-1 Synthetic Data Generator — Feature Design a
 | get\_spending\_summary | Totals by category and month for a date range |
 | get\_transactions | Filtered, categorized transactions |
 | detect\_anomalies | Unusual charges for a period, each with its kind, reason and evidence (FR-7); spending spikes (FR-8) |
-| forecast\_goal | On-track status and gap for a goal |
-| list\_goals | The user's goals |
+| forecast\_goal | On-track status and gap for a goal, by `goal_id` |
+| list\_goals | The user's goals: status (active, reached, ended), months left and the amount needed per month, and the user's median monthly savings |
+| check\_goal | Validates a new goal or an edit and states the facts for the setup screen; writes nothing (FR-10) |
+| create\_goal, update\_goal, archive\_goal | Change the user's goals. The Goals page applies on submit; the coach and outside assistants get a preview until the user agrees (`confirm`) |
+| undo\_goal\_change | Undo a goal's latest change |
 
 All tool outputs are structured JSON with units and currency, so the assistant can quote numbers without doing arithmetic.
 
@@ -240,4 +243,4 @@ Modules are built bottom-up so each layer is tested before the next depends on i
 - [x] LLM provider: Anthropic (owner, Oct 2, 2026).
 - [x] Web framework for v1: server-rendered Python, FastAPI with templates and htmx (owner, Oct 2, 2026; Delivery Plan).
 - [x] Tool server transport for v1: HTTP only, MCP over Streamable HTTP with bearer tokens carrying the user (owner, Oct 2, 2026; Web App UI, decision 8). stdio isn't part of v1.
-- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria, and whether the shipped model trains on injected label noise at all (the promoted categorizer's Travel fallback for unfamiliar merchants is its likely effect; FR-3 Categorization Model Selection). Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
+- [ ] Feedback and retraining (FR-5, FR-6): the agreement rule for global labels (a minimum of distinct users; single-user strings stay private), retraining cadence, whether "cheap to retrain" joins the model selection criteria. Decided in the FR-5 and FR-6 design (Oct 2, 2026): the shipped model and retrained models train on clean labels; injected label noise stays for experiments that compare candidates. Settled in the FR-5/FR-6 feature design ([Learning from user feedback](#learning-from-user-feedback-direction-not-yet-designed)).
