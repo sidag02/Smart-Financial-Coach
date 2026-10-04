@@ -1,6 +1,6 @@
 # FR-9 Alert Sensitivity and Flag Actions — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Draft for review**; decisions 1–9 and 11–15 confirmed by the owner (Oct 4, 2026; 7–9 and 11–15 on the review of #65). Questions 10, 16 and 17 are open · Branch: `feature/fr9`
+Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · Branch: `feature/fr9`
 
 ## Summary
 
@@ -20,8 +20,8 @@ This feature lets users choose how often "Worth a look" points things out, and a
 - **Feasibility, measured** ([evidence](#feasibility)):
   - **Less often** halves alerts at precision 0.95–0.96, against 0.80 at Balanced. It finds less: recall 0.44 against 0.76 for unusual charges, and 0.32 against 0.52 for spikes.
   - **More often** doubles alerts at precision 0.45–0.49: about half of what it shows is ordinary. Recall rises 9–10 points.
-  - **More often is much noisier in a user's first 90 days** for unusual charges: 489 warm-up flags on train users against 47 at Balanced, about 0.69 per user-month there. They're outside the precision, since the label contract scores nothing in the warm-up (open question 17).
-  - **In the demo,** "More often" adds nothing to the three demo accounts' 60-day window, so a fourth account shows it (decision 6; which one is open question 16).
+  - **More often is much noisier in a user's first 90 days** for unusual charges: 489 warm-up flags on train users against 47 at Balanced, about 0.69 per user-month there. They're outside the precision, since the label contract scores nothing in the warm-up. So during a user's first 90 days, serving uses the stricter of their setting and Balanced (decision 17).
+  - **In the demo,** "More often" adds nothing to the three demo accounts' 60-day window, so a fourth account, Sam Patel (`u_te_fb_0023`), shows it (decisions 6, 10 and 16).
 - **The PRD's precision ≥ 0.70 applies to Balanced,** the default and the setting everyone gets. More often is the user's choice to see more borderline alerts, and the page says so (decision 5).
 
 ## Context
@@ -91,7 +91,7 @@ Train users only (240), through the label contract. FR-7's merchant profiles and
 
 - **Optimistic for the cutoffs:** both promoted cutoffs were placed on these users, which is why Balanced reproduces the 0.80 tuning target exactly. Milestone 1 measures each preset out of fold (§6). On test users, Balanced was 0.834 for unusual charges and 0.705 for spikes.
 - **More often trades a lot of precision for a little recall.** Doubling the alerts adds 9–10 points of recall, so about half of what it shows is ordinary. That's the honest description, and the page uses it (§4).
-- **Warm-up flags are reported apart, not hidden** (decision 11). Unusual charges at More often put 489 flags in users' first 90 days, about 0.69 per user-month there (240 users × about 3 months). That's 10× Balanced's warm-up rate (47) and 2.7× More often's own rate after the warm-up. Short histories make many charges look new or large. Their precision is unmeasured, because the label contract scores nothing in the warm-up. Spike periods need 3 earlier months to be scored at all, so spikes have no warm-up flags (open question 17).
+- **Warm-up flags are reported apart, not hidden** (decision 11). Unusual charges at More often put 489 flags in users' first 90 days, about 0.69 per user-month there (240 users × about 3 months). That's 10× Balanced's warm-up rate (47) and 2.7× More often's own rate after the warm-up. Short histories make many charges look new or large. Their precision is unmeasured, because the label contract scores nothing in the warm-up. Spike periods need 3 earlier months to be scored at all, so spikes have no warm-up flags. Decision 17 keeps More often's warm-up flags away from new users.
 - **Every preset includes every duplicate.** Exact repeats score +inf, so no cutoff drops them.
 - **Less often keeps the clearest alerts:** about 19 in 20 are planted. It finds a third of planted spikes rather than half.
 
@@ -110,8 +110,8 @@ Serving's way: every user is scored against the whole pool, spikes on the promot
 | Maya (`u_te_yp_0030`) | nothing | Groceries spike, Sep | same as Balanced |
 | Ada (`u_te_fb_0003`) | nothing | Dining spike, Sep | same as Balanced |
 | Jordan (`u_te_fl_0010`) | 1 duplicate | 1 duplicate + Transportation spike, Aug | same as Balanced |
-| `u_te_fb_0019` (candidate) | nothing | nothing | 1 charge + 1 spike |
-| `u_te_fb_0023` (candidate) | 1 duplicate + Groceries spike, Aug | same as Less often | adds 1 charge |
+| `u_te_fb_0019` (not chosen) | nothing | nothing | 1 charge + 1 spike |
+| **Sam Patel (`u_te_fb_0023`), the fourth account** | 1 duplicate + Groceries spike, Aug | same as Less often | adds 1 charge |
 
 - **The three accounts show "Less often", and none of them shows "More often".** Their planted spikes are not among the strongest half, so Less often hides them, and nothing borderline falls in their window at 2×.
 - **No account shows all three settings.** Of the 120 test users, 30 gain something in the window at More often. Only one of them, `u_te_fb_0023`, also has a spike at Balanced, and its alerts are strong enough that Less often doesn't change it.
@@ -179,7 +179,7 @@ A token without a feedback subject (read-only, FR-19) sees Balanced, can't act o
   - the lowest score among them is the cutoff.
 
   Flags are still taken at score ≥ cutoff, so a tie at the cutoff can add a few. Balanced is the promoted cutoff itself, unchanged.
-- **The warm-up without labels** is each user's first 90 days from their first transaction (charges), or their first 3 months (spike periods): FR-2's warm-up lengths, counted per user, so the rule carries to real accounts that start on different days. On the synthetic data it equals the label contract's warm-up. Warm-up rows aren't in the rate, but serving still flags them at the session's cutoff (open question 17).
+- **The warm-up without labels** is each user's first 90 days from their first transaction (charges), or their first 3 months (spike periods): FR-2's warm-up lengths, counted per user, so the rule carries to real accounts that start on different days. On the synthetic data it equals the label contract's warm-up. Warm-up rows aren't in the rate. Serving flags them at **the stricter of the session's preset and Balanced** (decision 17): More often starts after a user's first 90 days, and Less often stays Less often throughout.
 - **Placed once, without labels, then fixed** (decision 8). A command, `sfc-model presets --task <task> --data <pool>`, scores the pool with the promoted model, places the two cutoffs, and writes `presets.json` next to the model's manifest (`artifacts/<task>/<version>/presets.json`). The file holds:
   - the cutoffs and the multipliers;
   - the pool's data hash;
@@ -238,7 +238,7 @@ flag_actions    action_id, seq, subject, user_id, flag_id, kind ('charge'|'spike
 - **"Worth a look" (1f):** the switch at the top, as in the mockup. It posts and redirects, so it works without JavaScript; htmx swaps the two cards in place. Under it, one line per setting:
   - Less often: *"Fewer alerts: only the clearest ones. You may miss some."*
   - Balanced: *"Our standard setting."*
-  - More often: *"You'll see more, and more of them will turn out to be ordinary."*
+  - More often: *"You'll see more, and more of them will turn out to be ordinary."* In a user's first 90 days, it adds: *"More often starts once we know your usual pattern, after your first 90 days."*
 - **Unusual charges:** "I recognize this" and "Not me — what now?" on each row. "Not me" expands into the guidance in place.
 - **Spending spikes:** "Expected, all good" on each spike, beside "Ask the coach about this".
 - **Undo toast** after every action, as for corrections.
@@ -267,7 +267,7 @@ flag_actions    action_id, seq, subject, user_id, flag_id, kind ('charge'|'spike
 
 ### 7. The demo
 
-- **A fourth demo account** in `configs/web/demo_accounts.yaml`. The candidates are `u_te_fb_0023` (recommended) and `u_te_fb_0019`; which one is open question 16. Proposed name and email: **Sam Patel, `sam@example.com`** (open question 10).
+- **A fourth demo account,** **Sam Patel, `sam@example.com`** (`u_te_fb_0023`, a family budgeter), in `configs/web/demo_accounts.yaml` (decisions 10 and 16).
 - **The story, with `u_te_fb_0023`:**
   - On Maya, Ada or Jordan, Less often hides the spike and More often adds nothing: alerts are rare by design.
   - On Sam, Balanced shows a planted duplicate and a planted Groceries spike. More often adds a borderline Gift Nook charge.
@@ -330,11 +330,12 @@ flag_actions    action_id, seq, subject, user_id, flag_id, kind ('charge'|'spike
 | **(a) Keep 60 days; add a fourth account (decided)** | Keeps the decision on #30; honest about how rare alerts are | The demo switches accounts to show More often |
 | (b) Show earlier alerts too | Every account changes with the setting | Reopens the window decision; a longer page |
 
-### F. More often in a user's first 90 days (open question 17)
+### F. Presets in a user's first 90 days (decision 17)
 
 | Option | Pros | Cons |
 | --- | --- | --- |
-| **(a) Use the Balanced cutoff during the warm-up, so More often starts after it (recommended)** | A new user isn't flooded (about 0.69 unmeasured alerts per user-month at More often, against 0.07 at Balanced); simple to state | A setting that changes nothing for a new account's first 90 days needs a line of copy |
+| **(a) During the warm-up, the stricter of the preset and Balanced (decided)** | A new user isn't flooded (about 0.69 unmeasured alerts per user-month at More often, against 0.07 at Balanced); Less often stays Less often (1 warm-up flag on train users, not Balanced's 47) | More often changes nothing for a new account's first 90 days, which needs a line of copy |
+| (a′) During the warm-up, Balanced for every setting | Simplest to state | Loosens Less often for new users: Balanced's warm-up alerts, more than they asked for (review on #65) |
 | (b) Apply the preset everywhere, as measured | One rule | The noisiest alerts land on the users with the least history, and their precision is unknown |
 
 The demo accounts have years of history, so neither option changes the demo.
@@ -344,6 +345,7 @@ The demo accounts have years of history, so neither option changes the demo.
 - **Unit:**
   - presets: on the pool they were placed on, the cutoffs flag 0.5× and 2× as many post-warm-up rows as Balanced (up to ties at the cutoff); ties are broken by id; Balanced equals the promoted cutoff; a presets file for another model version is refused;
   - the per-user warm-up equals the label contract's on the default data;
+  - during the warm-up, More often flags at Balanced's cutoff and Less often keeps its own, stricter one (both directions of decision 17);
   - every preset flags every duplicate; every spike flag at every preset passes the product rules (the contract);
   - the simple-rule fallback's Less and More cutoffs are fitted at build time at 0.5× and 2× its rate;
   - flag file: rows down to the More often cutoff are stored; a file without preset meta serves Balanced only;
@@ -380,7 +382,7 @@ One PR per milestone, stacked.
 3. [x] **The flag actions ship with it:** "I recognize this", "Not me — what now?", "Expected, all good".
 4. [x] **Presets are alert rates:** Less = 0.5×, Balanced = the promoted cutoff unchanged, More = 2×, per post-warm-up user-month (decision 11). Precision is measured on validation, out of fold; no new test scoring (option A-a).
 5. [x] **No precision floor for More often, on either half.** The product rules still hold, the 0.70 gate applies to Balanced, and the page says more alerts will be ordinary (option B-a).
-6. [x] **A fourth demo account shows More often; the 60-day window stays** (option E-a). The first choice was `u_te_fb_0000`, pending a look at its flags. Which account is open question 16.
+6. [x] **A fourth demo account shows More often; the 60-day window stays** (option E-a). The first choice was `u_te_fb_0000`, pending a look at its flags. Which account is decision 16.
 
 **Decided on the review of #65** (owner, Oct 4, 2026)
 
@@ -393,10 +395,8 @@ One PR per milestone, stacked.
 14. [x] **`not_me` is matched on `transaction_id`,** which `flag_actions` stores, so the marker survives promotions (finding 5).
 15. [x] **`hidden` counts `recognize` and `expected` only** (finding 6).
 
-**Open questions, for the owner**
+**Decided to close the open questions** (owner, Oct 4, 2026, on #65)
 
-10. [ ] **The fourth account's name and email.** Proposed: Sam Patel, `sam@example.com`.
-16. [ ] **Which fourth account** (new since the review: placing presets after the warm-up changed which test users gain at More often)?
-    - **`u_te_fb_0023` (recommended):** a planted duplicate and a planted Groceries spike at Balanced, and More often adds a borderline charge. One account then shows More often and all three actions, including the duplicate exception.
-    - **`u_te_fb_0019`:** empty at Balanced, and a borderline charge and spike at More often. It shows "nothing → something" but has nothing to act on at Balanced.
-17. [ ] **More often during a user's first 90 days** (new; option F). Unusual charges at More often flag about 0.69 per user-month in the warm-up, 10× Balanced's rate there, with unmeasured precision. Recommended: use the Balanced cutoff during the warm-up (option F-a).
+10. [x] **The fourth account is Sam Patel, `sam@example.com`.**
+16. [x] **The fourth account is `u_te_fb_0023`,** not `u_te_fb_0019`. At Balanced it has a planted duplicate and a planted Groceries spike, and More often adds a borderline charge, so one account shows More often and all three actions, including the duplicate exception.
+17. [x] **In a user's first 90 days, serving uses the stricter of the session's preset and Balanced** (option F-a, with the review's fix). More often starts after the warm-up, where its unusual charges would otherwise flag about 0.69 per user-month, 10× Balanced's rate, at unmeasured precision; Less often stays Less often throughout.
