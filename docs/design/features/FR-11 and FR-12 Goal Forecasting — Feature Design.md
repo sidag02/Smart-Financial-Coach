@@ -300,6 +300,7 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 ### 6. Evaluation task
 
 - **Examples:** each goal with a known outcome, at its `as_of_date`, scored on both paths: once with its own share source, and once as if new. Only transactions up to that date are used, enforced by the splitter's leak check (Technical Design, evaluation controls).
+- **Targets (amended, round 5):** a sampled goal's target is a multiple of the balance projected at its `as_of`, not of the balance reached, and the dataset's own goals aren't examples ([decision 12](#round-5-after-the-first-test-scoring-oct-4-2026)).
 - **More goals for evaluation** ([decision 4](#decisions-and-open-questions)):
   - FR-1's stage 9 is refactored into a pure sampler over a user's monthly net savings, with the same code and rule. A test checks that stage 9 still produces exactly today's goals, so the generated dataset doesn't change.
   - The sampler is run with more draws per user, under its own seed, into an evaluation-only goal set.
@@ -413,6 +414,50 @@ One PR each.
 4. **Pages:** goal detail (1g, 1l), statuses on cards and the overview, reached goals, the fit badge, the short-history notice and the assumption line; a browser check at desktop and phone width.
 5. **Docs:** the Technical Design (the forecasting decision, the contracts), the PRD (the measured metric and any target change), the Web App UI (1g/1l built, gap 4 closed); status to Implemented.
 
+## Round 5: after the first test scoring (Oct 4, 2026)
+
+Written before any round 5 run on committed code, and before test users are scored a second time.
+
+### What the first test scoring showed
+
+Round 4's finalists were scored on test users once (`finalize`, Oct 4). Rank 1 (`paths_seasonal_persona`) passed every Brier, coverage and RMSE gate, but 4 of 30 blocking calibration gates failed, and so did both other finalists'. Nothing was promoted.
+
+| Gate (blocking) | Test met rate (95% CI) | Validation |
+| --- | --- | --- |
+| Freelancers, track, "on track" | 0.44 (0.32–0.57) | 0.70 |
+| Freelancers, new, "on track" | 0.40 (0.29–0.50) | 0.65 |
+| All, new, "on track" | 0.65 (0.59–0.70) | 0.70 |
+| Families, track, "could go either way" | 0.78 (0.67–0.87) | 0.68 |
+
+### What train users show (no test user read)
+
+- **The freelancer forecast is honest; the targets leak.** Stage 9 sets a goal's target as a multiple of the balance it actually reached ("How goals and their outcomes are generated"). A target far below the forecast then often means the future went badly, and the leak is strongest for the most volatile users.
+  - **PIT:** where each realized balance falls in its forecast distribution. Freelancers' deciles are flat (0.08–0.12 each).
+  - **Targets set without the future:** on these, freelancer bands are calibrated ("on track" met 0.71–0.75).
+- **The real weakness is salaried users, and the other way round.** Their realized balances land above the 80% range 17–24% of the time (10% if honest): the 24-month level misses raises. So the bands are underconfident for them, which is the family miss above.
+- **There's no persistence in freelancer income** (month-to-month correlation of net savings is negative), so resampling runs of months isn't a fix.
+- **The persona is a label real users don't have.** Round 4's model read it: half of a 3-year user's seasonal profile came from their persona's.
+
+### Owner decisions (Oct 4, 2026, after the first test scoring)
+
+10. [x] **FR-11 ships a promoted model in the Oct 6 demo.**
+11. [x] **No persona label.** Each persona's prior is weighed by how much the user's own monthly net savings look like that persona's (`PersonaWeights`: a logistic regression over history features, trained on train users), and each path follows one persona's profile, drawn by its weight. Held out by user, the weights pick the right persona 84% of the time with 2+ years of history, 48% with 6 months or less (freelancers 95%).
+12. [x] **Evaluation goals' targets come from a projection, not the future** (§6, amended). The sampler draws the same goals; an inside-history goal's target is a multiple of the balance projected at `as_of` (its share of the 12 months before it), as stage 9 already does for goals that end after the history. Whether it's met is then up to the months that follow. The dataset is unchanged, and its own goals, whose targets are planted, are no longer examples. Gates, bands and tolerances are unchanged.
+13. [x] **Test users are scored a second time,** under a recorded override naming decisions 10–12. A test failure is reported, and the owner decides again; no gate moves.
+
+### Round 5, fixed before it runs
+
+- **Candidates, all without a persona label:** `paths_flat_mixture`, `paths_seasonal_mixture`, and `paths_seasonal_mixture_trend`: a damped trend in the level (damping 0.95 a month, fixed), each user's slope shrunk toward their personas' by years seen. Round 4's configs move to `configs/experiments/goal_forecasting/round4/` and aren't candidates.
+- **Rule:** unchanged (§4): the mean of the two paths' validation Brier, ties on the paired user bootstrap, then the worst band's calibration error, scaled RMSE, cost.
+- **New reported checks,** not gates: per path and persona, the share of realized balances below and above the 80% range (`below.*`, `above.*`), which never read a target.
+- **Rehearsal on validation** (an uncommitted run of the same code): `paths_seasonal_mixture` passes every gate on its own validation metrics (Brier 0.167 track, 0.199 new). The flat level and the trend fail the freelancer "on track" bands; the trend centers salaried ranges (10% below, 10–16% above) but costs Brier and RMSE.
+
+### Known limits
+
+- The projected targets are still synthetic: a real person's target relates to the future in ways the data can't show.
+- The synthetic personas are easier to tell apart than real people, so the persona mixture is a good sign, not proof.
+- Salaried users' forecasts stay pessimistic: the trend that fixes the ranges loses on Brier. A better trend is a follow-up.
+
 ## Status and handoff (Oct 4, 2026)
 
 ### Where it stands
@@ -466,7 +511,7 @@ One PR each.
 
 ## Decisions and open questions
 
-All decided by the owner on Oct 4, 2026, on #50.
+All decided by the owner on Oct 4, 2026, on #50. Decisions 10–13, after the first test scoring, are in [Round 5](#round-5-after-the-first-test-scoring-oct-4-2026).
 
 1. [x] **The RMSE target: a change, recorded before test.** The Technical Design defines the baseline as seasonal-naive, and nothing beats it by 15%: the best is 2% at 6 months, and the true level in hindsight is 17–19%. So:
    - RMSE gates at 15% below last-month naive (the PRD's word "naive"), and no worse than seasonal-naive;

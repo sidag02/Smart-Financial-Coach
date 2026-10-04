@@ -1,0 +1,9 @@
+# FR-11 round 5: the persona mixture with a damped trend in the level, so a raise shows up in the
+# forecast. Each user's slope is shrunk toward their personas' typical slope by the years seen;
+# the damping (0.95 a month) is fixed, never tuned.
+name: paths_seasonal_mixture_trend
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: true, shrink: 2.0, window: 24, personas: mixture, trend: true, damping: 0.95}
+tags: {plan: fr11-round-5}

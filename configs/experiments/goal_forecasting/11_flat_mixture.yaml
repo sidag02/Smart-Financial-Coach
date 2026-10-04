@@ -1,0 +1,8 @@
+# FR-11 round 5: the flat 24-month level without a persona label: users with short histories pool
+# every persona's deviations, weighed by how much their history looks like each.
+name: paths_flat_mixture
+task: goal_forecasting
+model:
+  type: goal_forecasting/paths
+  params: {seasonal: false, window: 24, personas: mixture}
+tags: {plan: fr11-round-5}

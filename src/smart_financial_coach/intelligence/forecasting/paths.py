@@ -8,6 +8,9 @@ answer (NFR-8). Every goal, saved or a draft, is arithmetic over those paths (§
 What `fit` learns, all from model-visible months, never from outcomes ("Why nothing is tuned on
 outcomes"):
 - each persona's seasonal profile and pooled deviations (for users with short histories);
+- with `personas="mixture"`, how much a history looks like each persona (`PersonaWeights`), so a
+  forecast never needs the user's persona: every persona's profile is weighed by it, and each path
+  follows one persona's profile, drawn by its weight;
 - the typical total allocation of savings to goals, from goals with a track record;
 - the spread, so that the 80% range covers 80% of realized goal balances (§2): training goals
   whose target month lies inside their user's visible history, run on their own share over the
@@ -42,6 +45,7 @@ from smart_financial_coach.intelligence.forecasting.contract import (
     status_for,
     to_date,
 )
+from smart_financial_coach.intelligence.forecasting.persona import PersonaWeights
 from smart_financial_coach.intelligence.forecasting.savings import (
     SHARE_CAP,
     final_balance,
@@ -78,11 +82,29 @@ class ForecastState:
     # Exponential smoothing's own state, to simulate from the fitted model (§4): the smoothing
     # weights (alpha, gamma), the last level, and the seasonal states by month of year
     ets: tuple[float, float, float, tuple[float, ...]] | None = None
+    # The persona mixture: each persona's weight and the user's profile under its prior.
+    # `seasonal` is their weighted mean; each path follows one of them, drawn by weight
+    mixture: tuple[tuple[float, tuple[float, ...]], ...] | None = None
+    # A damped trend: dollars a month at the level's center, `lead` months before `end`, and
+    # how much of it carries into each further month (round 5)
+    slope: float = 0.0
+    lead: float = 0.0
+    damping: float = 1.0
+
+    def trend(self, months: int) -> Floats:
+        """The trend's addition to the level in each of the `months` after `end`."""
+        if self.slope == 0.0:
+            return np.zeros(months)
+        h = np.arange(1, months + 1, dtype=float)
+        phi = self.damping
+        ahead = h if phi >= 1.0 else phi * (1 - phi**h) / (1 - phi)
+        trend: Floats = np.asarray(self.slope * (self.lead + ahead), dtype=float)
+        return trend
 
     def point(self, months: int) -> Floats:
         """The point forecast for the `months` after `end`."""
         moy = [(self.end + i + 1).month for i in range(months)]
-        return np.array([self.level + self.seasonal[m - 1] for m in moy])
+        return np.array([self.level + self.seasonal[m - 1] for m in moy]) + self.trend(months)
 
     def simulate(self, months: int, n_paths: int, seed: int) -> Floats:
         """`n_paths` paths of the next `months` months, deterministic for a seed: the point plus
@@ -92,6 +114,13 @@ class ForecastState:
         noise = self.spread * rng.choice(
             np.asarray(self.residuals), size=(n_paths, months), replace=True
         )
+        if self.ets is None and self.mixture is not None:
+            weights = np.array([w for w, _ in self.mixture])
+            which = rng.choice(len(weights), size=n_paths, p=weights / weights.sum())
+            moy = np.array([(self.end + i + 1).month - 1 for i in range(months)])
+            profiles = np.array([dev for _, dev in self.mixture])[:, moy]
+            mixed: Floats = self.level + self.trend(months)[None, :] + profiles[which] + noise
+            return mixed
         if self.ets is None:
             paths: Floats = self.point(months)[None, :] + noise
             return paths
@@ -115,6 +144,7 @@ class PersonaPrior:
 
     profile: tuple[float, ...]  # 12 values
     residuals: tuple[float, ...]
+    slope: float = 0.0  # the typical monthly trend of the level (round 5)
 
 
 def scale_of(history: Floats) -> float:
@@ -183,10 +213,14 @@ def fit_state(
     shrink: float,
     spread: float,
     level_model: str = "mean",
+    mixture: list[tuple[float, PersonaPrior]] | None = None,
+    damping: float | None = None,
 ) -> ForecastState:
     """A user's state from their monthly net savings up to `as_of` (§2). `level_model="ets"`
     uses exponential smoothing once there are two full years, and the mean-and-profile state
-    before that."""
+    before that. `mixture` (weight, prior) pairs stand in for `prior`: the user's profile under
+    each prior, and their weighted mean as the point forecast. `damping` adds a damped trend:
+    the user's own slope over the window, shrunk toward the priors' by the years observed."""
     y = history.to_numpy(dtype=float)
     end = history.index[-1] if len(history) else pd.Period("1970-01", freq="M")
     if level_model == "ets" and len(y) >= ETS_FROM:
@@ -194,17 +228,37 @@ def fit_state(
     recent = y[-window:] if len(y) else np.zeros(1)
     level = float(recent.mean())
     scale = scale_of(y)
-    dev = np.zeros(12)
+    priors = mixture if mixture is not None else [(1.0, prior)]
+    devs = [np.zeros(12) for _ in priors]
     if seasonal and len(y) >= SEASONAL_FROM:
         own, years = _own_seasonal(y, end)
-        prior_dollars = np.asarray(prior.profile) * scale if prior else np.zeros(12)
         weight = years / (years + shrink) if shrink > 0 else np.ones(12)
-        dev = weight * own + (1 - weight) * prior_dollars
+        for i, (_, p) in enumerate(priors):
+            prior_dollars = np.asarray(p.profile) * scale if p else np.zeros(12)
+            devs[i] = weight * own + (1 - weight) * prior_dollars
+    dev = sum((w * d for (w, _), d in zip(priors, devs, strict=True)), np.zeros(12))
     start = end - (len(recent) - 1)
     moy = np.array([(start + i).month - 1 for i in range(len(recent))])
-    residuals = recent - (level + dev[moy])
-    if len(residuals) < MIN_OWN_RESIDUALS and prior is not None and scale > 0:
-        residuals = np.concatenate([residuals, np.asarray(prior.residuals) * scale])
+    trend_slope, lead = 0.0, (len(recent) - 1) / 2
+    if damping is not None and len(recent) >= 3:
+        own_slope = _slope(recent - dev[moy])
+        prior_slope = sum(w * (p.slope if p else 0.0) for w, p in priors) * scale
+        observed = len(recent) / 12  # years in the window
+        trend_slope = (observed * own_slope + shrink * prior_slope) / (observed + shrink)
+    centered = np.arange(len(recent)) - lead
+    residuals = recent - (level + dev[moy] + trend_slope * centered)
+    if len(residuals) < MIN_OWN_RESIDUALS and scale > 0:
+        # Each prior's pooled deviations in proportion to its weight (evenly spaced picks)
+        pooled = [residuals]
+        for w, p in priors:
+            if p is None or not p.residuals:
+                continue
+            pool = np.asarray(p.residuals) * scale
+            take = round(w * len(pool)) if mixture is not None else len(pool)
+            pooled.append(
+                pool[np.linspace(0, len(pool) - 1, take).astype(int)] if take else pool[:0]
+            )
+        residuals = np.concatenate(pooled)
     if not len(residuals):
         residuals = np.zeros(1)
     return ForecastState(
@@ -214,7 +268,24 @@ def fit_state(
         spread=spread,
         months=len(y),
         end=end,
+        slope=float(trend_slope),
+        lead=float(lead),
+        damping=1.0 if damping is None else float(damping),
+        mixture=(
+            tuple(
+                (float(w), tuple(float(v) for v in d))
+                for (w, _), d in zip(priors, devs, strict=True)
+            )
+            if mixture is not None
+            else None
+        ),
     )
+
+
+def _slope(y: Floats) -> float:
+    """The least-squares slope of `y` per step."""
+    t = np.arange(len(y)) - (len(y) - 1) / 2
+    return float((t * (y - y.mean())).sum() / (t * t).sum())
 
 
 def _seed(*parts: object) -> int:
@@ -244,9 +315,14 @@ class PathsModel(BaseModel):
         coverage: float = 0.8,
         spread: float | None = None,
         level_model: str = "mean",
+        personas: str = "label",
+        trend: bool = False,
+        damping: float = 0.95,
     ) -> None:
         if level_model not in ("mean", "ets"):
             raise ValueError(f"level_model must be mean or ets, not {level_model!r}")
+        if personas not in ("label", "mixture"):
+            raise ValueError(f"personas must be label or mixture, not {personas!r}")
         super().__init__(
             seasonal=seasonal,
             shrink=shrink,
@@ -255,7 +331,14 @@ class PathsModel(BaseModel):
             coverage=coverage,
             spread=spread,
             level_model=level_model,
+            personas=personas,
+            trend=trend,
+            damping=damping,
         )
+        self.personas = personas
+        self.trend = trend
+        self.damping = damping
+        self.persona_weights: PersonaWeights | None = None
         self.level_model = level_model
         self.seasonal = seasonal
         self.shrink = shrink
@@ -273,6 +356,13 @@ class PathsModel(BaseModel):
         """Learns from the rows' histories and saved amounts only; `y` (outcomes) is ignored."""
         histories = _longest_histories(x)
         self.priors = self._persona_priors(histories)
+        if self.personas == "mixture":
+            # Every (user, as_of) history, so the weights learn short histories as well as long
+            seen = x.drop_duplicates(["user_id", "as_of_date"])
+            self.persona_weights = PersonaWeights().fit(
+                [parse_history(str(h)) for h in seen["history_json"]],
+                [str(p) for p in seen["persona"]],
+            )
         self.typical_total = _typical_total(x)
         tuned, n = (self.spread, 0) if self.spread is not None else self._tune_spread(x, histories)
         self.fitted_spread = tuned
@@ -286,7 +376,7 @@ class PathsModel(BaseModel):
     def _persona_priors(self, histories: pd.DataFrame) -> dict[str, PersonaPrior]:
         priors = {}
         for persona, part in histories.groupby("persona"):
-            profiles, residuals = [], []
+            profiles, residuals, slopes = [], [], []
             for h in part["history"]:
                 y = h.to_numpy(dtype=float)
                 scale = scale_of(y)
@@ -297,10 +387,14 @@ class PathsModel(BaseModel):
                     profiles.append(own / scale)
                 recent = y[-self.window :]
                 residuals.append((recent - recent.mean()) / scale)
+                if len(recent) >= 12:
+                    slopes.append(_slope(recent) / scale)
             profile = np.median(np.stack(profiles), axis=0) if profiles else np.zeros(12)
             pooled = np.concatenate(residuals) if residuals else np.zeros(1)
             priors[str(persona)] = PersonaPrior(
-                tuple(float(v) for v in profile), tuple(float(v) for v in pooled)
+                tuple(float(v) for v in profile),
+                tuple(float(v) for v in pooled),
+                float(np.median(slopes)) if slopes and self.trend else 0.0,
             )
         return priors
 
@@ -354,14 +448,21 @@ class PathsModel(BaseModel):
     def state_for(
         self, history: pd.Series, persona: str, spread: float | None = None
     ) -> ForecastState:
+        """With the persona mixture, `persona` isn't read: a real user has none."""
+        mixture = None
+        if self.persona_weights is not None and len(history):
+            weights = self.persona_weights.predict(history)
+            mixture = [(w, self.priors[p]) for p, w in weights.items() if p in self.priors]
         return fit_state(
             history,
-            self.priors.get(persona),
+            None if mixture is not None else self.priors.get(persona),
             window=self.window,
             seasonal=self.seasonal,
             shrink=self.shrink,
             spread=self.fitted_spread if spread is None else spread,
             level_model=self.level_model,
+            mixture=mixture,
+            damping=self.damping if self.trend else None,
         )
 
     def paths_for(self, user_id: str, as_of: object, state: ForecastState) -> Floats:

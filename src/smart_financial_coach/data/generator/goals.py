@@ -65,11 +65,22 @@ def sample_goals(
     *,
     user_id: str,
     goal_prefix: str,
+    targets_from: str = "realized",
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     """One user's goals and their truth, from the user's monthly net savings (`net`, one value
     per month of `tl`). A pure function of its arguments: stage 9 calls it once per user with the
     user's own stream; FR-11's evaluation calls it again with other streams to draw more labeled
-    goals without changing the dataset (FR-11 and FR-12 design, §6)."""
+    goals without changing the dataset (FR-11 and FR-12 design, §6).
+
+    `targets_from` is what a goal's target is a multiple of, for goals that end inside the history:
+    - "realized" (stage 9): the balance actually reached by the target date. The outcome is then
+      planted (an `on_track` goal is always met), and a target carries the future with it;
+    - "projection" (FR-11's evaluation goals since round 5): the balance projected at `as_of`
+      from the 12 months before it, as for goals that end after the history. Whether it's met is
+      then up to the months that follow, as for a real person's goal.
+    Neither changes what the random generator draws, so the goals are otherwise the same."""
+    if targets_from not in ("realized", "projection"):
+        raise ValueError(f"targets_from must be realized or projection, not {targets_from!r}")
     k = min(int(rng.integers(spec.per_user[0], spec.per_user[1] + 1)), len(names))
     w = np.array(weights)
     picked = rng.choice(len(names), size=k, replace=False, p=w / w.sum())
@@ -92,8 +103,12 @@ def sample_goals(
             target_m = as_of_m + int(rng.integers(h_low, min(h_high, last - as_of_m) + 1))
             target_date = str(tl.date_of(int(tl.month_last[target_m])))
             current = _saved(net, share, created_m, as_of_m)
-            reference = _saved(net, share, created_m, target_m)
-            final: float | None = reference
+            realized = _saved(net, share, created_m, target_m)
+            final: float | None = realized
+            reference = realized
+            if targets_from == "projection":
+                recent = net[max(0, as_of_m - 11) : as_of_m + 1]
+                reference = current + share * max(0.0, float(recent.mean())) * (target_m - as_of_m)
         else:
             created_m = int(rng.integers(max(0, tl.n_months - 12), last))
             as_of_m = last
