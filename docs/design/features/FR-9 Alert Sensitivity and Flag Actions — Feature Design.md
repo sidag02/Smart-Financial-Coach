@@ -415,7 +415,7 @@ From milestone 3 (demo and docs):
 
 | Milestone | PR | Outcome |
 | --- | --- | --- |
-| Design | #65 | Accepted (owner, Oct 4, 2026); decisions 1–17 |
+| Design | #65 | Accepted (reviewer, Oct 4, 2026); decisions 1–17 by the owner |
 | 1. Presets | #66 | `sfc-model presets`; presets committed for both promoted models; flag files down to More often; spikes by level; out of fold 0.49×/1.98× and 0.50×/2.01× of Balanced's rate (FR-9 Alert Sensitivity — Results) |
 | 2. Settings and actions | #67 | The alert store and replay; four tools over MCP; the switch, actions, undo and hidden alerts on "Worth a look"; the coach's rules |
 | 3. Demo and docs | #68 | Sam Patel's account; per-level counts in the build; `/healthz` presets in the deploy smoke test; PRD, Technical Design, Web App UI |
