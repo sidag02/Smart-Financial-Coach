@@ -69,7 +69,7 @@ Cutoffs per fold: Less 12.3–12.4, Balanced 7.63–7.81, More 5.36–5.50.
 | Unusual charges | 0.7783 | 0.7300 | 0.6855 | 768 / 1,536 / 3,072 | 3 / 66 / 66 |
 | Spending spikes | 12.64 | 7.682 | 5.553 | 200 / 400 / 800 | 0 |
 
-The pool's cutoffs fall inside each fold's range above. The simple-rule fallback has no promoted artifact, so it fits its own Less and More at build time, at 0.5× and 2× its rate (decision 13).
+Unusual charges' pool cutoffs fall inside each fold's range above. Spikes' Less and More fall just outside it (12.64 against 12.30–12.44, and 5.55 against 5.36–5.50), because the pool is scored on the promoted categorizer's predicted categories, as serving is, and the folds on true ones, over fewer users. On the pool, 0.5× and 2× hold by construction (200 / 400 / 800). The simple-rule fallback has no promoted artifact, so it fits its own Less and More at build time, at 0.5× and 2× its rate (decision 13).
 
 ## Reading the results
 

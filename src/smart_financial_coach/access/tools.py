@@ -1204,6 +1204,11 @@ class Tools:
             "end_date": end.isoformat(),
             # The level applied; Balanced whatever was asked when no model has presets
             "sensitivity": self.sensitivity if self.ledger.presets_available else DEFAULT_LEVEL,
+            # Per half: a half without presets is shown at Balanced whatever the setting
+            "sensitivity_applied": {
+                half: self.sensitivity if has else DEFAULT_LEVEL
+                for half, has in self.ledger.presets_by_half.items()
+            },
             "count": len(unusual) if isinstance(unusual, list) else 0,
             "unusual_transactions": unusual,
             "spending_spikes": spiking,
