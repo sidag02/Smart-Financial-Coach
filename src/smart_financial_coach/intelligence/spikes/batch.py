@@ -15,14 +15,21 @@ into one JSON file (`spikes.json`), as goal forecasts are:
     write_state(state, "build/demo/spikes.json")
     state = load_state("build/demo/spikes.json")
     state.score(user_id, effective_ledger, model_ledger)  # one user's periods, contract-checked
+    state.score(user_id, effective_ledger, model_ledger, level="more")  # FR-9's presets
+
+Sensitivity presets (FR-9 §1, §2): the promoted model's come from its `presets.json`, placed
+once by `sfc-model presets` (`place_presets` here); the simple rule fits its own at build time,
+at 0.5x and 2x its rate (decision 13). Both are stored in the file. Without presets, every level
+scores at the model's own cutoff (Balanced).
 
 The pool's own rows never leave this function: the file holds the table's sums and counts per
 (category, month of year, as-of month) and the scorer's numbers, nothing per user.
 """
 
+import copy
 import json
 import tempfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -44,6 +51,16 @@ from smart_financial_coach.data.features.season_profiles import (
 from smart_financial_coach.intelligence.models.artifact import POINTER_FILE
 from smart_financial_coach.intelligence.models.base import Model
 from smart_financial_coach.intelligence.models.registry import build
+from smart_financial_coach.intelligence.presets import (
+    DEFAULT_LEVEL,
+    LEVELS,
+    MULTIPLIERS,
+    PlacedPresets,
+    Presets,
+    load_presets,
+    periods_after_warmup,
+    place,
+)
 from smart_financial_coach.intelligence.service import load_service
 from smart_financial_coach.intelligence.spikes.contract import (
     CONTRACT,
@@ -52,7 +69,11 @@ from smart_financial_coach.intelligence.spikes.contract import (
     SpikeScorer,
 )
 from smart_financial_coach.intelligence.spikes.count import CountScorer
-from smart_financial_coach.intelligence.spikes.threshold import SpikeThresholded
+from smart_financial_coach.intelligence.spikes.threshold import (
+    SpikeThresholded,
+    rate_cutoff,
+    user_months,
+)
 
 SPIKES_FILE = "spikes.json"
 SIMPLE_RULE = "simple-rule"  # the fallback's version: not a promoted model
@@ -94,6 +115,17 @@ class SpikeState:
     # The categorizer whose predictions the season table was built on. A user's own term is left
     # out exactly only when their ledger's categories come from the same one (review on #62)
     categorizer: str | None = None
+    # The sensitivity presets' cutoffs (FR-9); None: every level is the model's own cutoff
+    presets: Presets | None = field(default=None)
+
+    def model_at(self, level: str = DEFAULT_LEVEL) -> SpikeThresholded:
+        """The scorer cut at a sensitivity level's cutoff. Spike periods need 3 earlier months to
+        be scored, so none is in the warm-up and the level applies as it is (decision 17)."""
+        if self.presets is None or level == DEFAULT_LEVEL:
+            return self.model  # Balanced is the model's own cutoff
+        model = copy.copy(self.model)
+        model.cutoff = self.presets.cutoff(level)
+        return model
 
     def periods(
         self, user_id: str, effective: pd.DataFrame, model_basis: pd.DataFrame
@@ -114,13 +146,18 @@ class SpikeState:
         return rows[rows["usual_months"] >= MIN_HISTORY].reset_index(drop=True)
 
     def score(
-        self, user_id: str, effective: pd.DataFrame, model_basis: pd.DataFrame
+        self,
+        user_id: str,
+        effective: pd.DataFrame,
+        model_basis: pd.DataFrame,
+        level: str = DEFAULT_LEVEL,
     ) -> pd.DataFrame:
-        """The scoring periods with the contract-checked scorer output joined on."""
+        """The scoring periods with the contract-checked scorer output, at `level`, joined on."""
         rows = self.periods(user_id, effective, model_basis)
         if rows.empty:
             return rows.assign(score=[], is_flagged=[], evidence=[], model_version=[])
-        out = SpikeScorer(self.model, CONTRACT).score_periods(rows[list(INPUT_COLUMNS)])
+        model = self.model_at(level)
+        out = SpikeScorer(model, CONTRACT).score_periods(rows[list(INPUT_COLUMNS)])
         return rows.merge(out, on="period_id", how="left", validate="one_to_one")
 
 
@@ -140,24 +177,86 @@ def build_state(
     table = season_table(periods)
     root = (artifacts_dir or _artifacts()) / SERVICE
     if (root / POINTER_FILE).exists():
-        checked = load_service(SERVICE, artifacts_dir)
-        model = checked.model
-        if not isinstance(model, SpikeThresholded):
-            raise TypeError(f"the promoted spike model is a {type(model).__name__}")
-        return SpikeState(model, checked.version, METHOD_MODEL, table, as_of, min_users)
-    rows = pd.concat(
-        [
-            periods,
-            season_features(periods, table, own=user_terms(periods), min_users=min_users).drop(
-                columns="period_id"
-            ),
-        ],
-        axis=1,
-    )
-    rows = rows[rows["usual_months"] >= MIN_HISTORY].reset_index(drop=True)
-    model = simple_rule().fit(rows[list(INPUT_COLUMNS)])
+        model, version = _promoted(artifacts_dir)
+        presets = load_presets(root / version, version)
+        return SpikeState(model, version, METHOD_MODEL, table, as_of, min_users, presets=presets)
+    rows = _pool_rows(periods, table, min_users)
+    x = rows[list(INPUT_COLUMNS)]
+    model = simple_rule().fit(x)
     model.version = SIMPLE_RULE
-    return SpikeState(model, SIMPLE_RULE, METHOD_SIMPLE, table, as_of, min_users)
+    return SpikeState(
+        model, SIMPLE_RULE, METHOD_SIMPLE, table, as_of, min_users, presets=_rate_presets(model, x)
+    )
+
+
+def _promoted(artifacts_dir: Path | None) -> tuple[SpikeThresholded, str]:
+    checked = load_service(SERVICE, artifacts_dir)
+    model = checked.model
+    if not isinstance(model, SpikeThresholded):
+        raise TypeError(f"the promoted spike model is a {type(model).__name__}")
+    return model, checked.version
+
+
+def _pool_rows(periods: pd.DataFrame, table: SeasonTable, min_users: int) -> pd.DataFrame:
+    """Every pool user's scoring periods, their own season term left out, as serving builds
+    them one user at a time."""
+    season = season_features(periods, table, own=user_terms(periods), min_users=min_users)
+    rows = pd.concat([periods, season.drop(columns="period_id")], axis=1)
+    return rows[rows["usual_months"] >= MIN_HISTORY].reset_index(drop=True)
+
+
+def _rate_presets(model: SpikeThresholded, x: pd.DataFrame) -> Presets:
+    """The simple rule's Less and More: rate cutoffs at 0.5x and 2x its rate on the pool, fitted
+    without labels, as its own cutoff is (decision 13)."""
+    score = model._scores(x)
+    ids = x["period_id"].to_numpy()
+    months = user_months(x)
+    cutoffs = {
+        level: model.cutoff
+        if level == DEFAULT_LEVEL
+        else rate_cutoff(score, ids, round(SIMPLE_RULE_RATE * MULTIPLIERS[level] * months))
+        for level in LEVELS
+    }
+    cutoffs["less"] = max(cutoffs["less"], model.cutoff)
+    cutoffs["more"] = min(cutoffs["more"], model.cutoff)
+    return Presets(cutoffs)
+
+
+def place_presets(
+    pool: pd.DataFrame, *, as_of: str, artifacts_dir: Path | None = None
+) -> PlacedPresets:
+    """Less and More for the promoted spike model, placed on every user of `pool` (`category` =
+    the promoted categorizer's, the season table's basis) at 0.5x and 2x Balanced's flags after
+    the warm-up (FR-9 §1). Every scored period is past the warm-up (3 earlier months), and the
+    check is kept so the rule matches the charges'."""
+    model, version = _promoted(artifacts_dir)
+    periods = period_history(monthly_aggregates(pool, as_of=as_of))
+    rows = _pool_rows(periods, season_table(periods), DEFAULT_MIN_USERS)
+    x = rows[list(INPUT_COLUMNS)]
+    score = model._scores(x)
+    post = periods_after_warmup(rows, pool)
+    presets = place(score, post, x["period_id"].to_numpy(), float(model.cutoff))
+    months = user_months(rows[post])
+    counts = {
+        level: {
+            "after_warmup": int((post & (score >= presets.cutoff(level))).sum()),
+            "in_warmup": int((~post & (score >= presets.cutoff(level, in_warmup=True))).sum()),
+            "per_user_month_after_warmup": float(
+                (post & (score >= presets.cutoff(level))).sum() / months
+            )
+            if months
+            else 0.0,
+        }
+        for level in LEVELS
+    }
+    record = {
+        "service": SERVICE,
+        "model_version": version,
+        "pool": {"users": int(pool["user_id"].nunique()), "user_months_after_warmup": months},
+        "counts": counts,
+        "created_at": datetime.now(UTC).isoformat(timespec="seconds"),
+    }
+    return PlacedPresets(version, presets, record)
 
 
 def _artifacts() -> Path:
@@ -186,6 +285,7 @@ def write_state(state: SpikeState, out: str | Path, *, users: int, categorizer: 
             "base_fitted": _fitted(base),
         },
         "season_table": state.table.cells.to_dict(orient="list"),
+        "presets": state.presets.to_dict() if state.presets is not None else None,
     }
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -218,4 +318,5 @@ def load_state(path: str | Path) -> SpikeState:
         meta["as_of"],
         int(meta["min_users"]),
         meta.get("categorizer_version"),
+        Presets(payload["presets"]) if payload.get("presets") else None,
     )

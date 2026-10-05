@@ -77,6 +77,7 @@ from smart_financial_coach.data.features.monthly import (
 from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
 from smart_financial_coach.intelligence.forecasting.savings import monthly_net
+from smart_financial_coach.intelligence.presets import DEFAULT_LEVEL, check_level
 from smart_financial_coach.intelligence.spikes.batch import METHOD_SIMPLE
 from smart_financial_coach.intelligence.spikes.reasons import KIND_LABEL as SPIKE_LABEL
 from smart_financial_coach.intelligence.spikes.reasons import reason as spike_reason
@@ -505,9 +506,15 @@ class GoalAccess:
 
 class Tools:
     def __init__(
-        self, ledger: Ledger, feedback: Feedback | None = None, goals: GoalAccess | None = None
+        self,
+        ledger: Ledger,
+        feedback: Feedback | None = None,
+        goals: GoalAccess | None = None,
+        sensitivity: str = DEFAULT_LEVEL,
     ) -> None:
         self.base = ledger  # the model's categories
+        # How often alerts are pointed out (FR-9): the cutoff level for both halves
+        self.sensitivity = check_level(sensitivity)
         self.feedback = feedback
         self.goals = goals
         self.ledger = ledger.seen_by(feedback.store, feedback.subject) if feedback else ledger
@@ -1180,7 +1187,7 @@ class Tools:
 
     def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
         start, end = self._range(start_date, end_date)
-        flags, spikes = self.ledger.flags, self.ledger.spikes
+        flags, spikes = self.ledger.flags_at(self.sensitivity), self.ledger.spikes
         if flags is None and spikes is None:
             return self._not_available(
                 "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
@@ -1195,6 +1202,13 @@ class Tools:
             "currency": CURRENCY,
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
+            # The level applied; Balanced whatever was asked when no model has presets
+            "sensitivity": self.sensitivity if self.ledger.presets_available else DEFAULT_LEVEL,
+            # Per half: a half without presets is shown at Balanced whatever the setting
+            "sensitivity_applied": {
+                half: self.sensitivity if has else DEFAULT_LEVEL
+                for half, has in self.ledger.presets_by_half.items()
+            },
             "count": len(unusual) if isinstance(unusual, list) else 0,
             "unusual_transactions": unusual,
             "spending_spikes": spiking,
@@ -1249,7 +1263,12 @@ class Tools:
                 "status": "month_in_progress",
                 "message": "Only whole months are judged; this one isn't over yet.",
             }
-        scored = state.score(self.ledger.user_id, self.ledger.transactions, self.base.transactions)
+        scored = state.score(
+            self.ledger.user_id,
+            self.ledger.transactions,
+            self.base.transactions,
+            level=self.sensitivity,
+        )
         in_range = scored[(scored["month"] >= first) & (scored["month"] <= min(last, complete))]
         if in_range.empty:
             history = self.ledger.transactions["ts"]

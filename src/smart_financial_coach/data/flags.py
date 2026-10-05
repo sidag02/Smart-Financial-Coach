@@ -3,17 +3,20 @@
 
     unusual_flags  flag_id (PK), transaction_id, user_id (indexed), score, reason_code,
                    evidence (JSON text), model_version
-    meta           model_version, data_spec_hash, data_spec_name, created_at, rows
+    meta           model_version, data_spec_hash, data_spec_name, created_at, rows, and
+                   `presets` (JSON: the less/balanced/more cutoffs) when the model has them
 
-Only flagged charges are stored. A flag's id is the model version and the transaction id, so it
-stays stable for the v1.1 flag actions (FR-9) to key on. The file appears only when a run
-completes, as `CategoryWriter`'s does.
+Only flagged charges are stored: at the model's cutoff, or down to More often's cutoff when the
+model has sensitivity presets (FR-9 §2), so serving can filter by the session's level. A flag's
+id is the model version and the transaction id, so it stays stable for the flag actions (FR-9)
+to key on. The file appears only when a run completes, as `CategoryWriter`'s does.
 
     with FlagWriter("data/flags/default.sqlite", meta) as writer:
         writer.append(user_ids, scorer.score_transactions(rows))
     load_flags("data/flags/default.sqlite", user_id="u_te_yp_0007")
 """
 
+import json
 import sqlite3
 import tempfile
 from collections.abc import Mapping
@@ -46,6 +49,14 @@ CREATE TABLE {FLAGS_TABLE} (
 CREATE TABLE meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 _INDEX = f"CREATE INDEX idx_{FLAGS_TABLE}_user ON {FLAGS_TABLE} (user_id)"
+
+
+PRESETS_KEY = "presets"
+
+
+def presets_meta(cutoffs: Mapping[str, float]) -> dict[str, str]:
+    """The meta entry that records a flag file's preset cutoffs (FR-9 §2)."""
+    return {PRESETS_KEY: json.dumps(dict(cutoffs), sort_keys=True)}
 
 
 def flag_id(model_version: str, transaction_id: str) -> str:
@@ -129,3 +140,9 @@ def load_flag_meta(path: str | Path) -> dict[str, str]:
         return dict(conn.execute("SELECT key, value FROM meta ORDER BY key").fetchall())
     finally:
         conn.close()
+
+
+def load_flag_presets(path: str | Path) -> dict[str, float] | None:
+    """The flag file's preset cutoffs, or None if it holds Balanced's flags only (pre-FR-9)."""
+    value = load_flag_meta(path).get(PRESETS_KEY)
+    return None if value is None else {k: float(v) for k, v in json.loads(value).items()}

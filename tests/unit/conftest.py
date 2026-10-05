@@ -213,3 +213,67 @@ def promoted_spike_sources(
 ) -> DataSources:
     """`sources` with a spikes file holding the promoted spike model."""
     return _spike_sources(sources, spike_pool, spike_artifacts, tmp_path_factory.mktemp("spikes"))
+
+
+@pytest.fixture(scope="session")
+def preset_flag_artifacts(
+    small_sqlite: Path, flag_artifacts: Path, tmp_path_factory: pytest.TempPathFactory
+) -> Path:
+    """`flag_artifacts` with sensitivity presets placed for its model on the small data (FR-9)."""
+    import shutil
+
+    from smart_financial_coach.intelligence.anomaly.batch import place_presets
+    from smart_financial_coach.intelligence.presets import write_presets
+
+    root = tmp_path_factory.mktemp("preset-artifacts") / "artifacts"
+    shutil.copytree(flag_artifacts, root)
+    placed = place_presets(small_sqlite, artifacts_dir=root)
+    write_presets(
+        root / "unusual_transactions" / placed.model_version, placed.presets, placed.record
+    )
+    return root
+
+
+@pytest.fixture(scope="session")
+def preset_flagged_sources(
+    sources: DataSources, preset_flag_artifacts: Path, tmp_path_factory: pytest.TempPathFactory
+) -> DataSources:
+    """`sources` with a flag file stored down to More often's cutoff (FR-9 §2)."""
+    from smart_financial_coach.intelligence.anomaly.batch import flag_dataset
+
+    flags = tmp_path_factory.mktemp("preset-flags") / "flags.sqlite"
+    flag_dataset(sources.dataset, flags, artifacts_dir=preset_flag_artifacts)
+    return DataSources(sources.dataset, sources.predictions, flags)
+
+
+@pytest.fixture(scope="session")
+def preset_spike_artifacts(
+    small_sqlite: Path,
+    spike_pool: pd.DataFrame,
+    spike_artifacts: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Path:
+    """`spike_artifacts` with sensitivity presets placed for its model on the pool (FR-9)."""
+    import shutil
+
+    from smart_financial_coach.intelligence.presets import write_presets
+    from smart_financial_coach.intelligence.spikes.batch import place_presets
+
+    root = tmp_path_factory.mktemp("preset-spike-artifacts") / "artifacts"
+    shutil.copytree(spike_artifacts, root)
+    as_of = store.load_meta(small_sqlite)["calendar_end"]
+    placed = place_presets(spike_pool, as_of=as_of, artifacts_dir=root)
+    write_presets(root / "spending_spikes" / placed.model_version, placed.presets, placed.record)
+    return root
+
+
+@pytest.fixture(scope="session")
+def preset_spike_sources(
+    sources: DataSources,
+    spike_pool: pd.DataFrame,
+    preset_spike_artifacts: Path,
+    tmp_path_factory: pytest.TempPathFactory,
+) -> DataSources:
+    """`sources` with a spikes file holding the promoted model and its presets."""
+    folder = tmp_path_factory.mktemp("preset-spikes")
+    return _spike_sources(sources, spike_pool, preset_spike_artifacts, folder)

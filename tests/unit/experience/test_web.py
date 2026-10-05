@@ -115,6 +115,7 @@ def test_pages_need_a_signed_in_user(client: TestClient) -> None:
         "as_of": "2026-09-30",
         "users": 2,
         "spikes": None,
+        "presets": {"unusual_charges": False, "spending_spikes": False},
     }
 
 

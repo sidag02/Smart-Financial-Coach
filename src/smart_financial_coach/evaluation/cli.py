@@ -19,6 +19,8 @@ sfc-model predict --task categorization --data data/synthetic/default.sqlite \
     --out data/predictions/default.sqlite
 sfc-model predict --task goal_forecasting --data data/synthetic/default.sqlite \
     --out data/forecasts/default.json   # the nightly forecast states (FR-11 and FR-12, §7)
+sfc-model presets --task unusual_transactions --data data/synthetic/default.sqlite
+    # the promoted model's sensitivity presets (FR-9 §1), written beside its manifest
 """
 
 import argparse
@@ -251,6 +253,53 @@ def _predict(args: argparse.Namespace) -> int:
     return 0
 
 
+def _presets(args: argparse.Namespace) -> int:
+    """Place the promoted model's Less and More cutoffs on every user of --data (FR-9 §1)."""
+    from smart_financial_coach.intelligence.presets import LEVELS, write_presets
+    from smart_financial_coach.intelligence.service import service_dir
+
+    if args.task == "unusual_transactions":
+        from smart_financial_coach.intelligence.anomaly.batch import place_presets
+
+        placed = place_presets(args.data, artifacts_dir=args.artifacts_dir)
+    elif args.task == "spending_spikes":
+        import tempfile
+
+        from smart_financial_coach.data import store
+        from smart_financial_coach.data.predictions import load_categories
+        from smart_financial_coach.intelligence.spikes.batch import place_presets as place_spikes
+
+        # The pool on the promoted categorizer's categories: the season table's basis (FR-8 §2)
+        with tempfile.TemporaryDirectory() as tmp:
+            predictions = Path(tmp) / "pool_predictions.sqlite"
+            run = categorize_dataset(args.data, predictions, artifacts_dir=args.artifacts_dir)
+            categories = load_categories(predictions)[["transaction_id", "category"]]
+        pool = store.load_transactions(args.data).merge(categories, on="transaction_id")
+        meta = store.load_meta(args.data)
+        placed = place_spikes(pool, as_of=meta["calendar_end"], artifacts_dir=args.artifacts_dir)
+        placed.record["pool"] |= {
+            "data_spec_name": meta.get("spec_name", ""),
+            "data_spec_hash": meta.get("spec_hash", ""),
+            "categorizer_version": run.model_version,
+        }
+    else:
+        raise ValueError(
+            f"presets supports unusual_transactions and spending_spikes, not {args.task!r}"
+        )
+    root = service_dir(args.task, args.artifacts_dir)
+    path = write_presets(root / placed.model_version, placed.presets, placed.record)
+    print(f"wrote {path}")
+    counts = placed.record["counts"]
+    for level in LEVELS:
+        c = counts[level]
+        print(
+            f"  {level:<9} cutoff {placed.presets.cutoffs[level]:.6g}: {c['after_warmup']:,} "
+            f"flags after the warm-up ({c['per_user_month_after_warmup']:.4f} per user-month), "
+            f"{c['in_warmup']:,} in it"
+        )
+    return 0
+
+
 def _dispatch(parser: argparse.ArgumentParser, argv: Sequence[str] | None) -> int:
     args = parser.parse_args(argv)
     try:
@@ -384,9 +433,18 @@ def model_main(argv: Sequence[str] | None = None) -> int:
     pred.add_argument("--overwrite", action="store_true", help="replace an existing --out file")
     pred.set_defaults(handler=_predict)
 
+    pre = commands.add_parser(
+        "presets",
+        help="place the promoted model's sensitivity presets (FR-9) on every user of a dataset "
+        "and write presets.json beside its manifest",
+    )
+    pre.add_argument("--task", required=True, choices=("unusual_transactions", "spending_spikes"))
+    pre.add_argument("--data", type=Path, required=True, help="the pool: a generated dataset")
+    pre.set_defaults(handler=_presets)
+
     _common(pro)
     _common(att)
-    for sub in (pro, att, show, pred):
+    for sub in (pro, att, show, pred, pre):
         sub.add_argument(
             "--artifacts-dir", type=Path, help="default: SFC_ARTIFACTS_DIR or artifacts/"
         )

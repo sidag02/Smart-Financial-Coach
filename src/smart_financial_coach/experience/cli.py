@@ -30,7 +30,9 @@ def _build(args: argparse.Namespace) -> int:
         f"categorized by {bundle.model_version}"
     )
     if bundle.flag_model_version:
-        print(f"  {bundle.flags} unusual charges flagged by {bundle.flag_model_version}")
+        print(f"  {bundle.flags_balanced} unusual charges flagged by {bundle.flag_model_version}")
+        if bundle.flag_presets:
+            print(f"    {bundle.flags} stored, down to the More often cutoff (FR-9)")
     else:
         print("  no unusual-transaction model promoted: unusual charges stay not available")
     if bundle.forecast_model_version == BASELINE_VERSION:
