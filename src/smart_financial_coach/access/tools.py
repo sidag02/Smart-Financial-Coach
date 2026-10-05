@@ -31,6 +31,13 @@ facts for the setup screen (FR-10 design, "The setup check") without writing. Wr
 or an outside assistant are previewed, not applied, until the call says `confirm`; the Goals page
 applies on submit. Without a `GoalAccess` the goal tools are read-only.
 
+Alert sensitivity and flag actions (FR-9): with an `AlertAccess` (the alert store, whose settings
+these are, and where calls come from), `detect_anomalies` shows the flags at the subject's level
+(Less often, Balanced or More often), leaves out the ones they recognized or said were expected,
+and reports how many; `get_alert_settings`, `set_alert_sensitivity`, `act_on_flag` and
+`undo_flag_action` read and change them. Changes from the coach or an outside assistant are
+previewed until the call says `confirm`; the page applies on submit.
+
 Goal forecasts (FR-11, FR-12): once a goal-forecasting model is promoted, `forecast_goal` says
 whether a goal is on track, `check_goal` adds the same forecast and a fit badge for a draft, and
 `list_goals` each running goal's status. A user's running goals and a draft are forecast together,
@@ -46,6 +53,14 @@ from typing import Any, Protocol, TypeVar
 
 import pandas as pd
 
+from smart_financial_coach.access.alerts import ACTIONS as ALERT_ACTIONS
+from smart_financial_coach.access.alerts import (
+    DUPLICATE,
+    AlertError,
+    AlertStore,
+    AlertView,
+    FlagAction,
+)
 from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
 from smart_financial_coach.access.goal_forecasts import (
     FITS,
@@ -74,10 +89,16 @@ from smart_financial_coach.data.features.monthly import (
     last_complete_month,
     month_index,
 )
+from smart_financial_coach.data.flags import flag_id
 from smart_financial_coach.intelligence.anomaly.reasons import KIND_LABELS, reason
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
 from smart_financial_coach.intelligence.forecasting.savings import monthly_net
-from smart_financial_coach.intelligence.presets import DEFAULT_LEVEL, check_level
+from smart_financial_coach.intelligence.presets import (
+    DEFAULT_LEVEL,
+    LEVELS,
+    WARMUP_DAYS,
+    check_level,
+)
 from smart_financial_coach.intelligence.spikes.batch import METHOD_SIMPLE
 from smart_financial_coach.intelligence.spikes.reasons import KIND_LABEL as SPIKE_LABEL
 from smart_financial_coach.intelligence.spikes.reasons import reason as spike_reason
@@ -92,6 +113,21 @@ LOW_CONFIDENCE = 0.5  # below this a review item's confidence band is "low", els
 
 ToolSpec = dict[str, Any]
 T = TypeVar("T")
+
+# The sensitivity levels as the page and the coach describe them (FR-9 §4)
+LEVEL_TEXT = {
+    "less": ("Less often", "Fewer alerts: only the clearest ones. You may miss some."),
+    "balanced": ("Balanced", "Our standard setting."),
+    "more": ("More often", "You'll see more, and more of them will turn out to be ordinary."),
+}
+WARMUP_NOTE = "More often starts once we know your usual pattern, after your first 90 days."
+# "Not me": fixed guidance, never generated (FR-9 §5); the app moves no money (PRD scope)
+NOT_ME_GUIDANCE = (
+    "Contact your card issuer or bank, using the number on your card.",
+    "Check for other charges at this merchant.",
+    "If you bought something online, change your password for that site.",
+)
+NOT_ME_LIMITS = "This app can't block cards or dispute charges."
 
 _DATE = {"type": "string", "format": "date", "description": "YYYY-MM-DD, inclusive"}
 _GOAL_ID = {"type": "string", "description": "a goal_id from list_goals"}
@@ -339,12 +375,81 @@ TOOL_SPECS: list[ToolSpec] = [
             "spend, the usual, the excess, purchase counts, a reason and the largest charges. "
             "`spending_spikes.status` is `ok`, `too_short` (too little history to judge) or "
             "`month_in_progress` (only whole months are judged). A month that's high because of "
-            "one large charge isn't a spike; look at unusual charges or the spending summary."
+            "one large charge isn't a spike; look at unusual charges or the spending summary. "
+            "`sensitivity` is how often the person asked to be told (`less`, `balanced` or "
+            "`more`), and `sensitivity_applied` the level each half was shown at: a half "
+            "without a sensitivity setting stays `balanced`. `hidden` counts alerts in the "
+            "range they marked as recognized or expected, which aren't listed. Each alert "
+            "has a `flag_id` for act_on_flag; "
+            "`your_action: not_me` marks a charge they said wasn't theirs. When nothing is "
+            "listed but `hidden` isn't zero or the sensitivity is `less`, say so; never say "
+            "nothing was unusual."
         ),
         "input_schema": {
             "type": "object",
             "properties": {"start_date": _DATE, "end_date": _DATE},
             "required": ["start_date", "end_date"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "get_alert_settings",
+        "description": (
+            "How often the person asked to be told about unusual charges and spending spikes "
+            "(`sensitivity`: `less`, `balanced` or `more`), what each setting means, whether the "
+            "setting can change anything here (`available`), whether they're in their first 90 "
+            "days (`in_warmup`: More often starts after them), and their recent actions on "
+            "alerts, each with an `action_id` for undo_flag_action."
+        ),
+        "input_schema": {"type": "object", "properties": {}, "additionalProperties": False},
+    },
+    {
+        "name": "set_alert_sensitivity",
+        "description": (
+            "Change how often unusual charges and spending spikes are pointed out: `less` (only "
+            "the clearest), `balanced` (the standard) or `more` (more alerts, and more of them "
+            f"ordinary). {_ASK_FIRST}"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "level": {"type": "string", "enum": list(LEVELS)},
+                "confirm": _CONFIRM,
+            },
+            "required": ["level"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "act_on_flag",
+        "description": (
+            "Act on an alert from detect_anomalies, by its `flag_id`. On an unusual charge: "
+            "`recognize` hides it and later ones for the same reason at the same merchant (a "
+            "possible duplicate hides only itself), and `not_me` marks it and returns what to do "
+            "next. On a spending spike: `expected` hides that month's spike. Nothing changes for "
+            f"anyone else, and it can be undone. {_ASK_FIRST}"
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "flag_id": {"type": "string", "description": "a flag_id from detect_anomalies"},
+                "action": {"type": "string", "enum": ["recognize", "not_me", "expected"]},
+                "confirm": _CONFIRM,
+            },
+            "required": ["flag_id", "action"],
+            "additionalProperties": False,
+        },
+    },
+    {
+        "name": "undo_flag_action",
+        "description": (
+            "Undo an action on an alert, by the `action_id` act_on_flag or get_alert_settings "
+            "returned: the alert shows again. Only when the person asks to undo."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {"action_id": {"type": "string"}},
+            "required": ["action_id"],
             "additionalProperties": False,
         },
     },
@@ -464,6 +569,24 @@ def _one_per_pair(flags: pd.DataFrame) -> pd.DataFrame:
     return flags[~flags["transaction_id"].isin(hidden)]
 
 
+def _effect(flag: Mapping[str, Any], action: str) -> str:
+    """What an action on an alert does, in plain words (FR-9 §3)."""
+    if action == "expected":
+        month = pd.Timestamp(flag["period_start"])
+        return f"Hides the {flag['category']} spike for {month:%B %Y}."
+    if action == "not_me":
+        return "Marks this charge as not yours and shows what to do next. Nothing else changes."
+    if flag["reason_code"] == DUPLICATE:
+        return (
+            f"Hides this possible duplicate at {flag['merchant']}. Later duplicates there still "
+            "show."
+        )
+    return (
+        f"Hides this alert and later ones for the same reason at {flag['merchant']}. Nothing "
+        "changes for anyone else."
+    )
+
+
 class ToolGateway(Protocol):
     """What the coach needs from its tools: `Tools` in-process, or `McpTools` over MCP."""
 
@@ -504,6 +627,20 @@ class GoalAccess:
     source: str = "edit"
 
 
+@dataclass(frozen=True)
+class AlertAccess:
+    """Whose alert settings and flag actions the tools read and write (FR-9).
+
+    `subject` comes from the session or the bearer token, as for `Feedback`. `source` is "page"
+    for "Worth a look", which applies on submit, and "coach" or "assistant", whose changes are
+    previewed until they say `confirm`.
+    """
+
+    store: AlertStore
+    subject: str
+    source: str = "page"
+
+
 class Tools:
     def __init__(
         self,
@@ -511,10 +648,12 @@ class Tools:
         feedback: Feedback | None = None,
         goals: GoalAccess | None = None,
         sensitivity: str = DEFAULT_LEVEL,
+        alerts: AlertAccess | None = None,
     ) -> None:
         self.base = ledger  # the model's categories
-        # How often alerts are pointed out (FR-9): the cutoff level for both halves
-        self.sensitivity = check_level(sensitivity)
+        # How often alerts are pointed out (FR-9) when there's no alert store to read it from
+        self._sensitivity = check_level(sensitivity)
+        self.alerts = alerts
         self.feedback = feedback
         self.goals = goals
         self.ledger = ledger.seen_by(feedback.store, feedback.subject) if feedback else ledger
@@ -536,8 +675,24 @@ class Tools:
             "archive_goal": self.archive_goal,
             "undo_goal_change": self.undo_goal_change,
             "detect_anomalies": self.detect_anomalies,
+            "get_alert_settings": self.get_alert_settings,
+            "set_alert_sensitivity": self.set_alert_sensitivity,
+            "act_on_flag": self.act_on_flag,
+            "undo_flag_action": self.undo_flag_action,
             "forecast_goal": self.forecast_goal,
         }
+
+    @property
+    def sensitivity(self) -> str:
+        """The level alerts are shown at: the subject's setting, or the one given."""
+        if self.alerts is None:
+            return self._sensitivity
+        return self.alerts.store.level(self.alerts.subject, self.ledger.user_id)
+
+    def _alert_view(self) -> AlertView:
+        if self.alerts is None:
+            return AlertView()
+        return self.alerts.store.view(self.alerts.subject, self.ledger.user_id)
 
     @property
     def specs(self) -> list[ToolSpec]:
@@ -1185,31 +1340,47 @@ class Tools:
         }
         return ToolResult(data, Source(title, "can be undone"))
 
-    def detect_anomalies(self, start_date: str, end_date: str) -> ToolResult:
+    def detect_anomalies(
+        self, start_date: str, end_date: str, include_hidden: bool = False
+    ) -> ToolResult:
+        """`include_hidden` (the page's "show them", not a tool argument) lists hidden alerts
+        too, each with `hidden_by`, the action that hides it."""
         start, end = self._range(start_date, end_date)
-        flags, spikes = self.ledger.flags_at(self.sensitivity), self.ledger.spikes
+        level = self.sensitivity
+        flags, spikes = self.ledger.flags_at(level), self.ledger.spikes
+        view = self._alert_view()
         if flags is None and spikes is None:
             return self._not_available(
                 "Unusual-spending alerts", f"{span_label(start, end)}", "FR-7 and FR-8"
             )
         unusual: Any
+        hidden = {"recognized": 0, "expected": 0}
         if flags is None:
             unusual = self._not_available("Unusual charges", span_label(start, end), "FR-7").data
         else:
-            unusual = self._unusual(flags, start, end)
-        spiking = self._spikes(start, end)
+            unusual = self._unusual(flags, start, end, view)
+            hidden["recognized"] = sum(1 for f in unusual if f.get("hidden_by"))
+        spiking = self._spikes(start, end, level, view)
+        hidden["expected"] = sum(1 for x in spiking.get("spikes", []) if x.get("hidden_by"))
+        if not include_hidden:  # hidden alerts are counted, not listed
+            if flags is not None:
+                unusual = [f for f in unusual if not f.get("hidden_by")]
+            if "spikes" in spiking:
+                spiking["spikes"] = [x for x in spiking["spikes"] if not x.get("hidden_by")]
+        listed = unusual if isinstance(unusual, list) else []
         data = {
             "currency": CURRENCY,
             "start_date": start.isoformat(),
             "end_date": end.isoformat(),
             # The level applied; Balanced whatever was asked when no model has presets
-            "sensitivity": self.sensitivity if self.ledger.presets_available else DEFAULT_LEVEL,
+            "sensitivity": level if self.ledger.presets_available else DEFAULT_LEVEL,
             # Per half: a half without presets is shown at Balanced whatever the setting
             "sensitivity_applied": {
-                half: self.sensitivity if has else DEFAULT_LEVEL
+                half: level if has else DEFAULT_LEVEL
                 for half, has in self.ledger.presets_by_half.items()
             },
-            "count": len(unusual) if isinstance(unusual, list) else 0,
+            "hidden": hidden,
+            "count": sum(1 for f in listed if not f.get("hidden_by")),
             "unusual_transactions": unusual,
             "spending_spikes": spiking,
         }
@@ -1217,18 +1388,38 @@ class Tools:
             f"{data['count']} flagged" if flags is not None else "unusual charges not available"
         ]
         if spiking.get("status") in ("ok", "too_short", "month_in_progress"):
-            found.append(f"{len(spiking['spikes'])} spending spikes")
+            shown = [x for x in spiking["spikes"] if not x.get("hidden_by")]
+            found.append(f"{len(shown)} spending spikes")
+        if hidden["recognized"] or hidden["expected"]:
+            found.append(f"{hidden['recognized'] + hidden['expected']} hidden by you")
         title = f"Unusual charges · {span_label(start, end)}"
         return ToolResult(data, Source(title, ", ".join(found)))
 
-    def _unusual(self, flags: pd.DataFrame, start: date, end: date) -> list[dict[str, Any]]:
+    def _unusual(
+        self,
+        flags: pd.DataFrame,
+        start: date,
+        end: date,
+        view: AlertView,
+    ) -> list[dict[str, Any]]:
+        """The range's flags at the level, each hidden one with `hidden_by`: the action that
+        hides it."""
         rows = self.ledger.between(start, end)
-        rows = rows.merge(
-            _one_per_pair(flags)[["transaction_id", "reason_code", "evidence"]], on="transaction_id"
-        )
+        if "flag_id" not in flags:  # a flag frame built by hand: the file's id rule (FR-7 §8)
+            versions = flags.get("model_version", pd.Series("", index=flags.index))
+            ids = zip(versions, flags["transaction_id"], strict=True)
+            flags = flags.assign(flag_id=[flag_id(str(v), str(t)) for v, t in ids])
+        columns = ["transaction_id", "flag_id", "reason_code", "evidence"]
+        rows = rows.merge(_one_per_pair(flags)[columns], on="transaction_id")
         rows = rows.assign(evidence=[self._with_category(r) for r in rows.to_dict("records")])
+        hiding = [
+            view.hiding_charge(r["transaction_id"], r["merchant_key"], r["reason_code"], r["ts"])
+            for r in rows.to_dict("records")
+        ]
+        rows = rows.assign(hidden_by=pd.Series(hiding, index=rows.index, dtype=object))
         return [
             {
+                "flag_id": r["flag_id"],
                 "transaction_id": r["transaction_id"],
                 "date": r["day"].isoformat(),
                 "merchant": r["merchant"],
@@ -1239,11 +1430,23 @@ class Tools:
                 "reason_code": r["reason_code"],
                 "reason": reason(r["reason_code"], r["evidence"]),
                 "evidence": json.loads(r["evidence"]),
+                **(
+                    {"your_action": "not_me", "action_id": view.not_me[r["transaction_id"]]}
+                    if r["transaction_id"] in view.not_me
+                    else {}
+                ),
+                **({"hidden_by": r["hidden_by"]} if r["hidden_by"] else {}),
             }
             for r in rows.to_dict("records")
         ]
 
-    def _spikes(self, start: date, end: date) -> dict[str, Any]:
+    def _spikes(
+        self,
+        start: date,
+        end: date,
+        level: str = DEFAULT_LEVEL,
+        view: AlertView | None = None,
+    ) -> dict[str, Any]:
         """Flagged complete months that overlap `start`..`end`, on the session's categories
         (FR-8 §8). The season profiles leave this user out on the model's categories, which the
         shared table was built on (§2)."""
@@ -1267,7 +1470,7 @@ class Tools:
             self.ledger.user_id,
             self.ledger.transactions,
             self.base.transactions,
-            level=self.sensitivity,
+            level=level,
         )
         in_range = scored[(scored["month"] >= first) & (scored["month"] <= min(last, complete))]
         if in_range.empty:
@@ -1284,7 +1487,13 @@ class Tools:
         flagged = in_range[in_range["is_flagged"].astype(bool)].sort_values(
             ["month", "category"], ascending=[False, True]
         )
-        out["spikes"] = [self._spike(r) for r in flagged.to_dict("records")]
+        view = view or AlertView()
+        spikes = []
+        for r in flagged.to_dict("records"):
+            spike = self._spike(r)
+            hidden_by = view.hiding_spike(spike["category"], spike["period_start"])
+            spikes.append(spike | ({"hidden_by": hidden_by} if hidden_by else {}))
+        out["spikes"] = spikes
         return out | {"status": "ok"}
 
     def _spike(self, row: Mapping[Hashable, Any]) -> dict[str, Any]:
@@ -1298,6 +1507,7 @@ class Tools:
         ]
         largest = inside.sort_values(["amount", "transaction_id"]).head(5)
         return {
+            "flag_id": f"{row['model_version']}:{row['period_id']}",
             "category": row["category"],
             "period_start": period.start_time.date().isoformat(),
             "period_end": period.end_time.date().isoformat(),
@@ -1344,6 +1554,177 @@ class Tools:
             "category_largest_since": latest.strftime("%Y-%m-%d") if latest is not None else None,
         }
         return json.dumps(evidence)
+
+    # Alert sensitivity and flag actions (FR-9)
+
+    def get_alert_settings(self) -> ToolResult:
+        level = self.sensitivity
+        data: dict[str, Any] = {
+            "sensitivity": level,
+            "available": self.ledger.presets_available,
+            "available_for": self.ledger.presets_by_half,
+            "can_change": self.alerts is not None,
+            "levels": [
+                {"level": lv, "label": LEVEL_TEXT[lv][0], "description": LEVEL_TEXT[lv][1]}
+                for lv in LEVELS
+            ],
+            "in_warmup": self._in_warmup(),
+            "recent_actions": [self._flag_action(a) for a in self._flag_actions()[:MAX_ITEMS]],
+        }
+        if data["in_warmup"]:
+            data["warmup_note"] = WARMUP_NOTE
+        return ToolResult(data, Source("Alert settings", LEVEL_TEXT[level][0]))
+
+    def set_alert_sensitivity(self, level: str, confirm: bool = False) -> ToolResult:
+        alerts = self._alert_writes()
+        if level not in LEVELS:
+            raise ToolError(f"level must be one of {', '.join(LEVELS)}, not {level!r}")
+        if not self.ledger.presets_available:
+            raise ToolError("alert sensitivity can't change anything here yet")
+        current = self.sensitivity
+        label, description = LEVEL_TEXT[level]
+        change = {"from": current, "to": level, "label": label, "description": description}
+        if alerts.source != "page" and not confirm:
+            data = change | {
+                "status": "needs_confirmation",
+                "message": (
+                    f"This shows alerts {label.lower()}: {description} Ask the user, and call "
+                    "again with confirm: true only if they agree."
+                ),
+            }
+            return ToolResult(data, Source(f"Preview · alerts {label.lower()}", description))
+        alerts.store.set_level(alerts.subject, self.ledger.user_id, level, source=alerts.source)
+        data = change | {"status": "applied", "sensitivity": level}
+        if self._in_warmup() and level == "more":
+            data["warmup_note"] = WARMUP_NOTE
+        return ToolResult(data, Source(f"Alerts · {label}", description))
+
+    def act_on_flag(self, flag_id: str, action: str, confirm: bool = False) -> ToolResult:
+        alerts = self._alert_writes()
+        flag = self._find_flag(flag_id)
+        kind = flag["kind"]
+        if action not in ALERT_ACTIONS[kind]:
+            allowed = " or ".join(ALERT_ACTIONS[kind])
+            raise ToolError(
+                f"on {'an unusual charge' if kind == 'charge' else 'a spike'}, "
+                f"the action is {allowed}, not {action!r}"
+            )
+        effect = _effect(flag, action)
+        if alerts.source != "page" and not confirm:
+            preview = {
+                "status": "needs_confirmation",
+                "flag_id": flag_id,
+                "action": action,
+                "effect": effect,
+                "message": f"{effect} Ask the user, and call again with confirm: true only if "
+                "they agree.",
+            }
+            return ToolResult(preview, Source(f"Preview · {flag['title']}", effect))
+        try:
+            recorded = alerts.store.record(
+                alerts.subject,
+                self.ledger.user_id,
+                flag_id=flag_id,
+                kind=kind,
+                action=action,
+                source=alerts.source,
+                transaction_id=flag.get("transaction_id"),
+                transaction_ts=flag.get("ts"),
+                merchant_key=flag.get("merchant_key"),
+                reason_code=flag.get("reason_code"),
+                category=flag.get("category"),
+                period_start=flag.get("period_start"),
+            )
+        except AlertError as error:
+            raise ToolError(str(error)) from error
+        data: dict[str, Any] = {
+            "status": "applied",
+            "action": self._flag_action(recorded),
+            "effect": effect,
+        }
+        if action == "not_me":
+            data |= {"guidance": list(NOT_ME_GUIDANCE), "limits": NOT_ME_LIMITS}
+        return ToolResult(data, Source(flag["title"], effect))
+
+    def undo_flag_action(self, action_id: str) -> ToolResult:
+        alerts = self._alert_writes()
+        try:
+            undone = alerts.store.undo(alerts.subject, self.ledger.user_id, action_id)
+        except AlertError as error:
+            raise ToolError(str(error)) from error
+        shown = self._flag_action(undone)
+        return ToolResult({"undone": shown}, Source("Undid an alert action", shown["what"]))
+
+    def _alert_writes(self) -> AlertAccess:
+        if self.alerts is None:
+            raise ToolError("alert settings can't be changed here")
+        return self.alerts
+
+    def _flag_actions(self) -> list[FlagAction]:
+        if self.alerts is None:
+            return []
+        return self.alerts.store.actions(self.alerts.subject, self.ledger.user_id)
+
+    def _in_warmup(self) -> bool:
+        """Whether the user is still in their first 90 days, when More often waits (dec. 17)."""
+        first = self.ledger.transactions["ts"].min()
+        return bool(pd.Timestamp(self.as_of) < first + pd.Timedelta(days=WARMUP_DAYS))
+
+    def _find_flag(self, flag_id: str) -> dict[str, Any]:
+        """An unusual charge or a spike by its flag id, with what an action stores. Every stored
+        charge and every spike at the loosest level can be acted on, whatever the setting."""
+        flags = self.ledger.flags
+        if flags is not None and "flag_id" in flags:
+            match = flags[flags["flag_id"] == flag_id]
+            if not match.empty:
+                f = match.iloc[0]
+                t = self.ledger.transactions
+                row = t[t["transaction_id"] == f["transaction_id"]].iloc[0]
+                return {
+                    "kind": "charge",
+                    "title": f"{KIND_LABELS[str(f['reason_code'])]} · {row['merchant']}",
+                    "merchant": str(row["merchant"]),
+                    "transaction_id": str(f["transaction_id"]),
+                    "ts": pd.Timestamp(row["ts"]).isoformat(),
+                    "merchant_key": str(row["merchant_key"]),
+                    "reason_code": str(f["reason_code"]),
+                }
+        state = self.ledger.spikes
+        if state is not None:
+            scored = state.score(
+                self.ledger.user_id, self.ledger.transactions, self.base.transactions, "more"
+            )
+            flagged = scored[scored["is_flagged"].astype(bool)]
+            ids = flagged["model_version"].astype(str) + ":" + flagged["period_id"].astype(str)
+            match = flagged[ids == flag_id]
+            if not match.empty:
+                r = match.iloc[0]
+                start = pd.Timestamp(r["period_start"])
+                return {
+                    "kind": "spike",
+                    "title": f"{SPIKE_LABEL} · {r['category']}, {start:%B %Y}",
+                    "category": str(r["category"]),
+                    "period_start": start.date().isoformat(),
+                }
+        raise ToolError(f"no alert {flag_id!r}")
+
+    def _flag_action(self, a: FlagAction) -> dict[str, Any]:
+        if a.kind == "charge":
+            t = self.ledger.transactions
+            row = t[t["transaction_id"] == a.transaction_id]
+            merchant = str(row["merchant"].iloc[0]) if not row.empty else str(a.merchant_key)
+            what = f"{merchant}, {str(a.transaction_ts)[:10]}"
+        else:
+            what = f"{a.category}, {pd.Timestamp(str(a.period_start)):%B %Y}"
+        return {
+            "action_id": a.action_id,
+            "flag_id": a.flag_id,
+            "action": a.action,
+            "kind": a.kind,
+            "what": what,
+            "at": a.created_at,
+            "undone": a.undone,
+        }
 
     def forecast_goal(self, goal_id: str) -> ToolResult:
         goals = self._goals(include_archived=False)

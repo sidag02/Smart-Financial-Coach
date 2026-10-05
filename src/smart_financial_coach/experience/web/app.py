@@ -30,6 +30,7 @@ from fastapi.templating import Jinja2Templates
 from markupsafe import Markup
 from starlette.middleware.sessions import SessionMiddleware
 
+from smart_financial_coach.access.alerts import AlertStore
 from smart_financial_coach.access.feedback import FeedbackStore
 from smart_financial_coach.access.goals import GoalStore
 from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
@@ -39,6 +40,9 @@ from smart_financial_coach.access.mcp_server import build_mcp_server
 from smart_financial_coach.access.review_items import alternatives, open_review_items
 from smart_financial_coach.access.tokens import AccessTokens
 from smart_financial_coach.access.tools import (
+    NOT_ME_GUIDANCE,
+    NOT_ME_LIMITS,
+    AlertAccess,
     Feedback,
     GoalAccess,
     GoalProblemsError,
@@ -302,8 +306,15 @@ def create_app(
     feedback = FeedbackStore(settings.feedback_db, sources.categories())
     # Savings goals (FR-10), keyed by browser session like feedback
     goal_store = GoalStore(settings.goals_db)
+    # Alert sensitivity and flag actions (FR-9), in the feedback store's file, keyed the same way
+    alert_store = AlertStore(settings.feedback_db)
     mcp_server, mcp_asgi = build_mcp_server(
-        sources, tokens, public_url=public_url, feedback=feedback, goals=goal_store
+        sources,
+        tokens,
+        public_url=public_url,
+        feedback=feedback,
+        goals=goal_store,
+        alerts=alert_store,
     )
 
     loop: dict[str, EventLoopToken] = {}  # the app's event loop, for the coach's MCP calls
@@ -401,6 +412,7 @@ def create_app(
             Ledger.load(sources, account.user_id),
             Feedback(feedback, subject),
             GoalAccess(goal_store, subject),
+            alerts=AlertAccess(alert_store, subject),
         )
 
     def page(request: Request, name: str, account: Account | None, **context: Any) -> Response:
@@ -846,19 +858,27 @@ def create_app(
         found = tools.detect_anomalies(period.start.isoformat(), period.end.isoformat()).data
         return {f["transaction_id"] for f in found.get("unusual_transactions", [])}
 
-    def recent_flags(tools: Tools) -> list[dict[str, Any]]:
-        """The last `FLAG_WINDOW_DAYS` days' unusual charges, newest first (FR-7 §8)."""
+    def recent_flags(tools: Tools, include_hidden: bool = False) -> list[dict[str, Any]]:
+        """The last `FLAG_WINDOW_DAYS` days' unusual charges at the session's sensitivity, newest
+        first (FR-7 §8, FR-9); the ones the person hid only with `include_hidden`."""
         start = as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)
-        found = tools.detect_anomalies(start.isoformat(), as_of.isoformat()).data
+        found = tools.detect_anomalies(
+            start.isoformat(), as_of.isoformat(), include_hidden=include_hidden
+        ).data
         flags: list[dict[str, Any]] = found.get("unusual_transactions", [])
+        if not isinstance(flags, list):  # "not available"
+            return []
         return sorted(flags, key=lambda f: (f["date"], f["transaction_id"]), reverse=True)
 
-    def recent_spikes(tools: Tools) -> list[dict[str, Any]]:
-        """Spikes in months that ended in the last `FLAG_WINDOW_DAYS` days, newest first (FR-8
-        §8, decision 9). Only complete months are judged."""
+    def recent_spikes(tools: Tools, include_hidden: bool = False) -> list[dict[str, Any]]:
+        """Spikes in months that ended in the last `FLAG_WINDOW_DAYS` days at the session's
+        sensitivity, newest first (FR-8 §8, decision 9; FR-9). Only complete months are judged;
+        the ones the person hid only with `include_hidden`."""
         start = as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)
         first = start.replace(day=1)
-        found = tools.detect_anomalies(first.isoformat(), as_of.isoformat()).data
+        found = tools.detect_anomalies(
+            first.isoformat(), as_of.isoformat(), include_hidden=include_hidden
+        ).data
         spiking = found.get("spending_spikes", {})
         if spiking.get("status") != "ok":
             return []
@@ -870,6 +890,18 @@ def create_app(
         if not alerts_live:
             return page(request, "coming.html", account, active="flags")
         tools = tools_for(account, request)
+        # Hidden alerts (FR-9) are counted from the same lists the page shows, so a footer's
+        # number is what "Show them" brings back
+        show_hidden = request.query_params.get("hidden") == "1"
+        flags = recent_flags(tools, include_hidden=True) if flags_live else []
+        spikes = recent_spikes(tools, include_hidden=True) if spikes_live else []
+        hidden = {
+            "recognized": sum(1 for f in flags if f.get("hidden_by")),
+            "expected": sum(1 for x in spikes if x.get("hidden_by")),
+        }
+        if not show_hidden:
+            flags = [f for f in flags if not f.get("hidden_by")]
+            spikes = [x for x in spikes if not x.get("hidden_by")]
         return page(
             request,
             "worth_a_look.html",
@@ -877,13 +909,74 @@ def create_app(
             active="flags",
             unusual_live=flags_live,
             spikes_live=spikes_live,
-            flags=recent_flags(tools) if flags_live else [],
-            spikes=recent_spikes(tools) if spikes_live else [],
+            flags=flags,
+            spikes=spikes,
+            hidden=hidden,
+            show_hidden=show_hidden,
+            settings=tools.get_alert_settings().data,
+            can_act=True,
+            guidance=NOT_ME_GUIDANCE,
+            limits=NOT_ME_LIMITS,
+            toast=request.session.pop("alert_toast", None),
             spike_method=spike_method,
             start=(as_of - timedelta(days=FLAG_WINDOW_DAYS - 1)).isoformat(),
             end=as_of.isoformat(),
             window_days=FLAG_WINDOW_DAYS,
         )
+
+    # Alert sensitivity and flag actions (FR-9 §4): plain posts that redirect back with a toast,
+    # so the page works without JavaScript, as Goals does
+
+    def alert_back(back: str) -> RedirectResponse:
+        """Back to the page a form came from: only "Worth a look" or the Overview."""
+        ok = back in ("/", "/worth-a-look") or back.startswith("/worth-a-look?")
+        return RedirectResponse(back if ok else "/worth-a-look", status_code=303)
+
+    def alert_toast(request: Request, text: str, action_id: str | None = None) -> None:
+        request.session["alert_toast"] = {"text": text, "action_id": action_id}
+
+    @app.post("/worth-a-look/sensitivity")
+    def set_sensitivity(request: Request, level: Annotated[str, Form()] = "") -> Response:
+        account = signed_in(request)
+        try:
+            data = tools_for(account, request).call("set_alert_sensitivity", {"level": level}).data
+        except ToolError as error:
+            alert_toast(request, f"Couldn't change that: {error}")
+        else:
+            alert_toast(request, f"Alerts: {data['label']}. {data['description']}")
+        return alert_back("/worth-a-look")
+
+    @app.post("/alerts/act")
+    def act_on_alert(
+        request: Request,
+        flag_id: Annotated[str, Form()] = "",
+        action: Annotated[str, Form()] = "",
+        back: Annotated[str, Form()] = "/worth-a-look",
+    ) -> Response:
+        account = signed_in(request)
+        args = {"flag_id": flag_id, "action": action}
+        try:
+            data = tools_for(account, request).call("act_on_flag", args).data
+        except ToolError as error:
+            alert_toast(request, f"Couldn't do that: {error}")
+        else:
+            alert_toast(request, data["effect"], data["action"]["action_id"])
+        return alert_back(back)
+
+    @app.post("/alerts/undo")
+    def undo_alert_action(
+        request: Request,
+        action_id: Annotated[str, Form()] = "",
+        back: Annotated[str, Form()] = "/worth-a-look",
+    ) -> Response:
+        account = signed_in(request)
+        try:
+            tools_for(account, request).call("undo_flag_action", {"action_id": action_id})
+        except ToolError as error:
+            alert_toast(request, f"Couldn't undo that: {error}")
+        else:
+            alert_toast(request, "Undone: the alert shows again.")
+        return alert_back(back)
 
     # Goals (FR-10; mockups 1g, 1h). The page writes through the same tools as the coach, as
     # "edit", which applies on submit. Writes are plain posts that redirect back to the list with

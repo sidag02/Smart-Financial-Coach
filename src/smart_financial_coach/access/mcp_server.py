@@ -8,8 +8,9 @@ source chip (FR-16). Category feedback (FR-5, FR-6) is read and written for the 
 subject, as an assistant: changes to more than one transaction need `confirm` (#15 §3). Savings
 goals (FR-10) are read and written for the same subject; the token's `client` claim says whether
 a change comes from Wren (`coach`) or another assistant (`assistant`), and every goal change needs
-`confirm`. A goal change that breaks a rule comes back as status `invalid` with its problems. A
-token without a feedback subject gets read-only tools.
+`confirm`. A goal change that breaks a rule comes back as status `invalid` with its problems.
+Alert sensitivity and flag actions (FR-9) are read and changed for the same subject, previewed
+until `confirm`. A token without a feedback subject gets read-only tools.
 
     server, asgi = build_mcp_server(sources, tokens, public_url="https://…")
     app.mount("/", asgi)  # serves /mcp; run `server.session_manager.run()` in the lifespan
@@ -29,6 +30,7 @@ from mcp.types import ToolAnnotations
 from pydantic import ConfigDict, Field
 from starlette.applications import Starlette
 
+from smart_financial_coach.access.alerts import AlertStore
 from smart_financial_coach.access.feedback import FeedbackStore
 from smart_financial_coach.access.goals import GoalStore
 from smart_financial_coach.access.ledger import DataSources, Ledger
@@ -37,6 +39,7 @@ from smart_financial_coach.access.tools import (
     MAX_ITEMS,
     MAX_TRANSACTIONS,
     TOOL_SPECS,
+    AlertAccess,
     Feedback,
     GoalAccess,
     GoalProblemsError,
@@ -78,6 +81,7 @@ def build_mcp_server(
     public_url: str,
     feedback: FeedbackStore | None = None,
     goals: GoalStore | None = None,
+    alerts: AlertStore | None = None,
     extra_hosts: Sequence[str] = (),
 ) -> tuple[MCPServer, Starlette]:
     """`extra_hosts` adds Host headers to accept beyond the public and in-process ones (tests)."""
@@ -102,7 +106,10 @@ def build_mcp_server(
         # Wren's in-process tokens say client "coach"; any other client is an outside assistant
         source = "coach" if token.client_id == "coach" else "assistant"
         goal_access = GoalAccess(goals, subject, source) if goals and subject else None
-        tools = Tools(Ledger.load(sources, token.subject), context, goal_access)
+        alert_access = AlertAccess(alerts, subject, source) if alerts and subject else None
+        tools = Tools(
+            Ledger.load(sources, token.subject), context, goal_access, alerts=alert_access
+        )
         try:
             result = tools.call(tool, {k: v for k, v in arguments.items() if v is not None})
         except GoalProblemsError as error:
@@ -258,6 +265,28 @@ def build_mcp_server(
     @server.tool(description=_DESCRIPTIONS["detect_anomalies"])
     def detect_anomalies(start_date: Day, end_date: Day) -> dict[str, Any]:
         return run("detect_anomalies", start_date=start_date, end_date=end_date)
+
+    @server.tool(description=_DESCRIPTIONS["get_alert_settings"], annotations=READ)
+    def get_alert_settings() -> dict[str, Any]:
+        return run("get_alert_settings")
+
+    @server.tool(description=_DESCRIPTIONS["set_alert_sensitivity"], annotations=WRITE)
+    def set_alert_sensitivity(
+        level: Literal["less", "balanced", "more"], confirm: Confirm = False
+    ) -> dict[str, Any]:
+        return run("set_alert_sensitivity", level=level, confirm=confirm)
+
+    @server.tool(description=_DESCRIPTIONS["act_on_flag"], annotations=WRITE)
+    def act_on_flag(
+        flag_id: Annotated[str, Field(description="a flag_id from detect_anomalies")],
+        action: Literal["recognize", "not_me", "expected"],
+        confirm: Confirm = False,
+    ) -> dict[str, Any]:
+        return run("act_on_flag", flag_id=flag_id, action=action, confirm=confirm)
+
+    @server.tool(description=_DESCRIPTIONS["undo_flag_action"], annotations=WRITE)
+    def undo_flag_action(action_id: str) -> dict[str, Any]:
+        return run("undo_flag_action", action_id=action_id)
 
     @server.tool(description=_DESCRIPTIONS["forecast_goal"], annotations=READ)
     def forecast_goal(goal_id: GoalId) -> dict[str, Any]:

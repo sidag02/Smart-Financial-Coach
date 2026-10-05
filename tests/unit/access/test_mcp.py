@@ -143,6 +143,10 @@ def test_the_server_lists_the_tools_with_no_user_argument(
         "archive_goal",
         "undo_goal_change",
         "detect_anomalies",
+        "get_alert_settings",
+        "set_alert_sensitivity",
+        "act_on_flag",
+        "undo_flag_action",
         "forecast_goal",
     }
     for spec in specs:
@@ -366,6 +370,68 @@ def test_reads_are_marked_read_only_and_writes_not(sources: DataSources, users: 
         assert hint is not None
         assert hint.read_only_hint is True
     for name in ("create_goal", "update_goal", "archive_goal", "undo_goal_change"):
+        hint = hints[name]
+        assert hint is not None
+        assert hint.read_only_hint is False
+        assert hint.destructive_hint is False
+
+
+def test_alert_settings_follow_the_tokens_subject(
+    preset_flagged_sources: DataSources, preset_spike_sources: DataSources, users: list[str]
+) -> None:
+    """An outside assistant previews a sensitivity change until the person agrees, on its token's
+    session only; a token without a feedback subject reads the setting but can't change it
+    (FR-9 §5)."""
+    sources = DataSources(
+        preset_flagged_sources.dataset,
+        preset_flagged_sources.predictions,
+        preset_flagged_sources.flags,
+        spikes=preset_spike_sources.spikes,
+    )
+    accounts = [Account(users[0], "Maya Chen", "maya@x.com")]
+    settings = Settings(
+        _env_file=None,
+        demo_password=SecretStr("correct horse"),
+        session_secret=SecretStr(SECRET),
+        secure_cookies=False,
+    )
+    with TestClient(create_app(settings, sources=sources, accounts=accounts)) as client:
+        mine = mcp_tools(client, users[0], feedback_subject="session-a")
+        theirs = mcp_tools(client, users[0], feedback_subject="session-b")
+        tokens = AccessTokens(SECRET, users)
+        claims = {"sub": users[0], "exp": int(time.time()) + 300, "client": "assistant"}
+        old = "sfc_" + tokens._signer.dumps(claims)  # no `fb` claim: read-only tools
+        read_only = McpTools(client.app, old, as_of=AS_OF, loop=app_loop(client))
+
+        def scenario() -> tuple[Any, ...]:
+            preview = mine.call("set_alert_sensitivity", {"level": "more"}).data
+            before = mine.call("get_alert_settings", {}).data["sensitivity"]
+            mine.call("set_alert_sensitivity", {"level": "more", "confirm": True})
+            after = mine.call("get_alert_settings", {}).data["sensitivity"]
+            other = theirs.call("get_alert_settings", {}).data["sensitivity"]
+            try:
+                read_only.call("set_alert_sensitivity", {"level": "less", "confirm": True})
+                refused = False
+            except ToolError:
+                refused = True
+            return preview, before, after, other, refused
+
+        preview, before, after, other, refused = in_worker_thread(client, scenario)
+
+    assert preview["status"] == "needs_confirmation"
+    assert (before, after, other) == ("balanced", "more", "balanced")
+    assert refused
+
+
+def test_alert_reads_and_writes_are_marked(sources: DataSources, users: list[str]) -> None:
+    server, _ = build_mcp_server(
+        sources, AccessTokens(SECRET, users), public_url="http://127.0.0.1:8000"
+    )
+    hints = {t.name: t.annotations for t in anyio.run(server.list_tools)}
+    get = hints["get_alert_settings"]
+    assert get is not None
+    assert get.read_only_hint is True
+    for name in ("set_alert_sensitivity", "act_on_flag", "undo_flag_action"):
         hint = hints[name]
         assert hint is not None
         assert hint.read_only_hint is False
