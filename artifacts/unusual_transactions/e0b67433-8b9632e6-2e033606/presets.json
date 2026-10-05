@@ -1,0 +1,42 @@
+{
+  "counts": {
+    "balanced": {
+      "after_warmup": 1536,
+      "in_warmup": 66,
+      "per_user_month_after_warmup": 0.12914274335402076
+    },
+    "less": {
+      "after_warmup": 768,
+      "in_warmup": 3,
+      "per_user_month_after_warmup": 0.06457137167701038
+    },
+    "more": {
+      "after_warmup": 3072,
+      "in_warmup": 66,
+      "per_user_month_after_warmup": 0.2582854867080415
+    }
+  },
+  "created_at": "2026-10-05T00:12:41+00:00",
+  "cutoffs": {
+    "balanced": 0.7300466727044342,
+    "less": 0.778263587577537,
+    "more": 0.685547013139242
+  },
+  "model_version": "e0b67433-8b9632e6-2e033606",
+  "multipliers": {
+    "balanced": 1.0,
+    "less": 0.5,
+    "more": 2.0
+  },
+  "pool": {
+    "data_spec_hash": "26e86f3b376d1161879498f4dbc43b20bbe85042a6a62b5ee66a9a99aa780992",
+    "data_spec_name": "default",
+    "user_months_after_warmup": 11893.815789473685,
+    "users": 360
+  },
+  "service": "unusual_transactions",
+  "warmup": {
+    "days": 90,
+    "months": 3
+  }
+}

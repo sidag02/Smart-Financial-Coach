@@ -58,9 +58,14 @@ def get_service(name: str) -> Service:
     return _SERVICES[name]
 
 
+def service_dir(name: str, artifacts_dir: Path | None = None) -> Path:
+    """Where a service's versions, pointer and logs live."""
+    return (artifacts_dir or get_settings().artifacts_dir) / name
+
+
 def load_service(name: str, artifacts_dir: Path | None = None) -> Checked:
     service = get_service(name)
-    root = (artifacts_dir or get_settings().artifacts_dir) / name
+    root = service_dir(name, artifacts_dir)
     version = promoted_version(root)
     if not (root / version / MODEL_FILE).exists():
         fetch_model(root / version, model_url(root, version))

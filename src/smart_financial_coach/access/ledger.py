@@ -21,14 +21,21 @@ from datetime import date
 from functools import lru_cache
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 from smart_financial_coach.access.feedback import FeedbackStore, effective_categories
 from smart_financial_coach.data import store
 from smart_financial_coach.data.features.merchant_text import normalize_merchant
-from smart_financial_coach.data.flags import load_flags
+from smart_financial_coach.data.flags import load_flag_presets, load_flags
 from smart_financial_coach.data.predictions import load_categories, load_prediction_meta
 from smart_financial_coach.intelligence.forecasting.batch import FORECASTS_FILE, GoalForecaster
+from smart_financial_coach.intelligence.presets import (
+    DEFAULT_LEVEL,
+    Presets,
+    check_level,
+    warmup_end,
+)
 from smart_financial_coach.intelligence.spikes.batch import SPIKES_FILE, SpikeState, load_state
 
 INCOME = "Income"
@@ -141,6 +148,8 @@ class Ledger:
     forecaster: GoalForecaster | None = None
     # The spike scorer and season profiles (shared), or None when there's no spikes file
     spikes: SpikeState | None = None
+    # The flag file's sensitivity presets (FR-9 §2), or None: its flags are Balanced's only
+    flag_presets: Presets | None = None
 
     @classmethod
     def load(cls, sources: DataSources, user_id: str) -> "Ledger":
@@ -151,6 +160,27 @@ class Ledger:
         `category` is the effective category, with `model_category` and `category_source`."""
         overrides = feedback.overrides(subject, self.user_id)
         return replace(self, transactions=effective_categories(self.transactions, overrides))
+
+    def flags_at(self, level: str = DEFAULT_LEVEL) -> pd.DataFrame | None:
+        """The unusual-charge flags shown at a sensitivity level (FR-9 §2): those at or above the
+        level's cutoff, and in the user's first 90 days the stricter of it and Balanced's
+        (decision 17). Without presets, the file's flags are Balanced's, whatever the level."""
+        check_level(level)
+        if self.flags is None or self.flag_presets is None:
+            return self.flags
+        (end,) = warmup_end(self.transactions.assign(user_id=self.user_id))
+        ts = self.flags["transaction_id"].map(self.transactions.set_index("transaction_id")["ts"])
+        warm = (ts < end).to_numpy()
+        presets = self.flag_presets
+        cutoff = np.where(warm, presets.cutoff(level, in_warmup=True), presets.cutoff(level))
+        return self.flags[self.flags["score"].to_numpy(dtype=float) >= cutoff]
+
+    @property
+    def presets_available(self) -> bool:
+        """Whether the user's sensitivity setting changes anything: the flag file or the spike
+        scorer has presets."""
+        spikes = self.spikes is not None and self.spikes.presets is not None
+        return self.flag_presets is not None or spikes
 
     def between(self, start: date, end: date) -> pd.DataFrame:
         """Transactions with `start <= day <= end`."""
@@ -184,7 +214,14 @@ def _load(sources: DataSources, user_id: str) -> Ledger:
         flags=load_flags(sources.flags, user_id=user_id) if sources.flags else None,
         forecaster=sources.forecaster(),
         spikes=sources.spike_state(),
+        flag_presets=_flag_presets(sources.flags) if sources.flags else None,
     )
+
+
+@lru_cache(maxsize=4)  # one flag file per bundle, read once
+def _flag_presets(path: Path) -> Presets | None:
+    cutoffs = load_flag_presets(path)
+    return Presets(cutoffs) if cutoffs is not None else None
 
 
 @lru_cache(maxsize=4)  # one forecasts file per bundle, read once

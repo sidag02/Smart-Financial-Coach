@@ -56,7 +56,9 @@ class DemoBundle:
     transactions: int
     model_version: str
     flag_model_version: str | None = None  # None: no FR-7 model promoted, no flags
-    flags: int = 0
+    flags: int = 0  # rows in the flag file: down to More often's cutoff with presets (FR-9)
+    flags_balanced: int = 0  # of them, flagged at Balanced
+    flag_presets: bool = False  # the FR-7 model has sensitivity presets
     forecast_model_version: str | None = None  # BASELINE_VERSION: no forecasting model promoted
     spike_model_version: str | None = None  # SIMPLE_RULE: no spike model promoted
     spike_method: str | None = None
@@ -143,6 +145,8 @@ def build_demo(
         run.model_version,
         flag_run.model_version if flag_run else None,
         flag_run.flagged if flag_run else 0,
+        flag_run.balanced if flag_run else 0,
+        flag_run is not None and flag_run.presets is not None,
         forecast_run.model_version,
         spike_state.version,
         spike_state.method,

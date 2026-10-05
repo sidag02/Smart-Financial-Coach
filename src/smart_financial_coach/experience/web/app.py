@@ -48,6 +48,7 @@ from smart_financial_coach.access.tools import (
     span_label,
 )
 from smart_financial_coach.config import PROJECT_ROOT, Settings
+from smart_financial_coach.data.flags import load_flag_presets
 from smart_financial_coach.experience.accounts import Account, SharedPassword, load_accounts
 from smart_financial_coach.experience.coach import Coach, CoachUnavailableError, Conversation
 from smart_financial_coach.experience.demo import ACCOUNTS_FILE, REPLAY_FILE
@@ -261,6 +262,13 @@ def create_app(
     spikes_live = sources.spikes is not None  # a spikes file: the FR-8 model or the simple rule
     state = sources.spike_state()
     spike_method = state.method if state is not None else None  # "model" or "simple_rule"
+    # Which halves have sensitivity presets (FR-9 §2): the switch changes only those
+    presets_live = {
+        "unusual_charges": flags_live
+        and sources.flags is not None
+        and load_flag_presets(sources.flags) is not None,
+        "spending_spikes": state is not None and state.presets is not None,
+    }
     alerts_live = flags_live or spikes_live
     essentials = frozenset(settings.essentials)
     unknown = sorted(essentials - set(sources.categories()) | essentials & {INCOME})
@@ -450,6 +458,7 @@ def create_app(
                 "as_of": as_of.isoformat(),
                 "users": len(accounts),
                 "spikes": spike_method,
+                "presets": presets_live,
             }
         )
 

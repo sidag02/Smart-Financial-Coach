@@ -1,6 +1,6 @@
 # FR-9 Alert Sensitivity and Flag Actions — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · Branch: `feature/fr9`
+Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · **Implementing:** milestone 1 (presets) in review · Branch: `feature/fr9`
 
 ## Summary
 
@@ -372,6 +372,20 @@ One PR per milestone, stacked.
    - the PRD (FR-9 in the v1 demo; More often's precision);
    - the Technical Design (tools, presets);
    - the Web App UI (1f, gap 6).
+
+## Implementation notes
+
+From milestone 1 (presets):
+
+- **Out of fold, the presets hold** (FR-9 Alert Sensitivity — Results). Less often and More often flag 0.49× and 1.98× Balanced's unusual charges per post-warm-up user-month on held-out users, and 0.50× and 2.01× Balanced's spikes. Precision is 0.939 / 0.792 / 0.455 for unusual charges and 0.963 / 0.799 / 0.491 for spikes. Balanced reproduces each round's own out-of-fold precision.
+- **Committed presets** (`sfc-model presets` on the default dataset, all 360 users):
+  - unusual charges: Less 0.7783, Balanced 0.7300, More 0.6855;
+  - spikes: Less 12.64, Balanced 7.682, More 5.553.
+- **Balanced is always the model's own cutoff.** `SpikeState.model_at("balanced")` returns the model itself, never a copy at the presets' number, so anything that reads or adjusts the model's cutoff sees Balanced.
+- **The warm-up is counted from a user's first transaction of any kind,** income included. On the synthetic data that's the label contract's warm-up exactly, and a test checks it.
+- **`/healthz` reports which halves have presets** (`presets.unusual_charges`, `presets.spending_spikes`). This was planned for milestone 3 and done here, since milestone 1 builds the files it reads.
+- **The flag file records its cutoffs in meta** (`presets`, JSON). A file without it serves Balanced at every level, so a bundle built before FR-9 still works.
+- **`detect_anomalies` reports the level it applied** (`sensitivity`): Balanced whenever neither half has presets, whatever was asked. Milestone 2 takes the level from the session.
 
 ## Decisions and open questions
 

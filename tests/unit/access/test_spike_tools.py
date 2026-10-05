@@ -154,8 +154,9 @@ def test_the_file_holds_no_rows_of_any_user(spike_sources: DataSources) -> None:
     """Its schema: the scorer and the table's sums and counts, nothing per user or charge."""
     assert spike_sources.spikes is not None
     payload = json.loads(Path(spike_sources.spikes).read_text())
-    assert set(payload) == {"meta", "model", "season_table"}
+    assert set(payload) == {"meta", "model", "season_table", "presets"}
     assert set(payload["season_table"]) == {"category", "moy", "as_of", "total", "users"}
+    assert set(payload["presets"]) == {"less", "balanced", "more"}  # three cutoffs (FR-9)
     assert set(payload["model"]) == {"spec", "fitted", "base_fitted"}
     assert payload["meta"]["categorizer_version"] == "stub"
 

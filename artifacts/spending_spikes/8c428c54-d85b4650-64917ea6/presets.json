@@ -1,0 +1,43 @@
+{
+  "counts": {
+    "balanced": {
+      "after_warmup": 400,
+      "in_warmup": 0,
+      "per_user_month_after_warmup": 0.03367003367003367
+    },
+    "less": {
+      "after_warmup": 200,
+      "in_warmup": 0,
+      "per_user_month_after_warmup": 0.016835016835016835
+    },
+    "more": {
+      "after_warmup": 800,
+      "in_warmup": 0,
+      "per_user_month_after_warmup": 0.06734006734006734
+    }
+  },
+  "created_at": "2026-10-05T00:13:38+00:00",
+  "cutoffs": {
+    "balanced": 7.6818190028651285,
+    "less": 12.63996272603555,
+    "more": 5.552862539500727
+  },
+  "model_version": "8c428c54-d85b4650-64917ea6",
+  "multipliers": {
+    "balanced": 1.0,
+    "less": 0.5,
+    "more": 2.0
+  },
+  "pool": {
+    "categorizer_version": "20eea4fb-44781bc4-c0274576",
+    "data_spec_hash": "26e86f3b376d1161879498f4dbc43b20bbe85042a6a62b5ee66a9a99aa780992",
+    "data_spec_name": "default",
+    "user_months_after_warmup": 11880,
+    "users": 360
+  },
+  "service": "spending_spikes",
+  "warmup": {
+    "days": 90,
+    "months": 3
+  }
+}
