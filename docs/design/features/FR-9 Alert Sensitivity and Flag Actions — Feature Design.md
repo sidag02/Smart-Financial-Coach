@@ -1,6 +1,6 @@
 # FR-9 Alert Sensitivity and Flag Actions — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · **Implemented** (#66, #67, #68; [Status](#status-oct-5-2026)), in review · Branch: `feature/fr9`
+Oct 4, 2026 · @Sidd · Status: **Accepted** (reviewer, Oct 4, 2026, on #65); decisions 1–17 by the owner · **Implemented** (#66, #67, #68; [Status](#status-oct-5-2026)), in review · Branch: `feature/fr9`
 
 ## Summary
 
