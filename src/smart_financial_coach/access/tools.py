@@ -377,8 +377,10 @@ TOOL_SPECS: list[ToolSpec] = [
             "`month_in_progress` (only whole months are judged). A month that's high because of "
             "one large charge isn't a spike; look at unusual charges or the spending summary. "
             "`sensitivity` is how often the person asked to be told (`less`, `balanced` or "
-            "`more`); `hidden` counts alerts in the range they marked as recognized or "
-            "expected, which aren't listed. Each alert has a `flag_id` for act_on_flag; "
+            "`more`), and `sensitivity_applied` the level each half was shown at: a half "
+            "without a sensitivity setting stays `balanced`. `hidden` counts alerts in the "
+            "range they marked as recognized or expected, which aren't listed. Each alert "
+            "has a `flag_id` for act_on_flag; "
             "`your_action: not_me` marks a charge they said wasn't theirs. When nothing is "
             "listed but `hidden` isn't zero or the sensitivity is `less`, say so; never say "
             "nothing was unusual."
@@ -1372,6 +1374,11 @@ class Tools:
             "end_date": end.isoformat(),
             # The level applied; Balanced whatever was asked when no model has presets
             "sensitivity": level if self.ledger.presets_available else DEFAULT_LEVEL,
+            # Per half: a half without presets is shown at Balanced whatever the setting
+            "sensitivity_applied": {
+                half: level if has else DEFAULT_LEVEL
+                for half, has in self.ledger.presets_by_half.items()
+            },
             "hidden": hidden,
             "count": sum(1 for f in listed if not f.get("hidden_by")),
             "unusual_transactions": unusual,
@@ -1555,6 +1562,7 @@ class Tools:
         data: dict[str, Any] = {
             "sensitivity": level,
             "available": self.ledger.presets_available,
+            "available_for": self.ledger.presets_by_half,
             "can_change": self.alerts is not None,
             "levels": [
                 {"level": lv, "label": LEVEL_TEXT[lv][0], "description": LEVEL_TEXT[lv][1]}
@@ -1641,11 +1649,9 @@ class Tools:
     def undo_flag_action(self, action_id: str) -> ToolResult:
         alerts = self._alert_writes()
         try:
-            undone = alerts.store.undo(alerts.subject, action_id)
+            undone = alerts.store.undo(alerts.subject, self.ledger.user_id, action_id)
         except AlertError as error:
             raise ToolError(str(error)) from error
-        if undone.user_id != self.ledger.user_id:  # the subject's, on another account
-            raise ToolError(f"no alert action {action_id!r}")
         shown = self._flag_action(undone)
         return ToolResult({"undone": shown}, Source("Undid an alert action", shown["what"]))
 

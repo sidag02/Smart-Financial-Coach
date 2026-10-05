@@ -116,11 +116,14 @@ def test_undo_restores_and_is_the_subjects_own(alerts: AlertStore) -> None:
     with pytest.raises(AlertError, match="already done"):
         charge(alerts, "s1", "u1")
     with pytest.raises(AlertError, match="no alert action"):
-        alerts.undo("s2", action)  # someone else's is indistinguishable from none
-    alerts.undo("s1", action)
+        alerts.undo("s2", "u1", action)  # someone else's is indistinguishable from none
+    with pytest.raises(AlertError, match="no alert action"):
+        alerts.undo("s1", "u2", action)  # nor one on another account (review on #67)
+    assert not alerts.actions("s1", "u1")[0].undone  # and nothing was written
+    alerts.undo("s1", "u1", action)
     assert alerts.view("s1", "u1") == AlertView()
     with pytest.raises(AlertError, match="already undone"):
-        alerts.undo("s1", action)
+        alerts.undo("s1", "u1", action)
     charge(alerts, "s1", "u1")  # after undo, the same action can be taken again
 
 
@@ -301,6 +304,31 @@ def test_another_accounts_action_cant_be_undone_here(
     action = charge(alerts, "s1", other)
     with pytest.raises(ToolError, match="no alert action"):
         _tools(alert_sources, mine, alerts).call("undo_flag_action", {"action_id": action})
+    assert not alerts.actions("s1", other)[0].undone  # the other account's alert stays hidden
+
+
+def test_a_double_submit_records_one_action(alerts: AlertStore) -> None:
+    """Two quick submits of the same form race; only one is recorded (review on #67)."""
+    import threading
+
+    barrier = threading.Barrier(8)
+    outcomes: list[str] = []
+
+    def submit() -> None:
+        barrier.wait()
+        try:
+            charge(alerts, "s1", "u1")
+            outcomes.append("recorded")
+        except AlertError:
+            outcomes.append("refused")
+
+    threads = [threading.Thread(target=submit) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert outcomes.count("recorded") == 1
+    assert len([a for a in alerts.actions("s1", "u1") if not a.undone]) == 1
 
 
 def test_settings_list_levels_and_recent_actions(

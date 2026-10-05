@@ -176,11 +176,17 @@ class Ledger:
         return self.flags[self.flags["score"].to_numpy(dtype=float) >= cutoff]
 
     @property
+    def presets_by_half(self) -> dict[str, bool]:
+        """Which halves the sensitivity setting changes (FR-9 §2): the ones with presets."""
+        return {
+            "unusual_charges": self.flag_presets is not None,
+            "spending_spikes": self.spikes is not None and self.spikes.presets is not None,
+        }
+
+    @property
     def presets_available(self) -> bool:
-        """Whether the user's sensitivity setting changes anything: the flag file or the spike
-        scorer has presets."""
-        spikes = self.spikes is not None and self.spikes.presets is not None
-        return self.flag_presets is not None or spikes
+        """Whether the user's sensitivity setting changes anything: either half has presets."""
+        return any(self.presets_by_half.values())
 
     def between(self, start: date, end: date) -> pd.DataFrame:
         """Transactions with `start <= day <= end`."""

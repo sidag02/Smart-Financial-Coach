@@ -311,3 +311,22 @@ def test_spike_presets_survive_the_file(preset_spike_sources: DataSources, tmp_p
     write_state(state, tmp_path / "s.json", users=1, categorizer="stub")
     assert load_state(tmp_path / "s.json").presets == state.presets
     assert replace(state, presets=None).model_at("less") is state.model
+
+
+def test_the_level_is_reported_per_half(
+    flagged_sources: DataSources, preset_spike_sources: DataSources
+) -> None:
+    """Spikes with presets but a pre-FR-9 flag file: only spikes move (review on #66)."""
+    sources = DataSources(
+        flagged_sources.dataset,
+        flagged_sources.predictions,
+        flagged_sources.flags,
+        spikes=preset_spike_sources.spikes,
+    )
+    ledger = Ledger.load(sources, _every_user(sources)[0])
+    found = Tools(ledger, sensitivity="more").call("detect_anomalies", EVERYTHING).data
+    assert found["sensitivity"] == "more"
+    assert found["sensitivity_applied"] == {
+        "unusual_charges": "balanced",
+        "spending_spikes": "more",
+    }
