@@ -76,6 +76,9 @@ CREATE TABLE IF NOT EXISTS flag_actions (
     CHECK ((kind = 'spike') = (period_start IS NOT NULL))
 );
 CREATE INDEX IF NOT EXISTS idx_flag_actions_subject ON flag_actions (subject, user_id, seq);
+-- One active action of a kind per alert and subject: a double submit can't record two (#67)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_flag_actions_active
+    ON flag_actions (subject, user_id, flag_id, action) WHERE undone_at IS NULL;
 """
 _ACTION_COLUMNS = (
     "action_id",
@@ -253,12 +256,15 @@ class AlertStore:
             raise AlertError("an action on a charge needs its reason")
         if kind == "spike" and not (category and period_start):
             raise AlertError("an action on a spike needs its category and month")
-        if any(
-            a.flag_id == flag_id and a.action == action and not a.undone
-            for a in self.actions(subject, user_id)
-        ):
-            raise AlertError("you've already done that for this alert")
         with self._write, self._connect() as conn:
+            # Checked under the write lock, so two quick submits can't both pass (review on #67)
+            active = self._select(
+                conn,
+                "subject = ? AND user_id = ? AND flag_id = ? AND action = ? AND undone_at IS NULL",
+                (subject, user_id, flag_id, action),
+            )
+            if active:
+                raise AlertError("you've already done that for this alert")
             (seq,) = conn.execute("SELECT COALESCE(MAX(seq), 0) + 1 FROM flag_actions").fetchone()
             row = (
                 uuid.uuid4().hex,
@@ -285,10 +291,15 @@ class AlertStore:
             )
         return FlagAction(*row)
 
-    def undo(self, subject: str, action_id: str) -> FlagAction:
-        """Mark the subject's action undone. Someone else's is indistinguishable from none."""
+    def undo(self, subject: str, user_id: str, action_id: str) -> FlagAction:
+        """Mark the subject's action on this user's alerts undone. Someone else's, or one on
+        another account, is indistinguishable from none, and nothing is written (review on #67)."""
         with self._write, self._connect() as conn:
-            found = self._select(conn, "subject = ? AND action_id = ?", (subject, action_id))
+            found = self._select(
+                conn,
+                "subject = ? AND user_id = ? AND action_id = ?",
+                (subject, user_id, action_id),
+            )
             if not found:
                 raise AlertError(f"no alert action {action_id!r}")
             if found[0].undone:

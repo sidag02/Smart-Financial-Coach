@@ -391,9 +391,10 @@ From milestone 2 (settings and actions):
 
 - **`access/alerts.py`** holds the store (`AlertStore`, two tables in the feedback store's file) and the replay (`AlertView`). The replay keeps the action that hides each alert, so a hidden alert can be shown again by undoing it.
 - **Sources are `page`, `coach` and `assistant`,** as the tokens' `client` claim gives them; §3 named `page` and `coach` only.
-- **An action is refused if the same action on the same alert is already active** ("you've already done that"). After an undo, it can be taken again.
+- **An action is refused if the same action on the same alert is already active** ("you've already done that"). The check runs under the store's write lock, and a partial unique index backs it, so a double submit records one action (review on #67). After an undo, it can be taken again.
 - **Any stored charge, and any spike at the loosest level, can be acted on,** whatever the session's setting, so an alert seen at More often can still be acted on after switching to Balanced.
-- **Undo is the subject's own, on the current account.** An action taken on another demo account can't be undone from this one.
+- **Undo is the subject's own, on the current account.** The store looks the action up by subject, account and id before writing anything, so an action taken on another demo account can't be undone from this one (review on #67).
+- **`detect_anomalies` reports the level per half** (`sensitivity_applied`), and `get_alert_settings` which halves have presets (`available_for`): a half without presets stays Balanced whatever the setting (review on #66).
 - **The hidden-alert footer counts the page's own lists,** each card's window, so the number is what "Show them" brings back. `detect_anomalies` takes an internal `include_hidden` for it; it isn't a tool argument.
 - **The coach's prompt** gains the alert rules: when nothing is listed but `hidden` isn't zero, or the setting is Less often, say so; change the setting or act only when asked; preview, then `confirm`. When someone says a charge isn't theirs, the coach offers `not_me` and gives its fixed guidance.
 
