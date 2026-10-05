@@ -1,11 +1,29 @@
 {% extends "base.html" %}
-{% from "_flags.html" import flag_row, spike_row %}
+{% from "_flags.html" import flag_row, spike_row, undo_action %}
 {% block title %}Worth a look · Smart Financial Coach{% endblock %}
 {% block main %}
 <div class="page-head"><div>
   <h1 class="page-title">Worth a look</h1>
   <div class="page-sub">Charges and months that look different from your usual pattern, {{ start | day }} to {{ end | day }}. Nothing here means something is wrong.</div>
 </div></div>
+{% if toast %}
+<div class="toast" role="status">
+  <span>{{ toast.text }}</span>
+  {% if toast.action_id %}{{ undo_action(toast.action_id, "/worth-a-look") }}{% endif %}
+</div>
+{% endif %}
+{% if settings and settings.available %}
+<section class="card stack sensitivity" aria-labelledby="how-often">
+  <div class="card-title" id="how-often">How often should we point things out?</div>
+  <form method="post" action="/worth-a-look/sensitivity" class="seg seg-buttons">
+    {% for l in settings.levels %}
+    <button type="submit" name="level" value="{{ l.level }}" aria-pressed="{{ 'true' if l.level == settings.sensitivity else 'false' }}">{{ l.label }}</button>
+    {% endfor %}
+  </form>
+  {% for l in settings.levels if l.level == settings.sensitivity %}<p class="muted" style="margin:0">{{ l.description }}</p>{% endfor %}
+  {% if settings.in_warmup and settings.sensitivity == "more" %}<p class="muted" style="margin:0">{{ settings.warmup_note }}</p>{% endif %}
+</section>
+{% endif %}
 <div class="coming">
   <section class="card stack">
     <div class="card-title">Unusual charges</div>
@@ -13,10 +31,15 @@
     <p class="muted" style="margin:0">This switches on when the unusual-charge model (FR-7) is released.</p>
     {% elif flags %}
     <ul class="flags">
-      {% for f in flags %}{{ flag_row(f) }}{% endfor %}
+      {% for f in flags %}{{ flag_row(f, actions=can_act, guidance=guidance, limits=limits) }}{% endfor %}
     </ul>
     {% else %}
-    <div class="empty">Nothing unusual in the last {{ window_days }} days.</div>
+    <div class="empty">Nothing unusual in the last {{ window_days }} days{% if hidden.recognized %} that you haven't already recognized{% endif %}.</div>
+    {% endif %}
+    {% if hidden.recognized and not show_hidden %}
+    <p class="muted" style="margin:0">{{ hidden.recognized }} {{ "alert" if hidden.recognized == 1 else "alerts" }} you recognized {{ "isn't" if hidden.recognized == 1 else "aren't" }} shown. <a href="/worth-a-look?hidden=1">Show {{ "it" if hidden.recognized == 1 else "them" }}</a></p>
+    {% elif show_hidden and hidden.recognized %}
+    <p class="muted" style="margin:0"><a href="/worth-a-look">Hide the alerts you recognized</a></p>
     {% endif %}
   </section>
   <section class="card stack">
@@ -27,10 +50,15 @@
     {% elif spikes %}
     <p class="muted" style="margin:0">Whole months where a category ran well above your average month over the past year{% if spike_method == "simple_rule" %}, found by a simple rule while the spending-spike model isn't released{% endif %}.</p>
     <ul class="flags">
-      {% for s in spikes %}{{ spike_row(s) }}{% endfor %}
+      {% for s in spikes %}{{ spike_row(s, actions=can_act) }}{% endfor %}
     </ul>
     {% else %}
     <div class="empty">No category ran well above your usual level in the months that ended in the last {{ window_days }} days{% if spike_method == "simple_rule" %}, by a simple rule (the spending-spike model isn't released yet){% endif %}.</div>
+    {% endif %}
+    {% if hidden.expected and not show_hidden %}
+    <p class="muted" style="margin:0">{{ hidden.expected }} {{ "spike" if hidden.expected == 1 else "spikes" }} you said {{ "was" if hidden.expected == 1 else "were" }} expected {{ "isn't" if hidden.expected == 1 else "aren't" }} shown. <a href="/worth-a-look?hidden=1">Show {{ "it" if hidden.expected == 1 else "them" }}</a></p>
+    {% elif show_hidden and hidden.expected %}
+    <p class="muted" style="margin:0"><a href="/worth-a-look">Hide the spikes you said were expected</a></p>
     {% endif %}
     <p class="muted" style="margin:0">Ask {{ coach_name }} about any of these.</p>
     <a class="btn" style="align-self:flex-start" href="/chat">Ask {{ coach_name }}</a>

@@ -336,6 +336,17 @@ details.edit-cat[open] .edit-form { background: var(--surface); border: 1px soli
 .flag .raw { overflow-wrap: anywhere; }
 .flag .amount { font-weight: 700; white-space: nowrap; }
 .flag-reason { font-size: 13.5px; line-height: 1.45; }
+/* Alert sensitivity and flag actions (FR-9) */
+.seg-buttons { align-self: flex-start; flex-wrap: wrap; }
+.seg-buttons button { background: none; border: 0; padding: 6px 13px; font-size: 13px; border-radius: 9px; color: var(--muted); font-weight: 500; cursor: pointer; }
+.seg-buttons button:hover { color: var(--text); }
+.seg-buttons button[aria-pressed="true"] { background: var(--surface); color: var(--text); font-weight: 600; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.flag-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; }
+.inline-form { display: inline; margin: 0; }
+.not-me { background: var(--surface); border-radius: 12px; padding: 10px 12px; font-size: 13.5px; display: flex; flex-direction: column; gap: 6px; }
+.not-me-title { font-weight: 600; }
+.not-me ul { margin: 0; padding-left: 18px; }
+.hidden-flag { opacity: .7; }
 .spike-charges { font-size: 13px; }
 .spike-charges summary { cursor: pointer; font-weight: 600; }
 .spike-charges ul { list-style: none; margin: 6px 0 4px; padding: 0; display: flex; flex-direction: column; gap: 4px; }

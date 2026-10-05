@@ -1,6 +1,29 @@
-{# One unusual charge (FR-7, screen 1f): what, when, how much, its kind and its reason. #}
-{% macro flag_row(f) -%}
-<li class="flag">
+{# The undo button for an alert action (FR-9): the alert shows again. #}
+{% macro undo_action(action_id, back, label="Undo") -%}
+<form method="post" action="/alerts/undo" class="inline-form">
+  <input type="hidden" name="action_id" value="{{ action_id }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <button class="link-btn" type="submit">{{ label }}</button>
+</form>
+{%- endmacro %}
+
+
+{# One action on an alert (FR-9 §4): a plain form post, so it works without JavaScript. #}
+{% macro flag_action(flag_id, action, label, back) -%}
+<form method="post" action="/alerts/act" class="inline-form">
+  <input type="hidden" name="flag_id" value="{{ flag_id }}">
+  <input type="hidden" name="action" value="{{ action }}">
+  <input type="hidden" name="back" value="{{ back }}">
+  <button class="btn-ghost small" type="submit">{{ label }}</button>
+</form>
+{%- endmacro %}
+
+
+{# One unusual charge (FR-7, screen 1f): what, when, how much, its kind and its reason. With
+   `actions`, "I recognize this" and "Not me — what now?" (FR-9); a charge the person said wasn't
+   theirs is marked, with what to do next; a hidden one (shown on request) can be brought back. #}
+{% macro flag_row(f, actions=False, back="/worth-a-look", guidance=(), limits="") -%}
+<li class="flag{% if f.hidden_by %} hidden-flag{% endif %}">
   <div class="flag-head">
     <span class="badge look">{{ f.kind }}</span>
     <span class="muted num" style="white-space:nowrap">{{ f.date | day }}</span>
@@ -13,14 +36,32 @@
     <div class="amount num">{{ f.amount | money(cents=True, sign=True) }}</div>
   </div>
   <div class="flag-reason">{{ f.reason }}</div>
+  {% if actions %}
+  {% if f.hidden_by %}
+  <div class="flag-actions"><span class="muted">You recognized this, so it's hidden.</span>{{ undo_action(f.hidden_by, back, "Show it again") }}</div>
+  {% elif f.your_action == "not_me" %}
+  <div class="not-me" role="note">
+    <div class="not-me-title">You said this wasn't you. What to do next:</div>
+    <ul>{% for g in guidance %}<li>{{ g }}</li>{% endfor %}</ul>
+    <div class="muted">{{ limits }}</div>
+    {{ undo_action(f.action_id, back) }}
+  </div>
+  {% else %}
+  <div class="flag-actions">
+    {{ flag_action(f.flag_id, "recognize", "I recognize this", back) }}
+    {{ flag_action(f.flag_id, "not_me", "Not me — what now?", back) }}
+  </div>
+  {% endif %}
+  {% endif %}
 </li>
 {%- endmacro %}
 
 
 {# One spending spike (FR-8, screen 1f): the month and category, actual against usual, the reason,
-   and the largest charges, labelled as such: they're the biggest, not "what caused it" (§7). #}
-{% macro spike_row(s, charges=True) -%}
-<li class="flag">
+   and the largest charges, labelled as such: they're the biggest, not "what caused it" (§7).
+   With `actions`, "Expected, all good" hides that month's spike (FR-9). #}
+{% macro spike_row(s, charges=True, actions=False, back="/worth-a-look") -%}
+<li class="flag{% if s.hidden_by %} hidden-flag{% endif %}">
   <div class="flag-head">
     <span class="badge look">{{ s.kind }}</span>
     {% if s.simple_rule %}<span class="badge soon" title="No spending-spike model is released yet; a simple rule found this">Simple rule</span>{% endif %}
@@ -44,6 +85,13 @@
     </ul>
     {% if s.other_purchases %}<div class="muted">and {{ s.other_purchases }} more {{ "purchase" if s.other_purchases == 1 else "purchases" }}</div>{% endif %}
   </details>
+  {% endif %}
+  {% if actions %}
+  {% if s.hidden_by %}
+  <div class="flag-actions"><span class="muted">You said this was expected, so it's hidden.</span>{{ undo_action(s.hidden_by, back, "Show it again") }}</div>
+  {% else %}
+  <div class="flag-actions">{{ flag_action(s.flag_id, "expected", "Expected, all good", back) }}</div>
+  {% endif %}
   {% endif %}
 </li>
 {%- endmacro %}

@@ -1,6 +1,6 @@
 # FR-9 Alert Sensitivity and Flag Actions — Feature Design
 
-Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · **Implementing:** milestone 1 (presets) in review · Branch: `feature/fr9`
+Oct 4, 2026 · @Sidd · Status: **Accepted** (owner, Oct 4, 2026, on #65); decisions 1–17 confirmed, none open · **Implementing:** milestone 1 (presets, #66) and milestone 2 (settings and actions) in review · Branch: `feature/fr9`
 
 ## Summary
 
@@ -386,6 +386,16 @@ From milestone 1 (presets):
 - **`/healthz` reports which halves have presets** (`presets.unusual_charges`, `presets.spending_spikes`). This was planned for milestone 3 and done here, since milestone 1 builds the files it reads.
 - **The flag file records its cutoffs in meta** (`presets`, JSON). A file without it serves Balanced at every level, so a bundle built before FR-9 still works.
 - **`detect_anomalies` reports the level it applied** (`sensitivity`): Balanced whenever neither half has presets, whatever was asked. Milestone 2 takes the level from the session.
+
+From milestone 2 (settings and actions):
+
+- **`access/alerts.py`** holds the store (`AlertStore`, two tables in the feedback store's file) and the replay (`AlertView`). The replay keeps the action that hides each alert, so a hidden alert can be shown again by undoing it.
+- **Sources are `page`, `coach` and `assistant`,** as the tokens' `client` claim gives them; §3 named `page` and `coach` only.
+- **An action is refused if the same action on the same alert is already active** ("you've already done that"). After an undo, it can be taken again.
+- **Any stored charge, and any spike at the loosest level, can be acted on,** whatever the session's setting, so an alert seen at More often can still be acted on after switching to Balanced.
+- **Undo is the subject's own, on the current account.** An action taken on another demo account can't be undone from this one.
+- **The hidden-alert footer counts the page's own lists,** each card's window, so the number is what "Show them" brings back. `detect_anomalies` takes an internal `include_hidden` for it; it isn't a tool argument.
+- **The coach's prompt** gains the alert rules: when nothing is listed but `hidden` isn't zero, or the setting is Less often, say so; change the setting or act only when asked; preview, then `confirm`. When someone says a charge isn't theirs, the coach offers `not_me` and gives its fixed guidance.
 
 ## Decisions and open questions
 
