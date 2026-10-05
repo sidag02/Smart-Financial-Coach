@@ -24,6 +24,7 @@ import shutil
 import sqlite3
 import tempfile
 from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
 
 from smart_financial_coach.config import PROJECT_ROOT, get_settings
@@ -45,6 +46,7 @@ from smart_financial_coach.intelligence.spikes.batch import (
 )
 
 ACCOUNTS_FILE = "accounts.yaml"
+WINDOW_DAYS = 60  # "Worth a look"'s window (FR-7 §8; the web app's FLAG_WINDOW_DAYS)
 REPLAY_FILE = "replay.json"
 REPLAY = PROJECT_ROOT / "docs" / "reports" / "fr5-replay.json"  # sfc-experiment replay's output
 
@@ -168,3 +170,27 @@ def _spikes(data: Path, out: Path, artifacts_dir: Path | None) -> SpikeState:
     )
     write_state(state, out, users=int(pool["user_id"].nunique()), categorizer=run.model_version)
     return state
+
+
+def window_alerts(root: Path) -> dict[str, dict[str, tuple[int, int]]]:
+    """Each demo account's "Worth a look" at each sensitivity level (FR-9 §6): (unusual charges
+    in the last 60 days, spikes in months that ended in them), as the page counts them."""
+    from smart_financial_coach.access.ledger import DataSources, Ledger
+    from smart_financial_coach.access.tools import Tools
+    from smart_financial_coach.intelligence.presets import LEVELS
+
+    sources = DataSources.from_dir(root)
+    as_of = sources.as_of()
+    start = as_of - timedelta(days=WINDOW_DAYS - 1)
+    out: dict[str, dict[str, tuple[int, int]]] = {}
+    for account in load_accounts(root / ACCOUNTS_FILE):
+        ledger = Ledger.load(sources, account.user_id)
+        out[account.user_id] = {}
+        for level in LEVELS:
+            tools = Tools(ledger, sensitivity=level)
+            charges = tools.detect_anomalies(start.isoformat(), as_of.isoformat()).data
+            months = tools.detect_anomalies(start.replace(day=1).isoformat(), as_of.isoformat())
+            spiking = months.data.get("spending_spikes", {})
+            spikes = [x for x in spiking.get("spikes", []) if x["period_end"] >= start.isoformat()]
+            out[account.user_id][level] = (int(charges.get("count", 0)), len(spikes))
+    return out

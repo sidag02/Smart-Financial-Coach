@@ -108,13 +108,15 @@ jobs:
           test "$image" = "$want"
           test "$latest" = "$ready"
           test "$traffic" = "100"
-          # Healthy means every demo account's data loads, not just that the process is up, and
-          # spending spikes are served (FR-8): a bundle without its spikes file fails. Both are
-          # checked on the same response, retried while the old replicas drain
+          # Healthy means every demo account's data loads, not just that the process is up,
+          # spending spikes are served (FR-8): a bundle without its spikes file fails, and both
+          # halves have sensitivity presets (FR-9). All are checked on the same response,
+          # retried while the old replicas drain
           healthy() {
             body=$(curl -fsS "https://$fqdn/healthz") || return 1
             grep -q '"status":"ok"' <<<"$body" \
-              && grep -Eq '"spikes":"(model|simple_rule)"' <<<"$body"
+              && grep -Eq '"spikes":"(model|simple_rule)"' <<<"$body" \
+              && grep -q '"presets":{"unusual_charges":true,"spending_spikes":true}' <<<"$body"
           }
           for attempt in $(seq 1 30); do
             if healthy; then break; fi
