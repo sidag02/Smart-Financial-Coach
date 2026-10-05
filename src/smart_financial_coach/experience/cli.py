@@ -20,7 +20,7 @@ DEV_PASSWORD = "demo-password"
 
 
 def _build(args: argparse.Namespace) -> int:
-    from smart_financial_coach.experience.demo import build_demo
+    from smart_financial_coach.experience.demo import build_demo, window_alerts
     from smart_financial_coach.intelligence.forecasting.batch import BASELINE_VERSION
     from smart_financial_coach.intelligence.spikes.batch import METHOD_SIMPLE
 
@@ -43,6 +43,11 @@ def _build(args: argparse.Namespace) -> int:
         print("  no spending-spike model promoted: spikes come from the simple rule")
     else:
         print(f"  spending spikes scored by {bundle.spike_model_version}")
+    # What each account's "Worth a look" shows at each level (FR-9 §6): (charges, spikes)
+    print("  Worth a look, last 60 days, as (unusual charges, spikes) at less / balanced / more:")
+    for user, levels in window_alerts(bundle.root).items():
+        shown = " / ".join(f"{c}, {s}" for c, s in levels.values())
+        print(f"    {user}: {shown}")
     return 0
 
 

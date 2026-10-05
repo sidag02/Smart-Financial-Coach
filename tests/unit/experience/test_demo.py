@@ -134,3 +134,41 @@ def test_the_bundle_serves_a_promoted_spike_model(
     )
 
     assert (bundle.spike_model_version, bundle.spike_method) == ("fr8-test", "model")
+
+
+def test_the_bundle_carries_presets_and_reports_each_levels_alerts(
+    small_sqlite: Path,
+    two_users: tuple[str, str],
+    preset_flag_artifacts: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """With presets, the flag file holds down to More often, and the build reports what each
+    account's "Worth a look" shows at each level (FR-9 §6)."""
+    accounts = tmp_path / "accounts.yaml"
+    accounts.write_text(
+        yaml.safe_dump(
+            {
+                "accounts": [
+                    {"user_id": u, "name": f"User {i}", "email": f"u{i}@x.com"}
+                    for i, u in enumerate(two_users)
+                ]
+            }
+        )
+    )
+    monkeypatch.setattr(demo, "categorize_dataset", fake_categorize)
+
+    bundle = demo.build_demo(
+        small_sqlite, accounts, tmp_path / "demo", artifacts_dir=preset_flag_artifacts
+    )
+
+    assert bundle.flag_presets
+    assert bundle.flags >= bundle.flags_balanced
+    counts = demo.window_alerts(bundle.root)
+    assert set(counts) == set(two_users)
+    for levels in counts.values():
+        assert list(levels) == ["less", "balanced", "more"]
+        charges = [c for c, _ in levels.values()]
+        spikes = [s for _, s in levels.values()]
+        assert charges == sorted(charges)
+        assert spikes == sorted(spikes)

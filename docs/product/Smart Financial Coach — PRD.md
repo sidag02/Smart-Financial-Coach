@@ -88,7 +88,7 @@ Each user story maps to one ML capability, and each key scenario is an end-to-en
 
 ## Functional requirements
 
-Requirements are grouped by capability and say what the system must do, not how. P0 is required for v1, P1 is planned for v1.1. FR-5 and FR-6 are P1 but were built for the v1 demo (owner, Oct 3, 2026).
+Requirements are grouped by capability and say what the system must do, not how. P0 is required for v1, P1 is planned for v1.1. FR-5 and FR-6 are P1 but were built for the v1 demo (owner, Oct 3, 2026), and so was FR-9 (owner, Oct 4, 2026).
 
 | ID | Capability | Requirement | Priority |
 | --- | --- | --- | --- |
@@ -100,7 +100,7 @@ Requirements are grouped by capability and say what the system must do, not how.
 | FR-6 | Categorization | Let users correct a category | P1 (in the v1 demo) |
 | FR-7 | Unusual spending | Flag individual transactions that are unusual for this user, with a plain-language reason | P0 |
 | FR-8 | Unusual spending | Flag spending spikes: monthly spend in a category significantly above the user's normal level, with the size of the deviation and the transactions driving it. Weekly spikes are deferred: even a perfect detector would be wrong most of the time on weekly data (see FR-2) | P0 |
-| FR-9 | Unusual spending | Let users adjust alert sensitivity | P1 |
+| FR-9 | Unusual spending | Let users adjust alert sensitivity, and act on an alert: recognize it, say a charge isn't theirs, or say a spike was expected | P1 (in the v1 demo) |
 | FR-10 | Goals | Let users define a savings goal with an amount and a target date | P0 |
 | FR-11 | Goals | Tell the user whether they are on track, the projected amount, the gap, and how certain that is | P0 |
 | FR-12 | Goals | Account for seasonal patterns and each user's own income and spending behavior | P0 |
@@ -152,6 +152,8 @@ v1 succeeds when every capability meets its target and each beats a simple rule-
 
 **Unusual transactions, first measurement:** a per-user z-score on amount, the simple alternative, can reach 0.70 precision only on a handful of alerts, so recall is compared at the same number of alerts: 0.11 per user-month (FR-7 Unusual Transactions — Feature Design, §5). The v1 model scored precision 0.834 at its cutoff, and recall 0.720 at that rate against the alternative's 0.051, from a second scoring of the test users after a feature fix: the first promoted model's history rank was two-sided, so cheap first visits read as large. That model had scored 0.814 and 0.715 on the first scoring (FR-7 Unusual Transactions — Round Results).
 
+**Alert sensitivity (FR-9), measured out of fold (Oct 4, 2026):** Less often and More often flag half and twice as many alerts per post-warm-up user-month as Balanced, the promoted models' cutoffs; on held-out users they do (0.49× and 1.98× for unusual charges, 0.50× and 2.01× for spikes). Precision at Less, Balanced and More is 0.939, 0.792 and 0.455 for unusual charges, and 0.963, 0.799 and 0.491 for spikes. The targets above apply to Balanced, the default: More often is the person's choice to see more borderline alerts, and the page says more of them will be ordinary. In a person's first 90 days, More often waits and shows Balanced's alerts (FR-9 Alert Sensitivity and Flag Actions — Feature Design; FR-9 Alert Sensitivity — Results).
+
 **Caveat:** v1 is measured on synthetic data, which is easier than real data. Targets must be re-validated on real data before launch.
 
 ## Risks, assumptions and open questions
@@ -163,7 +165,7 @@ The biggest risk is that quality measured on synthetic data does not hold on rea
 | Synthetic data is easier than real data; metrics overstate quality | High | Build realistic noise into the data; validate on real data before launch |
 | Coach states a wrong number or gives unsafe advice | High | Grounding and safety are release-blocking metrics |
 | Cross-user data exposure | High | Data separation is a release-blocking requirement, tested adversarially |
-| Alert fatigue from false alarms | Medium | Precision target; user-adjustable sensitivity in v1.1 |
+| Alert fatigue from false alarms | Medium | Precision target; user-adjustable sensitivity and per-alert actions (FR-9, in the v1 demo) |
 | New users have too little history | Medium | Say clearly when an insight is limited by short history |
 | AI provider outage | Medium | Dashboard and alerts work without the assistant |
 | Users distrust AI financial guidance | Medium | Show where numbers come from; supportive tone |
@@ -178,7 +180,7 @@ The biggest risk is that quality measured on synthetic data does not hold on rea
 
 - [ ] Which bank-data aggregator for the real-data release?
 - [ ] What regulatory review is needed before launch (e.g. financial advice disclaimers)?
-- [ ] What default alert sensitivity do users prefer?
+- [ ] What default alert sensitivity do users prefer? v1 defaults to Balanced, the promoted models' cutoffs; real users' choices will say whether that's right.
 
 ## Releases
 
@@ -186,7 +188,7 @@ Each release widens what the coach can do or who it serves; real user data arriv
 
 | Release | Scope |
 | --- | --- |
-| v1 | All P0 requirements on synthetic data, plus FR-5 and FR-6: review of uncertain categories, corrections and undo, and how corrections teach the model, shown from a simulated replay (Oct 6, 2026 demo) |
-| v1.1 | The other P1 requirements: alert sensitivity, answer sources; retraining from real feedback, promoted through the gates, reaching the 0.80 new-merchant target |
+| v1 | All P0 requirements on synthetic data, plus FR-5 and FR-6: review of uncertain categories, corrections and undo, and how corrections teach the model, shown from a simulated replay; and FR-9: alert sensitivity and actions on alerts (Oct 6, 2026 demo) |
+| v1.1 | The other P1 requirement, answer sources; retraining from real feedback, promoted through the gates, reaching the 0.80 new-merchant target |
 | v2 | Real bank data, real sign-in, validated quality on real data, clear handling of short histories |
 | v3 | Proactive nudges, mobile notifications, deeper goal planning, weekly spending-spike alerts if they can be made reliable |
