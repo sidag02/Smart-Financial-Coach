@@ -126,7 +126,17 @@ The coach's model call becomes a small interface with two implementations. Every
 
 **Why wrap the tools rather than point Claude Code at `/mcp`:** the coach assigns source ids and the grounding check needs each turn's tool results. Wrapping keeps the prompt, tools, source ids and check the same in both. The wrapped tools call the MCP server, never the data layer, so isolation is unchanged.
 
-**It is still not the coach the API serves.** The loop is Claude Code's, effort and thinking may not be settable to the API's values, and there's no refusal fallback or grounding retry. So the subscription is for development: trying prompts, cases and the check at no API cost. Release gates run on the API only (decision 5).
+**It is still not the coach the API serves.** It is used for evaluation runs and prompt refinement on the owner's machine (decision 2). Its run is also the gate for grounding, safety and rubric (decision 5), so every result records the backend's actual configuration, and these are the known differences from the API:
+
+| | API | Subscription | Effect on the gate |
+| --- | --- | --- | --- |
+| Loop | `Coach._loop`, 6 rounds | Claude Code's loop through the Agent SDK, `max_turns` 6 | Recorded per run; the turn limit matches |
+| Effort | `low` | Set to `low` if the Agent SDK accepts an effort option; otherwise its default, recorded | Unknown until M1 checks; the results report says which ran |
+| Thinking | Adaptive | The Agent SDK's setting, recorded | As above |
+| Refusal fallback | Server-side (`cyber`, `frontier_llm` declines retried on Sonnet 5) | None | A decline isn't rescued, so the gate can only be stricter |
+| Grounding retry | One | None | The gate's grounding is first-attempt, which can only be stricter than what the API serves |
+
+M1 checks which effort and thinking options the Agent SDK passes through, and the results report states each difference.
 
 **Choosing a backend:** `SFC_COACH_BACKEND` is `auto` (the default), `api` or `subscription`.
 
@@ -156,7 +166,7 @@ A deterministic check runs on every answer before it's shown, in both backends. 
 **When a number fails** (option B-b, decision 3):
 
 - **API backend:** the failed answer is dropped, using the roll-back `Coach` already does for an unclean final turn. Dropping the last turn keeps history append-only for preserved thinking. The turn's tool calls and results stay. A mid-conversation system message goes after the last `tool_result` (or `user`) message, naming the unmatched numbers and asking for the answer again using only tool numbers. A `system` message can't follow an assistant answer; the API rejects that with a 400. If the retry fails too, the person sees the fallback message above and the whole turn is rolled back.
-- **Subscription backend:** no retry. The Agent SDK has no equivalent of that message, and a follow-up user turn would leave the failed answer in the session. A failing answer goes straight to the safe message. This is one of the differences that keep subscription runs out of the gate (§2).
+- **Subscription backend:** no retry. The Agent SDK has no equivalent of that message, and a follow-up user turn would leave the failed answer in the session. A failing answer goes straight to the safe message. So the gate's grounding (decision 5) is first-attempt grounding, which can't be better than the API's after its retry (§2).
 - Every failure is logged with the conversation id and the unmatched numbers, never the person's question or transaction text.
 
 The same check is the suite's grounding grader (§5), so serving and evaluation agree on what "grounded" means.
@@ -191,7 +201,7 @@ These need no new mechanism; they need measuring.
 
 **Metrics, as the PRD defines them:**
 
-- **Grounding:** per case. A run passes when every number passes the check and every required fact appears; a case passes only if all 3 runs pass. Grounding is the share of grounded cases that pass. Target ≥ 95%. An answer replaced by the safe message fails, since its required facts are missing, so the retry can't game the metric. The first-attempt rate (before any retry) is reported beside it on both backends, and it's the only grounding number comparable between them.
+- **Grounding:** per case. A run passes when every number passes the check and every required fact appears; a case passes only if all 3 runs pass. Grounding is the share of grounded cases that pass. Target ≥ 95%. An answer replaced by the safe message fails, since its required facts are missing, so the retry can't game the metric. The first-attempt rate (before any retry) is reported beside it on both backends, and it's the only grounding number comparable between them. On the subscription, which is the gate (decision 5), the two are the same.
 - **Safety:** the share of advice, cross-user and injection cases handled correctly. Target 100%.
 - **Rubric:** helpfulness, clarity, empathy and personalization, 1–5 each, scored by a judge model that differs from the coach (Technical Design, "Controls against flattering results"). Target ≥ 4.0 average. The owner scores 10 sampled answers per gate run by hand. The judge counts only if, in each dimension, it is within 1 point of the owner on at least 8 of the 10 and within 0.5 on average. Otherwise the rubric doesn't count toward the gate until the judge's prompt is fixed.
 - **Latency and cost:** p50 and p95 seconds per answer, input and output tokens, and dollars per answer, on the API backend only. A subscription run doesn't reflect API latency. Target p95 < 8 s (NFR-5).
@@ -201,7 +211,9 @@ These need no new mechanism; they need measuring.
 **Where it runs:**
 
 - **Developing:** on the subscription, as often as needed, at no API cost.
-- **Release gate** (Delivery Plan stage 4): on the API only, with `--gate`, before the demo is updated. About 50 cases × 3 runs is about 150 answers at a few cents each at Sonnet 5.5's $2 / $10 per MTok, plus an Opus 5.5 judge on each: roughly $10 a run. The suite carries the `llm` marker, so CI never runs it on a pull request.
+- **Release gate** (Delivery Plan stage 4; decision 5), before the demo is updated:
+  - **Grounding, safety and rubric:** the full suite (about 50 cases × 3 runs) on the subscription with `--gate`. The Opus 5.5 judge runs on the subscription too. The result records the loop, effort and thinking that actually ran, and the credential source.
+  - **Latency and cost:** one run of each case on the API, with no judge: about 50 answers at a few cents each, roughly $2 of the key's $20 cap (decision 7). This also gives the dollars per answer that sizes the chat limit (§6). The suite carries the `llm` marker, so CI never runs it on a pull request.
 
 ### 6. Going live
 
@@ -215,7 +227,8 @@ Then:
 1. Merge the code as milestones land (the Sonnet default, the backends, the grounding check).
 2. Set the key and the model, as above.
 3. **Post-deploy check on the data path:** sign in as a demo user and ask one fixed question ("How much did I spend last month?"). The check passes when the answer cites a source and passes the grounding check. A redirect or an "unavailable" message fails it. `/healthz` also reports `coach: on|off` and the model, never the key.
-4. Size `chat_messages_per_hour_total` to the key's spending cap at Sonnet's price (NFR-9). The suite's dollars per answer gives the number.
+4. Size `chat_messages_per_hour_total` so the key's $20 cap lasts the whole demo (decision 7, NFR-9). The total per hour is at most (the cap left after M3's API run) ÷ (M3's measured dollars per answer × the demo's length in hours). At a few cents an answer, the current 200 an hour could use up $20 in a couple of hours. For example, with $18 left at $0.04 an answer over 3 hours, the total is 150 an hour. The per-client limit (30 an hour) stays.
+5. **The key is live for the demo only** (decision 7): remove the secret after the demo, and chat goes back to "unavailable".
 
 Without the key, steps 2–4 are skipped and chat keeps saying the coach is unavailable; nothing else changes.
 
@@ -268,20 +281,20 @@ One structured log line per answer: backend, model, effort, seconds, tool calls 
 | --- | --- | --- |
 | M1 | Sonnet default; the backend interface; the subscription backend; `sfc-coach ask` | The owner asks a question on the subscription and gets a sourced answer; unit tests pass |
 | M2 | The grounding check in serving, with retry and safe message; `estimates` in tool results; logging (§7) | Unit tests pass, including false-accept rates within decision 8's targets |
-| M3 | The evaluation suite; development runs on the subscription; prompt changes (§1) measured against them; a gate run on the API with a local key; a results report | `docs/reports/FR-13 to FR-15 Coach — Results.md` from the API run, with grounding, safety, rubric, latency and cost for Sonnet 5.5. A missed target is reported there, and the owner decides whether chat still goes live |
+| M3 | The evaluation suite; development runs on the subscription; prompt changes (§1) measured against them; the gate run on the subscription and the latency and cost run on the API (decision 5); a results report | `docs/reports/FR-13 to FR-15 Coach — Results.md` with grounding, safety and rubric from the subscription run (with the settings that ran and how they differ from the API's), latency and cost from the API run, and the chat limit sized from them. A missed target is reported there, and the owner decides whether chat still goes live |
 | M4 | Going live: `/healthz` coach status; the key and `SFC_LLM_MODEL` set in the deployment; the post-deploy check | The go-live gate: a demo user's question answered live, with a source, passing the grounding check |
 
 **All four ship before the Oct 6 demo, in order, as a stack of small PRs once this design is accepted** (owner decision 6).
 
 ## Decisions and open questions
 
-Recommendations are marked; nothing below is decided until the owner says so on the PR. Decided so far: 1 (model) and 6 (the demo).
+Recommendations are marked; nothing below is decided until the owner says so on the PR. Decided: 1–7. Open: 8, added in the review round.
 
 1. **Coach model:** `claude-sonnet-5-5` at `low` effort. *(Owner, Oct 5, 2026: Sonnet. Effort to be confirmed by the latency run.)*
-2. **Subscription backend is owner-only, local and for development** (§2): refused with a public URL, `SFC_LLM_API_KEY` or `ANTHROPIC_API_KEY`; never chosen automatically; logs its credential source. *Recommended.*
-3. **When a number fails the grounding check:** one retry, then the safe message (option B-b). *Recommended.*
-4. **Judge model:** Claude Opus 5.5 (option C-a). *Recommended.*
-5. **Which run gates the release:** every gate metric comes from an API run, roughly $10 a run. A subscription run's loop, effort, thinking, fallback and retry aren't shown to match the API's. *Recommended* (reviewer, #72). Changed from the first draft, which let grounding, safety and rubric come from a subscription run.
+2. **Subscription backend:** only for evaluation runs and prompt refinement, on the owner's machine; the shipped app uses the API key. Refused with a public URL, `SFC_LLM_API_KEY` or `ANTHROPIC_API_KEY`; never chosen automatically; logs its credential source. **Decided** (owner, Oct 6, 2026, on #72).
+3. **When a number fails the grounding check:** one retry, then the safe message (option B-b). On the API, the failed answer is dropped first and the system message follows the last `user` / `tool_result` message (§3). **Decided** (owner, Oct 6, 2026, on #72).
+4. **Judge model:** Claude Opus 5.5 (option C-a). **Decided** (owner, Oct 6, 2026, on #72).
+5. **Which run gates the release:** the subscription run gates grounding, safety and rubric; latency and cost come from the API. Each result records the effort, thinking and loop that actually ran, and §2 says where they differ from the API's. The subscription has no grounding retry and no refusal fallback, so its grounding is first-attempt. **Decided** (owner, Oct 6, 2026, on #72), over the reviewer's recommendation to gate everything on an API run.
 6. **The Oct 6 demo:** chat goes live today, with all of M1 to M4 shipped before the demo, not just the key. **Decided** (owner, Oct 6, 2026, recorded on #72 by the reviewer). The milestones go in order. M3's results report gives Sonnet 5.5's grounding, safety and rubric before M4 sets the key. If a target misses, the owner decides whether chat still goes live. M4's post-deploy check is the go-live gate.
-7. **Open:** the API key's spending cap, which sets the total chat rate limit (§6, step 4).
+7. **The API key:** a $20 spending cap, live for the demo only. `chat_messages_per_hour_total` is sized from M3's dollars per answer so the cap lasts the demo (§6, step 4). **Decided** (owner, Oct 6, 2026, on #72).
 8. **The grounding check's false-accept targets:** ≤ 1% for direct numbers and ≤ 5% for derived ones, on realistic payloads (§3). *Recommended.* M2 reports the measured rates; if derived numbers can't reach 5%, the fallback is to stop accepting derived numbers and have the coach quote the two values instead.
