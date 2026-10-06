@@ -65,7 +65,7 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
    - **The goal chart gets a scale and tooltips:** gridlines at round amounts, a legend, and each month's amount on hover or keyboard focus.
 10. **Overview feedback (owner, Oct 6, 2026),** after chat went live (#78):
     - **Small money-flow blocks stay readable.** Each block is at least 26 of the chart's 260 units tall, so a small "To goals" keeps its label and amount on one line.
-    - **Every widget is clickable.** Each card is one link: Savings and the flow's goal and leftover blocks open Goals, the goal card opens its goal, "Worth a look" its page, the flow's income and spending blocks the period's transactions, and each 12-month bar the Overview for that month. No link sits inside another.
+    - **Every widget is clickable.** Each card is one link: Savings and the flow's To goals and From goals blocks open Goals, the goal card opens its goal, "Worth a look" its page, the flow's other blocks (income, spending, left over, from savings) the period's transactions, and each 12-month bar the Overview for that month, as a single month. No link sits inside another.
     - **Goal totals can go down, and that stays.** The estimated goal figures (the chart's history, "To goals" / "From goals", "Set aside in goals") follow the forecast's rule that a month of spending more than came in draws on what's set aside. So in such a month a goal's estimate falls and the flow shows "From goals". Sam Patel's August 2026 is the demo's example: −$2,973 net, "From goals $439". See FR-11 and FR-12, "The balance recursion".
 
 ## Demo build (Oct 6, 2026)

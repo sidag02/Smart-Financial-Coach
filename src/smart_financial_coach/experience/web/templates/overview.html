@@ -116,7 +116,7 @@
     <div class="card-title">12 months to {{ trend[-1].month | month_name(long=True) }}</div>
     <div class="muted" style="font-size:13px">Monthly spending, {{ trend[0].month | month_name(long=True) }} to {{ trend[-1].month | month_name(long=True) }}; this period's months highlighted</div>
   </div>
-  <div class="trend" role="img" aria-label="Monthly spending for the last 12 months">
+  <div class="trend" role="group" aria-label="Monthly spending for the last 12 months">
     {% for b in trend %}
     <a class="col" href="/?month={{ b.month }}" title="{{ b.month | month_name(long=True) }}: {{ b.value | money }}" aria-label="{{ b.month | month_name(long=True) }}: {{ b.value | money }}, open that month">
       <div class="plot">

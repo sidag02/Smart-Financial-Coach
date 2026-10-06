@@ -695,6 +695,9 @@ def test_every_overview_widget_opens_its_page(client: TestClient) -> None:
     assert 'class="card card-link stack alerts-wide" href="/worth-a-look"' in page
     assert 'href="/transactions?month=2026-08&amp;horizon=quarter&amp;category=Income"' in page
     assert page.count('class="col" href="/?month=') == 12  # each bar opens its month
+    # The bars are links a screen reader announces: a group, not an image (review on #78)
+    assert 'class="trend" role="group" aria-label="Monthly spending' in page
+    assert 'role="img"' not in page.split('class="trend"')[1].split("</section>")[0]
     # No link inside another: the cards' old inner links are plain text now
     for card in re.findall(r'<a class="card card-link.*?</a>\n', page, flags=re.DOTALL):
         assert card.count("<a ") == 1, card[:200]
