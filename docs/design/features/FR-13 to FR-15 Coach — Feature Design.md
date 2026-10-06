@@ -168,6 +168,13 @@ A deterministic check runs on every answer before it's shown, in both backends. 
 
 **How well it catches wrong numbers is measured, not assumed.** A unit test takes realistic tool payloads (the four demo accounts' results for the suite's questions) and draws plausible wrong numbers: each true value moved by 3–50% and rounded the way the coach rounds, plus random amounts in the payload's range. Each is cited the way the coach would cite it. The false-accept rate is how many pass. Targets: ≤ 1% for direct numbers and ≤ 5% for derived ones (decision 8). A hand-written set of correct answers measures the opposite error, correct numbers rejected. Its target is ≤ 2%, because at serving a false reject replaces a correct answer with the safe message, which hurts the demo and fails the case in the gate. Both rates go in the results report.
 
+**As built and measured (M2, `tests/unit/experience/test_grounding_rates.py`):** the test data's two test users' summaries (six spans), alerts, largest transactions, review items, goals and forecasts, through the real tools. False rejects 0.00% of 1,229 correct numbers. False accepts: direct 0.60% of 995 (amounts 0.23% of 876, counts 3.4% of 119), derived 1.65% of 605. All within decision 8's targets. Two rules were added to get there, both from the first measurement:
+
+- **Amounts and counts don't mix.** The tools return money as floats and counts as integers, so "$4" never matches a count of 4, and "83 transactions" never matches $83. Before this, a wrong small dollar amount often matched some count.
+- **Only amounts are added or subtracted.** Small counts are dense: with sums and differences of counts allowed, 25% of wrong counts passed. Without them, 3.4% pass. The coach quotes both counts ("51 purchases, against about 27 usually") instead of "24 more", and the prompt says so.
+
+The CI test uses the test dataset rather than the demo bundle, which CI doesn't have; both come from the same generator.
+
 **Why false accepts exist at all:** the check matches values, not meaning. A real value attached to the wrong label passes, for example "$412 on groceries" when $412 is dining. The suite's required facts, each tied to a named field, catch those, and they're what NFR-1's ≥ 95% measures. Field-level citations would close the gap in the check itself (a non-goal for now; decision 8).
 
 **When a number fails** (option B-b, decision 3):

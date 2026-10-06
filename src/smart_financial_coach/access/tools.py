@@ -280,7 +280,8 @@ TOOL_SPECS: list[ToolSpec] = [
             "`needed_per_month`. `undo_revision_id` is the goal's latest change that can be "
             "undone. Also the user's median monthly savings over the last 12 full months. Active "
             "and reached goals have `forecast_status` (`on_track`, `either_way`, `off_track` or "
-            "`reached`), `p_goal_met`, the chance of reaching it by its date, and "
+            "`reached`), `p_goal_met`, the chance of reaching it by its date (`chance_words` as "
+            "the Goals page says it), and "
             "`projected_balance`, the likely amount by then (both null once reached); call "
             "forecast_goal for the range and what would close the gap."
         ),
@@ -460,7 +461,8 @@ TOOL_SPECS: list[ToolSpec] = [
         "description": (
             "Whether the user is on track for an active or reached savings goal, from simulated "
             "futures of their own monthly savings. `status`: `on_track` (a 70%+ chance), "
-            "`either_way`, `off_track` (under 30%) or `reached`. `p_goal_met` is the chance; "
+            "`either_way`, `off_track` (under 30%) or `reached`. `p_goal_met` is the chance and "
+            "`chance_words` the same chance as the Goals page says it (quote that); "
             "`projected_balance` the likely amount by the date, `range` the 80% range around it; "
             "`gap` how far the likely amount falls short, `ahead` how far past the target it is; "
             "`extra_per_month` the monthly amount "
@@ -476,7 +478,8 @@ TOOL_SPECS: list[ToolSpec] = [
             "the estimated saved amount at the end of each past month, oldest first, under the "
             "same share (or, for a simple projection, the same pace); goals are set-asides "
             "within the user's savings, not separate accounts, so it's an estimate, not a "
-            "record of deposits. `monthly` is each future month's likely amount and range."
+            "record of deposits. `estimates` names the fields that are estimates. `monthly` is "
+            "each future month's likely amount and range."
         ),
         "input_schema": {
             "type": "object",
@@ -1084,6 +1087,7 @@ class Tools:
                     "forecast_status": f["status"],
                     "forecast_method": f["method"],
                     "p_goal_met": f["p_goal_met"],
+                    "chance_words": f["chance_words"],
                     "projected_balance": None
                     if f["status"] == "reached"
                     else f["projected_balance"],
@@ -1830,6 +1834,9 @@ class Tools:
                 for m in thin(series)
             ]
             fields["history"] = self._history_of(goal, out, HISTORY_POINTS)
+            # Goals are set-asides within savings, so their past is estimated: the coach says so
+            # (FR-14, "never estimates"; FR-13 to FR-15 design, §1)
+            fields["estimates"] = ["history"]
         return fields
 
     def saved_histories(self) -> dict[str, list[dict[str, Any]]]:

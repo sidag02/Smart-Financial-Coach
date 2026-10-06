@@ -30,6 +30,7 @@ from smart_financial_coach.access.tools import (
     ToolsUnavailableError,
 )
 from smart_financial_coach.config import Settings
+from smart_financial_coach.experience.grounding import Grounding, check, instruction_numbers
 
 log = logging.getLogger(__name__)
 
@@ -38,6 +39,22 @@ REFUSED = "I can't help with that one. I can answer questions about your own spe
 TOO_LONG = "That answer ran long. Could you ask about something narrower?"
 TOO_MANY_STEPS = "That needed more steps than I can take in one answer. Could you narrow it down?"
 EMPTY = "I couldn't put an answer together. Could you ask that another way?"
+# An answer whose numbers the grounding check can't trace to a cited tool result (FR-14)
+UNGROUNDED = (
+    "I couldn't double-check the numbers in that answer, so I'd rather not guess. Could you ask "
+    "about one thing at a time, like a single month or a single goal?"
+)
+RETRY = (
+    "Your answer had numbers that don't match the tool results they cite: {numbers}. Answer the "
+    "person's question again. Use only numbers from tool results, each followed by the source id "
+    "of the result it comes from, and call a tool if you need a number you don't have."
+)
+# Dollars per million tokens: input, output, cache reads, cache writes (5 minutes), for the
+# cost line each answer logs (NFR-9). Other models log no dollars
+PRICES = {
+    "claude-sonnet-5-5": (2.00, 10.00, 0.20, 2.50),
+    "claude-opus-5-5": (4.00, 20.00, 0.20, 5.00),
+}
 MAX_TOKENS = 4096
 # Server-side fallback when the model's safeguards decline a request
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
@@ -47,10 +64,13 @@ understand their own spending and savings, in plain English.
 
 How you answer:
 - Use only numbers that appear in tool results in this conversation. Never estimate, guess or \
-invent a figure. You may add or subtract two numbers that tools returned; anything more needs a \
-tool. If no tool gives what the question needs, say what you can't tell yet.
+invent a figure. You may add or subtract two dollar amounts from the same tool result; quote \
+counts as the tool gives them, and anything more needs a tool. If no tool gives what the \
+question needs, say what you can't tell yet.
 - Put the source id of every number right after it, like "$1,240.50 [S2]". Each tool result has \
-a source_id.
+a source_id. Every number is checked against the result it cites before the person sees it.
+- A tool result's "estimates" lists fields that are estimates, not records: say a number from \
+one is an estimate ("about $1,200 by June, estimated from your savings [S3]"), never a deposit.
 - If a tool returns status "not_available", say that feature isn't available yet. Don't fill \
 the gap yourself.
 - Unusual charges from detect_anomalies look different from the person's usual pattern; that \
@@ -93,8 +113,9 @@ own reading of theirs. After a change, say what changed and that it can be undon
 when asked.
 - Whether they're on track for a goal: call forecast_goal and quote its status, its range and, \
 when it gives one, extra_per_month ("setting aside $75 more a month would put you on track"). \
-Never work out a chance, a range or a top-up yourself. Say how sure it is: "could go either way" \
-is a real answer. Say when short_history is true (only a few months of history, so it's a rough \
+Never work out a chance, a range or a top-up yourself: say the chance in exactly the words of \
+chance_words ("about a 7 in 10 chance"). Say how sure it is: "could go either way" is a real \
+answer. Say when short_history is true (only a few months of history, so it's a rough \
 guide), and when share_source is "typical" (a new goal, so it assumes a typical share of their \
 savings). The forecast assumes a month where they spend more than they earn draws on what \
 they've set aside; say so if they ask why it could fall. For a reached goal, say it's reached; \
@@ -123,10 +144,60 @@ class Conversation:
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     # A backend's own state between questions (the subscription backend's session to resume)
     backend_state: dict[str, Any] = field(default_factory=dict)
+    # Each source's tool result as the model saw it, for the grounding check
+    payloads: list[Any] = field(default_factory=list)
 
-    def source_id(self, source: Source) -> str:
+    def source_id(self, source: Source, payload: Any = None) -> str:
         self.sources.append(source)
+        self.payloads.append(payload)
         return f"S{len(self.sources)}"
+
+    def user_texts(self) -> list[str]:
+        """What the person wrote: numbers in it need no source."""
+        return [
+            m["content"]
+            for m in self.messages
+            if m["role"] == "user" and isinstance(m["content"], str)
+        ]
+
+
+@dataclass
+class Usage:
+    """What one answer cost and did, for its log line and the evaluation suite (NFR-9)."""
+
+    tool_calls: list[str] = field(default_factory=list)
+    input_tokens: int = 0
+    output_tokens: int = 0
+    cache_read_tokens: int = 0
+    cache_write_tokens: int = 0
+    dollars: float | None = None  # set by backends that report a cost themselves
+
+    def add(self, usage: Any) -> None:
+        """Add an API response's usage, or Claude Code's (a dict with the same names)."""
+        if usage is None:
+            return
+
+        def tokens(name: str) -> int:
+            value = usage.get(name) if isinstance(usage, dict) else getattr(usage, name, 0)
+            return int(value or 0)
+
+        self.input_tokens += tokens("input_tokens")
+        self.output_tokens += tokens("output_tokens")
+        self.cache_read_tokens += tokens("cache_read_input_tokens")
+        self.cache_write_tokens += tokens("cache_creation_input_tokens")
+
+    def cost(self, model: str) -> float | None:
+        if self.dollars is not None:
+            return self.dollars
+        if model not in PRICES:
+            return None
+        tokens = (
+            self.input_tokens,
+            self.output_tokens,
+            self.cache_read_tokens,
+            self.cache_write_tokens,
+        )
+        return sum(n * price for n, price in zip(tokens, PRICES[model], strict=True)) / 1e6
 
 
 @dataclass(frozen=True)
@@ -134,6 +205,11 @@ class Reply:
     text: str
     cited: dict[str, Source]  # the sources this reply's text cites, by id
     seconds: float
+    # The grounding check (FR-14): on the answer first given, and on the one shown
+    first_attempt: Grounding | None = None
+    grounding: Grounding | None = None
+    retried: bool = False
+    usage: Usage = field(default_factory=Usage)
 
 
 class Coach:
@@ -179,20 +255,43 @@ class Coach:
     def system_prompt(self, as_of: date) -> str:
         return SYSTEM.format(coach_name=self.coach_name, as_of=as_of)
 
+    # Whether a failed grounding check gets one retry before the safe message (decision 3)
+    retries_grounding = True
+
     def answer(self, tools: ToolGateway, conversation: Conversation, question: str) -> Reply:
         started = perf_counter()
         turn_start, first_source = len(conversation.messages), len(conversation.sources)
         conversation.messages.append({"role": "user", "content": question})
+        usage = Usage()
 
         def roll_back() -> None:
             # Only a turn that ended cleanly stays in the history: anything else (a refusal, a
             # truncated answer, an error) would make the API reject every later question
             del conversation.messages[turn_start:]
             del conversation.sources[first_source:]
+            del conversation.payloads[first_source:]
+            conversation.backend_state.pop("pending", None)
 
         unavailable: tuple[type[Exception], ...] = (*self.unavailable, ToolsUnavailableError)
+        first: Grounding | None = None
+        grounding: Grounding | None = None
+        retried = False
         try:
-            text, complete = self._loop(tools, conversation)
+            text, complete = self._loop(tools, conversation, usage)
+            if complete:
+                first = grounding = self.check(tools, conversation, text)
+            if grounding is not None and not grounding.ok and self.retries_grounding:
+                # Drop only the failed answer: the turn's tool calls and results stay, and the
+                # system message follows the last tool_result or user message (design §3)
+                failed = conversation.messages.pop()
+                assert failed["role"] == "assistant"
+                numbers = ", ".join(grounding.unmatched)
+                conversation.messages.append(
+                    {"role": "system", "content": RETRY.format(numbers=numbers)}
+                )
+                retried = True
+                text, complete = self._loop(tools, conversation, usage)
+                grounding = self.check(tools, conversation, text) if complete else None
         except unavailable as error:
             log.warning("coach unavailable: %s", type(error).__name__)
             roll_back()
@@ -200,14 +299,63 @@ class Coach:
         except Exception:
             roll_back()
             raise
-        if not complete:
+        if complete and grounding is not None and not grounding.ok:
+            log.warning("coach answer failed the grounding check: %s", grounding.unmatched)
+            text, complete = UNGROUNDED, False
+        if complete:
+            self._keep(conversation, text)
+        else:
             roll_back()
         cited = {
             f"S{i + 1}": s for i, s in enumerate(conversation.sources) if f"[S{i + 1}]" in text
         }
-        return Reply(text, cited, perf_counter() - started)
+        reply = Reply(text, cited, perf_counter() - started, first, grounding, retried, usage)
+        self._log(reply)
+        return reply
 
-    def _loop(self, tools: ToolGateway, conversation: Conversation) -> tuple[str, bool]:
+    def check(self, tools: ToolGateway, conversation: Conversation, text: str) -> Grounding:
+        """The grounding check on an answer, against this conversation's tool results."""
+        payloads = {f"S{i + 1}": p for i, p in enumerate(conversation.payloads)}
+        constants = instruction_numbers(
+            self.system_prompt(tools.as_of), *(spec["description"] for spec in tools.specs)
+        )
+        return check(text, payloads, conversation.user_texts(), constants=constants)
+
+    def _keep(self, conversation: Conversation, text: str) -> None:
+        """A turn that ended cleanly and passed the check stays in the history; the API loop has
+        already appended it."""
+
+    def _log(self, reply: Reply) -> None:
+        """One line per answer (design §7): never the question, the answer or transaction text."""
+        usage = reply.usage
+        cost = usage.cost(self.model)
+        log.info(
+            "coach answer %s",
+            json.dumps(
+                {
+                    "backend": self.backend,
+                    "credential": self.credential_source,
+                    "model": self.model,
+                    "effort": self.effort,
+                    "seconds": round(reply.seconds, 2),
+                    "tool_calls": usage.tool_calls,
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                    "cache_read_tokens": usage.cache_read_tokens,
+                    "dollars": None if cost is None else round(cost, 5),
+                    "first_attempt_grounded": None
+                    if reply.first_attempt is None
+                    else reply.first_attempt.ok,
+                    "grounded": None if reply.grounding is None else reply.grounding.ok,
+                    "retried": reply.retried,
+                },
+                separators=(",", ":"),
+            ),
+        )
+
+    def _loop(
+        self, tools: ToolGateway, conversation: Conversation, usage: Usage
+    ) -> tuple[str, bool]:
         """The answer, and whether the turn ended cleanly (kept in the history)."""
         system = [
             {
@@ -227,6 +375,7 @@ class Coach:
                 betas=[FALLBACK_BETA],
                 fallbacks="default",
             )
+            usage.add(getattr(response, "usage", None))
             # Append the whole content (thinking and fallback blocks included), never edit it
             conversation.messages.append({"role": "assistant", "content": response.content})
             if response.stop_reason == "refusal":
@@ -237,6 +386,7 @@ class Coach:
             if response.stop_reason != "tool_use" or not calls:
                 text = "".join(b.text for b in response.content if b.type == "text").strip()
                 return (text, True) if text else (EMPTY, False)
+            usage.tool_calls.extend(c.name for c in calls)
             conversation.messages.append(
                 {"role": "user", "content": [self._run(tools, conversation, c) for c in calls]}
             )
@@ -262,7 +412,9 @@ class Coach:
             if not isinstance(error, ToolError):
                 log.exception("tool %s failed", name)
             return (str(error) if isinstance(error, ToolError) else f"{name} failed"), True
-        payload = {"source_id": conversation.source_id(result.source), **result.data}
+        source = conversation.source_id(result.source)
+        payload = {"source_id": source, **result.data}
+        conversation.payloads[-1] = payload
         return json.dumps(payload, separators=(",", ":")), False
 
 

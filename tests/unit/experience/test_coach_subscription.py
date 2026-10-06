@@ -20,6 +20,7 @@ from smart_financial_coach.access.tools import Tools
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience import coach_subscription
 from smart_financial_coach.experience.coach import (
+    UNGROUNDED,
     Coach,
     CoachUnavailableError,
     Conversation,
@@ -143,14 +144,11 @@ def test_the_backend_setting_picks_the_coach(monkeypatch: pytest.MonkeyPatch) ->
 def test_it_runs_the_api_coachs_settings_with_only_the_coachs_tools(
     tools: Tools, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    spent = tools.call("get_spending_summary", SEPTEMBER).data["spending"]
+    text = f"You spent ${spent:,.2f} [S1]."
     sdk = FakeAgentSdk(
         monkeypatch,
-        [
-            init(),
-            call("get_spending_summary", SEPTEMBER),
-            answer("You spent $1,000.00 [S1].", "a1"),
-            result("You spent $1,000.00 [S1].", "s1"),
-        ],
+        [init(), call("get_spending_summary", SEPTEMBER), answer(text, "a1"), result(text, "s1")],
     )
     coach = wren()
 
@@ -172,7 +170,7 @@ def test_it_runs_the_api_coachs_settings_with_only_the_coachs_tools(
     payload = json.loads(output["content"][0]["text"])
     assert payload["source_id"] == "S1"
     assert payload["spending"] == tools.call("get_spending_summary", SEPTEMBER).data["spending"]
-    assert reply.text == "You spent $1,000.00 [S1]."
+    assert reply.text == text
     assert reply.cited["S1"].title == "Spending summary · Sep 2026"
     assert coach.credential_source == "subscription"
 
@@ -272,3 +270,24 @@ def test_it_stops_if_claude_code_runs_on_anything_but_the_login(
     with pytest.raises(SubscriptionNotAllowedError, match="ANTHROPIC_API_KEY"):
         coach.answer(tools, Conversation(), "x")
     assert coach.credential_source == "ANTHROPIC_API_KEY"
+
+
+def test_an_untraceable_number_gets_the_safe_message_with_no_retry(
+    tools: Tools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    sdk = FakeAgentSdk(
+        monkeypatch,
+        [init(), call("get_spending_summary", SEPTEMBER), answer("$1.00 [S1].", "a1"),
+         result("You spent $1.00 [S1].", "s1")],
+        [init(), answer("Hello.", "a2"), result("Hello.", "s2")],
+    )  # fmt: skip
+    coach, conversation = wren(), Conversation()
+
+    reply = coach.answer(tools, conversation, "How much did I spend?")
+    coach.answer(tools, conversation, "Hi")
+
+    assert reply.text == UNGROUNDED
+    assert not reply.retried  # one Claude Code run: no retry on this backend (design §3)
+    assert conversation.sources == []
+    # The failed turn isn't resumed from: the next question starts afresh
+    assert sdk.options[1].resume is None

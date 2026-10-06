@@ -18,6 +18,7 @@ from pydantic import SecretStr
 from smart_financial_coach.access.goal_forecasts import (
     HISTORY_POINTS,
     MONTHLY_POINTS,
+    chance_words,
     first_entries,
     forecast_fields,
     saved_history,
@@ -91,8 +92,10 @@ def test_list_goals_gives_running_goals_a_status(page: Tools) -> None:
     vacation = goals["Vacation fund"]
     assert vacation["forecast_status"] in ("on_track", "either_way", "off_track")
     assert 0 <= vacation["p_goal_met"] <= 1
+    assert vacation["chance_words"] == chance_words(vacation["p_goal_met"])  # as the page says it
     assert goals["New laptop"]["forecast_status"] == "reached"
     assert goals["New laptop"]["p_goal_met"] is None
+    assert goals["New laptop"]["chance_words"] is None
     assert "forecast_status" not in goals["College fund"]  # ended: nothing to forecast
 
 
@@ -115,6 +118,8 @@ def test_forecast_goal_states_the_band_range_and_top_up(page: Tools, ledger: Led
     # The history: each month since it was created, before this one, under the same share
     assert [h["month"] for h in f["history"]] == [f"2026-{m:02d}" for m in range(1, 9)]
     assert all(0 <= h["saved"] <= 3000 for h in f["history"])
+    assert f["estimates"] == ["history"]  # the coach says the history is an estimate (FR-14)
+    assert f["chance_words"] == chance_words(f["p_goal_met"])
     assert result.source.title == "Goal forecast · Vacation fund"
     # The same answer every time (NFR-8)
     assert page.call("forecast_goal", {"goal_id": "g_x_1"}).data == f
@@ -146,7 +151,7 @@ def test_a_reached_goal_hides_its_chance_range_and_top_up(page: Tools) -> None:
     f = page.call("forecast_goal", {"goal_id": "g_x_2"}).data
 
     assert f["status"] == "reached"
-    for hidden in ("p_goal_met", "range", "gap", "extra_per_month"):
+    for hidden in ("p_goal_met", "chance_words", "range", "gap", "extra_per_month"):
         assert f[hidden] is None
     assert isinstance(f["may_draw_down"], bool)
     assert f["monthly"] == []

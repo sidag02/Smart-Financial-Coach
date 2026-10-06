@@ -1,7 +1,9 @@
 """The coach runs tools for the session's user, cites their sources, and fails clearly."""
 
 import json
+import logging
 from datetime import date
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -11,6 +13,7 @@ from smart_financial_coach.access.tools import Tools
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.coach import (
     FALLBACK_BETA,
+    UNGROUNDED,
     Coach,
     CoachUnavailableError,
     Conversation,
@@ -33,16 +36,24 @@ def tool_results(request: dict[str, Any]) -> list[dict[str, Any]]:
     return list(request["messages"][-1]["content"])
 
 
+def spent(tools: Tools) -> str:
+    """September's spending as the coach would write it, from the tool."""
+    return f"${tools.call('get_spending_summary', SEPTEMBER).data['spending']:,.2f}"
+
+
 def test_answers_from_tool_results_and_cites_them(tools: Tools) -> None:
+    answer = f"You spent {spent(tools)} [S1] in September."
     client = FakeClient(
         response(tool_use("get_spending_summary", SEPTEMBER)),
-        response(text("You spent $1,000.00 [S1] in September.")),
+        response(text(answer)),
     )
     conversation = Conversation()
 
     reply = coach(client).answer(tools, conversation, "How much did I spend?")
 
-    assert reply.text == "You spent $1,000.00 [S1] in September."
+    assert reply.text == answer
+    assert reply.grounding is not None
+    assert reply.grounding.ok
     assert list(reply.cited) == ["S1"]
     assert reply.cited["S1"].title == "Spending summary · Sep 2026"
     (result,) = tool_results(client.requests[1])
@@ -193,3 +204,85 @@ def test_system_prompt_states_the_rules() -> None:
     assert "needs_confirmation" in prompt  # bulk category changes are asked about first
     assert "only when the person asks" in prompt
     assert "never call a charge fraud" in prompt
+    assert "chance_words" in prompt  # chances as the Goals page says them
+    assert '"estimates"' in prompt  # estimated numbers are said to be estimates (FR-14)
+
+
+def test_an_answer_with_an_untraceable_number_is_retried_once(tools: Tools) -> None:
+    good = f"You spent {spent(tools)} [S1] in September."
+    client = FakeClient(
+        response(tool_use("get_spending_summary", SEPTEMBER)),
+        response(text("You spent $1.00 [S1] in September.")),
+        response(text(good)),
+    )
+    conversation = Conversation()
+
+    reply = coach(client).answer(tools, conversation, "How much did I spend?")
+
+    assert reply.text == good
+    assert reply.retried
+    assert reply.first_attempt is not None
+    assert reply.first_attempt.unmatched == ("$1.00",)
+    assert reply.grounding is not None
+    assert reply.grounding.ok
+    # Only the failed answer is dropped: the tool call and its result stay, and the system
+    # message follows the tool result (an assistant answer before it would be a 400)
+    retry = client.requests[2]["messages"]
+    assert [m["role"] for m in retry] == ["user", "assistant", "user", "system"]
+    assert retry[2]["content"][0]["type"] == "tool_result"
+    assert "$1.00" in retry[3]["content"]
+    assert [m["role"] for m in conversation.messages] == [
+        "user", "assistant", "user", "system", "assistant",
+    ]  # fmt: skip
+
+
+def test_an_answer_that_fails_twice_gets_the_safe_message(tools: Tools) -> None:
+    client = FakeClient(
+        response(tool_use("get_spending_summary", SEPTEMBER)),
+        response(text("You spent $1.00 [S1].")),
+        response(text("You spent $2.00 [S1].")),
+        response(text("Hello.")),
+    )
+    conversation = Conversation()
+    wren = coach(client)
+
+    reply = wren.answer(tools, conversation, "How much did I spend?")
+
+    assert reply.text == UNGROUNDED
+    assert reply.cited == {}
+    assert reply.grounding is not None
+    assert reply.grounding.unmatched == ("$2.00",)
+    assert conversation.messages == []  # the whole turn is rolled back
+    assert conversation.sources == []
+    assert conversation.payloads == []
+    assert wren.answer(tools, conversation, "Hi").text == "Hello."
+
+
+def test_each_answer_logs_its_cost_and_check_but_not_the_words(
+    tools: Tools, caplog: pytest.LogCaptureFixture
+) -> None:
+    final = response(text(f"You spent {spent(tools)} [S1]."))
+    final.usage = SimpleNamespace(
+        input_tokens=1000,
+        output_tokens=100,
+        cache_read_input_tokens=2000,
+        cache_creation_input_tokens=0,
+    )
+    client = FakeClient(response(tool_use("get_spending_summary", SEPTEMBER)), final)
+    wren = Coach(client, coach_name="Wren", model="claude-sonnet-5-5", effort="low")
+
+    with caplog.at_level(logging.INFO, logger="smart_financial_coach.experience.coach"):
+        reply = wren.answer(tools, Conversation(), "How much did I spend on secret things?")
+
+    assert reply.usage.tool_calls == ["get_spending_summary"]
+    assert reply.usage.cost("claude-sonnet-5-5") == pytest.approx(
+        (1000 * 2 + 100 * 10 + 2000 * 0.2) / 1e6
+    )
+    (line,) = [r.getMessage() for r in caplog.records if r.getMessage().startswith("coach answer")]
+    logged = json.loads(line.removeprefix("coach answer "))
+    assert logged["grounded"] is True
+    assert logged["first_attempt_grounded"] is True
+    assert logged["tool_calls"] == ["get_spending_summary"]
+    assert logged["dollars"] == pytest.approx(0.0034)
+    assert "secret" not in line
+    assert spent(tools) not in line

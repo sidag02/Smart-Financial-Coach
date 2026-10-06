@@ -79,9 +79,12 @@ def _ask(args: argparse.Namespace) -> int:
             print(reply.text)
             for source_id, source in reply.cited.items():
                 print(f"  [{source_id}] {source.title} · {source.detail}")
+            check = reply.first_attempt
+            grounded = "n/a" if check is None else ("yes" if check.ok else f"no {check.unmatched}")
             print(
                 f"  ({reply.seconds:.1f} s, {coach.backend} backend, {coach.model}, "
-                f"effort {coach.effort}, credential {coach.credential_source})\n"
+                f"effort {coach.effort}, credential {coach.credential_source}; "
+                f"grounded first time: {grounded}{', retried' if reply.retried else ''})\n"
             )
     return 0
 
