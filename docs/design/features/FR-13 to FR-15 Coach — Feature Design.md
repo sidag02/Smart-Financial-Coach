@@ -87,11 +87,13 @@ For the owner:
 # Ask the coach one question as a demo user, on the subscription
 sfc-coach ask --backend subscription --user u_te_yp_0030 "Why was August so high?"
 
-# Run the evaluation suite on the subscription while developing (never a gate)
+# Run the evaluation suite on the subscription while developing
 sfc-coach eval --backend subscription --out build/coach-eval.json
 
-# The release gate: the same suite on the API, with latency and cost
-sfc-coach eval --backend api --gate
+# The release gate (decision 5): grounding, safety and rubric on the subscription,
+# then latency and cost on the API, one run per case and no judge
+sfc-coach eval --backend subscription --gate
+sfc-coach eval --backend api --latency-cost
 ```
 
 ## Design
@@ -242,7 +244,7 @@ One structured log line per answer: backend, model, effort, seconds, tool calls 
 
 | Option | For | Against |
 | --- | --- | --- |
-| **(a) Claude Agent SDK with the coach's tools wrapped in process** (chosen) | Same prompt, tools, source ids and grounding check as production; no API key | Not the same loop, effort or fallback, so not a gate (§2); a new dependency |
+| **(a) Claude Agent SDK with the coach's tools wrapped in process** (chosen) | Same prompt, tools, source ids and grounding check as production; no API key | Not the same loop, effort, fallback or retry, so the gate records what ran and how it differs (§2); a new dependency |
 | (b) Point Claude Code (or Claude Desktop) at `/mcp` with a token from "Connect an assistant" | Works today with no code (FR-19) | Not the coach: Claude Code's own prompt, no source ids, no grounding check; can't be scored as the coach |
 | (c) Claude Agent SDK with Claude Code connecting to `/mcp` directly | Less wrapping | Source ids and the turn's tool results aren't visible to the coach, so the grounding check can't run |
 
