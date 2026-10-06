@@ -21,7 +21,11 @@ from typing import Any
 import pandas as pd
 
 from smart_financial_coach.access.goals import Goal, Revision
-from smart_financial_coach.intelligence.forecasting.contract import INPUT_COLUMNS
+from smart_financial_coach.intelligence.forecasting.contract import (
+    INPUT_COLUMNS,
+    OFF_TRACK,
+    ON_TRACK,
+)
 from smart_financial_coach.intelligence.forecasting.savings import run_balance
 
 SHORT_HISTORY = 6  # fewer full months: "a rough guide" (PRD risk: short histories)
@@ -77,6 +81,25 @@ def goal_rows(
     return pd.DataFrame(rows, columns=list(INPUT_COLUMNS))
 
 
+def chance_words(p: float) -> str:
+    """A probability as people say it, on the Goals pages and in the coach's answers: 0.72 ->
+    "about a 7 in 10 chance". It stays inside the status band the badge shows (review on #56):
+    "could go either way" (0.3 to 0.7) says 3 to 6 in 10, "off track" at most 2, "on track" at
+    least 7; and the ends never round to certainty."""
+    if p >= 0.95:
+        return "better than a 9 in 10 chance"
+    if p < 0.05:
+        return "less than a 1 in 10 chance"
+    tenths = round(p * 10)
+    if p < OFF_TRACK:
+        tenths = min(tenths, 2)
+    elif p < ON_TRACK:
+        tenths = min(max(tenths, 3), 6)
+    else:
+        tenths = max(tenths, 7)
+    return f"about a {max(1, min(9, tenths))} in 10 chance"
+
+
 def forecast_fields(
     out: Mapping[str, Any],
     months_of_history: int,
@@ -91,10 +114,14 @@ def forecast_fields(
     or range either: it projects the pace so far (owner decision 10 on #54)."""
     reached = out["status"] == "reached"
     extra = out["extra_per_month"]
+    p = None if reached or baseline else round(float(out["p_goal_met"]), 3)
     return {
         "method": "simple_projection" if baseline else "simulation",
         "status": out["status"],
-        "p_goal_met": None if reached or baseline else round(float(out["p_goal_met"]), 3),
+        "p_goal_met": p,
+        # The chance as the Goals page says it, for the coach to quote: the grounding check
+        # accepts exactly this phrase for `p_goal_met` (FR-13 to FR-15 design, §3)
+        "chance_words": None if p is None else chance_words(p),
         "projected_balance": money(out["projected_balance"]),
         "range": (
             None

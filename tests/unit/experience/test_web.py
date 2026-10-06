@@ -13,7 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from smart_financial_coach.access.ledger import DataSources, Ledger
-from smart_financial_coach.access.tools import DASH
+from smart_financial_coach.access.tools import DASH, Tools
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword
 from smart_financial_coach.experience.coach import Coach
@@ -124,7 +124,22 @@ def test_pages_need_a_signed_in_user(client: TestClient) -> None:
         "users": 2,
         "spikes": None,
         "presets": {"unusual_charges": False, "spending_spikes": False},
+        "coach": None,  # no key: chat is off
     }
+
+
+def test_healthz_says_which_coach_serves_chat_but_never_the_key(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    wren = Coach(FakeClient(), coach_name="Wren", model="claude-sonnet-5-5", effort="low")
+    with make_client(sources, accounts, coach=wren) as c:
+        health = c.get("/healthz")
+    assert health.json()["coach"] == {
+        "backend": "api",
+        "model": "claude-sonnet-5-5",
+        "effort": "low",
+    }
+    assert "sk-" not in health.text
 
 
 def test_sign_in_checks_email_and_password(client: TestClient) -> None:
@@ -324,11 +339,14 @@ def test_chat_without_a_coach_says_it_is_unavailable(client: TestClient) -> None
 
 
 def test_chat_answers_with_source_chips(sources: DataSources, accounts: list[Account]) -> None:
+    september = {"start_date": "2026-09-01", "end_date": "2026-09-30"}
+    maya = next(a for a in accounts if a.email == "maya@example.com")
+    summary = Tools(Ledger.load(sources, maya.user_id)).call("get_spending_summary", september)
+    spent = f"${summary.data['spending']:,.0f}"
     fake = FakeClient(
-        response(
-            tool_use("get_spending_summary", {"start_date": "2026-09-01", "end_date": "2026-09-30"})
-        ),
-        response(text("You spent **$1,000** [S1] in September.\n- One <b>thing</b>")),
+        response(tool_use("get_spending_summary", september)),
+        # Maya's real total: the grounding check would replace a made-up one (FR-14)
+        response(text(f"You spent **{spent}** [S1] in September.\n- One <b>thing</b>")),
         api_error(),
     )
     wren = Coach(fake, coach_name="Wren", model="m")
@@ -339,7 +357,7 @@ def test_chat_answers_with_source_chips(sources: DataSources, accounts: list[Acc
             '<span class="src-chip" title="Spending summary · Sep 2026" data-src="S1">1</span>'
             in reply
         )
-        assert "<b>$1,000</b>" in reply
+        assert f"<b>{spent}</b>" in reply
         assert "&lt;b&gt;thing&lt;/b&gt;" in reply  # model text is escaped
         assert 'hx-swap-oob="true"' in reply  # the sources panel updates too
         assert "How much did I spend?" in c.get("/chat").text  # kept for a reload

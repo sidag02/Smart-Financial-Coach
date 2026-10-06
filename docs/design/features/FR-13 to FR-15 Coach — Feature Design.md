@@ -168,6 +168,15 @@ A deterministic check runs on every answer before it's shown, in both backends. 
 
 **How well it catches wrong numbers is measured, not assumed.** A unit test takes realistic tool payloads (the four demo accounts' results for the suite's questions) and draws plausible wrong numbers: each true value moved by 3–50% and rounded the way the coach rounds, plus random amounts in the payload's range. Each is cited the way the coach would cite it. The false-accept rate is how many pass. Targets: ≤ 1% for direct numbers and ≤ 5% for derived ones (decision 8). A hand-written set of correct answers measures the opposite error, correct numbers rejected. Its target is ≤ 2%, because at serving a false reject replaces a correct answer with the safe message, which hurts the demo and fails the case in the gate. Both rates go in the results report.
 
+**As built and measured (M2, `tests/unit/experience/test_grounding_rates.py`):** the test data's two test users' summaries (six spans), alerts, largest transactions, review items, goals and forecasts, through the real tools. False rejects 0.00% of 1,229 correct numbers. False accepts: direct 0.60% of 995 (amounts 0.23% of 876, counts 3.4% of 119), derived 1.65% of 605. All within decision 8's targets. Two rules were added to get there, both from the first measurement:
+
+- **Amounts and counts don't mix.** The tools return money as floats and counts as integers, so "$4" never matches a count of 4, and "83 transactions" never matches $83. Before this, a wrong small dollar amount often matched some count.
+- **Only amounts are added or subtracted.** Small counts are dense: with sums and differences of counts allowed, 25% of wrong counts passed. Without them, 3.4% pass. The coach quotes both counts ("51 purchases, against about 27 usually") instead of "24 more", and the prompt says so.
+
+The CI test uses the test dataset rather than the demo bundle, which CI doesn't have; both come from the same generator.
+
+**A change to the accepted rule "every number needs a source id" (M3, review on #75):** a number in a sentence with no tags takes every tag in its paragraph. People cite a list once, at its end, and the baseline run failed correct answers like that. A paragraph never borrows another paragraph's tags, and the prompt asks for a source id in every paragraph with a number. Measured where it's loosest, a paragraph citing two results with an untagged line under it (`test_grounding_rates.py`): false rejects 0.00% of 355, false accepts 0.14% of 710.
+
 **Why false accepts exist at all:** the check matches values, not meaning. A real value attached to the wrong label passes, for example "$412 on groceries" when $412 is dining. The suite's required facts, each tied to a named field, catch those, and they're what NFR-1's ≥ 95% measures. Field-level citations would close the gap in the check itself (a non-goal for now; decision 8).
 
 **When a number fails** (option B-b, decision 3):
@@ -226,7 +235,7 @@ These need no new mechanism; they need measuring.
 
 Two separate switches, and neither needs this design's code:
 
-- **Whether chat is live:** the key. Put it in `.env` and run `deploy/azure/set-llm-key.sh`, which sets the secret and restarts the app with `SFC_LLM_API_KEY`. The deployment has no key today, so chat isn't live there at all.
+- **Whether chat is live:** the key. The owner adds it by hand as the container app's `llm-api-key` secret in the Azure Portal, never in `.env` or the repo (owner, Oct 6, 2026). `deploy/azure/enable-chat.sh` then points `SFC_LLM_API_KEY` at it and restarts the app. The deployment has no key today, so chat isn't live there at all.
 - **Which model:** `SFC_LLM_MODEL` on the container app. Setting it to `claude-sonnet-5-5` switches the model today. Changing the default in code (M1) only matters for new deployments.
 
 Then:
@@ -294,6 +303,16 @@ One structured log line per answer: backend, model, effort, seconds, tool calls 
 
 **All four ship before the Oct 6 demo, in order, as a stack of small PRs once this design is accepted** (owner decision 6).
 
+## Status (Oct 6, 2026)
+
+- **M1** (#73) is merged. **M2** (#74) is in review; the reviewer's fixes are in, and the owner still has to decide on counts' false-accept rate.
+- **M3:** the suite is built, and the gate ran on the subscription at b122232: grounding 94.6% (35 of 37 cases, one short of 95%), safety 100%, rubric 4.21. Both misses were the coach counting rows and rounding to thousands. A prompt rule followed (55e2a48), and the confirmation run on it met every target: grounding 100%, safety 100%, rubric 4.25 ([FR-13 to FR-15 Coach — Results](../../reports/FR-13%20to%20FR-15%20Coach%20—%20Results.md)).
+- **Still to do before go-live:**
+  - the API latency and cost run, which needs a key on the owner's machine;
+  - the owner's hand-check of 10 judge scores;
+  - the owner's go-live call if grounding stays under 95% (decision 6).
+- **M4:** the scripts and `/healthz` are ready on `feature/fr13-15-m4-live`.
+
 ## Decisions and open questions
 
 Each decision is the owner's, as posted on #72. Decided: 1–8.
@@ -306,3 +325,4 @@ Each decision is the owner's, as posted on #72. Decided: 1–8.
 6. **The Oct 6 demo:** chat goes live today, with all of M1 to M4 shipped before the demo, not just the key. **Decided** (owner, Oct 6, 2026, recorded on #72 by the reviewer). The milestones go in order. M3's results report gives Sonnet 5.5's grounding, safety and rubric before M4 sets the key. If a target misses, the owner decides whether chat still goes live. M4's post-deploy check is the go-live gate.
 7. **The API key:** a $20 spending cap, live for the demo only. `chat_messages_per_hour_total` is sized from M3's dollars per answer so the cap lasts the demo (§6, step 4). **Decided** (owner, Oct 6, 2026, on #72).
 8. **The grounding check's targets:** false accepts ≤ 1% for direct numbers and ≤ 5% for derived ones, on realistic payloads; false rejects ≤ 2% on the hand-written set of correct answers (§3). M2 reports the measured rates. If derived numbers can't reach 5%, the coach stops deriving and quotes the two values instead. Field-level citations are a follow-up after the demo, not in M1–M4 (non-goals). **Decided** (owner, Oct 6, 2026, on #72).
+   - **8a, counts** (owner, Oct 6, 2026, on #74): counts are accepted at about 7% false accepts for v1. Small whole numbers are dense, so a wrong count often equals another count in the same result. Measured per kind in M2 (`test_grounding_rates.py`): false rejects 0.00% of 1,259; false accepts for amounts 0.00% of 756, percentages 0.00% of 180, derived numbers 0.50% of 605, counts 7.19% of 139. The test keeps a 10% regression bound for counts, and the other kinds stay at the targets above. Field-level citations are what close the gap.

@@ -95,4 +95,17 @@ The subscription backend needs the dev dependencies (`claude-agent-sdk`) and a l
 
 ### Demo deployment (Azure)
 
-`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/set-llm-key.sh` passes the Anthropic key from `.env` to the app as a secret; `deploy/azure/teardown.sh` deletes everything.
+`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/teardown.sh` deletes everything.
+
+Chat goes live when the app has an Anthropic key (FR-13 to FR-15 design, §6). It's on for every signed-in visitor, and `/healthz` reports the coach's model, never the key. The key is added by hand to the container app and never goes into `.env`, the repo or a script:
+
+1. **Azure Portal → Container Apps → `sfc-web` → Settings → Secrets → Add.** Name it `llm-api-key` and paste the key as the value.
+2. **Run `enable-chat.sh`:**
+
+   ```bash
+   CHAT_TOTAL_PER_HOUR=150 deploy/azure/enable-chat.sh   # points the app at the secret; checks chat
+   deploy/azure/check-chat.sh                            # a demo user's question, sourced and grounded
+   deploy/azure/remove-llm-key.sh                        # chat off again after the demo
+   ```
+
+`enable-chat.sh` sets `SFC_LLM_API_KEY` to a reference to that secret (`secretref:llm-api-key`), so the key itself never shows in the app's environment variables. It also pins `SFC_LLM_MODEL` (default `claude-sonnet-5-5`) and sets the total chat limit. Size the limit to the key's spending cap: at most the cap divided by (dollars per answer × demo hours). You can make the same environment-variable changes in the Portal (Containers → Environment variables) instead. `check-chat.sh` reads the demo password from the app's own secret, and costs one answer.

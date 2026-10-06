@@ -32,6 +32,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from smart_financial_coach.access.alerts import AlertStore
 from smart_financial_coach.access.feedback import FeedbackStore
+from smart_financial_coach.access.goal_forecasts import chance_words
 from smart_financial_coach.access.goals import GoalStore
 from smart_financial_coach.access.ledger import INCOME, DataSources, Ledger
 from smart_financial_coach.access.mcp_client import McpTools
@@ -63,7 +64,6 @@ from smart_financial_coach.intelligence.categorization.agreement import (
     current_votes,
     global_labels,
 )
-from smart_financial_coach.intelligence.forecasting.contract import OFF_TRACK, ON_TRACK
 
 log = logging.getLogger(__name__)
 
@@ -153,25 +153,6 @@ def month_name(key: str, long: bool = False) -> str:
     """ "2026-09" -> "Sep", or "Sep 2026" when long."""
     d = date.fromisoformat(f"{key}-01")
     return f"{d:%b %Y}" if long else f"{d:%b}"
-
-
-def chance(p: float) -> str:
-    """A probability as people say it: 0.72 -> "about a 7 in 10 chance". It stays inside the
-    status band the badge shows (review on #56): "could go either way" (0.3 to 0.7) says 3 to 6
-    in 10, "off track" at most 2, "on track" at least 7; and the ends never round to
-    certainty."""
-    if p >= 0.95:
-        return "better than a 9 in 10 chance"
-    if p < 0.05:
-        return "less than a 1 in 10 chance"
-    tenths = round(p * 10)
-    if p < OFF_TRACK:
-        tenths = min(tenths, 2)
-    elif p < ON_TRACK:
-        tenths = min(max(tenths, 3), 6)
-    else:
-        tenths = max(tenths, 7)
-    return f"about a {max(1, min(9, tenths))} in 10 chance"
 
 
 def _mean(values: list[Any]) -> float | None:
@@ -355,7 +336,7 @@ def create_app(
         app.mount("/mockups", StaticFiles(directory=MOCKUPS_DIR), name="mockups")
 
     templates = Jinja2Templates(directory=HERE / "templates")
-    templates.env.filters.update(money=money, day=day, month_name=month_name, chance=chance)
+    templates.env.filters.update(money=money, day=day, month_name=month_name, chance=chance_words)
     templates.env.globals.update(
         coach_name=settings.coach_name,
         quick_signin=settings.quick_signin,
@@ -480,6 +461,10 @@ def create_app(
                 "users": len(accounts),
                 "spikes": spike_method,
                 "presets": presets_live,
+                # Whether chat is live and on what (FR-13 to FR-15 design, §6); never the key
+                "coach": None
+                if coach is None
+                else {"backend": coach.backend, "model": coach.model, "effort": coach.effort},
             }
         )
 

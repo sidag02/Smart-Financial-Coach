@@ -10,11 +10,12 @@ from typing import Any
 import pytest
 from fastapi.testclient import TestClient
 
+from smart_financial_coach.access.goal_forecasts import chance_words as chance
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.tools import Tools
 from smart_financial_coach.data.store import load_goals
 from smart_financial_coach.experience.accounts import Account
-from smart_financial_coach.experience.web.app import chance, money
+from smart_financial_coach.experience.web.app import money
 from smart_financial_coach.experience.web.charts import goal_projection, scale, short_money
 from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history

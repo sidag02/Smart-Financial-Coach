@@ -48,6 +48,7 @@ from smart_financial_coach.experience.coach import (
     TOO_MANY_STEPS,
     Coach,
     Conversation,
+    Usage,
 )
 
 log = logging.getLogger(__name__)
@@ -91,6 +92,10 @@ def check_allowed(settings: Settings, environ: Mapping[str, str] = os.environ) -
 class SubscriptionCoach(Coach):
     backend = "subscription"
     unavailable = (ClaudeSDKError,)
+    # No grounding retry: the Agent SDK has no mid-conversation system message, and a follow-up
+    # user turn would leave the failed answer in the session (design §3). A failing answer goes
+    # straight to the safe message
+    retries_grounding = False
 
     def __init__(
         self, *, coach_name: str, model: str, effort: str = "low", cwd: Path | None = None
@@ -135,16 +140,25 @@ class SubscriptionCoach(Coach):
             fork_session="session_id" in state,
         )
 
-    def _loop(self, tools: ToolGateway, conversation: Conversation) -> tuple[str, bool]:
+    def _loop(
+        self, tools: ToolGateway, conversation: Conversation, usage: Usage
+    ) -> tuple[str, bool]:
         question = conversation.messages[-1]["content"]
         specs = tools.specs  # before the private event loop: McpTools blocks on its own
-        text, complete = anyio.run(self._ask, tools, conversation, specs, question)
-        if complete:
-            conversation.messages.append({"role": "assistant", "content": text})
-        return text, complete
+        return anyio.run(self._ask, tools, conversation, specs, question, usage)
+
+    def _keep(self, conversation: Conversation, text: str) -> None:
+        """The next question resumes after this answer, now that it passed the check."""
+        conversation.backend_state.update(conversation.backend_state.pop("pending"))
+        conversation.messages.append({"role": "assistant", "content": text})
 
     async def _ask(
-        self, tools: ToolGateway, conversation: Conversation, specs: list[ToolSpec], question: str
+        self,
+        tools: ToolGateway,
+        conversation: Conversation,
+        specs: list[ToolSpec],
+        question: str,
+        usage: Usage,
     ) -> tuple[str, bool]:
         lost: list[ToolsUnavailableError] = []  # the MCP server failed: no tools at all
 
@@ -152,6 +166,7 @@ class SubscriptionCoach(Coach):
             name = spec["name"]
 
             async def handler(arguments: dict[str, Any]) -> dict[str, Any]:
+                usage.tool_calls.append(name)
                 try:
                     content, is_error = await anyio.to_thread.run_sync(
                         self.run_tool, tools, conversation, name, dict(arguments)
@@ -186,6 +201,8 @@ class SubscriptionCoach(Coach):
             raise lost[0]
         if result is None:
             raise ClaudeSDKError("Claude Code ended without a result")
+        usage.add(result.usage)
+        usage.billed = False  # tokens only: the subscription isn't charged per answer (§7)
         if result.stop_reason == "refusal":
             return REFUSED, False
         if result.subtype == "error_max_turns":
@@ -197,5 +214,6 @@ class SubscriptionCoach(Coach):
         text = (result.result or "").strip()
         if not text:
             return EMPTY, False
-        state.update(session_id=result.session_id, resume_at=last_answer)
+        # Kept only if the answer passes the grounding check (`_keep`)
+        state["pending"] = {"session_id": result.session_id, "resume_at": last_answer}
         return text, True
