@@ -3,6 +3,7 @@ goals, the fit badge, the short-history notice and the assumption line."""
 
 import re
 from collections.abc import Iterator
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +15,7 @@ from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.tools import Tools
 from smart_financial_coach.data.store import load_goals
 from smart_financial_coach.experience.accounts import Account
+from smart_financial_coach.experience.web.app import money
 from smart_financial_coach.experience.web.charts import goal_projection, scale, short_money
 from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
@@ -278,3 +280,19 @@ def test_the_overview_goal_card_follows_the_period(client: TestClient, tools: To
     assert "See how it got here" in page
     # This month's card is today's goal, with its forecast
     assert "end of" not in client.get("/").text
+
+
+def test_the_overview_shows_savings_and_what_went_to_goals(
+    client: TestClient, tools: Tools
+) -> None:
+    page = client.get("/?month=2026-08&horizon=quarter").text
+    summary = tools.get_spending_summary("2026-06-01", "2026-08-31").data
+    goals = tools.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert goals is not None
+    assert "Savings, Jun 1" in page
+    assert f'<div class="big">{money(summary["net"])}</div>' in page
+    assert f'Set aside in goals by Aug 2026</span><b class="num">${goals["held"]:,.0f}' in page
+    if goals["to_goals"] > 0:
+        assert "To your goals" in page
+        assert '<div class="lbl">To goals</div>' in page
+        assert f"To goals ${goals['to_goals']:,.0f} (estimated)" in page
