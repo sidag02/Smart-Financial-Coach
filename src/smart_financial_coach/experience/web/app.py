@@ -1105,8 +1105,10 @@ def create_app(
         forecast = tools.forecast_goal(goal_id).data
         live = forecast.get("status") not in ("not_available", "ended")
         projection = (
-            charts.goal_projection(goal["saved"], goal["target_amount"], forecast["monthly"])
-            if live and forecast["monthly"]
+            charts.goal_projection(
+                goal["saved"], goal["target_amount"], forecast["monthly"], forecast["history"]
+            )
+            if live and (forecast["monthly"] or forecast["history"])
             else None
         )
         return page(

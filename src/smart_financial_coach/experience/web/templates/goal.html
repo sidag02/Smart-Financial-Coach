@@ -27,13 +27,15 @@
   <section class="card stack">
     <div class="card-head"><b>{% if simple %}Saved so far{% else %}Saved so far, and where it's likely headed{% endif %}</b></div>
     {% if projection %}
-    <div class="projection" role="img" aria-label="{{ goal.name }}: {{ goal.saved | money }} saved now; likely {{ f.projected_balance | money }} by {{ goal.target_date | day }}, between {{ f.range.low | money }} and {{ f.range.high | money }}">
+    <div class="projection" role="group" aria-label="{{ goal.name }}: {{ goal.saved | money }} saved now{% if f.projected_balance is not none and f.status != 'reached' %}; likely {{ f.projected_balance | money }} by {{ goal.target_date | day }}{% if f.range %}, between {{ f.range.low | money }} and {{ f.range.high | money }}{% endif %}{% endif %}">
       <div class="plots">
+        {% for g in projection.grid %}<div class="grid" style="bottom:{{ g.at }}" aria-hidden="true"><span>{{ g.label }}</span></div>{% endfor %}
         <div class="target" style="bottom:{{ projection.target }}"><span>Goal {{ goal.target_amount | money }}</span></div>
         {% for c in projection.columns %}
-        <div class="plot">
-          {% if c.now %}<div class="now" style="height:{{ c.bar }}"></div>
-          {% else %}<div class="band" style="bottom:{{ c.band_bottom }};height:{{ c.band_height }}"></div><div class="mark" style="bottom:{{ c.mark }}"></div>{% endif %}
+        <div class="plot {{ c.kind }}" tabindex="0" aria-label="{{ c.tip }}">
+          {% if c.kind == "future" %}<div class="band" style="bottom:{{ c.band_bottom }};height:{{ c.band_height }}"></div><div class="mark" style="bottom:{{ c.mark }}"></div>
+          {% else %}<div class="{{ c.kind }}-bar" style="height:{{ c.bar }}"></div>{% endif %}
+          <div class="chart-tip" role="tooltip" aria-hidden="true">{{ c.tip }}</div>
         </div>
         {% endfor %}
       </div>
@@ -41,7 +43,12 @@
         {% for c in projection.columns %}<div>{{ c.label }}</div>{% endfor %}
       </div>
     </div>
-    <div class="muted" style="font-size:13px">The shaded range is where you'll likely be each month (an 8 in 10 chance); the line is the most likely amount.</div>
+    <div class="legend goal-legend">
+      {% if projection.past %}<span><i class="key past"></i>Saved, estimated from your monthly savings</span>{% endif %}
+      <span><i class="key now"></i>Saved now</span>
+      {% if not simple and projection.columns | selectattr("kind", "equalto", "future") | list %}<span><i class="key band"></i>Likely range (8 in 10 chance)</span><span><i class="key mark"></i>Most likely amount</span>{% endif %}
+    </div>
+    <div class="muted" style="font-size:13px">Point at a month to see its amount.{% if projection.past %} Goals are money set aside within your savings, so earlier months are estimated from the share of your savings this goal gets.{% endif %}</div>
     {% else %}
     <div><span class="mid">{{ goal.saved | money }}</span> <span class="muted">of {{ goal.target_amount | money }}</span></div>
     <div class="track"><div style="width:{{ [100, (goal.saved / goal.target_amount * 100) | round(1)] | min }}%"></div></div>

@@ -387,7 +387,28 @@ table.retrain td { padding: 8px 10px; border-bottom: 1px solid var(--divider); v
 .projection { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .projection .plots { position: relative; display: flex; gap: 8px; height: 200px; }
 .projection .plot { flex: 1; position: relative; min-width: 0; }
-.projection .now { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px 8px 3px 3px; background: var(--accent); }
+/* Past months (estimated), then now: bars; the y-axis gridlines sit behind, labels on the left */
+.projection .plots, .projection .labels { margin-left: 46px; }
+.projection .now-bar, .projection .past-bar { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 8px 8px 3px 3px; background: var(--accent); }
+.projection .past-bar { background: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+.projection .grid { position: absolute; left: 0; right: 0; border-top: 1px solid var(--divider); pointer-events: none; }
+.projection .grid span { position: absolute; right: calc(100% + 6px); top: -8px; font-size: 11px; color: var(--faint); white-space: nowrap; }
+/* A month's tooltip: on hover or keyboard focus */
+.projection .plot { outline: none; border-radius: 6px; }
+.projection .plot:hover, .projection .plot:focus-visible { background: var(--hover); }
+.projection .plot:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.projection .chart-tip { display: none; position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 3; width: max-content; max-width: 220px; padding: 6px 9px; border-radius: 8px; background: var(--ink-btn); color: var(--ink-btn-text); font-size: 12px; line-height: 1.35; white-space: normal; text-align: center; pointer-events: none; }
+/* Kept inside the chart at its ends */
+.projection .target + .plot .chart-tip { left: 0; transform: none; }
+.projection .plot:nth-last-child(-n+2) .chart-tip { left: auto; right: 0; transform: none; }
+.projection .plot:hover .chart-tip, .projection .plot:focus-visible .chart-tip { display: block; }
+.goal-legend { font-size: 13px; }
+.goal-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.goal-legend .key { width: 12px; height: 12px; border-radius: 3px; margin-right: 0; }
+.goal-legend .key.past { background: color-mix(in srgb, var(--accent) 45%, var(--surface)); }
+.goal-legend .key.now { background: var(--accent); }
+.goal-legend .key.band { background: color-mix(in srgb, var(--accent) 20%, transparent); border: 1.5px dashed color-mix(in srgb, var(--accent-strong) 35%, transparent); }
+.goal-legend .key.mark { height: 3px; background: var(--accent-strong); }
 .projection .band { position: absolute; left: 0; right: 0; border-radius: 8px; background: color-mix(in srgb, var(--accent) 20%, transparent); border: 1.5px dashed color-mix(in srgb, var(--accent-strong) 35%, transparent); }
 .projection .mark { position: absolute; left: 3px; right: 3px; height: 3px; border-radius: 2px; background: var(--accent-strong); }
 .projection .target { position: absolute; left: 0; right: 0; border-top: 1.5px dashed var(--muted); pointer-events: none; z-index: 1; }

@@ -67,6 +67,7 @@ from smart_financial_coach.access.goal_forecasts import (
     first_entries,
     forecast_fields,
     goal_rows,
+    saved_history,
     thin,
 )
 from smart_financial_coach.access.goals import (
@@ -470,7 +471,11 @@ TOOL_SPECS: list[ToolSpec] = [
             "they earn could take it back below the target. The forecast assumes such months "
             "draw on what's set aside. `method` is `simulation`, or `simple_projection` while no "
             "forecasting model is released: the pace so far extended to the date, with no "
-            "chance or range; its status only says whether that pace gets there."
+            "chance or range; its status only says whether that pace gets there. `history` is "
+            "the estimated saved amount at the end of each past month, oldest first, under the "
+            "same share (or, for a simple projection, the same pace); goals are set-asides "
+            "within the user's savings, not separate accounts, so it's an estimate, not a "
+            "record of deposits. `monthly` is each future month's likely amount and range."
         ),
         "input_schema": {
             "type": "object",
@@ -1776,12 +1781,7 @@ class Tools:
             return None
         if not goals:
             return {}
-        entries = (
-            first_entries(self.goals.store.revisions(self.goals.subject, user))
-            if self.goals is not None
-            else {}
-        )
-        rows = goal_rows(user, goals, self.as_of, self._net_history(), entries)
+        rows = goal_rows(user, goals, self.as_of, self._net_history(), self._first_entries())
         try:
             out = forecaster.forecast(rows, only=None if only is None else [only])
         except ValueError:
@@ -1828,7 +1828,21 @@ class Tools:
                 }
                 for m in thin(series)
             ]
+            fields["history"] = saved_history(
+                goal,
+                None if pd.isna(out["share"]) else float(out["share"]),
+                None if pd.isna(out["share_source"]) else str(out["share_source"]),
+                parse_history(self._net_history()),
+                self._first_entries().get(goal.goal_id),
+                today,
+            )
         return fields
+
+    def _first_entries(self) -> dict[str, tuple[int, date]]:
+        """Each goal's first saved entry in this session's event log (`first_entries`)."""
+        if self.goals is None:
+            return {}
+        return first_entries(self.goals.store.revisions(self.goals.subject, self.ledger.user_id))
 
     def _fields(self, out: Mapping[str, Any], goal: Goal) -> dict[str, Any]:
         """A forecast row as the tools return it."""

@@ -57,6 +57,13 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
    - **Wren** calls the same endpoint in-process, through the full HTTP stack, with a 5-minute token for the session's user, and takes its tool list from the server.
    - stdio isn't part of v1: desktop assistants connect over HTTP. It can be revisited if a concrete need comes up.
 
+9. **Overview feedback (owner, Oct 5, 2026).** Six changes to the Overview and the goal chart, built before the demo as stacked PRs:
+   - **One time filter for the page.** The month and its span (week, month, quarter, year) sit at the top and every card follows them, the goal card included, except "Worth a look", which keeps its fixed 60-day window (FR-7, owner decision on #30).
+   - **A total.** The data has no account balances, so the Overview shows what it can: saved in goals and net saved over the period, labelled as such. Opening account balances come to the synthetic data afterwards, as their own change, for a true account balance.
+   - **The spend card opens Transactions** with the same period.
+   - **"To goals" in the money flow,** and **each goal's history on its chart.** Goals are set-asides within the user's savings (owner decision on #50), so there are no deposits to show: both are estimated with the share the goal's forecast uses (from $0 at creation for a generated goal, from the person's first entry for one they keep up; the pace so far under the simple projection), and labelled as estimates. `forecast_goal` returns the history, so Wren and the chart give the same numbers (FR-14).
+   - **The goal chart gets a scale and tooltips:** gridlines at round amounts, a legend, and each month's amount on hover or keyboard focus.
+
 ## Demo build (Oct 6, 2026)
 
 A short-lived deployment for a presentation, up from Oct 3 and torn down on Oct 6. It takes shortcuts the Delivery Plan's CD stages will replace:

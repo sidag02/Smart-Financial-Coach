@@ -5,6 +5,7 @@ Pure functions of tool results, so the charts can't disagree with the numbers be
 Positions are percentages of the chart box; ribbons are SVG paths in a 920 x 260 viewBox.
 """
 
+import math
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -186,30 +187,99 @@ def trend(months: list[tuple[str, float]], highlight: str) -> list[dict[str, obj
     return bars
 
 
-def goal_projection(saved: float, target: float, monthly: list[dict[str, Any]]) -> dict[str, Any]:
-    """Columns for a goal's chart: what's saved now, then each month's likely balance (the
-    median, a mark) inside its 80% range (a band), from `forecast_goal`'s `monthly`. The target
-    is a line across. Heights are percentages of the tallest of the target and the ranges."""
-    top = max([target, saved, *(m["high"] for m in monthly)]) * 1.1 or 1.0
-    columns = [{"label": "Now", "now": True, "bar": pct(saved, top)}]
-    every = 1 if len(monthly) <= 12 else -(-len(monthly) // 8)  # at most about 8 labels
-    for i, m in enumerate(monthly):
-        month = date.fromisoformat(f"{m['month']}-01")
-        shown = i == len(monthly) - 1 or (len(monthly) - 1 - i) % every == 0
-        year = i == 0 or month.month == 1 or every > 1
-        columns.append(
-            {
-                "label": (f"{month:%b} '{month:%y}" if year else f"{month:%b}") if shown else "",
-                "now": False,
+def scale(top: float, steps: int = 4) -> tuple[float, list[float]]:
+    """A chart's top and its gridline values: a round step (1, 2, 2.5 or 5 times a power of
+    ten) so about `steps` lines reach `top`."""
+    if top <= 0:
+        return 1.0, [0.0, 1.0]
+    raw = top / steps
+    power = 10 ** math.floor(math.log10(raw))
+    step = next(m * power for m in (1, 2, 2.5, 5, 10) if m * power >= raw)
+    count = math.ceil(top / step - 1e-9)
+    return step * count, [step * i for i in range(count + 1)]
+
+
+def short_money(value: float) -> str:
+    """An axis label: "$0", "$750", "$2.5k", "$40k", "$1.2M"."""
+    if value >= 1_000_000:
+        return f"${value / 1_000_000:.3g}M"
+    if value >= 1_000:
+        return f"${value / 1_000:.3g}k"
+    return f"${value:,.0f}"
+
+
+def _dollars(value: float) -> str:
+    return f"${round(value):,.0f}"
+
+
+def goal_projection(
+    saved: float,
+    target: float,
+    monthly: list[dict[str, Any]],
+    history: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Columns for a goal's chart: each past month's estimated balance (a bar, from
+    `forecast_goal`'s `history`), what's saved now, then each month's likely balance (the
+    median, a mark) inside its 80% range (a band), from its `monthly`. The target is a line
+    across, and gridlines at round amounts give the scale. Every column carries the sentence its
+    tooltip shows. Heights are percentages of the scale's top."""
+    history = history or []
+    highest = max([target, saved, *(m["high"] for m in monthly), *(h["saved"] for h in history)])
+    top, ticks = scale(highest * 1.05)
+    months = [h["month"] for h in history] + [None] + [m["month"] for m in monthly]
+    every = 1 if len(months) <= 13 else -(-len(months) // 8)  # at most about 8 labels
+    columns: list[dict[str, Any]] = []
+    for i, key in enumerate(months):
+        if key is None:
+            columns.append(
+                {
+                    "label": "Now",
+                    "kind": "now",
+                    "bar": pct(saved, top),
+                    "tip": f"Now: {_dollars(saved)} saved",
+                }
+            )
+            continue
+        month = date.fromisoformat(f"{key}-01")
+        now = len(history)
+        # Sparse labels skip Now's neighbours, which would run into "Now"
+        shown = i == len(months) - 1 or (
+            (len(months) - 1 - i) % every == 0 and (every == 1 or abs(i - now) > 1)
+        )
+        # The year on the first month of each part (past, future), each January, or sparse labels
+        year = i in (0, len(history) + 1) or month.month == 1 or every > 1
+        column: dict[str, Any] = {
+            "label": (f"{month:%b} '{month:%y}" if year else f"{month:%b}") if shown else ""
+        }
+        if i < len(history):
+            h = history[i]
+            column |= {
+                "kind": "past",
+                "bar": pct(h["saved"], top),
+                "tip": f"{month:%b %Y}: about {_dollars(h['saved'])} saved (estimated)",
+            }
+        else:
+            m = monthly[i - len(history) - 1]
+            column |= {
+                "kind": "future",
                 "band_bottom": pct(m["low"], top),
                 "band_height": pct(m["high"] - m["low"], top),
                 "mark": pct(m["median"], top),
                 "median": m["median"],
                 "low": m["low"],
                 "high": m["high"],
+                "tip": (
+                    f"{month:%b %Y}: likely {_dollars(m['median'])}, "
+                    f"between {_dollars(m['low'])} and {_dollars(m['high'])}"
+                ),
             }
-        )
-    return {"columns": columns, "target": pct(target, top)}
+        columns.append(column)
+    return {
+        "columns": columns,
+        "target": pct(target, top),
+        "grid": [{"at": pct(t, top), "label": short_money(t)} for t in ticks],
+        "past": len(history),
+    }
 
 
 LINE_W, LINE_H, LINE_PAD = 920.0, 220.0, 28.0

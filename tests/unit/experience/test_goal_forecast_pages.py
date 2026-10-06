@@ -14,7 +14,7 @@ from smart_financial_coach.access.tools import Tools
 from smart_financial_coach.data.store import load_goals
 from smart_financial_coach.experience.accounts import Account
 from smart_financial_coach.experience.web.app import chance
-from smart_financial_coach.experience.web.charts import goal_projection
+from smart_financial_coach.experience.web.charts import goal_projection, scale, short_money
 from smart_financial_coach.intelligence.forecasting.batch import forecast_dataset
 from smart_financial_coach.intelligence.forecasting.contract import history_json, parse_history
 from tests.unit.experience.test_web import make_client, sign_in
@@ -78,6 +78,13 @@ def test_the_detail_page_states_the_forecast(client: TestClient, tools: Tools) -
     for amount in (f["range"]["low"], f["range"]["high"], f["projected_balance"]):
         assert f"${amount:,.0f}" in page
     assert page.count('class="band"') == len(f["monthly"])
+    # The history before "Now", a scale, and a tooltip on every month
+    assert page.count('class="plot past"') == len(f["history"])
+    assert '<div class="grid"' in page
+    assert "<span>$0</span>" in page
+    assert page.count('class="chart-tip"') == len(f["history"]) + 1 + len(f["monthly"])
+    m = f["monthly"][-1]
+    assert f"likely ${m['median']:,.0f}, between ${m['low']:,.0f} and ${m['high']:,.0f}" in page
     assert ASSUMPTION in page
     if f["extra_per_month"]:
         assert f"Set aside ${f['extra_per_month']:,.0f} more a month" in page
@@ -212,11 +219,46 @@ def test_chances_are_said_the_way_people_say_them() -> None:
 def test_the_projection_chart_scales_to_the_target_and_ranges() -> None:
     monthly = [{"month": "2026-10", "median": 500.0, "low": 400.0, "high": 1000.0}]
     chart = goal_projection(200.0, 800.0, monthly)
-    assert chart["columns"][0]["now"]
+    assert chart["columns"][0]["kind"] == "now"
     assert chart["columns"][1]["label"] == "Oct '26"  # the first month carries its year
     long = [{**monthly[0], "month": f"{2027 + i // 12}-{i % 12 + 1:02d}"} for i in range(24)]
     labels = [c["label"] for c in goal_projection(200.0, 800.0, long)["columns"][1:]]
     assert labels[-1] == "Dec '28"  # the target month always
     assert 0 < sum(bool(x) for x in labels) <= 9  # thinned to fit a phone
-    assert chart["target"] == "72.73%"  # 800 of 1,000 x 1.1
-    assert chart["columns"][1]["band_height"] == "54.55%"
+    # The scale: round gridlines at $500 steps over the highest range ($1,000) plus headroom
+    assert [g["label"] for g in chart["grid"]] == ["$0", "$500", "$1k", "$1.5k"]
+    assert chart["target"] == "53.33%"  # 800 of 1,500
+    assert chart["columns"][1]["band_height"] == "40.00%"
+    assert chart["columns"][1]["tip"] == "Oct 2026: likely $500, between $400 and $1,000"
+    assert chart["columns"][0]["tip"] == "Now: $200 saved"
+
+
+def test_the_projection_chart_shows_the_goals_history_first() -> None:
+    monthly = [{"month": "2026-10", "median": 500.0, "low": 400.0, "high": 1000.0}]
+    history = [{"month": "2026-08", "saved": 80.0}, {"month": "2026-09", "saved": 150.0}]
+    chart = goal_projection(200.0, 800.0, monthly, history)
+    kinds = [c["kind"] for c in chart["columns"]]
+    assert kinds == ["past", "past", "now", "future"]
+    assert chart["past"] == 2
+    assert [c["label"] for c in chart["columns"]] == ["Aug '26", "Sep", "Now", "Oct '26"]
+    assert chart["columns"][1]["tip"] == "Sep 2026: about $150 saved (estimated)"
+    assert chart["columns"][1]["bar"] == "10.00%"  # 150 of 1,500
+    # A long chart's sparse labels leave room around "Now"
+    past = [{"month": f"2025-{m:02d}", "saved": 10.0 * m} for m in range(1, 13)]
+    future = [{**monthly[0], "month": f"{2026 + i // 12}-{i % 12 + 1:02d}"} for i in range(24)]
+    labels = [c["label"] for c in goal_projection(200.0, 800.0, future, past)["columns"]]
+    assert labels[12] == "Now"
+    assert labels[11] == labels[13] == ""
+
+
+def test_the_scale_uses_round_steps() -> None:
+    assert scale(1050.0) == (1500.0, [0.0, 500.0, 1000.0, 1500.0])
+    assert scale(9000.0)[0] == 10000.0
+    assert scale(0.0) == (1.0, [0.0, 1.0])
+    assert [short_money(v) for v in (0, 750, 2500, 40000, 1_200_000)] == [
+        "$0",
+        "$750",
+        "$2.5k",
+        "$40k",
+        "$1.2M",
+    ]

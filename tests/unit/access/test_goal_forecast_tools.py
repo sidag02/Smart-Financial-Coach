@@ -16,12 +16,14 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from smart_financial_coach.access.goal_forecasts import (
+    HISTORY_POINTS,
     MONTHLY_POINTS,
     first_entries,
     forecast_fields,
+    saved_history,
     thin,
 )
-from smart_financial_coach.access.goals import GoalStore, Revision
+from smart_financial_coach.access.goals import Goal, GoalStore, Revision
 from smart_financial_coach.access.ledger import DataSources, Ledger
 from smart_financial_coach.access.tools import GoalAccess, Tools
 from smart_financial_coach.config import Settings
@@ -110,6 +112,9 @@ def test_forecast_goal_states_the_band_range_and_top_up(page: Tools, ledger: Led
     # The chart's months run to the target month and end at the forecast's numbers
     assert [m["month"] for m in f["monthly"]] == ["2026-10", "2026-11", "2026-12"]
     assert f["monthly"][-1]["median"] == f["projected_balance"]
+    # The history: each month since it was created, before this one, under the same share
+    assert [h["month"] for h in f["history"]] == [f"2026-{m:02d}" for m in range(1, 9)]
+    assert all(0 <= h["saved"] <= 3000 for h in f["history"])
     assert result.source.title == "Goal forecast · Vacation fund"
     # The same answer every time (NFR-8)
     assert page.call("forecast_goal", {"goal_id": "g_x_1"}).data == f
@@ -335,6 +340,8 @@ def test_the_baseline_is_a_simple_projection_with_no_chance(baseline_page: Tools
     assert f["share_source"] is None
     # The pace so far, extended: $2,140 over Jan-Sep (9 months), 3 more months
     assert f["projected_balance"] == pytest.approx(2140 + 2140 / 9 * 3, abs=0.01)
+    # Its history is the same pace: a straight line from creation, Jan to Aug
+    assert [h["saved"] for h in f["history"]] == [round(2140 * k / 9, 2) for k in range(1, 9)]
     vacation = by_name(baseline_page)["Vacation fund"]
     assert vacation["forecast_method"] == "simple_projection"
     assert vacation["p_goal_met"] is None
@@ -360,6 +367,26 @@ def test_a_goal_you_keep_up_gets_a_share_from_your_entries(page: Tools, store: G
     page.call("update_goal", {"goal_id": trip["goal_id"], "saved": 2400})
     f = page.call("forecast_goal", {"goal_id": trip["goal_id"]}).data
     assert f["share_source"] == "your_entries"
+    # Its history starts at the first entry and runs to last month
+    assert f["history"][0] == {"month": "2026-03", "saved": 400.0}
+    assert [h["month"] for h in f["history"]][-1] == "2026-08"
+
+
+def test_a_new_goal_has_only_its_first_entry_as_history(page: Tools) -> None:
+    page.call("create_goal", TRIP)
+    f = page.call("forecast_goal", {"goal_id": by_name(page)["Trip"]["goal_id"]}).data
+    assert f["share_source"] == "typical"
+    assert f["history"] == []  # entered this month: today's amount is the chart's "Now"
+
+
+def test_long_histories_are_thinned_and_keep_last_month() -> None:
+    goal = Goal(
+        "g", "Fund", 900_000, date(2027, 12, 31), 500_000, TODAY, date(2022, 1, 15), "existing"
+    )
+    net = pd.Series(100.0, index=pd.period_range("2022-01", "2026-09", freq="M"))
+    history = saved_history(goal, 0.5, "track_record", net, None, TODAY)
+    assert len(history) <= HISTORY_POINTS
+    assert history[-1]["month"] == "2026-08"
 
 
 def test_forecasting_one_goal_matches_the_whole_set(page: Tools) -> None:
