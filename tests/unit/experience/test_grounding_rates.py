@@ -12,6 +12,7 @@ reported on their own (see COUNT_FALSE_ACCEPTS).
 import random
 from collections.abc import Iterator
 from datetime import date
+from itertools import pairwise
 from typing import Any
 
 import pytest
@@ -137,3 +138,44 @@ def test_the_check_rarely_passes_a_wrong_number_or_fails_a_right_one(
     assert rate(wrong["percentages"]) <= DIRECT_FALSE_ACCEPTS
     assert rate(wrong["counts"]) <= COUNT_FALSE_ACCEPTS
     assert rate(wrong["derived"]) <= DERIVED_FALSE_ACCEPTS
+
+
+def test_the_paragraph_fallback_rarely_passes_a_wrong_number(
+    results: list[dict[str, Any]],
+) -> None:
+    """A list cited once, at its end, lends the paragraph's tags to its untagged lines (design §3,
+    as changed on #75). Measured where it's loosest: a paragraph citing two results, and an
+    untagged line under it, checked against both."""
+    rng = random.Random(1)
+    right: list[bool] = []
+    wrong: list[bool] = []
+    for first, second in pairwise(results):
+        cited = {"S1": first, "S2": {**second, "source_id": "S2"}}
+        amounts = [
+            v
+            for source, payload in cited.items()
+            for v in values(source, payload)
+            if v.kind == "field" and v.money and abs(v.number) >= 1
+        ]
+        if not amounts:
+            continue
+        low, high = min(abs(v.number) for v in amounts), max(abs(v.number) for v in amounts)
+
+        def says(text: str, cited: dict[str, Any] = cited) -> bool:
+            return check(f"Here's what I found:\n- {text}\nBoth from [S1, S2].", cited).ok
+
+        for v in rng.sample(amounts, min(len(amounts), 20)):
+            good = money(v.number, cents=True)
+            right.append(says(good))
+            bad = money(moved(v.number, rng), cents=rng.random() < 0.5)
+            if bad not in (good, money(v.number, cents=False)):
+                wrong.append(says(bad))
+            wrong.append(says(money(rng.uniform(low, high), cents=rng.random() < 0.5)))
+
+    print(
+        f"\nparagraph fallback: false rejects {1 - rate(right):.2%} of {len(right)}, "
+        f"false accepts {rate(wrong):.2%} of {len(wrong)}"
+    )
+    assert len(wrong) > 300
+    assert 1 - rate(right) <= FALSE_REJECTS
+    assert rate(wrong) <= DIRECT_FALSE_ACCEPTS

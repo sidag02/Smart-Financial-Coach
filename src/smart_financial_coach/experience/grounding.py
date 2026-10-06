@@ -10,7 +10,7 @@ and is the evaluation suite's grounding grader, so serving and evaluation agree 
   says "$1,383"), and every list's length (counts), kept with its source id and path.
 - **Citations:** each number takes the source tags that follow it in its sentence, or else the
   ones before it in the sentence, or else (a list cited once, at its end) every tag in its
-  paragraph, or the paragraph before it when its own has none. A number with none fails.
+  paragraph. A number with none fails, and a paragraph never borrows another's tags.
 - **A direct number** matches a value in a result it cites, rounded as written: cents, whole
   dollars or a decimal place. A percentage may also be a ratio as a change (1.42 → 42%) or a
   share or probability (0.62 → 62%). "N in 10" must be exactly `chance_words(p_goal_met)`.
@@ -166,11 +166,10 @@ def cited_numbers(answer: str) -> list[Number]:
     of a list cited once at its end) takes every tag in its paragraph."""
     found: list[Number] = []
     answer = LIST_MARKER.sub(lambda m: " " * len(m.group(0)), answer)  # "1. Housing …"
-    shared: tuple[str, ...] = ()
     for paragraph in PARAGRAPH.split(answer):
-        # A paragraph with no tags of its own goes on from the one before it ("Shell appears
-        # several more times in the top 10" after a cited list)
-        shared = tuple(dict.fromkeys(t for _, group in _tags(paragraph) for t in group)) or shared
+        # A list cited once, at its end: its items take the paragraph's tags. Never another
+        # paragraph's (review on #75): a paragraph with no tags has no sources
+        shared = tuple(dict.fromkeys(t for _, group in _tags(paragraph) for t in group))
         for sentence in SENTENCE.split(paragraph):
             tags = _tags(sentence)
             clean = TAGS.sub(lambda m: " " * len(m.group(0)), sentence)

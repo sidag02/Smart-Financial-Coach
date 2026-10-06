@@ -427,6 +427,38 @@ def test_money_flow_balances() -> None:
     assert money_flow(0.0, [], essentials)["empty"] is True
 
 
+def test_money_flow_shows_what_went_to_goals() -> None:
+    """Overview feedback (Oct 5, 2026): "To goals" comes out of what's left over; goals that
+    gave money back show as "From goals"."""
+    essentials = frozenset({"Housing"})
+    cats = [("Housing", 1000.0), ("Dining", 500.0)]
+
+    def blocks(to_goals: float) -> dict[str, float]:
+        return {
+            b["label"]: b["amount"]
+            for b in money_flow(2000.0, cats, essentials, to_goals)["blocks"]
+        }
+
+    assert blocks(300.0) == {
+        "Came in": 2000.0,
+        "Essentials": 1000.0,
+        "Everything else": 500.0,
+        "To goals": 300.0,
+        "Left over": 200.0,
+    }
+    # More to goals than was left: the rest came from savings
+    assert blocks(800.0)["From savings"] == 300.0
+    assert "Left over" not in blocks(800.0)
+    # Goals drawn down: money in from them
+    assert blocks(-200.0) == {
+        "Came in": 2000.0,
+        "From goals": 200.0,
+        "Essentials": 1000.0,
+        "Everything else": 500.0,
+        "Left over": 700.0,
+    }
+
+
 def test_trend_marks_the_selected_months_and_the_peak() -> None:
     months = [("2026-07", 100.0), ("2026-08", 300.0), ("2026-09", 200.0)]
     bars = trend(months, {"2026-09"})
