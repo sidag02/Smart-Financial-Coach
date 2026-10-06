@@ -97,6 +97,9 @@ a.card-link { color: inherit; display: flex; transition: border-color .15s, back
 a.card-link:hover { text-decoration: none; border-color: var(--ask-border); background: var(--hover); }
 a.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .card-link .go { font-size: 20px; line-height: 1; color: var(--faint); }
+.card-link .link-text { color: var(--accent-strong); font-weight: 600; }
+a.card-link:hover .link-text { text-decoration: underline; }
+.card-head .head-end { display: flex; align-items: center; gap: 8px; }
 a.card-link:hover .go { color: var(--accent-strong); }
 .period-picker { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
@@ -153,6 +156,9 @@ a.card-link:hover .go { color: var(--accent-strong); }
 .flow-block .amt { font: 600 19px var(--display); font-variant-numeric: tabular-nums; }
 .flow-block.slim { flex-direction: row; align-items: center; gap: 8px; padding: 0 10px; }
 .flow-block.slim .amt { font-size: 13px; }
+a.flow-block { color: inherit; text-decoration: none; cursor: pointer; transition: filter .15s; }
+a.flow-block:hover { filter: brightness(.96); text-decoration: none; }
+a.flow-block:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .k-income, .k-left { background: var(--good-soft); } .k-income .lbl, .k-left .lbl { color: var(--good); }
 .k-savings { background: var(--warn-soft); } .k-savings .lbl { color: var(--warn); }
 .k-essentials { background: var(--essentials-soft); } .k-essentials .lbl { color: var(--essentials-ink); }
@@ -171,6 +177,9 @@ a.card-link:hover .go { color: var(--accent-strong); }
 /* Trend */
 .trend { display: flex; gap: 6px; height: 170px; margin-top: 12px; }
 .trend .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; height: 100%; min-width: 0; }
+a.col { color: inherit; text-decoration: none; border-radius: 8px; cursor: pointer; }
+a.col:hover { background: var(--hover); text-decoration: none; }
+a.col:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .trend .plot { flex: 1; width: 100%; position: relative; display: flex; flex-direction: column; justify-content: flex-end; padding-top: 16px; }
 .trend .bar { width: 100%; border-radius: 6px 6px 3px 3px; background: var(--divider); min-height: 2px; }
 .trend .val { position: absolute; left: 50%; transform: translateX(-50%); }

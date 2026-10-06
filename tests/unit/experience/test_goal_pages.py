@@ -219,7 +219,9 @@ def test_the_overview_card_shows_the_goal_due_soonest(
         f"/goals/{bike}", data={**TRIP, "name": "Bike", "target_amount": "900", "saved": "900"}
     )
     reached = client.get("/").text
-    assert '<div class="card-label">Bike</div><span class="badge good">Reached</span>' in reached
+    head = '<div class="card-label">Bike</div><span class="head-end">'
+    assert head + '<span class="badge good">Reached</span>' in reached
+    assert f'href="/goals/{bike}" aria-label="Bike: open the goal"' in reached  # the whole card
 
     create(client)
     card = client.get("/").text

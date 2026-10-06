@@ -13,6 +13,9 @@ from typing import Any
 
 WIDTH, HEIGHT = 920.0, 260.0
 GAP_COLUMN, GAP_ITEM, MIN_ITEM, SLIM_BLOCK = 8.0, 4.0, 18.0, 44.0
+# The shortest a block may be, so its label and amount fit on one line: a small "To goals"
+# was a sliver that cut its words off (overview feedback, Oct 6, 2026)
+MIN_BLOCK = 26.0
 X_A1, X_B0, X_B1, X_C0 = 150.0, 350.0, 520.0, 700.0
 
 # Category colours from the mockups: (mark, soft fill light, soft fill dark)
@@ -50,6 +53,32 @@ class _Node:
     u0: float = 0.0
     u1: float = 0.0
     index: int = 0
+    top: float = 0.0  # where the block sits, in chart units
+    height: float = 0.0
+
+    def at(self, u: float) -> float:
+        """Where the flow at `u` meets this block: blocks lifted to MIN_BLOCK keep their
+        ribbons spread across their own height."""
+        span = self.u1 - self.u0
+        return self.top + (u - self.u0) / span * self.height if span else self.top
+
+
+def _place(column: list[_Node]) -> None:
+    """Stack a column's blocks top to bottom, sized by value, none shorter than MIN_BLOCK."""
+    available = HEIGHT - GAP_COLUMN * (len(column) - 1)
+    lifted: set[int] = set()
+    scale = 0.0
+    for _ in range(len(column) + 1):
+        free = sum(n.value for i, n in enumerate(column) if i not in lifted)
+        scale = (available - MIN_BLOCK * len(lifted)) / free if free else 0.0
+        short = {i for i, n in enumerate(column) if n.value * scale < MIN_BLOCK}
+        if short <= lifted:
+            break
+        lifted |= short
+    top = 0.0
+    for i, node in enumerate(column):
+        node.top, node.height = top, MIN_BLOCK if i in lifted else node.value * scale
+        top += node.height + GAP_COLUMN
 
 
 def _ribbon(x0: float, a0: float, a1: float, x1: float, b0: float, b1: float) -> str:
@@ -102,15 +131,12 @@ def money_flow(
     total = sum(n.value for n in column_a)
     if total <= 0 or not column_b:
         return {"empty": True}
-    k = (HEIGHT - GAP_COLUMN * (max(len(column_a), len(column_b)) - 1)) / total
     for column in (column_a, column_b):
         u = 0.0
         for i, node in enumerate(column):
             node.u0, node.u1, node.index = u, u + node.value, i
             u += node.value
-
-    def y(node: _Node, u: float) -> float:
-        return u * k + GAP_COLUMN * node.index
+        _place(column)
 
     ribbons = []
     for source in column_a:
@@ -118,7 +144,7 @@ def money_flow(
             lo, hi = max(source.u0, target.u0), min(source.u1, target.u1)
             if hi > lo:
                 path = _ribbon(
-                    X_A1, y(source, lo), y(source, hi), X_B0, y(target, lo), y(target, hi)
+                    X_A1, source.at(lo), source.at(hi), X_B0, target.at(lo), target.at(hi)
                 )
                 ribbons.append({"d": path, "kind": target.kind})
 
@@ -142,7 +168,7 @@ def money_flow(
         for c, a in b.kids:
             t, h = tops[c]
             ribbons.append(
-                {"d": _ribbon(X_B1, y(b, u), y(b, u + a), X_C0, t, t + h), "category": c}
+                {"d": _ribbon(X_B1, b.at(u), b.at(u + a), X_C0, t, t + h), "category": c}
             )
             u += a
 
@@ -156,9 +182,9 @@ def money_flow(
                     "kind": n.kind,
                     "left": pct(x0, WIDTH),
                     "width": pct(x1 - x0, WIDTH),
-                    "top": pct(y(n, n.u0), HEIGHT),
-                    "height": pct((n.u1 - n.u0) * k, HEIGHT),
-                    "slim": (n.u1 - n.u0) * k < SLIM_BLOCK,  # label and amount on one line
+                    "top": pct(n.top, HEIGHT),
+                    "height": pct(n.height, HEIGHT),
+                    "slim": n.height < SLIM_BLOCK,  # label and amount on one line
                 }
             )
     categories = [

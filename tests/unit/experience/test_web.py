@@ -1,6 +1,8 @@
 """The web app: sign-in, pages, data isolation between users, and chat (NFR-2, NFR-5, NFR-6)."""
 
+import itertools
 import os
+import re
 import shutil
 import time
 from collections.abc import Iterator
@@ -18,7 +20,7 @@ from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword
 from smart_financial_coach.experience.coach import Coach
 from smart_financial_coach.experience.web.app import MINUS, create_app, money, render_answer
-from smart_financial_coach.experience.web.charts import money_flow, trend
+from smart_financial_coach.experience.web.charts import HEIGHT, MIN_BLOCK, money_flow, trend
 from tests.unit.experience.fakes import FakeClient, api_error, response, text, tool_use
 
 PASSWORD = "correct horse"
@@ -427,6 +429,25 @@ def test_money_flow_balances() -> None:
     assert money_flow(0.0, [], essentials)["empty"] is True
 
 
+def test_small_flow_blocks_are_tall_enough_for_their_words() -> None:
+    """Overview feedback (Oct 6, 2026): a small "To goals" was a sliver that cut its label off.
+    Every block is at least MIN_BLOCK tall, and the column still fits without overlaps."""
+    essentials = frozenset({"Housing"})
+    cats = [("Housing", 2800.0), ("Groceries", 1700.0), ("Dining", 900.0)]
+    flow = money_flow(9200.0, cats, essentials, to_goals=60.0)
+
+    def span(block: dict[str, Any]) -> tuple[float, float]:
+        top, height = (float(block[k].rstrip("%")) / 100 * HEIGHT for k in ("top", "height"))
+        return top, top + height
+
+    goals = next(b for b in flow["blocks"] if b["label"] == "To goals")
+    assert span(goals)[1] - span(goals)[0] >= MIN_BLOCK - 0.01
+    assert goals["slim"]  # label and amount on one line
+    middle = sorted(span(b) for b in flow["blocks"] if b["left"] != "0.00%")
+    assert all(a[1] <= b[0] + 0.01 for a, b in itertools.pairwise(middle))  # no overlaps
+    assert middle[-1][1] <= HEIGHT + 0.01
+
+
 def test_money_flow_shows_what_went_to_goals() -> None:
     """Overview feedback (Oct 5, 2026): "To goals" comes out of what's left over; goals that
     gave money back show as "From goals"."""
@@ -658,3 +679,22 @@ def test_pages_render_for_users_without_flags(
         sign_in(c)
         for page in ("/", "/worth-a-look", "/transactions"):
             assert c.get(page).status_code == 200, page
+
+
+def test_every_overview_widget_opens_its_page(client: TestClient) -> None:
+    """Overview feedback (Oct 6, 2026): every card is clickable, the goal card included, and so
+    are the money-flow blocks and the 12-month bars. No link sits inside another."""
+    sign_in(client)
+    page = client.get("/?month=2026-08&horizon=quarter").text
+
+    assert 'class="card card-link stack" style="gap:6px" href="/transactions?month=2026-08' in page
+    assert 'class="card card-link stack" style="gap:6px" href="/goals"' in page  # savings
+    assert 'href="/goals/new" aria-label="Set up a savings goal"' in page or (
+        'class="card card-link stack" href="/goals/' in page
+    )
+    assert 'class="card card-link stack alerts-wide" href="/worth-a-look"' in page
+    assert 'href="/transactions?month=2026-08&amp;horizon=quarter&amp;category=Income"' in page
+    assert page.count('class="col" href="/?month=') == 12  # each bar opens its month
+    # No link inside another: the cards' old inner links are plain text now
+    for card in re.findall(r'<a class="card card-link.*?</a>\n', page, flags=re.DOTALL):
+        assert card.count("<a ") == 1, card[:200]
