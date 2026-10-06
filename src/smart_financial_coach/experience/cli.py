@@ -54,7 +54,7 @@ def _build(args: argparse.Namespace) -> int:
 def _serve(args: argparse.Namespace) -> int:
     import uvicorn
 
-    from smart_financial_coach.experience.coach import Coach
+    from smart_financial_coach.experience.coach import make_coach
     from smart_financial_coach.experience.web.app import create_app
 
     settings = get_settings()
@@ -69,7 +69,7 @@ def _serve(args: argparse.Namespace) -> int:
         )
         if settings.demo_password.get_secret_value() == DEV_PASSWORD:  # type: ignore[union-attr]
             print(f"Demo password: {DEV_PASSWORD}")
-    coach = Coach.from_settings(settings)
+    coach = make_coach(settings)  # SFC_COACH_BACKEND (FR-13 to FR-15 design, §2)
     if coach is None:
         print("No Anthropic API key (SFC_LLM_API_KEY or ANTHROPIC_API_KEY): chat is unavailable")
     app = create_app(settings, coach=coach)

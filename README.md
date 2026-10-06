@@ -85,6 +85,14 @@ The tools are also an MCP server at `/mcp` (Streamable HTTP, bearer tokens): Wre
 
 `--dev` makes throwaway secrets for plain http. A hosted run needs `SFC_DEMO_PASSWORD` and `SFC_SESSION_SECRET`, and `SFC_LLM_API_KEY` (or `ANTHROPIC_API_KEY`) for chat; without a key, chat says it's unavailable and the rest works. The `Dockerfile` packages the app with `build/demo`. Design: [Smart Financial Coach — Web App UI.md](<docs/design/Smart Financial Coach — Web App UI.md>) and the mockups in `docs/design/mockups/`.
 
+Ask the coach from the command line as one demo user (FR-13 to FR-15). `--backend subscription` runs it on your own Claude Code login with no API key, for evaluation and prompt work on your machine only: it refuses to start with an API key in the environment or a public `SFC_PUBLIC_URL`. With a key, the default backend uses the API, as the web app does.
+
+```bash
+uv run sfc-coach ask --backend subscription --user u_te_yp_0030 "Why was August so high?" "And dining?"
+```
+
+The subscription backend needs the dev dependencies (`claude-agent-sdk`) and a logged-in Claude Code. Design: [FR-13 to FR-15 Coach — Feature Design.md](<docs/design/features/FR-13 to FR-15 Coach — Feature Design.md>).
+
 ### Demo deployment (Azure)
 
 `deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/set-llm-key.sh` passes the Anthropic key from `.env` to the app as a secret; `deploy/azure/teardown.sh` deletes everything.

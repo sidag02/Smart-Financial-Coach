@@ -7,7 +7,7 @@ it's asked (NFR-2). Each tool result carries a source id
 gives no investment advice (FR-15, NFR-4). With no API key, or when the API fails, chat says so
 and the dashboard is unaffected (NFR-6).
 
-    coach = Coach.from_settings(settings)
+    coach = make_coach(settings)  # SFC_COACH_BACKEND: the API, or the owner's subscription
     conversation = Conversation()
     reply = coach.answer(tools, conversation, "Why was September so high?")
 """
@@ -121,6 +121,8 @@ class Conversation:
     turns: list[dict[str, Any]] = field(default_factory=list)  # as shown, for reloading the page
     # Held while a question is answered: two at once would interleave their messages
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
+    # A backend's own state between questions (the subscription backend's session to resume)
+    backend_state: dict[str, Any] = field(default_factory=dict)
 
     def source_id(self, source: Source) -> str:
         self.sources.append(source)
@@ -135,6 +137,12 @@ class Reply:
 
 
 class Coach:
+    """The coach on the Anthropic API: the production backend (FR-13 to FR-15 design, §2)."""
+
+    backend = "api"
+    # Errors that mean the model can't be reached: chat says so (NFR-6)
+    unavailable: tuple[type[Exception], ...] = (anthropic.APIError,)
+
     def __init__(
         self,
         client: Any,
@@ -163,6 +171,11 @@ class Coach:
             effort=settings.llm_effort,
         )
 
+    @property
+    def credential_source(self) -> str:
+        """Which credential the model calls run on, for logs and evaluation results."""
+        return "api_key"
+
     def system_prompt(self, as_of: date) -> str:
         return SYSTEM.format(coach_name=self.coach_name, as_of=as_of)
 
@@ -177,9 +190,10 @@ class Coach:
             del conversation.messages[turn_start:]
             del conversation.sources[first_source:]
 
+        unavailable: tuple[type[Exception], ...] = (*self.unavailable, ToolsUnavailableError)
         try:
             text, complete = self._loop(tools, conversation)
-        except (anthropic.APIError, ToolsUnavailableError) as error:
+        except unavailable as error:
             log.warning("coach unavailable: %s", type(error).__name__)
             roll_back()
             raise CoachUnavailableError(str(error)) from error
@@ -228,25 +242,37 @@ class Coach:
             )
         return TOO_MANY_STEPS, False
 
+    @classmethod
+    def _run(cls, tools: ToolGateway, conversation: Conversation, call: Any) -> dict[str, Any]:
+        content, is_error = cls.run_tool(tools, conversation, call.name, dict(call.input))
+        result = {"type": "tool_result", "tool_use_id": call.id, "content": content}
+        return {**result, "is_error": True} if is_error else result
+
     @staticmethod
-    def _run(tools: ToolGateway, conversation: Conversation, call: Any) -> dict[str, Any]:
+    def run_tool(
+        tools: ToolGateway, conversation: Conversation, name: str, arguments: dict[str, Any]
+    ) -> tuple[str, bool]:
+        """One tool call's result as the model sees it, and whether it's an error. Every backend
+        runs tools through here, so each result gets its source id the same way."""
         try:
-            result = tools.call(call.name, dict(call.input))
+            result = tools.call(name, arguments)
         except ToolsUnavailableError:
             raise
         except Exception as error:  # reported to the model, which can retry in the same turn
             if not isinstance(error, ToolError):
-                log.exception("tool %s failed", call.name)
-            message = str(error) if isinstance(error, ToolError) else f"{call.name} failed"
-            return {
-                "type": "tool_result",
-                "tool_use_id": call.id,
-                "content": message,
-                "is_error": True,
-            }
+                log.exception("tool %s failed", name)
+            return (str(error) if isinstance(error, ToolError) else f"{name} failed"), True
         payload = {"source_id": conversation.source_id(result.source), **result.data}
-        return {
-            "type": "tool_result",
-            "tool_use_id": call.id,
-            "content": json.dumps(payload, separators=(",", ":")),
-        }
+        return json.dumps(payload, separators=(",", ":")), False
+
+
+def make_coach(settings: Settings) -> Coach | None:
+    """The coach `SFC_COACH_BACKEND` asks for (FR-13 to FR-15 design, §2). `auto` and `api`: the
+    API when there's a key, else None and chat says it's unavailable; putting a key in the
+    deployment is what makes chat live for every user. `subscription`: the owner's Claude login,
+    which refuses to start unless it can only ever serve the owner (decision 2)."""
+    if settings.coach_backend == "subscription":
+        from smart_financial_coach.experience.coach_subscription import SubscriptionCoach
+
+        return SubscriptionCoach.from_settings(settings)
+    return Coach.from_settings(settings)

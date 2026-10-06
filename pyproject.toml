@@ -33,6 +33,7 @@ sfc-data = "smart_financial_coach.data.generator.cli:main"
 sfc-experiment = "smart_financial_coach.evaluation.cli:experiment_main"
 sfc-model = "smart_financial_coach.evaluation.cli:model_main"
 sfc-web = "smart_financial_coach.experience.cli:main"
+sfc-coach = "smart_financial_coach.experience.coach_cli:main"
 
 [dependency-groups]
 dev = [
@@ -45,6 +46,7 @@ dev = [
     "types-pyyaml",
     "scipy-stubs",
     "httpx>=0.28.1",
+    "claude-agent-sdk>=0.2.163",
 ]
 train = [
     "mlflow",

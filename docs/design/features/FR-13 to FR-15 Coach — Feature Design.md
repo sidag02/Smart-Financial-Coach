@@ -118,7 +118,7 @@ The coach's model call becomes a small interface with two implementations. Every
 | --- | --- | --- |
 | Runs on | Anthropic API, `SFC_LLM_API_KEY` or `ANTHROPIC_API_KEY` | The owner's Claude Code login (claude.ai subscription), through the Claude Agent SDK (`claude-agent-sdk`) |
 | Loop | `Coach._loop`, as today | The Agent SDK's loop (Claude Code's), `max_turns` 6 |
-| Effort, thinking | `low`; adaptive | Set to match where the Agent SDK allows it; M1 checks, and every run records what actually ran |
+| Effort, thinking | `low`; adaptive | The same: the Agent SDK passes both through (`effort`, `thinking`; checked in M1), and every run records what ran |
 | Refusal fallback | Server-side, `fallbacks: "default"` | None (API only) |
 | Grounding retry (§3) | One | None: a failing answer goes straight to the safe message |
 | Tools | `McpTools` over the app's `/mcp` with a 5-minute coach token | The same `McpTools`, wrapped as in-process Agent SDK tools, so every call still goes through `/mcp` with the coach token and still gets a source id |
@@ -134,12 +134,13 @@ The coach's model call becomes a small interface with two implementations. Every
 | | API | Subscription | Effect on the gate |
 | --- | --- | --- | --- |
 | Loop | `Coach._loop`, 6 rounds | Claude Code's loop through the Agent SDK, `max_turns` 6 | Recorded per run; the turn limit matches |
-| Effort | `low` | Set to `low` if the Agent SDK accepts an effort option; otherwise its default, recorded | Unknown until M1 checks; the results report says which ran |
-| Thinking | Adaptive | The Agent SDK's setting, recorded | As above |
+| Effort | `low` | `low`, through the Agent SDK's `effort` option (M1) | None expected; recorded per run |
+| Thinking | Adaptive | Adaptive, through its `thinking` option (M1) | As above |
+| Tool names | As the MCP server lists them | Prefixed `mcp__coach__` by Claude Code | The prompt names tools without the prefix; the suite shows whether that matters |
 | Refusal fallback | Server-side (`cyber`, `frontier_llm` declines retried on Sonnet 5) | None | A decline isn't rescued, so the gate can only be stricter |
 | Grounding retry | One | None | The gate's grounding is first-attempt, which can only be stricter than what the API serves |
 
-M1 checks which effort and thinking options the Agent SDK passes through, and the results report states each difference.
+M1 confirmed that the Agent SDK takes the API's effort and adaptive thinking as options. A live run on the owner's login reported `apiKeySource: none`, `claude-sonnet-5-5` and no built-in tools. The results report states each remaining difference.
 
 **Choosing a backend:** `SFC_COACH_BACKEND` is `auto` (the default), `api` or `subscription`.
 
