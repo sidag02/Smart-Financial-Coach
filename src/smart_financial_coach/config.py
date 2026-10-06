@@ -2,6 +2,7 @@
 
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -30,9 +31,13 @@ class Settings(BaseSettings):
 
     # LLM for the coach (Anthropic; Web App UI decision 6). No key: chat says it's unavailable
     llm_provider: str = "anthropic"
-    llm_model: str = "claude-opus-5-5"
+    llm_model: str = "claude-sonnet-5-5"  # owner decision 1 on #72 (FR-13 to FR-15 design)
     llm_effort: str = "low"  # chat is a path the user waits on (NFR-5: answer < 8 s at p95)
     llm_api_key: SecretStr | None = Field(default=None, repr=False)
+    # Where the coach's model runs (FR-13 to FR-15 design, §2): `auto` or `api` use the API key
+    # (no key, no chat); `subscription` is the owner's Claude login, for evaluation runs and
+    # prompt work on their own machine only (decision 2)
+    coach_backend: Literal["auto", "api", "subscription"] = "auto"
 
     # Web app (Web App UI note). The demo bundle holds the dataset, predictions and accounts the
     # app serves, read-only (`sfc-web build-demo`)
