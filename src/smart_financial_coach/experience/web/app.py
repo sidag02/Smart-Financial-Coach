@@ -498,14 +498,15 @@ def create_app(
 
     # Overview (mockup 1a)
 
-    def flow_context(tools: Tools, period: Period) -> dict[str, Any]:
-        summary = tools.get_spending_summary(period.start.isoformat(), period.end.isoformat())
-        data = summary.data
-        by_category = [(c["category"], c["amount"]) for c in data["by_category"]]
+    def flow_context(
+        summary: dict[str, Any], period: Period, goals: dict[str, Any] | None
+    ) -> dict[str, Any]:
+        by_category = [(c["category"], c["amount"]) for c in summary["by_category"]]
+        to_goals = goals["to_goals"] if goals else 0.0
         return {
             "flow_period": period,
-            "flow_summary": data,
-            "flow": charts.money_flow(data["income"], by_category, essentials),
+            "flow_summary": summary,
+            "flow": charts.money_flow(summary["income"], by_category, essentials, to_goals),
         }
 
     def span(horizon: str) -> str:
@@ -529,6 +530,8 @@ def create_app(
         essential_spend = sum(
             c["amount"] for c in summary.data["by_category"] if c["category"] in essentials
         )
+        # Goals' share of the period, estimated (overview feedback, Oct 5, 2026)
+        goals = tools.goals_in_period(period.start, period.end)
         return page(
             request,
             "overview.html",
@@ -551,7 +554,8 @@ def create_app(
             spike_method=spike_method,
             overview_flags=OVERVIEW_FLAGS,
             window_days=FLAG_WINDOW_DAYS,
-            **flow_context(tools, period),
+            goals=goals,
+            **flow_context(summary.data, period, goals),
         )
 
     @app.get("/drill")

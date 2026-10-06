@@ -546,6 +546,60 @@ def money(value: float) -> float:
     return round(float(value), 2)
 
 
+def _first_of(day: date) -> date:
+    return day.replace(day=1)
+
+
+def _month_number(day: date) -> int:
+    return day.year * 12 + day.month - 1
+
+
+def _next_month(day: date) -> date:
+    i = _month_number(day) + 1
+    return date(i // 12, i % 12 + 1, 1)
+
+
+def _end_of_last_month(day: date) -> date:
+    """The last day of the month before `day`'s."""
+    return _first_of(day) - timedelta(days=1)
+
+
+def _pace_between(goal: Goal, start: date, end: date) -> float:
+    """What the simple projection's pace line puts in a goal between `start` and `end`: the
+    same `saved / months` a month as `saved_history`, from its creation month to its saved
+    amount's month, so whole months match the chart exactly; a part of a month gets its share
+    by day."""
+    created = goal.created_date.replace(day=1)
+    months = max(1, _month_number(goal.saved_as_of) - _month_number(created) + 1)
+    pace = goal.saved_cents / 100 / months
+    total = 0.0
+    month = max(created, start.replace(day=1))
+    while month <= min(end, goal.saved_as_of).replace(day=1):
+        last = _end_of_last_month(_next_month(month))
+        days = (min(end, last) - max(start, month)).days + 1
+        total += pace * days / last.day
+        month = _next_month(month)
+    return total
+
+
+def _held(goal: Goal, history: Mapping[str, float], day: date, now: date) -> float:
+    """A goal's estimated saved amount at the end of `day`'s month, from its `saved_history`
+    by month: today's amount from this month on; nothing before it was created; before its
+    history, $0 for a generated goal (it started there) or the first entry for one the person
+    keeps up; without a history, today's amount."""
+    if _first_of(day) >= now:
+        return goal.saved_cents / 100
+    if day < goal.created_date:
+        return 0.0
+    if not history:  # no estimate of its past: as it is now
+        return goal.saved_cents / 100
+    key = f"{day:%Y-%m}"
+    earlier = [m for m in history if m <= key]
+    if earlier:
+        return float(history[max(earlier)])
+    return 0.0 if goal.origin == "existing" else float(history[min(history)])
+
+
 def span_label(start: date, end: date) -> str:
     if start.year == end.year and start.month == end.month:
         if start.day == 1 and (end + timedelta(days=1)).day == 1:
@@ -1848,6 +1902,63 @@ class Tools:
         if not forecasts:
             return {}
         return {g.goal_id: self._history_of(g, forecasts[g.goal_id], None) for g in running}
+
+    def goals_in_period(self, start: date, end: date) -> dict[str, Any] | None:
+        """What running goals got between `start` and `end`, and what they held at its end, for
+        the web app's Overview (overview feedback, Oct 5, 2026). Estimated the way their history
+        is: a goal with a track record or the person's entries gets its `share` of each day's
+        net savings from when that share applies (creation, or the first entry's next month),
+        never drawn below $0; under the simple projection, its pace so far, pro rata by day. A
+        `typical` goal has no past share, so nothing. `held` is the goals' total saved amount
+        at the period's end: today's amounts for a period ending this month. None without a
+        forecast."""
+        today = self.as_of
+        running = [g for g in self._goals() if g.running(today)]
+        forecasts = self._forecasts(running)
+        if forecasts is None:
+            return None
+        entries = self._first_entries()
+        now = _first_of(today)
+        goals: list[dict[str, Any]] = []
+        for g in running:
+            out = forecasts[g.goal_id]
+            share = None if pd.isna(out["share"]) else float(out["share"])
+            source = None if pd.isna(out["share_source"]) else str(out["share_source"])
+            history = {h["month"]: h["saved"] for h in self._history_of(g, out, None)}
+            amount = 0.0
+            if share is not None and source in ("track_record", "your_entries"):
+                first = entries.get(g.goal_id)
+                begin = (
+                    g.created_date.replace(day=1)
+                    if source == "track_record" or first is None
+                    else _next_month(first[1])
+                )
+                # Entries end at the latest one, as the history does (review on #71)
+                last = (
+                    end
+                    if source == "track_record"
+                    else _end_of_last_month(_next_month(g.saved_as_of))
+                )
+                lo, hi = max(start, begin), min(end, last)
+                if lo <= hi:
+                    amount = share * float(self.ledger.between(lo, hi)["amount"].sum())
+                    before = _held(g, history, _end_of_last_month(lo), now)
+                    amount = max(amount, -before)  # a goal never goes below $0
+            elif source is None:  # the simple projection: the history's pace line
+                amount = _pace_between(g, start, end)
+            goals.append(
+                {
+                    "goal_id": g.goal_id,
+                    "name": g.name,
+                    "to_goal": round(amount, 2),
+                    "held": round(_held(g, history, end, now), 2),
+                }
+            )
+        return {
+            "to_goals": round(sum(x["to_goal"] for x in goals), 2),
+            "held": round(sum(x["held"] for x in goals), 2),
+            "goals": goals,
+        }
 
     def _history_of(
         self, goal: Goal, out: Mapping[str, Any], points: int | None
