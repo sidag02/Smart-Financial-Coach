@@ -28,9 +28,25 @@ az containerapp update --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP
     "SFC_CHAT_MESSAGES_PER_HOUR_TOTAL=$CHAT_TOTAL_PER_HOUR" -o none
 FQDN="$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
   --query properties.configuration.ingress.fqdn -o tsv)"
-echo "Chat set up ($MODEL, at most $CHAT_TOTAL_PER_HOUR answers an hour); waiting for the restart"
+echo "Chat set up ($MODEL, at most $CHAT_TOTAL_PER_HOUR answers an hour); waiting for the new revision"
+# The update makes a new revision. Wait until it's ready, takes all the traffic and reports the
+# model, as deploy.yml waits for a deploy: until then the old revision can still answer, and a
+# rerun with the same model would otherwise check before the new limit is live (review on #76)
+ready=""
 for attempt in $(seq 1 30); do
-  if curl -fsS "https://$FQDN/healthz" | grep -q "\"model\":\"$MODEL\""; then break; fi
+  latest=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+    --query properties.latestRevisionName -o tsv) || true
+  live=$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
+    --query properties.latestReadyRevisionName -o tsv) || true
+  traffic=$(az containerapp revision show --name "$CONTAINER_APP" \
+    --resource-group "$RESOURCE_GROUP" --revision "$latest" \
+    --query properties.trafficWeight -o tsv) || true
+  if [ -n "$latest" ] && [ "$latest" = "$live" ] && [ "$traffic" = "100" ] &&
+    curl -fsS "https://$FQDN/healthz" | grep -q "\"model\":\"$MODEL\""; then
+    ready=yes
+    break
+  fi
   sleep 10
 done
+[ -n "$ready" ] || { echo "timed out waiting for the new revision ($latest)" >&2; exit 1; }
 deploy/azure/check-chat.sh "https://$FQDN"
