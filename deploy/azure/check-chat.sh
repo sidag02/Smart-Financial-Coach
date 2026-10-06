@@ -30,7 +30,7 @@ status="$(curl -s -o /dev/null -w '%{http_code}' -c "$jar" -b "$jar" \
 [ "$status" = 303 ] || { echo "sign-in failed: HTTP $status" >&2; exit 1; }
 answer="$(curl -fsS -c "$jar" -b "$jar" -H "Origin: $BASE" \
   --data-urlencode "question=$QUESTION" "$BASE/chat")"
-if grep -Eq "isn&#39;t available|couldn&#39;t be reached|couldn&#39;t double-check" <<<"$answer"; then
+if grep -Eq "isn&#39;t available|couldn&#39;t be reached|couldn&#39;t check every number" <<<"$answer"; then
   echo "chat answered without a grounded answer:" >&2
   sed -e 's/<[^>]*>//g' <<<"$answer" | tr -s ' \n' | head -c 600 >&2
   exit 1
