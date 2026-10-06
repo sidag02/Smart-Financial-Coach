@@ -327,3 +327,38 @@ def test_a_preview_isnt_a_change(tools: Tools) -> None:
     previewed = stub_tools(tools, {"status": "needs_confirmation"})
 
     assert coach(client).answer(previewed, Conversation(), "Set up a goal").text == UNGROUNDED
+
+
+def test_concurrent_tool_calls_keep_each_result_under_its_own_id(
+    tools: Tools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The subscription backend runs tool calls in worker threads (review on #74). A pause
+    after each id is handed out lets other calls in, as a thread switch would."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    issue = Conversation.source_id
+
+    def slow(self: Conversation, *args: Any, **kwargs: Any) -> str:
+        source_id = issue(self, *args, **kwargs)
+        time.sleep(0.002)
+        return source_id
+
+    monkeypatch.setattr(Conversation, "source_id", slow)
+
+    def call(name: str, arguments: dict[str, Any]) -> ToolResult:
+        return ToolResult({"marker": arguments["marker"]}, Source(arguments["marker"], ""))
+
+    stub = SimpleNamespace(call=call, specs=tools.specs, as_of=tools.as_of)
+    conversation = Conversation()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(
+            lambda i: Coach.run_tool(stub, conversation, "x", {"marker": f"m{i}"}),
+            range(64),
+        ))  # fmt: skip
+
+    assert len(conversation.payloads) == 64
+    pairs = zip(conversation.sources, conversation.payloads, strict=True)
+    for i, (source, payload) in enumerate(pairs):
+        assert payload["source_id"] == f"S{i + 1}"
+        assert payload["marker"] == source.title

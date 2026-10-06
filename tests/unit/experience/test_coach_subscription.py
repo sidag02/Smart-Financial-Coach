@@ -173,6 +173,7 @@ def test_it_runs_the_api_coachs_settings_with_only_the_coachs_tools(
     assert reply.text == text
     assert reply.cited["S1"].title == "Spending summary · Sep 2026"
     assert coach.credential_source == "subscription"
+    assert reply.usage.cost("claude-sonnet-5-5") is None  # not charged per answer (§7)
 
 
 def test_tool_errors_reach_the_model_and_a_user_id_is_refused(

@@ -43,6 +43,11 @@ ROW_LISTS = frozenset({"transactions", "unusual_transactions", "largest_charges"
 # Text fields that are identifiers or dates, never numbers someone would quote
 SKIP_TEXT = re.compile(r"(^|_)(id|date|month|as_of|start|end|version)$|^(source_id|currency)$")
 PROBABILITIES = frozenset({"p_goal_met"})
+# Floats in tool results that aren't amounts: proportions (0.62 → "62%"), ratios (2.05 → "105%
+# more", "2.05x") and other numbers (about 27 purchases); every other float is money
+PROPORTIONS = frozenset({"p_goal_met", "chance", "confidence", "share"})
+RATIOS = frozenset({"ratio"})
+OTHER_NUMBERS = frozenset({"usual_count", "minutes_apart"})
 
 MONTHS = (
     r"jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?|"
@@ -76,7 +81,13 @@ class Value:
     path: tuple[str | int, ...]
     kind: str  # "field", "text" (inside a string) or "count" (a list's length)
     row: bool  # inside a transaction row
-    money: bool  # an amount: the tools return money as floats and counts as integers
+    # "money", "count" (an integer or a list's length), "proportion", "ratio", "percent" (in text)
+    # or "number": what an answer's number may match it as
+    unit: str
+
+    @property
+    def money(self) -> bool:
+        return self.unit == "money"
 
 
 @dataclass(frozen=True)
@@ -107,20 +118,18 @@ def values(source: str, payload: Any) -> list[Value]:
             return
         if isinstance(node, int | float):
             if math.isfinite(node):
-                found.append(
-                    Value(float(node), source, path, "field", row, isinstance(node, float))
-                )
+                found.append(Value(float(node), source, path, "field", row, _unit(path, node)))
         elif isinstance(node, str):
             key = path[-1] if path else ""
             if not (isinstance(key, str) and SKIP_TEXT.search(key)):
                 for number in _numbers(node):
-                    money = number.kind == "money"
-                    found.append(Value(number.value, source, path, "text", row, money))
+                    unit = {"money": "money", "percent": "percent"}.get(number.kind, "number")
+                    found.append(Value(number.value, source, path, "text", row, unit))
         elif isinstance(node, Mapping):
             for key, child in node.items():
                 walk(child, (*path, key), row)
         elif isinstance(node, Sequence):
-            found.append(Value(float(len(node)), source, (*path, "len"), "count", row, False))
+            found.append(Value(float(len(node)), source, (*path, "len"), "count", row, "count"))
             in_rows = row or (bool(path) and path[-1] in ROW_LISTS)
             for i, child in enumerate(node):
                 walk(child, (*path, i), in_rows)
@@ -144,7 +153,7 @@ def check(
 ) -> Grounding:
     """Check `answer` against the tool results it cites. `payloads` are this conversation's
     tool results by source id ("S1"), `user_texts` the person's messages."""
-    said = {n.value for text in user_texts for n in _numbers(text)}
+    said = {(_said_kind(n), n.value) for text in user_texts for n in _numbers(text)}
     by_source = {source: values(source, payload) for source, payload in payloads.items()}
     numbers = [n for n in cited_numbers(answer) if not _exempt(n, said, constants)]
     unmatched = tuple(n.text for n in numbers if not _grounded(n, by_source))
@@ -233,10 +242,26 @@ def _located(text: str) -> list[tuple[Number, int]]:
     return found
 
 
-def _exempt(number: Number, said: set[float], constants: frozenset[float]) -> bool:
+def _unit(path: tuple[str | int, ...], node: float) -> str:
+    key = path[-1] if path else ""
+    if isinstance(node, int):
+        return "count"
+    if key in PROPORTIONS:
+        return "proportion"
+    if key in RATIOS:
+        return "ratio"
+    return "number" if key in OTHER_NUMBERS else "money"
+
+
+def _said_kind(number: Number) -> str:
+    """Money matches money and a percentage a percentage: "3 months" doesn't exempt "$3"."""
+    return number.kind if number.kind in ("money", "percent") else "plain"
+
+
+def _exempt(number: Number, said: set[tuple[str, float]], constants: frozenset[float]) -> bool:
     if number.kind == "chance":
         return False
-    if number.value in said:
+    if (_said_kind(number), number.value) in said:
         return True
     return number.kind in ("plain", "times") and number.value in constants
 
@@ -265,13 +290,23 @@ def _grounded(number: Number, by_source: Mapping[str, list[Value]]) -> bool:
             and chance_words(v.number) == phrase.get(qual)
             for v in cited
         )
-    if number.kind == "percent":
-        forms = [
-            (v.number * 100, v.number, abs(v.number - 1) * 100) for v in cited if v.kind != "count"
-        ]
-        return any(abs(f - number.value) <= tol for trio in forms for f in trio)
-    if number.kind == "money":  # an amount is never a count, and a count never an amount
+    if number.kind == "percent":  # never from an amount or a transaction row
+        forms: list[float] = []
+        for v in cited:
+            if v.row:
+                continue
+            if v.unit == "proportion":
+                forms.append(v.number * 100)
+            elif v.unit == "ratio":
+                forms += [abs(v.number - 1) * 100, v.number * 100]
+            elif v.unit == "percent":
+                forms.append(v.number)
+        return any(abs(f - number.value) <= tol for f in forms)
+    # An amount is never a count or a ratio, and a count or a ratio never an amount
+    if number.kind == "money":
         cited = [v for v in cited if v.money]
+    else:
+        cited = [v for v in cited if v.unit in ("count", "number", "ratio", "proportion")]
     if any(abs(abs(v.number) - number.value) <= tol for v in cited):
         return True
     if number.kind == "money":  # counts aren't added up: small ones would match almost anything
