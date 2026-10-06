@@ -89,6 +89,13 @@ main { padding: 32px 36px 48px; display: flex; flex-direction: column; gap: 20px
 
 .card { background: var(--surface); border: 1px solid var(--border); border-radius: 20px; padding: 20px 22px; box-shadow: var(--shadow); min-width: 0; }
 .card-label { font-size: 13.5px; color: var(--muted); font-weight: 500; }
+/* A card that opens a page (the Overview's spend card opens Transactions for the same period) */
+a.card-link { color: inherit; display: flex; transition: border-color .15s, background .15s; }
+a.card-link:hover { text-decoration: none; border-color: var(--ask-border); background: var(--hover); }
+a.card-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.card-link .go { font-size: 20px; line-height: 1; color: var(--faint); }
+a.card-link:hover .go { color: var(--accent-strong); }
+.period-picker { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .card-title { font-weight: 600; font-size: 15px; }
 .big { font: 600 40px/1.1 var(--display); letter-spacing: -.02em; font-variant-numeric: tabular-nums; margin: 4px 0; }

@@ -6,6 +6,7 @@ Positions are percentages of the chart box; ribbons are SVG paths in a 920 x 260
 """
 
 import math
+from collections.abc import Collection
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -168,20 +169,23 @@ def money_flow(
     }
 
 
-def trend(months: list[tuple[str, float]], highlight: str) -> list[dict[str, object]]:
-    """Bars for monthly spending; the selected month and the year's peak are labelled."""
+def trend(months: list[tuple[str, float]], highlight: Collection[str]) -> list[dict[str, object]]:
+    """Bars for monthly spending: the months in the selected period are highlighted, and the
+    year's peak labelled. Up to three selected months are labelled; a longer period labels only
+    its last, so the labels don't crowd."""
     peak = max((v for _, v in months), default=0.0)
     top = peak * 1.08 or 1.0
+    last = max((k for k, _ in months if k in highlight), default=None)
     bars = []
     for key, value in months:
-        selected, is_peak = key == highlight, value == peak and value > 0
+        selected, is_peak = key in highlight, value == peak and value > 0
         bars.append(
             {
                 "month": key,
                 "value": value,
                 "height": pct(value, top),
                 "kind": "selected" if selected else "peak" if is_peak else "",
-                "label": selected or is_peak,
+                "label": (selected and (len(highlight) <= 3 or key == last)) or is_peak,
             }
         )
     return bars

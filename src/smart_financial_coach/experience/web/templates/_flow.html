@@ -4,11 +4,6 @@
       <div class="card-title">Where your money went · {{ flow_period.label }}</div>
       <div class="muted" style="font-size:13px;margin-top:2px">Came in {{ flow_summary.income | money }} · Spent {{ flow_summary.spending | money }} · {% if flow_summary.net >= 0 %}Left over {{ flow_summary.net | money }}{% else %}{{ (-flow_summary.net) | money }} more than came in{% endif %}</div>
     </div>
-    <nav class="seg" aria-label="Period">
-      {% for key, label in horizons.items() %}
-      <a href="/?month={{ month_key }}&horizon={{ key }}" hx-get="/flow?month={{ month_key }}&horizon={{ key }}" hx-target="#flow-card" hx-swap="outerHTML"{% if key == horizon %} aria-current="true"{% endif %}>{{ label }}</a>
-      {% endfor %}
-    </nav>
   </div>
   {% if flow.empty %}
   <div class="empty">No spending or income in this period.</div>

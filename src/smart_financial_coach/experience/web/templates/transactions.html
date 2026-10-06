@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_macros.html" import month_picker, cat_chip %}
+{% from "_macros.html" import period_picker, cat_chip %}
 
 {% macro edit_category(t, unsure, why) -%}
 <details class="edit-cat">
@@ -21,14 +21,15 @@
 <div class="page-head">
   <div>
     <h1 class="page-title">Transactions</h1>
-    <div class="page-sub">{{ month.start.strftime('%B %Y') }} · {{ count }} transactions, sorted into 13 categories</div>
+    <div class="page-sub">{% if horizon == "month" %}{{ month.start.strftime('%B %Y') }}{% else %}{{ period.label }}{% endif %} · {{ count }} transactions, sorted into 13 categories</div>
   </div>
-  {{ month_picker("/transactions", month, month_options, {"category": category, "q": q}) }}
+  {{ period_picker("/transactions", month, month_options, horizon, {"category": category, "q": q}) }}
 </div>
 
-{% set base = "/transactions?month=" ~ month.start.strftime('%Y-%m') %}
+{% set base = "/transactions?month=" ~ month.start.strftime('%Y-%m') ~ ("&horizon=" ~ horizon if horizon != "month" else "") %}
 <form class="filters" method="get" action="/transactions">
   <input type="hidden" name="month" value="{{ month.start.strftime('%Y-%m') }}">
+  {% if horizon != "month" %}<input type="hidden" name="horizon" value="{{ horizon }}">{% endif %}
   {% if category %}<input type="hidden" name="category" value="{{ category }}">{% endif %}
   <label class="visually-hidden" for="q">Search merchants</label>
   <input class="search" id="q" name="q" value="{{ q }}" placeholder="Search merchants" maxlength="80">

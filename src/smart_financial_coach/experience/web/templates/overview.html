@@ -1,14 +1,14 @@
 {% extends "base.html" %}
-{% from "_macros.html" import month_picker, goal_status %}
+{% from "_macros.html" import period_picker, goal_status %}
 {% from "_flags.html" import flag_row, spike_row %}
 {% block title %}Overview · Smart Financial Coach{% endblock %}
 {% block main %}
 <div class="page-head">
   <div>
     <h1 class="page-title">{{ greeting }}, {{ account.first_name }}</h1>
-    <div class="page-sub">Here's {{ month.start.strftime('%B %Y') }} at a glance.</div>
+    <div class="page-sub">Here's {% if horizon == "month" %}{{ month.start.strftime('%B %Y') }}{% else %}{{ period.label }}{% endif %} at a glance.</div>
   </div>
-  {{ month_picker("/", month, month_options) }}
+  {{ period_picker("/", month, month_options, horizon) }}
 </div>
 
 <div class="stack">
@@ -19,24 +19,38 @@
     <button class="btn" type="submit">Ask</button>
   </form>
   <div class="chips">
-    {% set m = month.start.strftime('%B') %}
-    {% for q in ["Where did most of my money go in " ~ m ~ "?", "What were my biggest purchases in " ~ m ~ "?", "How does " ~ m ~ " compare to the month before?"] %}
+    {% set m = month.start.strftime('%B') if horizon == "month" else period.label %}
+    {% set before = {"week": "the week before", "month": "the month before", "quarter": "the quarter before", "year": "the year before"}[horizon] %}
+    {% for q in ["Where did most of my money go in " ~ m ~ "?", "What were my biggest purchases in " ~ m ~ "?", "How does " ~ m ~ " compare to " ~ before ~ "?"] %}
     <a class="chip" href="/chat?q={{ q | urlencode }}">{{ q }}</a>
     {% endfor %}
   </div>
 </div>
 
 <div class="grid-3">
-  <section class="card stack" style="gap:6px">
-    <div class="card-label">Spent in {{ month.start.strftime('%B') }}{% if month.end.day < 28 %} so far{% endif %}</div>
+  <a class="card card-link stack" style="gap:6px" href="/transactions?month={{ month_key }}{% if horizon != 'month' %}&amp;horizon={{ horizon }}{% endif %}" aria-label="Spent {{ summary.spending | money }}, {{ period.label }}: open these transactions">
+    <div class="card-head"><div class="card-label">Spent{% if horizon == "month" %} in {{ month.start.strftime('%B') }}{% if month.end.day < 28 %} so far{% endif %}{% else %}, {{ period.label }}{% endif %}</div><span class="go" aria-hidden="true">›</span></div>
     <div class="big">{{ summary.spending | money }}</div>
     <div class="muted" style="font-size:13.5px">{{ summary.transactions }} transactions · {{ essentials | money }} on essentials</div>
     <div class="spacer"></div>
-    <div class="row-split"><span>Income this month</span><b class="num">{{ summary.income | money }}</b></div>
-  </section>
+    <div class="row-split"><span>Income{% if horizon == "month" %} this month{% else %} in this period{% endif %}</span><b class="num">{{ summary.income | money }}</b></div>
+  </a>
 
   <section class="card stack">
     {% if goal %}{% set g = goal %}
+    {% if g.then %}{% set t = g.then %}
+    <div class="card-head"><div class="card-label">{{ g.name }} · end of {{ t.day.strftime('%b %Y') }}</div><span class="badge ended">Past</span></div>
+    {% if not t.started %}
+    <div style="font-size:14px">Not started yet: you set it up in {{ g.created_date[:7] | month_name(long=True) }}.</div>
+    {% elif t.saved is not none %}
+    <div><span class="mid">{{ t.saved | money }}</span> <span class="muted" style="font-size:14px">of {{ g.target_amount | money }} (estimated)</span></div>
+    <div class="track"><div style="width:{{ [100, (t.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
+    <div class="muted" style="font-size:13px">Estimated from the share of your savings it gets. Today it's {{ g.saved | money }}.</div>
+    {% else %}
+    <div class="muted" style="font-size:14px">There's no estimate for that month yet. Today it's {{ g.saved | money }} of {{ g.target_amount | money }}.</div>
+    {% endif %}
+    <a href="/goals/{{ g.goal_id }}" style="font-size:13.5px">See how it got here</a>
+    {% else %}
     <div class="card-head"><div class="card-label">{{ g.name }}</div>{{ goal_status(g.status, g.forecast_status, g.forecast_method) }}</div>
     <div><span class="mid">{{ g.saved | money }}</span> <span class="muted" style="font-size:14px">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
     <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
@@ -49,6 +63,7 @@
     {% endif %}
     {% else %}
     <div style="font-size:13.5px" class="muted">You've saved the whole amount.{% if g.may_draw_down %} Months where you spend more than you earn could draw it down before {{ g.target_date | day }}.{% endif %} <a href="/goals">See your goals</a></div>
+    {% endif %}
     {% endif %}
     {% else %}
     <div class="card-label">Savings goal</div>
@@ -80,8 +95,8 @@
 
 <section class="card">
   <div class="card-head">
-    <div class="card-title">Last 12 months</div>
-    <div class="muted" style="font-size:13px">Monthly spending, {{ trend[0].month | month_name(long=True) }} to {{ trend[-1].month | month_name(long=True) }}</div>
+    <div class="card-title">12 months to {{ trend[-1].month | month_name(long=True) }}</div>
+    <div class="muted" style="font-size:13px">Monthly spending, {{ trend[0].month | month_name(long=True) }} to {{ trend[-1].month | month_name(long=True) }}; this period's months highlighted</div>
   </div>
   <div class="trend" role="img" aria-label="Monthly spending for the last 12 months">
     {% for b in trend %}

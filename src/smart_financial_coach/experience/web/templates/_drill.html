@@ -18,7 +18,7 @@
       {% if rows.matched > rows.shown %}<div class="list-row" style="grid-template-columns:1fr"><span class="muted">Largest {{ rows.shown }} of {{ rows.matched }}</span></div>{% endif %}
     </div>
     <div class="drawer-actions">
-      <a class="btn" style="text-align:center" href="/transactions?month={{ month_key }}&category={{ category | urlencode }}">Open in Transactions</a>
+      <a class="btn" style="text-align:center" href="/transactions?month={{ month_key }}{% if horizon != 'month' %}&horizon={{ horizon }}{% endif %}&category={{ category | urlencode }}">Open in Transactions</a>
       <a class="btn-ghost" href="/chat?q={{ ('Tell me about my ' ~ category ~ ' spending, ' ~ period.label) | urlencode }}">Ask {{ coach_name }} about this</a>
     </div>
   </div>
