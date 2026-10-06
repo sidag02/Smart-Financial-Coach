@@ -124,7 +124,22 @@ def test_pages_need_a_signed_in_user(client: TestClient) -> None:
         "users": 2,
         "spikes": None,
         "presets": {"unusual_charges": False, "spending_spikes": False},
+        "coach": None,  # no key: chat is off
     }
+
+
+def test_healthz_says_which_coach_serves_chat_but_never_the_key(
+    sources: DataSources, accounts: list[Account]
+) -> None:
+    wren = Coach(FakeClient(), coach_name="Wren", model="claude-sonnet-5-5", effort="low")
+    with make_client(sources, accounts, coach=wren) as c:
+        health = c.get("/healthz")
+    assert health.json()["coach"] == {
+        "backend": "api",
+        "model": "claude-sonnet-5-5",
+        "effort": "low",
+    }
+    assert "sk-" not in health.text
 
 
 def test_sign_in_checks_email_and_password(client: TestClient) -> None:

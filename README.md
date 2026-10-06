@@ -95,4 +95,14 @@ The subscription backend needs the dev dependencies (`claude-agent-sdk`) and a l
 
 ### Demo deployment (Azure)
 
-`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/set-llm-key.sh` passes the Anthropic key from `.env` to the app as a secret; `deploy/azure/teardown.sh` deletes everything.
+`deploy/azure/provision.sh` creates the demo's resource group, registry, Container Apps environment and app, builds the first image in Azure, and sets up the GitHub `demo` environment with an OIDC identity scoped to that resource group. After that, `.github/workflows/deploy.yml` rebuilds the bundle and image and rolls them out on every merge to `main` that touches the app. `deploy/azure/teardown.sh` deletes everything.
+
+Chat goes live when the app has an Anthropic key (FR-13 to FR-15 design, §6). It's on for every signed-in visitor, and `/healthz` reports the coach's model, never the key:
+
+```bash
+CHAT_TOTAL_PER_HOUR=150 deploy/azure/set-llm-key.sh   # key from .env; checks chat afterwards
+deploy/azure/check-chat.sh                             # a demo user's question, sourced and grounded
+deploy/azure/remove-llm-key.sh                         # chat off again after the demo
+```
+
+`set-llm-key.sh` passes the key from `.env` as a secret, pins `SFC_LLM_MODEL` (default `claude-sonnet-5-5`), and sets the total chat limit. Size the limit to the key's spending cap: at most the cap divided by (dollars per answer × demo hours), using the dollars per answer from the coach suite's API run. `check-chat.sh` needs `SFC_DEMO_PASSWORD` in `.env`, and costs one answer.

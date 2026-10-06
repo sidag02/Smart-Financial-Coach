@@ -461,6 +461,10 @@ def create_app(
                 "users": len(accounts),
                 "spikes": spike_method,
                 "presets": presets_live,
+                # Whether chat is live and on what (FR-13 to FR-15 design, §6); never the key
+                "coach": None
+                if coach is None
+                else {"backend": coach.backend, "model": coach.model, "effort": coach.effort},
             }
         )
 
