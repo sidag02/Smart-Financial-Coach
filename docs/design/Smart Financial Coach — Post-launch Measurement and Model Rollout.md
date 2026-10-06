@@ -280,6 +280,6 @@ Decision 1 is decided. Decisions 2 to 9 are the plan's proposals, and nothing el
 4. **Alert thresholds** for each measure (§2–§5), with the minimum volumes and pre-data expected values in §8. *Proposed* as starting points, revisited after eight weeks of data.
 5. **Goal outcomes:** ask the person at the target date, and leave unanswered goals out (*proposed*), or infer from the ledger, which grades the forecast against its own assumption.
 6. **Coach text for spot checks:** store answers and cited tool results for the weekly sample only, kept 30 days, demo data only in v1, and opt-in in v2. In v2, stored tool results hold real transaction descriptions and amounts, so they need the same row-level security as the rest of a person's data, plus an access log of who reviewed what. *Proposed.* Today nothing is stored, which keeps spot checks impossible.
-7. **Shadow pass conditions** (§7 table), as in the table. *Proposed*; the categorizer's churn limit is the one most worth the owner's view.
+7. **Shadow pass conditions,** as in §7's table. *Proposed*; the categorizer's churn limit is the one most worth the owner's view.
 8. **A/B only with power, otherwise staged rollout with guardrails.** *Proposed.*
 9. **Open:** who would do the weekly grounding spot check and the quarterly alert labelling. A named reviewer, once there are real users.
