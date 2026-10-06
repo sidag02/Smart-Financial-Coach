@@ -38,11 +38,10 @@
 
   <section class="card stack" style="gap:6px">
     <div class="card-label">Savings{% if horizon == "month" %} in {{ month.start.strftime('%B') }}{% else %}, {{ period.label }}{% endif %}</div>
-    {% if summary.net >= 0 %}
     <div class="big">{{ summary.net | money }}</div>
+    {% if summary.net >= 0 %}
     <div class="muted" style="font-size:13.5px">Net saved: what came in, less what you spent</div>
     {% else %}
-    <div class="big">{{ summary.net | money }}</div>
     <div class="muted" style="font-size:13.5px">You spent {{ (-summary.net) | money }} more than came in</div>
     {% endif %}
     <div class="spacer"></div>

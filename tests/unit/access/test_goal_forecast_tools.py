@@ -425,6 +425,40 @@ def test_goals_in_a_period_follow_their_history(page: Tools) -> None:
     assert now["held"] == pytest.approx(2140.0 + 2100.0)
 
 
+def test_your_entries_stop_at_the_latest_one(page: Tools, store: GoalStore) -> None:
+    """Review on #71: after the latest entry the history is flat, so nothing more goes to the
+    goal: first entry Jan ($400), latest May ($2,400), a summer period."""
+    page.call("create_goal", TRIP)
+    trip = by_name(page)["Trip"]["goal_id"]
+    with sqlite3.connect(store.path) as conn:
+        conn.execute(
+            "UPDATE goal_revisions SET saved_as_of = '2026-01-31', created_date = '2026-01-31' "
+            "WHERE goal_id = ?",
+            (trip,),
+        )
+    page.call("update_goal", {"goal_id": trip, "saved": 2400})
+    with sqlite3.connect(store.path) as conn:  # the latest entry, in May
+        conn.execute(
+            "UPDATE goal_revisions SET saved_as_of = '2026-05-31' WHERE goal_id = ? AND seq = "
+            "(SELECT MAX(seq) FROM goal_revisions WHERE goal_id = ?)",
+            (trip, trip),
+        )
+    assert page.call("forecast_goal", {"goal_id": trip}).data["share_source"] == "your_entries"
+    history = {h["month"]: h["saved"] for h in page.saved_histories()[trip]}
+    assert max(history) == "2026-05"
+    summer = page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert summer is not None
+    got = next(g for g in summer["goals"] if g["goal_id"] == trip)
+    assert got == {"goal_id": trip, "name": "Trip", "to_goal": 0.0, "held": history["2026-05"]}
+    # Up to the latest entry, the steps match the history
+    spring = page.goals_in_period(date(2026, 3, 1), date(2026, 5, 31))
+    assert spring is not None
+    got = next(g for g in spring["goals"] if g["goal_id"] == trip)
+    if min(history[m] for m in ("2026-03", "2026-04", "2026-05")) > 0:
+        steps = history["2026-05"] - history["2026-02"]
+        assert got["to_goal"] == pytest.approx(steps, abs=0.05)
+
+
 def test_a_new_goal_gets_nothing_in_past_periods(page: Tools) -> None:
     page.call("create_goal", TRIP)
     trip = by_name(page)["Trip"]["goal_id"]
@@ -442,5 +476,32 @@ def test_without_a_model_goals_in_a_period_use_the_pace(baseline_page: Tools) ->
     summer = baseline_page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
     assert summer is not None
     vacation = next(g for g in summer["goals"] if g["goal_id"] == "g_x_1")
-    # $2,140 over Jan-Sep is about $237.78 a month: three months' worth, by day
-    assert vacation["to_goal"] == pytest.approx(2140 / 9 * 92 / (365.25 / 12), abs=0.01)
+    # $2,140 over Jan-Sep is $237.78 a month: three whole months, as the chart steps
+    history = {h["month"]: h["saved"] for h in baseline_page.saved_histories()["g_x_1"]}
+    assert vacation["to_goal"] == pytest.approx(2140 / 9 * 3, abs=0.01)
+    assert vacation["to_goal"] == pytest.approx(history["2026-08"] - history["2026-05"], abs=0.01)
+    # Part of a month gets its share by day: a week of September
+    week = baseline_page.goals_in_period(date(2026, 9, 24), date(2026, 9, 30))
+    assert week is not None
+    in_week = next(g for g in week["goals"] if g["goal_id"] == "g_x_1")["to_goal"]
+    assert in_week == pytest.approx(2140 / 9 * 7 / 30, abs=0.01)
+
+
+def test_without_a_model_your_own_goal_follows_its_pace_too(
+    baseline_page: Tools, store: GoalStore
+) -> None:
+    """Review on #71: a goal the person created gets the pace its chart draws, not $0."""
+    baseline_page.call("create_goal", TRIP)
+    trip = by_name(baseline_page)["Trip"]["goal_id"]
+    with sqlite3.connect(store.path) as conn:
+        conn.execute(
+            "UPDATE goal_revisions SET created_date = '2026-03-31' WHERE goal_id = ?",
+            (trip,),
+        )
+    history = {h["month"]: h["saved"] for h in baseline_page.saved_histories()[trip]}
+    summer = baseline_page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert summer is not None
+    got = next(g for g in summer["goals"] if g["goal_id"] == trip)
+    assert got["to_goal"] > 0
+    assert got["to_goal"] == pytest.approx(history["2026-08"] - history["2026-05"], abs=0.01)
+    assert got["held"] == history["2026-08"] == pytest.approx(400 / 7 * 6, abs=0.01)

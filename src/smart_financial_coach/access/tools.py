@@ -543,9 +543,6 @@ def money(value: float) -> float:
     return round(float(value), 2)
 
 
-DAYS_PER_MONTH = 365.25 / 12
-
-
 def _first_of(day: date) -> date:
     return day.replace(day=1)
 
@@ -562,6 +559,24 @@ def _next_month(day: date) -> date:
 def _end_of_last_month(day: date) -> date:
     """The last day of the month before `day`'s."""
     return _first_of(day) - timedelta(days=1)
+
+
+def _pace_between(goal: Goal, start: date, end: date) -> float:
+    """What the simple projection's pace line puts in a goal between `start` and `end`: the
+    same `saved / months` a month as `saved_history`, from its creation month to its saved
+    amount's month, so whole months match the chart exactly; a part of a month gets its share
+    by day."""
+    created = goal.created_date.replace(day=1)
+    months = max(1, _month_number(goal.saved_as_of) - _month_number(created) + 1)
+    pace = goal.saved_cents / 100 / months
+    total = 0.0
+    month = max(created, start.replace(day=1))
+    while month <= min(end, goal.saved_as_of).replace(day=1):
+        last = _end_of_last_month(_next_month(month))
+        days = (min(end, last) - max(start, month)).days + 1
+        total += pace * days / last.day
+        month = _next_month(month)
+    return total
 
 
 def _held(goal: Goal, history: Mapping[str, float], day: date, now: date) -> float:
@@ -1911,17 +1926,19 @@ class Tools:
                     if source == "track_record" or first is None
                     else _next_month(first[1])
                 )
-                lo = max(start, begin)
-                if lo <= end:
-                    amount = share * float(self.ledger.between(lo, end)["amount"].sum())
+                # Entries end at the latest one, as the history does (review on #71)
+                last = (
+                    end
+                    if source == "track_record"
+                    else _end_of_last_month(_next_month(g.saved_as_of))
+                )
+                lo, hi = max(start, begin), min(end, last)
+                if lo <= hi:
+                    amount = share * float(self.ledger.between(lo, hi)["amount"].sum())
                     before = _held(g, history, _end_of_last_month(lo), now)
                     amount = max(amount, -before)  # a goal never goes below $0
-            elif source is None and g.origin == "existing":  # the simple projection's pace
-                created = g.created_date.replace(day=1)
-                months = max(1, _month_number(g.saved_as_of) - _month_number(created) + 1)
-                lo, hi = max(start, created), min(end, g.saved_as_of)
-                days = (hi - lo).days + 1
-                amount = g.saved_cents / 100 / months * max(0, days) / DAYS_PER_MONTH
+            elif source is None:  # the simple projection: the history's pace line
+                amount = _pace_between(g, start, end)
             goals.append(
                 {
                     "goal_id": g.goal_id,
