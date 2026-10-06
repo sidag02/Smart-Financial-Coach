@@ -233,7 +233,7 @@ These need no new mechanism; they need measuring.
 
 Two separate switches, and neither needs this design's code:
 
-- **Whether chat is live:** the key. Put it in `.env` and run `deploy/azure/set-llm-key.sh`, which sets the secret and restarts the app with `SFC_LLM_API_KEY`. The deployment has no key today, so chat isn't live there at all.
+- **Whether chat is live:** the key. The owner adds it by hand as the container app's `llm-api-key` secret in the Azure Portal, never in `.env` or the repo (owner, Oct 6, 2026). `deploy/azure/enable-chat.sh` then points `SFC_LLM_API_KEY` at it and restarts the app. The deployment has no key today, so chat isn't live there at all.
 - **Which model:** `SFC_LLM_MODEL` on the container app. Setting it to `claude-sonnet-5-5` switches the model today. Changing the default in code (M1) only matters for new deployments.
 
 Then:

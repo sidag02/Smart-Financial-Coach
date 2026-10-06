@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Turn chat off on the deployed app once the demo is over (owner decision 7: the key is live for
-# the demo only). Removes the key from the app and its secrets; chat then says the coach isn't
+# the demo only). Removes the key from the app (its llm-api-key secret and SFC_LLM_API_KEY); chat then says the coach isn't
 # available and the rest of the app works as before (NFR-6). Revoke the key in the Anthropic
 # console as well.
 set -euo pipefail
