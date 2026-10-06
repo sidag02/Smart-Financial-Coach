@@ -96,6 +96,8 @@ On 55e2a48: the gate run's code plus the prompt rule for its two misses ("quote 
 
 Every group passed every case. Both of the gate run's misses (`spikes-jordan-transportation`, `missing-next-month`) passed all 3 runs. Every run is in `fr13-15-coach-confirm.json`. The run recorded the commit at its end, 92b6422, a docs-only commit made while it ran, so the file says 55e2a48; the suite now reads the commit when a run starts.
 
+**After the confirmation run,** the review on #75 narrowed one of the check's fixes. A paragraph no longer borrows the previous paragraph's tags (design §3), and the prompt asks for a source id in every paragraph with a number. The confirmation run used the looser rule.
+
 Rubric scores still count only after the owner's hand-check. The sheet samples the gate run's answers, and the confirmation run's scores differ by at most 0.1 per dimension.
 
 ## Reading the results

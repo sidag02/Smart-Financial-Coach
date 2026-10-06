@@ -89,7 +89,6 @@ def grounded(answer: str, *user: str, constants: frozenset[float] = frozenset())
         "On Aug 31 you spent $4,412.35 [S1], and on 2026-08-01 nothing.",  # nor dates
         "A charge at Olive Garden#4394 [S2].",  # nor a store number
         "Your biggest categories:\n- Housing: $2,118.99\n- Dining: $717.14\nAll from [S1].",
-        "Your biggest:\n- Housing $2,118.99 [S1]\n\nThose are 3 categories.",  # the list above
         "Nothing stood out.",
     ],
 )
@@ -110,6 +109,7 @@ def test_numbers_from_cited_results_pass(answer: str) -> None:
         ("You have better than a 9 in 10 chance [S3].", "better than 9 in 10"),
         ("That's 60% more [S2].", "60%"),
         ("Over 13 months [S1].", "13"),
+        ("Housing $2,118.99 [S1].\n\nThose are 3 categories.", "3"),  # never the paragraph above
         (
             "Housing was $2,118.99.\n\nDining was high [S1].",  # its tags come later
             "$2,118.99",

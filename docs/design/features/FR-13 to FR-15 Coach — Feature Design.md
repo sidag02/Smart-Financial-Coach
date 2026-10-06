@@ -175,6 +175,8 @@ A deterministic check runs on every answer before it's shown, in both backends. 
 
 The CI test uses the test dataset rather than the demo bundle, which CI doesn't have; both come from the same generator.
 
+**A change to the accepted rule "every number needs a source id" (M3, review on #75):** a number in a sentence with no tags takes every tag in its paragraph. People cite a list once, at its end, and the baseline run failed correct answers like that. A paragraph never borrows another paragraph's tags, and the prompt asks for a source id in every paragraph with a number. Measured where it's loosest, a paragraph citing two results with an untagged line under it (`test_grounding_rates.py`): false rejects 0.00% of 355, false accepts 0.14% of 710.
+
 **Why false accepts exist at all:** the check matches values, not meaning. A real value attached to the wrong label passes, for example "$412 on groceries" when $412 is dining. The suite's required facts, each tied to a named field, catch those, and they're what NFR-1's ≥ 95% measures. Field-level citations would close the gap in the check itself (a non-goal for now; decision 8).
 
 **When a number fails** (option B-b, decision 3):
