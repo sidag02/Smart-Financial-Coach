@@ -210,6 +210,8 @@ def test_system_prompt_states_the_rules() -> None:
     assert "call the tool that has it" in prompt  # Sonnet 5.5 can answer from memory instead
     assert "licensed professional" in prompt  # FR-15, NFR-4
     assert "irresponsible" in prompt  # the tone rule (FR-15)
+    assert "can't look up anyone else's" in prompt  # by name or id (NFR-2)
+    assert "61% confident" in prompt  # model confidence isn't quoted as a number
 
 
 def test_an_answer_with_an_untraceable_number_is_retried_once(tools: Tools) -> None:

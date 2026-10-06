@@ -237,6 +237,8 @@ def test_not_me_marks_the_charge_with_fixed_guidance(
     assert marked[0]["your_action"] == "not_me"
     assert marked[0]["action_id"] == done["action"]["action_id"]
     assert after["hidden"]["recognized"] == 0  # "not me" hides nothing
+    # The charge's amount comes back with the action, so a reply about it can cite it (FR-14)
+    assert done["action"]["amount"] == flag["amount"]
 
 
 def test_expected_hides_that_months_spike(alert_sources: DataSources, alerts: AlertStore) -> None:

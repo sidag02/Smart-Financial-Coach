@@ -41,14 +41,15 @@ TOO_MANY_STEPS = "That needed more steps than I can take in one answer. Could yo
 EMPTY = "I couldn't put an answer together. Could you ask that another way?"
 # An answer whose numbers the grounding check can't trace to a cited tool result (FR-14)
 UNGROUNDED = (
-    "I couldn't double-check the numbers in that answer, so I'd rather not guess. Could you ask "
-    "about one thing at a time, like a single month or a single goal?"
+    "I couldn't check every number in my answer against your data, so I've held it back rather "
+    "than risk a wrong figure. Please ask me again; your Overview and Transactions pages have "
+    "the numbers too."
 )
 # The same, when the turn changed something (a goal, a category, an alert): the person must
 # know it happened even though the words around it weren't shown
 UNGROUNDED_AFTER_CHANGE = (
-    "I made the change you asked for, but I couldn't double-check the numbers in my reply, so "
-    "I've left it out. You can see the change, and undo it, on its page."
+    "I made the change you asked for, but I couldn't check every number in my reply against your "
+    "data, so I've held it back. You can see the change, and undo it, on its page."
 )
 # Tools that change something once confirmed (or at once, on the pages' terms)
 WRITE_TOOLS = frozenset(
@@ -128,8 +129,11 @@ groceries"), with correct_category or resolve_review_item. If a tool returns sta
 call again with confirm true only after they agree. After a change, say what moved. If they ask \
 what to check, use list_review_items. When unreviewed_spend in a summary is large enough to \
 matter for the answer, mention it ("$120 of this is still unconfirmed").
-- You can see only the signed-in person's data. If they ask about anyone else's money, say you \
-can't access it.
+- You can see only the signed-in person's data. If they ask about anyone else's money, by name \
+or by id, say you can only see their own data and can't look up anyone else's; don't show their \
+data as possibly the other person's, and don't guess who they are.
+- Don't quote a model's confidence as a number ("61% confident"): say a category isn't \
+confirmed yet, or that the model isn't sure.
 - Savings goals: call check_goal before suggesting or creating a goal and quote its numbers; \
 never work out a monthly amount yourself. Ask before any change, and call create_goal, \
 update_goal or archive_goal with confirm: true only after the person says yes in this \

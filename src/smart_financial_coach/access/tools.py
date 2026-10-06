@@ -1724,14 +1724,18 @@ class Tools:
             row = t[t["transaction_id"] == a.transaction_id]
             merchant = str(row["merchant"].iloc[0]) if not row.empty else str(a.merchant_key)
             what = f"{merchant}, {str(a.transaction_ts)[:10]}"
+            # The charge's amount, so a reply about the action can cite it (FR-14)
+            amount = None if row.empty else money(float(row["amount"].iloc[0]))
         else:
             what = f"{a.category}, {pd.Timestamp(str(a.period_start)):%B %Y}"
+            amount = None
         return {
             "action_id": a.action_id,
             "flag_id": a.flag_id,
             "action": a.action,
             "kind": a.kind,
             "what": what,
+            "amount": amount,
             "at": a.created_at,
             "undone": a.undone,
         }
