@@ -36,6 +36,21 @@
     <div class="row-split"><span>Income{% if horizon == "month" %} this month{% else %} in this period{% endif %}</span><b class="num">{{ summary.income | money }}</b></div>
   </a>
 
+  <section class="card stack" style="gap:6px">
+    <div class="card-label">Savings{% if horizon == "month" %} in {{ month.start.strftime('%B') }}{% else %}, {{ period.label }}{% endif %}</div>
+    <div class="big">{{ summary.net | money }}</div>
+    {% if summary.net >= 0 %}
+    <div class="muted" style="font-size:13.5px">Net saved: what came in, less what you spent</div>
+    {% else %}
+    <div class="muted" style="font-size:13.5px">You spent {{ (-summary.net) | money }} more than came in</div>
+    {% endif %}
+    <div class="spacer"></div>
+    {% if goals %}
+    <div class="row-split"><span>{% if goals.to_goals >= 0 %}To your goals{% else %}From your goals{% endif %} <span class="muted">(estimated)</span></span><b class="num">{{ goals.to_goals | abs | money }}</b></div>
+    <div class="row-split"><span>Set aside in goals{% if period.end.strftime('%Y-%m') != as_of[:7] %} by {{ period.end.strftime('%b %Y') }}{% endif %}</span><b class="num">{{ goals.held | money }}</b></div>
+    {% endif %}
+  </section>
+
   <section class="card stack">
     {% if goal %}{% set g = goal %}
     {% if g.then %}{% set t = g.then %}
@@ -72,7 +87,9 @@
     {% endif %}
   </section>
 
-  <section class="card stack">
+</div>
+
+  <section class="card stack alerts-wide">
     {% if flags_live %}
     {% set alerts = (spikes | length) + (flags | length) %}
     <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">{% if alerts %}See all {{ alerts }}{% else %}Open{% endif %}</a></div>
@@ -89,7 +106,6 @@
     <div class="soon-box"><span>Unusual charges and spending spikes will show here, each with a reason, once the alert models are released.</span></div>
     {% endif %}
   </section>
-</div>
 
 {% include "_flow.html" %}
 
