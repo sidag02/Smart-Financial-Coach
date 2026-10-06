@@ -8,6 +8,7 @@ import time
 from collections.abc import Iterator
 from datetime import date, timedelta
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -477,6 +478,48 @@ def test_money_flow_shows_what_went_to_goals() -> None:
         "Essentials": 1000.0,
         "Everything else": 500.0,
         "Left over": 700.0,
+    }
+
+
+def test_each_flow_block_opens_its_page() -> None:
+    """Money into or out of goals opens Goals, what came in opens income, the rest the period's
+    transactions (overview feedback, Oct 6, 2026). "From goals" is coloured like savings, so
+    the link must not follow the colour (review on #78)."""
+    import jinja2
+
+    from smart_financial_coach.experience.web import app as web_app
+    from smart_financial_coach.experience.web import charts
+
+    env = jinja2.Environment(
+        loader=jinja2.FileSystemLoader(Path(web_app.__file__).parent / "templates"),
+        autoescape=True,
+    )
+    env.filters["money"] = money
+    env.globals["colors"] = charts.colors
+    essentials = frozenset({"Housing"})
+    cats = [("Housing", 1000.0), ("Dining", 1500.0)]
+    links: dict[str, str] = {}
+    for to_goals in (-200.0, 150.0):  # goals drawn down, then paid into
+        flow = money_flow(2000.0, cats, essentials, to_goals)
+        html = env.get_template("_flow.html").render(
+            flow=flow,
+            flow_period=SimpleNamespace(label="Aug 2026"),
+            flow_summary={"income": 2000.0, "spending": 2500.0, "net": -500.0, "by_category": []},
+            goals=None,
+            month_key="2026-08",
+            horizon="month",
+        )
+        links |= dict(
+            re.findall(r'href="([^"]+)"[^>]*aria-label="([^"]+?) \$', html)[i][::-1]
+            for i in range(len(flow["blocks"]))
+        )
+    assert links == {
+        "Came in": "/transactions?month=2026-08&amp;category=Income",
+        "From goals": "/goals",
+        "To goals": "/goals",
+        "From savings": "/transactions?month=2026-08",
+        "Essentials": "/transactions?month=2026-08",
+        "Everything else": "/transactions?month=2026-08",
     }
 
 

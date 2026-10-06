@@ -63,6 +63,12 @@ class _Node:
         return self.top + (u - self.u0) / span * self.height if span else self.top
 
 
+# The page each money-flow block opens (overview feedback, Oct 6, 2026; review on #78): money
+# moving into or out of goals opens Goals, what came in opens income, the rest the period's
+# transactions. By label, since a block's kind is its colour ("From goals" shares savings')
+_OPENS = {"To goals": "goals", "From goals": "goals", "Came in": "income"}
+
+
 def _place(column: list[_Node]) -> None:
     """Stack a column's blocks top to bottom, sized by value, none shorter than MIN_BLOCK."""
     available = HEIGHT - GAP_COLUMN * (len(column) - 1)
@@ -185,6 +191,7 @@ def money_flow(
                     "top": pct(n.top, HEIGHT),
                     "height": pct(n.height, HEIGHT),
                     "slim": n.height < SLIM_BLOCK,  # label and amount on one line
+                    "opens": _OPENS.get(n.label, "transactions"),
                 }
             )
     categories = [

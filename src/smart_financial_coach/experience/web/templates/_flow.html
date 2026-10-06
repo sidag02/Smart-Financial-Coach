@@ -14,7 +14,7 @@
     </svg>
     {% for b in flow.blocks %}
     {% set period_q = "month=" ~ month_key ~ ("&horizon=" ~ horizon if horizon != "month" else "") %}
-    {% if b.kind == "goals" %}{% set href = "/goals" %}{% elif b.kind == "income" %}{% set href = "/transactions?" ~ period_q ~ "&category=Income" %}{% else %}{% set href = "/transactions?" ~ period_q %}{% endif %}
+    {% if b.opens == "goals" %}{% set href = "/goals" %}{% elif b.opens == "income" %}{% set href = "/transactions?" ~ period_q ~ "&category=Income" %}{% else %}{% set href = "/transactions?" ~ period_q %}{% endif %}
     <a class="flow-block k-{{ b.kind }}{% if b.slim %} slim{% endif %}" href="{{ href }}" style="left:{{ b.left }};width:{{ b.width }};top:{{ b.top }};height:{{ b.height }}" aria-label="{{ b.label }} {{ b.amount | money }}: open"><div class="lbl">{{ b.label }}</div><div class="amt">{{ b.amount | money }}</div></a>
     {% endfor %}
     {% for c in flow.categories %}
