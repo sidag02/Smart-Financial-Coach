@@ -9,7 +9,8 @@ and is the evaluation suite's grounding grader, so serving and evaluation agree 
 - **Values in tool results:** every number, every number inside a text field (a spike's reason
   says "$1,383"), and every list's length (counts), kept with its source id and path.
 - **Citations:** each number takes the source tags that follow it in its sentence, or else the
-  ones before it in the sentence. A number with none fails.
+  ones before it in the sentence, or else (a list cited once, at its end) every tag in its
+  paragraph. A number with none fails.
 - **A direct number** matches a value in a result it cites, rounded as written: cents, whole
   dollars or a decimal place. A percentage may also be a ratio as a change (1.42 → 42%) or a
   share or probability (0.62 → 62%). "N in 10" must be exactly `chance_words(p_goal_met)`.
@@ -50,6 +51,7 @@ MONTHS = (
 # A number with thousands separators only where they belong: "2026," is a year and a comma
 DIGITS = r"(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 TAGS = re.compile(r"\[(S\d+(?:\s*,\s*S\d+)*)\]")
+PARAGRAPH = re.compile(r"\n[ \t]*\n")
 SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[A-Z$\[(\"'])|\n+")
 NUMBER = re.compile(
     rf"""
@@ -150,21 +152,40 @@ def check(
 
 
 def cited_numbers(answer: str) -> list[Number]:
-    """The answer's numbers, each with the source tags that cite it."""
+    """The answer's numbers, each with the source tags that cite it: the tags that follow it in
+    its sentence, else the ones before it there. A number in a sentence with no tags (a bullet
+    of a list cited once at its end) takes every tag in its paragraph."""
     found: list[Number] = []
     answer = LIST_MARKER.sub(lambda m: " " * len(m.group(0)), answer)  # "1. Housing …"
-    for sentence in SENTENCE.split(answer):
-        tags = [
-            (m.start(), tuple(t.strip() for t in m.group(1).split(",")))
-            for m in TAGS.finditer(sentence)
-        ]
-        clean = TAGS.sub(lambda m: " " * len(m.group(0)), sentence)
-        for number, start in _located(clean):
-            after = [t for at, t in tags if at >= start]
-            before = [t for at, t in tags if at < start]
-            sources = after[0] if after else (before[-1] if before else ())
-            found.append(Number(number.text, number.value, number.kind, number.decimals, sources))
+    for paragraph in PARAGRAPH.split(answer):
+        shared = tuple(dict.fromkeys(t for _, group in _tags(paragraph) for t in group))
+        for sentence in SENTENCE.split(paragraph):
+            tags = _tags(sentence)
+            clean = TAGS.sub(lambda m: " " * len(m.group(0)), sentence)
+            for number, start in _located(clean):
+                after = [t for at, t in tags if at >= start]
+                before = [t for at, t in tags if at < start]
+                sources = after[0] if after else (before[-1] if before else shared)
+                found.append(
+                    Number(number.text, number.value, number.kind, number.decimals, sources)
+                )
     return found
+
+
+def _tags(text: str) -> list[tuple[int, tuple[str, ...]]]:
+    return [
+        (m.start(), tuple(t.strip() for t in m.group(1).split(","))) for m in TAGS.finditer(text)
+    ]
+
+
+def numbers_in(text: str) -> list[Number]:
+    """The numbers in `text` as the check reads them (the evaluation suite's fact grader)."""
+    return _numbers(text)
+
+
+def matches(number: Number, value: float) -> bool:
+    """Whether `number`, rounded as written, is `value` (or its absolute value)."""
+    return abs(number.value - abs(value)) <= _tolerance(number)
 
 
 def _numbers(text: str) -> list[Number]:

@@ -9,11 +9,12 @@ from typing import Any
 import pytest
 
 from smart_financial_coach.access.ledger import DataSources, Ledger
-from smart_financial_coach.access.tools import Tools
+from smart_financial_coach.access.tools import Source, ToolResult, Tools
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.coach import (
     FALLBACK_BETA,
     UNGROUNDED,
+    UNGROUNDED_AFTER_CHANGE,
     Coach,
     CoachUnavailableError,
     Conversation,
@@ -206,6 +207,9 @@ def test_system_prompt_states_the_rules() -> None:
     assert "never call a charge fraud" in prompt
     assert "chance_words" in prompt  # chances as the Goals page says them
     assert '"estimates"' in prompt  # estimated numbers are said to be estimates (FR-14)
+    assert "call the tool that has it" in prompt  # Sonnet 5.5 can answer from memory instead
+    assert "licensed professional" in prompt  # FR-15, NFR-4
+    assert "irresponsible" in prompt  # the tone rule (FR-15)
 
 
 def test_an_answer_with_an_untraceable_number_is_retried_once(tools: Tools) -> None:
@@ -286,3 +290,40 @@ def test_each_answer_logs_its_cost_and_check_but_not_the_words(
     assert logged["dollars"] == pytest.approx(0.0034)
     assert "secret" not in line
     assert spent(tools) not in line
+
+
+def stub_tools(tools: Tools, data: dict[str, Any]) -> Any:
+    """Tools whose every call returns `data`, as a write or a preview would."""
+
+    def call(name: str, arguments: dict[str, Any]) -> ToolResult:
+        return ToolResult(data, Source("Savings goals", ""))
+
+    return SimpleNamespace(call=call, specs=tools.specs, as_of=tools.as_of)
+
+
+def test_the_safe_message_says_so_when_the_turn_changed_something(tools: Tools) -> None:
+    """A change that went through stays made; the person must know it did (design §3)."""
+    goal = {"name": "Trip", "target_amount": 3000, "target_date": "2027-06-30", "confirm": True}
+    client = FakeClient(
+        response(tool_use("create_goal", goal)),
+        response(text("Done: $9.99 [S1].")),
+        response(text("Done: $8.88 [S1].")),
+    )
+    created = stub_tools(tools, {"goal_id": "g_new", "status": "created"})
+
+    reply = coach(client).answer(created, Conversation(), "Make it, no need to ask")
+
+    assert reply.text == UNGROUNDED_AFTER_CHANGE
+    assert reply.first_text == "Done: $9.99 [S1]."
+
+
+def test_a_preview_isnt_a_change(tools: Tools) -> None:
+    preview = {"name": "Trip", "target_amount": 3000, "target_date": "2027-06-30"}
+    client = FakeClient(
+        response(tool_use("create_goal", preview)),
+        response(text("It needs $9.99 a month [S1].")),
+        response(text("It needs $8.88 a month [S1].")),
+    )
+    previewed = stub_tools(tools, {"status": "needs_confirmation"})
+
+    assert coach(client).answer(previewed, Conversation(), "Set up a goal").text == UNGROUNDED
