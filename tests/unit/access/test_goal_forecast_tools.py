@@ -397,3 +397,50 @@ def test_forecasting_one_goal_matches_the_whole_set(page: Tools) -> None:
     assert one is not None
     assert list(one) == ["g_x_1"]
     assert one["g_x_1"] == whole["g_x_1"]
+
+
+def test_goals_in_a_period_follow_their_history(page: Tools) -> None:
+    """Overview feedback (Oct 5, 2026): what went to a goal in a period, and what it held at the
+    period's end, are the steps and points of the history its chart shows."""
+    history = {h["month"]: h["saved"] for h in page.saved_histories()["g_x_1"]}
+    summer = page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert summer is not None
+    vacation = next(g for g in summer["goals"] if g["goal_id"] == "g_x_1")
+    assert vacation["held"] == history["2026-08"]
+    if min(history[m] for m in ("2026-06", "2026-07", "2026-08")) > 0:  # no month hit $0
+        assert vacation["to_goal"] == pytest.approx(
+            history["2026-08"] - history["2026-05"], abs=0.05
+        )
+    assert summer["to_goals"] == pytest.approx(sum(g["to_goal"] for g in summer["goals"]), abs=0.01)
+    # Before a goal was created it held nothing and got nothing
+    before = page.goals_in_period(date(2025, 11, 1), date(2025, 12, 31))
+    assert before is not None
+    assert {g["goal_id"]: (g["to_goal"], g["held"]) for g in before["goals"]} == {
+        "g_x_1": (0.0, 0.0),
+        "g_x_2": (0.0, 0.0),
+    }
+    # This month: today's amounts
+    now = page.goals_in_period(date(2026, 9, 1), date(2026, 9, 30))
+    assert now is not None
+    assert now["held"] == pytest.approx(2140.0 + 2100.0)
+
+
+def test_a_new_goal_gets_nothing_in_past_periods(page: Tools) -> None:
+    page.call("create_goal", TRIP)
+    trip = by_name(page)["Trip"]["goal_id"]
+    summer = page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert summer is not None
+    assert next(g for g in summer["goals"] if g["goal_id"] == trip) == {
+        "goal_id": trip,
+        "name": "Trip",
+        "to_goal": 0.0,
+        "held": 0.0,
+    }
+
+
+def test_without_a_model_goals_in_a_period_use_the_pace(baseline_page: Tools) -> None:
+    summer = baseline_page.goals_in_period(date(2026, 6, 1), date(2026, 8, 31))
+    assert summer is not None
+    vacation = next(g for g in summer["goals"] if g["goal_id"] == "g_x_1")
+    # $2,140 over Jan-Sep is about $237.78 a month: three months' worth, by day
+    assert vacation["to_goal"] == pytest.approx(2140 / 9 * 92 / (365.25 / 12), abs=0.01)
