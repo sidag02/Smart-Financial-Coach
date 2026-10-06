@@ -61,27 +61,40 @@ def _ribbon(x0: float, a0: float, a1: float, x1: float, b0: float, b1: float) ->
 
 
 def money_flow(
-    income: float, by_category: list[tuple[str, float]], essentials: frozenset[str]
+    income: float,
+    by_category: list[tuple[str, float]],
+    essentials: frozenset[str],
+    to_goals: float = 0.0,
 ) -> dict[str, Any]:
-    """Came in -> essentials / everything else / left over -> categories.
+    """Came in -> essentials / everything else / to goals / left over -> categories.
 
     `by_category` is spending per category (positive); categories with no net spending are left
-    out. When spending exceeds income, the difference shows as "From savings".
+    out. `to_goals` is what went to savings goals (overview feedback, Oct 5, 2026): taken out
+    of what's left over, or, when negative, what the goals gave back ("From goals"). When the
+    money going out exceeds what came in, the difference shows as "From savings".
     """
     cats = [(c, a) for c, a in by_category if a > 0]
     needed = [(c, a) for c, a in cats if c in essentials]
     others = [(c, a) for c, a in cats if c not in essentials]
     spent = sum(a for _, a in cats)
     income = max(income, 0.0)
-    left = income - spent
-    column_a = [_Node("Came in", income, "income")] if income > 0 else []
-    if left < 0:
-        column_a.append(_Node("From savings", -left, "savings"))
+    into_goals, from_goals = max(to_goals, 0.0), max(-to_goals, 0.0)
+    left = income + from_goals - spent - into_goals
+    column_a = [
+        node
+        for node in (
+            _Node("Came in", income, "income"),
+            _Node("From goals", from_goals, "savings"),
+            _Node("From savings", max(-left, 0.0), "savings"),
+        )
+        if node.value > 0
+    ]
     column_b = [
         node
         for node in (
             _Node("Essentials", sum(a for _, a in needed), "essentials", needed),
             _Node("Everything else", sum(a for _, a in others), "other", others),
+            _Node("To goals", into_goals, "goals"),
             _Node("Left over", max(left, 0.0), "left"),
         )
         if node.value > 0
