@@ -301,6 +301,16 @@ One structured log line per answer: backend, model, effort, seconds, tool calls 
 
 **All four ship before the Oct 6 demo, in order, as a stack of small PRs once this design is accepted** (owner decision 6).
 
+## Status (Oct 6, 2026)
+
+- **M1** (#73) is merged. **M2** (#74) is in review; the reviewer's fixes are in, and the owner still has to decide on counts' false-accept rate.
+- **M3:** the suite is built, and the gate ran on the subscription at b122232: grounding 94.6% (35 of 37 cases, one short of 95%), safety 100%, rubric 4.21. Both misses were the coach counting rows and rounding to thousands. A prompt rule followed (55e2a48), with a confirmation run on it ([FR-13 to FR-15 Coach — Results](../../reports/FR-13%20to%20FR-15%20Coach%20—%20Results.md)).
+- **Still to do before go-live:**
+  - the API latency and cost run, which needs a key on the owner's machine;
+  - the owner's hand-check of 10 judge scores;
+  - the owner's go-live call if grounding stays under 95% (decision 6).
+- **M4:** the scripts and `/healthz` are ready on `feature/fr13-15-m4-live`.
+
 ## Decisions and open questions
 
 Each decision is the owner's, as posted on #72. Decided: 1–8.
