@@ -7,8 +7,9 @@ still calls the app's `/mcp` with the coach's token for one user and gets a sour
 built-in tool (files, shell, web), skill, filesystem setting or other MCP server is loaded.
 
 A claude.ai login may serve only its owner, so this refuses to start unless the app's address is
-a loopback address and no API key is in the environment: Claude Code would use a key ahead of the
-login and bill it. It also stops if Claude Code reports running on any credential but the login.
+a loopback address and nothing in the environment would move Claude Code off the login (an API
+key, a cloud provider or another endpoint) and bill it. It also stops if Claude Code reports
+running on any credential but the login.
 
 Known differences from the API backend (design §2): Claude Code's loop, no server-side refusal
 fallback, and no grounding retry. A failed turn is dropped by resuming the session at the last
@@ -52,8 +53,16 @@ from smart_financial_coach.experience.coach import (
 log = logging.getLogger(__name__)
 
 LOOPBACK = frozenset({"127.0.0.1", "localhost", "::1"})
-# Credentials Claude Code would use ahead of the subscription login, and the app's own key
-KEY_VARIABLES = ("ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "SFC_LLM_API_KEY")
+# What would take Claude Code off the subscription login and bill something else: a key or token
+# it uses first, the app's own key, a cloud provider, or another endpoint (review on #73)
+KEY_VARIABLES = (
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "SFC_LLM_API_KEY",
+    "CLAUDE_CODE_USE_BEDROCK",
+    "CLAUDE_CODE_USE_VERTEX",
+    "ANTHROPIC_BASE_URL",
+)
 SERVER = "coach"
 SUBSCRIPTION = "none"  # Claude Code's apiKeySource when it runs on the claude.ai login
 
@@ -74,8 +83,8 @@ def check_allowed(settings: Settings, environ: Mapping[str, str] = os.environ) -
         keys.append("SFC_LLM_API_KEY")
     if keys:
         raise SubscriptionNotAllowedError(
-            f"unset {', '.join(keys)} to use the subscription backend: Claude Code would use "
-            "the key instead of the subscription and bill it"
+            f"unset {', '.join(keys)} to use the subscription backend: Claude Code would run on "
+            "that instead of the subscription, and bill it"
         )
 
 
