@@ -247,6 +247,7 @@ With the bands fixed at 0.3 and 0.7 ([decision 5](#decisions-and-open-questions)
 - **Owner decision (Oct 4, 2026), a v1 assumption tied to notional goals:** a bad month draws a goal down in proportion to its share. Goals are earmarked money in the same pool, so a deficit comes out of it.
 - It also matches how the evaluation goals are generated.
 - When v2 links real accounts, money in a separate account doesn't move unless the user moves it, and this rule should be revisited.
+- **It applies to the estimated past as well (owner, Oct 6, 2026: kept).** A goal's history on its chart, "To goals" and "From goals" in the Overview's money flow, and "Set aside in goals" all come from the same recursion over the months already gone. So a month where someone spends more than they earn makes a goal's estimated balance **fall**, and the Overview shows "From goals" for that month. Example: Sam Patel's Family vacation goal gets about 15% of his savings. His August 2026 net was −$2,973 (a groceries spike), so its estimate went from $1,318 at the end of July to $879 at the end of August ("From goals $439"), then back up to $1,164, his entered amount, in September. The alternative, goals that only ever grow, with deficits shown as "From savings", was considered and not taken. It would drop the assumption the forecast makes, and the chart and the forecast would disagree.
 
 **The goal's share**, by where it comes from (`share_source`):
 
@@ -514,5 +515,5 @@ All decided by the owner on Oct 4, 2026, on #50. Decisions 10–13, after the fi
 5. [x] **Status bands, fixed:** "On track" at 0.7 or more, "Off track" below 0.3, "Could go either way" in between, with the setup badge's "Within reach" / "Could go either way" / "A stretch" on the same bands. Validation checks each band; nothing tunes them ([why](#why-nothing-is-tuned-on-outcomes)).
 6. [x] **Gates as proposed:** Brier below naive and below a flat 50%, and calibration inside each band, for both paths, overall and per persona; 80% coverage within 70–90%. If the freelancer gate on the new-goal path fails (0.251 in feasibility), it's **reported, not loosened**, and it doesn't block FR-11's promotion on its own.
 7. [x] **What-if forecasts are deferred** to a follow-up (Web App UI, gap 5).
-8. [x] **A bad month draws a goal down** in proportion to its share (FR-1's rule), as a v1 assumption tied to notional goals; revisit when v2 links real accounts.
+8. [x] **A bad month draws a goal down** in proportion to its share (FR-1's rule), as a v1 assumption tied to notional goals; revisit when v2 links real accounts. The same applies to a goal's estimated past on the chart and the Overview, so goal totals can fall (owner, Oct 6, 2026: kept; see "The balance recursion").
 9. [x] **Reached goals show "Reached",** with no on-track status or probability, and a drawdown note only when the paths show a real chance of dropping below the target by the date.
