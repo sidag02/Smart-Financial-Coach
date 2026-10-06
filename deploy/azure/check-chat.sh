@@ -2,7 +2,8 @@
 # Check chat on the deployed app the way a visitor uses it (FR-13 to FR-15 design, §6): sign in
 # as a demo user, ask one question, and pass only on a sourced answer the grounding check let
 # through. A redirect, "isn't available", "couldn't be reached" or the safe message fails it.
-# Reads SFC_DEMO_PASSWORD from .env (or the environment); costs one coach answer.
+# The demo password comes from SFC_DEMO_PASSWORD, or from the deployed app's own secret; costs one
+# coach answer.
 #
 #   deploy/azure/check-chat.sh                      # the deployed app
 #   deploy/azure/check-chat.sh http://127.0.0.1:8000
@@ -15,8 +16,14 @@ else
   BASE="https://$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE_GROUP" \
     --query properties.configuration.ingress.fqdn -o tsv)"
 fi
-PASSWORD="${SFC_DEMO_PASSWORD:-$(grep -E '^SFC_DEMO_PASSWORD=' .env 2>/dev/null | head -1 | cut -d= -f2-)}"
-[ -n "$PASSWORD" ] || { echo "no SFC_DEMO_PASSWORD in the environment or .env" >&2; exit 1; }
+# The demo password: from the environment (a local server), else the deployed app's own secret
+PASSWORD="${SFC_DEMO_PASSWORD:-}"
+if [ -z "$PASSWORD" ]; then
+  source deploy/azure/config.sh
+  PASSWORD="$(az containerapp secret show --name "$CONTAINER_APP" --resource-group \
+    "$RESOURCE_GROUP" --secret-name demo-password --query value -o tsv)"
+fi
+[ -n "$PASSWORD" ] || { echo "set SFC_DEMO_PASSWORD" >&2; exit 1; }
 EMAIL="${CHECK_EMAIL:-maya@example.com}"
 QUESTION="${CHECK_QUESTION:-How much did I spend last month?}"
 

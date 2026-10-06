@@ -10,3 +10,7 @@ SUBSCRIPTION_ID="$(az account show --query id -o tsv)"
 TENANT_ID="$(az account show --query tenantId -o tsv)"
 # Registry names are global: derive a stable one from the subscription
 ACR_NAME="sfcdemo$(printf '%s' "$SUBSCRIPTION_ID" | shasum | cut -c1-8)"
+# The Anthropic key lives in Key Vault, never in .env or the repo; the app reads it through its
+# managed identity (FR-13 to FR-15 design, §6). Vault names are global too
+KEY_VAULT="kv-sfc-$(printf '%s' "$SUBSCRIPTION_ID" | shasum | cut -c1-8)"
+LLM_KEY_SECRET="anthropic-api-key"

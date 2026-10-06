@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Turn chat off on the deployed app once the demo is over (owner decision 7: the key is live for
-# the demo only). Removes the key from the app and its secrets; chat then says the coach isn't
-# available and the rest of the app works as before (NFR-6). Revoke the key in the Anthropic
-# console as well.
+# the demo only). Removes the app's reference to the key; chat then says the coach isn't
+# available and the rest of the app works as before (NFR-6). The key stays in Key Vault until
+# you delete it there; revoke it in the Anthropic console as well.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 source deploy/azure/config.sh
@@ -14,7 +14,7 @@ FQDN="$(az containerapp show --name "$CONTAINER_APP" --resource-group "$RESOURCE
   --query properties.configuration.ingress.fqdn -o tsv)"
 for attempt in $(seq 1 30); do
   if curl -fsS "https://$FQDN/healthz" | grep -q '"coach":null'; then
-    echo "Chat is off; revoke the key in the Anthropic console too."
+    echo "Chat is off. Delete $LLM_KEY_SECRET from $KEY_VAULT and revoke the key in the Anthropic console."
     exit 0
   fi
   sleep 10
