@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from smart_financial_coach.access.ledger import DataSources, Ledger
-from smart_financial_coach.access.tools import Tools
+from smart_financial_coach.access.tools import Source, ToolResult, Tools
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.coach import (
     FALLBACK_BETA,
@@ -286,3 +286,38 @@ def test_each_answer_logs_its_cost_and_check_but_not_the_words(
     assert logged["dollars"] == pytest.approx(0.0034)
     assert "secret" not in line
     assert spent(tools) not in line
+
+
+def test_concurrent_tool_calls_keep_each_result_under_its_own_id(
+    tools: Tools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The subscription backend runs tool calls in worker threads (review on #74). A pause
+    after each id is handed out lets other calls in, as a thread switch would."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    issue = Conversation.source_id
+
+    def slow(self: Conversation, *args: Any, **kwargs: Any) -> str:
+        source_id = issue(self, *args, **kwargs)
+        time.sleep(0.002)
+        return source_id
+
+    monkeypatch.setattr(Conversation, "source_id", slow)
+
+    def call(name: str, arguments: dict[str, Any]) -> ToolResult:
+        return ToolResult({"marker": arguments["marker"]}, Source(arguments["marker"], ""))
+
+    stub = SimpleNamespace(call=call, specs=tools.specs, as_of=tools.as_of)
+    conversation = Conversation()
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(
+            lambda i: Coach.run_tool(stub, conversation, "x", {"marker": f"m{i}"}),
+            range(64),
+        ))  # fmt: skip
+
+    assert len(conversation.payloads) == 64
+    pairs = zip(conversation.sources, conversation.payloads, strict=True)
+    for i, (source, payload) in enumerate(pairs):
+        assert payload["source_id"] == f"S{i + 1}"
+        assert payload["marker"] == source.title

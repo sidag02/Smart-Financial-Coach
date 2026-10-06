@@ -144,13 +144,21 @@ class Conversation:
     lock: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     # A backend's own state between questions (the subscription backend's session to resume)
     backend_state: dict[str, Any] = field(default_factory=dict)
+    # Tool calls can run at once (the subscription backend's worker threads): an id and its
+    # payload are stored together, never one after the other (review on #74)
+    _ids: threading.Lock = field(default_factory=threading.Lock, repr=False, compare=False)
     # Each source's tool result as the model saw it, for the grounding check
     payloads: list[Any] = field(default_factory=list)
 
     def source_id(self, source: Source, payload: Any = None) -> str:
-        self.sources.append(source)
-        self.payloads.append(payload)
-        return f"S{len(self.sources)}"
+        with self._ids:
+            self.sources.append(source)
+            self.payloads.append(payload)
+            return f"S{len(self.sources)}"
+
+    def set_payload(self, source_id: str, payload: Any) -> None:
+        with self._ids:
+            self.payloads[int(source_id.removeprefix("S")) - 1] = payload
 
     def user_texts(self) -> list[str]:
         """What the person wrote: numbers in it need no source."""
@@ -171,6 +179,7 @@ class Usage:
     cache_read_tokens: int = 0
     cache_write_tokens: int = 0
     dollars: float | None = None  # set by backends that report a cost themselves
+    billed: bool = True  # False on the subscription: tokens are counted, nothing is charged
 
     def add(self, usage: Any) -> None:
         """Add an API response's usage, or Claude Code's (a dict with the same names)."""
@@ -187,6 +196,8 @@ class Usage:
         self.cache_write_tokens += tokens("cache_creation_input_tokens")
 
     def cost(self, model: str) -> float | None:
+        if not self.billed:
+            return None
         if self.dollars is not None:
             return self.dollars
         if model not in PRICES:
@@ -414,7 +425,7 @@ class Coach:
             return (str(error) if isinstance(error, ToolError) else f"{name} failed"), True
         source = conversation.source_id(result.source)
         payload = {"source_id": source, **result.data}
-        conversation.payloads[-1] = payload
+        conversation.set_payload(source, payload)
         return json.dumps(payload, separators=(",", ":")), False
 
 

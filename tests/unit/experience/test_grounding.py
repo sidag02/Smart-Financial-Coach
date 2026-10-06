@@ -133,6 +133,26 @@ def test_numbers_the_person_wrote_need_no_source() -> None:
     assert grounded(answer, "Is it dumb that I spent $400 on dinner?")
 
 
+def test_a_number_the_person_wrote_exempts_only_the_same_kind() -> None:
+    """ "the last 3 months" doesn't let "$3" through (review on #74)."""
+    assert not grounded("That costs $3.", "What did I spend in the last 3 months?")
+    assert grounded("That costs $3.", "Is $3 a lot for coffee?")
+
+
+def test_percentages_come_only_from_proportions_and_ratios() -> None:
+    payloads = {"S1": {"amount": 35.0, "ratio": 1.42, "share": 0.25,
+                       "transactions": [{"confidence": 0.61, "amount": -12.0}]}}  # fmt: skip
+
+    def ok(answer: str) -> bool:
+        return check(answer, payloads).ok
+
+    assert ok("That's 42% more [S1].")
+    assert ok("That's 142% of usual [S1].")
+    assert ok("A quarter, 25% [S1].")
+    assert not ok("That's 35% [S1].")  # an amount isn't a percentage
+    assert not ok("We're 61% sure [S1].")  # nor is a transaction row's confidence
+
+
 def test_product_rules_from_the_instructions_need_no_source() -> None:
     answer = "Compared with your average month over the past 12 months, $717.14 [S1] is normal."
     assert not grounded(answer)

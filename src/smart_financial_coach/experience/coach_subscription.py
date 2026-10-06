@@ -201,7 +201,8 @@ class SubscriptionCoach(Coach):
             raise lost[0]
         if result is None:
             raise ClaudeSDKError("Claude Code ended without a result")
-        usage.add(result.usage)  # tokens only: the subscription isn't billed per answer
+        usage.add(result.usage)
+        usage.billed = False  # tokens only: the subscription isn't charged per answer (§7)
         if result.stop_reason == "refusal":
             return REFUSED, False
         if result.subtype == "error_max_turns":
