@@ -63,6 +63,10 @@ Open `mockups/Smart Financial Coach - Light & Dark.dc.html` from a local server 
    - **The spend card opens Transactions** with the same period.
    - **"To goals" in the money flow,** and **each goal's history on its chart.** Goals are set-asides within the user's savings (owner decision on #50), so there are no deposits to show: both are estimated with the share the goal's forecast uses (from $0 at creation for a generated goal, from the person's first entry for one they keep up; the pace so far under the simple projection), and labelled as estimates. `forecast_goal` returns the history, so Wren and the chart give the same numbers (FR-14).
    - **The goal chart gets a scale and tooltips:** gridlines at round amounts, a legend, and each month's amount on hover or keyboard focus.
+10. **Overview feedback (owner, Oct 6, 2026),** after chat went live (#78):
+    - **Small money-flow blocks stay readable.** Each block is at least 26 of the chart's 260 units tall, so a small "To goals" keeps its label and amount on one line.
+    - **Every widget is clickable.** Each card is one link: Savings and the flow's To goals and From goals blocks open Goals, the goal card opens its goal, "Worth a look" its page, the flow's other blocks (income, spending, left over, from savings) the period's transactions, and each 12-month bar the Overview for that month, as a single month. No link sits inside another.
+    - **Goal totals can go down, and that stays.** The estimated goal figures (the chart's history, "To goals" / "From goals", "Set aside in goals") follow the forecast's rule that a month of spending more than came in draws on what's set aside. So in such a month a goal's estimate falls and the flow shows "From goals". Sam Patel's August 2026 is the demo's example: −$2,973 net, "From goals $439". See FR-11 and FR-12, "The balance recursion".
 
 ## Demo build (Oct 6, 2026)
 

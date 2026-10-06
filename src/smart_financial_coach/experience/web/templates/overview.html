@@ -36,8 +36,8 @@
     <div class="row-split"><span>Income{% if horizon == "month" %} this month{% else %} in this period{% endif %}</span><b class="num">{{ summary.income | money }}</b></div>
   </a>
 
-  <section class="card stack" style="gap:6px">
-    <div class="card-label">Savings{% if horizon == "month" %} in {{ month.start.strftime('%B') }}{% else %}, {{ period.label }}{% endif %}</div>
+  <a class="card card-link stack" style="gap:6px" href="/goals" aria-label="Savings, {{ period.label }}: open your savings goals">
+    <div class="card-head"><div class="card-label">Savings{% if horizon == "month" %} in {{ month.start.strftime('%B') }}{% else %}, {{ period.label }}{% endif %}</div><span class="go" aria-hidden="true">›</span></div>
     <div class="big">{{ summary.net | money }}</div>
     {% if summary.net >= 0 %}
     <div class="muted" style="font-size:13.5px">Net saved: what came in, less what you spent</div>
@@ -49,12 +49,12 @@
     <div class="row-split"><span>{% if goals.to_goals >= 0 %}To your goals{% else %}From your goals{% endif %} <span class="muted">(estimated)</span></span><b class="num">{{ goals.to_goals | abs | money }}</b></div>
     <div class="row-split"><span>Set aside in goals{% if period.end.strftime('%Y-%m') != as_of[:7] %} by {{ period.end.strftime('%b %Y') }}{% endif %}</span><b class="num">{{ goals.held | money }}</b></div>
     {% endif %}
-  </section>
+  </a>
 
-  <section class="card stack">
-    {% if goal %}{% set g = goal %}
+  {% if goal %}{% set g = goal %}
+  <a class="card card-link stack" href="/goals/{{ g.goal_id }}" aria-label="{{ g.name }}: open the goal">
     {% if g.then %}{% set t = g.then %}
-    <div class="card-head"><div class="card-label">{{ g.name }} · end of {{ t.day.strftime('%b %Y') }}</div><span class="badge ended">Past</span></div>
+    <div class="card-head"><div class="card-label">{{ g.name }} · end of {{ t.day.strftime('%b %Y') }}</div><span class="badge ended">Past</span><span class="go" aria-hidden="true">›</span></div>
     {% if not t.started %}
     <div style="font-size:14px">Not started yet: you set it up in {{ g.created_date[:7] | month_name(long=True) }}.</div>
     {% elif t.saved is not none %}
@@ -64,35 +64,37 @@
     {% else %}
     <div class="muted" style="font-size:14px">There's no estimate for that month yet. Today it's {{ g.saved | money }} of {{ g.target_amount | money }}.</div>
     {% endif %}
-    <a href="/goals/{{ g.goal_id }}" style="font-size:13.5px">See how it got here</a>
+    <span class="link-text" style="font-size:13.5px">See how it got here</span>
     {% else %}
-    <div class="card-head"><div class="card-label">{{ g.name }}</div>{{ goal_status(g.status, g.forecast_status, g.forecast_method) }}</div>
+    <div class="card-head"><div class="card-label">{{ g.name }}</div><span class="head-end">{{ goal_status(g.status, g.forecast_status, g.forecast_method) }}<span class="go" aria-hidden="true">›</span></span></div>
     <div><span class="mid">{{ g.saved | money }}</span> <span class="muted" style="font-size:14px">of {{ g.target_amount | money }} by {{ g.target_date | day }}</span></div>
     <div class="track"><div style="width:{{ [100, (g.saved / g.target_amount * 100) | round(1)] | min }}%"></div></div>
     {% if g.status == "active" %}
     {% if g.projected_balance is defined and g.projected_balance is not none %}
-    <div style="font-size:13.5px">{% if g.forecast_method == "simple_projection" %}At your pace so far, about{% else %}Likely{% endif %} <b>{{ g.projected_balance | money }}</b> by {{ g.target_date | day }}. <a href="/goals/{{ g.goal_id }}">See the forecast</a></div>
+    <div style="font-size:13.5px">{% if g.forecast_method == "simple_projection" %}At your pace so far, about{% else %}Likely{% endif %} <b>{{ g.projected_balance | money }}</b> by {{ g.target_date | day }}. <span class="link-text">See the forecast</span></div>
     {% if g.short_history %}<div class="muted" style="font-size:13px">Based on only a few months of your history, so this is a rough guide.</div>{% endif %}
     {% else %}
     <div style="font-size:13.5px"><b>{{ g.needed_per_month | money }} a month</b> <span class="muted">for {{ g.months_left }} month{{ "s" if g.months_left != 1 }}. Whether you're on track arrives with goal forecasting.</span></div>
     {% endif %}
     {% else %}
-    <div style="font-size:13.5px" class="muted">You've saved the whole amount.{% if g.may_draw_down %} Months where you spend more than you earn could draw it down before {{ g.target_date | day }}.{% endif %} <a href="/goals">See your goals</a></div>
+    <div style="font-size:13.5px" class="muted">You've saved the whole amount.{% if g.may_draw_down %} Months where you spend more than you earn could draw it down before {{ g.target_date | day }}.{% endif %} <span class="link-text">See the goal</span></div>
     {% endif %}
     {% endif %}
-    {% else %}
-    <div class="card-label">Savings goal</div>
+  </a>
+  {% else %}
+  <a class="card card-link stack" href="/goals/new" aria-label="Set up a savings goal">
+    <div class="card-head"><div class="card-label">Savings goal</div><span class="go" aria-hidden="true">›</span></div>
     <div class="muted" style="font-size:14px">No savings goals yet.</div>
-    <a class="btn" style="align-self:flex-start" href="/goals/new">Set up a savings goal</a>
-    {% endif %}
-  </section>
+    <span class="btn" style="align-self:flex-start">Set up a savings goal</span>
+  </a>
+  {% endif %}
 
 </div>
 
-  <section class="card stack alerts-wide">
+  <a class="card card-link stack alerts-wide" href="/worth-a-look" aria-label="Worth a look: open unusual charges and spending spikes">
     {% if flags_live %}
     {% set alerts = (spikes | length) + (flags | length) %}
-    <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">{% if alerts %}See all {{ alerts }}{% else %}Open{% endif %}</a></div>
+    <div class="card-head"><div class="card-label">Worth a look</div><span class="link-text" style="font-size:13px;font-weight:600">{% if alerts %}See all {{ alerts }}{% else %}Open{% endif %} ›</span></div>
     {% if alerts %}
     <ul class="flags">
       {% for s in spikes[:overview_flags] %}{{ spike_row(s, charges=False) }}{% endfor %}
@@ -102,10 +104,10 @@
     <div class="soon-box"><span>Nothing unusual in the last {{ window_days }} days.</span></div>
     {% endif %}
     {% else %}
-    <div class="card-head"><div class="card-label">Worth a look</div><a href="/worth-a-look" style="font-size:13px;font-weight:600">Preview</a></div>
+    <div class="card-head"><div class="card-label">Worth a look</div><span class="link-text" style="font-size:13px;font-weight:600">Preview ›</span></div>
     <div class="soon-box"><span>Unusual charges and spending spikes will show here, each with a reason, once the alert models are released.</span></div>
     {% endif %}
-  </section>
+  </a>
 
 {% include "_flow.html" %}
 
@@ -114,15 +116,15 @@
     <div class="card-title">12 months to {{ trend[-1].month | month_name(long=True) }}</div>
     <div class="muted" style="font-size:13px">Monthly spending, {{ trend[0].month | month_name(long=True) }} to {{ trend[-1].month | month_name(long=True) }}; this period's months highlighted</div>
   </div>
-  <div class="trend" role="img" aria-label="Monthly spending for the last 12 months">
+  <div class="trend" role="group" aria-label="Monthly spending for the last 12 months">
     {% for b in trend %}
-    <div class="col" title="{{ b.month | month_name(long=True) }}: {{ b.value | money }}">
+    <a class="col" href="/?month={{ b.month }}" title="{{ b.month | month_name(long=True) }}: {{ b.value | money }}" aria-label="{{ b.month | month_name(long=True) }}: {{ b.value | money }}, open that month">
       <div class="plot">
         {% if b.label %}<div class="val num" style="bottom:calc({{ b.height }} + 4px)">${{ '%.1f' % (b.value / 1000) }}k</div>{% endif %}
         <div class="bar {{ b.kind }}" style="height:{{ b.height }}"></div>
       </div>
       <div class="mon">{{ b.month | month_name }}</div>
-    </div>
+    </a>
     {% endfor %}
   </div>
 </section>
