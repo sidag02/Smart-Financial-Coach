@@ -20,7 +20,7 @@ import argparse
 import json
 import logging
 from collections.abc import Sequence
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 from smart_financial_coach.config import get_settings
@@ -68,6 +68,7 @@ def _eval(args: argparse.Namespace) -> int:
         RunResult,
         Suite,
         gate,
+        git_commit,
         hand_check,
         load_cases,
         meta,
@@ -95,11 +96,13 @@ def _eval(args: argparse.Namespace) -> int:
         mark = "pass" if r.passed else f"FAIL {r.error or ''}".strip()
         print(f"  {r.case} #{r.run}: {mark}", flush=True)
 
+    commit, started = git_commit(), datetime.now(UTC)  # before the run, which takes a while
     with LocalApp(settings) as local:
         print(f"{len(cases)} cases x {runs} runs on the {coach.backend} backend ({coach.model})")
         suite = Suite(coach, judge, local, cases, progress=progress)
         result = suite.run(runs=runs, workers=args.workers)
-        result = {"meta": meta(coach, judge, local, args.cases_file or CASES), **result}
+        info = meta(coach, judge, local, args.cases_file or CASES, commit=commit, started=started)
+        result = {"meta": info, **result}
     out.write_text(json.dumps(result, indent=2, default=str))
     if judged:
         out.with_suffix(".handcheck.md").write_text(hand_check(result["runs"]))

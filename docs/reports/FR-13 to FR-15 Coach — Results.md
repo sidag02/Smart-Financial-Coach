@@ -4,7 +4,8 @@ Oct 6, 2026 · @Sidd · Milestone 3 of FR-13 to FR-15 Coach — Feature Design
 
 ## Summary
 
-- **The gate run on the owner's subscription (decision 5) missed grounding by one case.** Grounding was **94.6%** of grounded cases (35 of 37) against a target of ≥ 95%. Safety was **100%** (14 of 14) and the rubric **4.21** (≥ 4.0). The coach is `claude-sonnet-5-5` at effort `low` with adaptive thinking, on the Claude Agent SDK with the subscription login, and the judge is Opus 5.5.
+- **On the confirmation run (55e2a48), every target is met:** grounding **100%** (37 of 37 cases, every answer grounded first time), safety **100%** (14 of 14) and rubric **4.25**. No case failed in any of its 3 runs. It ran on the owner's subscription with the same settings as the gate run ([below](#confirmation-run)).
+- **The gate run before it (b122232) missed grounding by one case.** Grounding was **94.6%** of grounded cases (35 of 37) against a target of ≥ 95%. Safety was **100%** (14 of 14) and the rubric **4.21** (≥ 4.0). The coach is `claude-sonnet-5-5` at effort `low` with adaptive thinking, on the Claude Agent SDK with the subscription login, and the judge is Opus 5.5.
 - **Both misses were the coach doing its own arithmetic.** It counted transaction rows ("7 of the top 10 charges") and rounded amounts to thousands ("about $13,000"). No tool returned either number, so the check was right to stop them. A prompt rule against both was added after the gate run (55e2a48), and a confirmation run on that commit is [below](#confirmation-run). The owner decides whether chat goes live if a target is missed (decision 6).
 - **From baseline to gate:** grounding 73.0% → 94.6%, safety 78.6% → 100%, rubric 3.95 → 4.21. The gains came from the §1 prompt rules and from fixes the baseline exposed:
   - The coach archived goals and changed categories when told "don't ask". The prompt now says a change's first answer only previews.
@@ -82,7 +83,20 @@ The baseline exposed problems in the coach, in the check and in the cases. Each 
 
 ## Confirmation run
 
-On 55e2a48: the gate run's code plus the prompt rule for its two misses. *(Results to follow on the PR.)*
+On 55e2a48: the gate run's code plus the prompt rule for its two misses ("quote amounts and counts as tools give them"). Same cases, data, settings and judge. The prompt hash is `9ca86419e49d9da0`.
+
+| | Gate (b122232) | Confirmation (55e2a48) | Target |
+| --- | --- | --- | --- |
+| Grounding (cases, all 3 runs) | 94.6% | **100%** | ≥ 95% |
+| Grounded first time (answers) | 96.6% | **100%** | — |
+| Safety (cases) | 100% | **100%** | 100% |
+| Rubric mean | 4.21 | **4.25** | ≥ 4.0 |
+| Helpfulness / clarity / empathy / personalization | 4.57 / 4.23 / 3.58 / 4.46 | 4.67 / 4.25 / 3.58 / 4.52 | — |
+| Latency p50 / p95, subscription (s) | 5.2 / 7.9 | 5.3 / 8.4 | API only |
+
+Every group passed every case. Both of the gate run's misses (`spikes-jordan-transportation`, `missing-next-month`) passed all 3 runs. Every run is in `fr13-15-coach-confirm.json`. The run recorded the commit at its end, 92b6422, a docs-only commit made while it ran, so the file says 55e2a48; the suite now reads the commit when a run starts.
+
+Rubric scores still count only after the owner's hand-check. The sheet samples the gate run's answers, and the confirmation run's scores differ by at most 0.1 per dimension.
 
 ## Reading the results
 

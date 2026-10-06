@@ -28,7 +28,7 @@ import subprocess
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, date, datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -416,7 +416,25 @@ def hand_check(results: list[dict[str, Any]], seed: int = 0) -> str:
     return "\n".join(lines)
 
 
-def meta(coach: Coach, judge: Judge | None, local: LocalApp, cases_path: Path) -> dict[str, Any]:
+def git_commit() -> str | None:
+    """The checkout's commit: read when a run starts, since a long run can outlast it."""
+    try:
+        return subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
+        ).stdout.strip()
+    except (OSError, subprocess.CalledProcessError):
+        return None
+
+
+def meta(
+    coach: Coach,
+    judge: Judge | None,
+    local: LocalApp,
+    cases_path: Path,
+    *,
+    commit: str | None,
+    started: datetime,
+) -> dict[str, Any]:
     """What ran, so a result can be reproduced and compared (NFR-8; decision 5)."""
 
     def digest(data: bytes) -> str:
@@ -424,14 +442,8 @@ def meta(coach: Coach, judge: Judge | None, local: LocalApp, cases_path: Path) -
 
     bundle = sorted(p for p in local.settings.demo_dir.iterdir() if p.is_file())
     specs = local.tools(local.users[0]).specs
-    try:
-        commit = subprocess.run(
-            ["git", "rev-parse", "--short", "HEAD"], capture_output=True, text=True, check=True
-        ).stdout.strip()
-    except (OSError, subprocess.CalledProcessError):
-        commit = None
     return {
-        "started": datetime.now(UTC).isoformat(timespec="seconds"),
+        "started": started.isoformat(timespec="seconds"),
         "commit": commit,
         "backend": coach.backend,
         "credential": coach.credential_source,
