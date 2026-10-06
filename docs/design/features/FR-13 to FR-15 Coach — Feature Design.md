@@ -268,22 +268,20 @@ One structured log line per answer: backend, model, effort, seconds, tool calls 
 | --- | --- | --- |
 | M1 | Sonnet default; the backend interface; the subscription backend; `sfc-coach ask` | The owner asks a question on the subscription and gets a sourced answer; unit tests pass |
 | M2 | The grounding check in serving, with retry and safe message; `estimates` in tool results; logging (§7) | Unit tests pass, including false-accept rates within decision 8's targets |
-| M3 | The evaluation suite; baseline runs on the subscription while developing; prompt changes (§1) measured against them | Suite runs end to end; first-attempt grounding reported before and after the prompt changes |
-| M4 | Going live: `/healthz` coach status, the post-deploy check, the API gate run; a results report | `docs/reports/FR-13 to FR-15 Coach — Results.md` from an API run, with every metric; gate passes or its gaps are reported |
+| M3 | The evaluation suite; development runs on the subscription; prompt changes (§1) measured against them; a gate run on the API with a local key; a results report | `docs/reports/FR-13 to FR-15 Coach — Results.md` from the API run, with grounding, safety, rubric, latency and cost for Sonnet 5.5. A missed target is reported there, and the owner decides whether chat still goes live |
+| M4 | Going live: `/healthz` coach status; the key and `SFC_LLM_MODEL` set in the deployment; the post-deploy check | The go-live gate: a demo user's question answered live, with a source, passing the grounding check |
 
-None of M1–M4 is needed for chat to be live in the demo; the key and `SFC_LLM_MODEL` are (decision 6).
+**All four ship before the Oct 6 demo, in order, as a stack of small PRs once this design is accepted** (owner decision 6).
 
 ## Decisions and open questions
 
-Recommendations are marked; nothing below is decided until the owner says so on the PR.
+Recommendations are marked; nothing below is decided until the owner says so on the PR. Decided so far: 1 (model) and 6 (the demo).
 
 1. **Coach model:** `claude-sonnet-5-5` at `low` effort. *(Owner, Oct 5, 2026: Sonnet. Effort to be confirmed by the latency run.)*
 2. **Subscription backend is owner-only, local and for development** (§2): refused with a public URL, `SFC_LLM_API_KEY` or `ANTHROPIC_API_KEY`; never chosen automatically; logs its credential source. *Recommended.*
 3. **When a number fails the grounding check:** one retry, then the safe message (option B-b). *Recommended.*
 4. **Judge model:** Claude Opus 5.5 (option C-a). *Recommended.*
 5. **Which run gates the release:** every gate metric comes from an API run, roughly $10 a run. A subscription run's loop, effort, thinking, fallback and retry aren't shown to match the API's. *Recommended* (reviewer, #72). Changed from the first draft, which let grounding, safety and rubric come from a subscription run.
-6. **The Oct 6 demo (today), two separate choices:**
-   - **Is chat live?** Only if the key is set (§6). Neither model has been measured, and there's no runtime grounding check before M2. If it goes live, the owner first asks the PRD's scenario questions by hand as two demo users. *Owner's call.*
-   - **Which model?** `SFC_LLM_MODEL=claude-sonnet-5-5` on the container app, or leave Opus. No code either way. *Owner's call.*
+6. **The Oct 6 demo:** chat goes live today, with all of M1 to M4 shipped before the demo, not just the key. **Decided** (owner, Oct 6, 2026, recorded on #72 by the reviewer). The milestones go in order. M3's results report gives Sonnet 5.5's grounding, safety and rubric before M4 sets the key. If a target misses, the owner decides whether chat still goes live. M4's post-deploy check is the go-live gate.
 7. **Open:** the API key's spending cap, which sets the total chat rate limit (§6, step 4).
 8. **The grounding check's false-accept targets:** ≤ 1% for direct numbers and ≤ 5% for derived ones, on realistic payloads (§3). *Recommended.* M2 reports the measured rates; if derived numbers can't reach 5%, the fallback is to stop accepting derived numbers and have the coach quote the two values instead.
