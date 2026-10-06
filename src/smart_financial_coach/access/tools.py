@@ -64,6 +64,7 @@ from smart_financial_coach.access.alerts import (
 from smart_financial_coach.access.feedback import Correction, FeedbackError, FeedbackStore
 from smart_financial_coach.access.goal_forecasts import (
     FITS,
+    HISTORY_POINTS,
     first_entries,
     forecast_fields,
     goal_rows,
@@ -1828,15 +1829,33 @@ class Tools:
                 }
                 for m in thin(series)
             ]
-            fields["history"] = saved_history(
-                goal,
-                None if pd.isna(out["share"]) else float(out["share"]),
-                None if pd.isna(out["share_source"]) else str(out["share_source"]),
-                parse_history(self._net_history()),
-                self._first_entries().get(goal.goal_id),
-                today,
-            )
+            fields["history"] = self._history_of(goal, out, HISTORY_POINTS)
         return fields
+
+    def saved_histories(self) -> dict[str, list[dict[str, Any]]]:
+        """Each running goal's estimated saved amount at the end of every past month, by goal
+        id: the series `forecast_goal`'s `history` samples, unthinned, for the web app's
+        period views. Empty without a forecast."""
+        running = [g for g in self._goals() if g.running(self.as_of)]
+        forecasts = self._forecasts(running)
+        if not forecasts:
+            return {}
+        return {g.goal_id: self._history_of(g, forecasts[g.goal_id], None) for g in running}
+
+    def _history_of(
+        self, goal: Goal, out: Mapping[str, Any], points: int | None
+    ) -> list[dict[str, Any]]:
+        """`saved_history` under the share and source of `goal`'s forecast row `out`."""
+        share, source = out["share"], out["share_source"]
+        return saved_history(
+            goal,
+            None if pd.isna(share) else float(share),
+            None if pd.isna(source) else str(source),
+            parse_history(self._net_history()),
+            self._first_entries().get(goal.goal_id),
+            self.as_of,
+            points,
+        )
 
     def _first_entries(self) -> dict[str, tuple[int, date]]:
         """Each goal's first saved entry in this session's event log (`first_entries`)."""

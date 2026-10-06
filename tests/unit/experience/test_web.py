@@ -4,7 +4,7 @@ import os
 import shutil
 import time
 from collections.abc import Iterator
-from datetime import timedelta
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from smart_financial_coach.access.ledger import DataSources, Ledger
+from smart_financial_coach.access.tools import DASH
 from smart_financial_coach.config import Settings
 from smart_financial_coach.experience.accounts import Account, SharedPassword
 from smart_financial_coach.experience.coach import Coach
@@ -103,11 +104,18 @@ def test_health_fails_when_the_demo_data_does_not_load(
 
 
 def test_pages_need_a_signed_in_user(client: TestClient) -> None:
-    for path in ("/", "/transactions", "/chat", "/goals", "/worth-a-look", "/flow"):
+    for path in (
+        "/",
+        "/transactions",
+        "/chat",
+        "/goals",
+        "/worth-a-look",
+        "/drill?category=Dining",
+    ):
         reply = client.get(path, follow_redirects=False)
         assert reply.status_code == 303
         assert reply.headers["location"] == "/signin"
-    htmx = client.get("/flow", headers={"HX-Request": "true"})
+    htmx = client.get("/drill?category=Dining", headers={"HX-Request": "true"})
     assert htmx.status_code == 204
     assert htmx.headers["HX-Redirect"] == "/signin"
     assert client.get("/healthz").json() == {
@@ -240,8 +248,9 @@ def test_pages_render_quickly(client: TestClient) -> None:
     pages = (
         "/",
         "/?month=2026-08&horizon=year",
-        "/flow?horizon=week",
+        "/?horizon=week",
         "/transactions",
+        "/transactions?month=2026-08&horizon=quarter",
         "/transactions?review=1&q=a",
         "/drill?category=Dining",
         "/goals",
@@ -400,9 +409,55 @@ def test_money_flow_balances() -> None:
     assert money_flow(0.0, [], essentials)["empty"] is True
 
 
-def test_trend_marks_the_selected_month_and_the_peak() -> None:
-    bars = trend([("2026-07", 100.0), ("2026-08", 300.0), ("2026-09", 200.0)], "2026-09")
+def test_trend_marks_the_selected_months_and_the_peak() -> None:
+    months = [("2026-07", 100.0), ("2026-08", 300.0), ("2026-09", 200.0)]
+    bars = trend(months, {"2026-09"})
     assert [b["kind"] for b in bars] == ["", "peak", "selected"]
+    quarter = trend(months, {"2026-07", "2026-08", "2026-09"})
+    assert [b["kind"] for b in quarter] == ["selected"] * 3
+    year = trend(
+        [(f"2026-{m:02d}", 100.0 + m) for m in range(1, 10)],
+        {f"2026-{m:02d}" for m in range(1, 10)},
+    )
+    assert [b["label"] for b in year].count(True) == 1  # a long period labels only its last month
+
+
+def spent(ledger: Ledger, start: str, end: str) -> float:
+    rows = ledger.between(date.fromisoformat(start), date.fromisoformat(end))
+    return float(-rows.loc[rows["category"] != "Income", "amount"].sum())
+
+
+QUARTER = f"Jun 1 {DASH} Aug 31, 2026"
+
+
+def test_one_period_for_the_whole_overview(
+    sources: DataSources, accounts: list[Account], client: TestClient
+) -> None:
+    """Overview feedback (Oct 5, 2026): the span sits at the top and every card follows it, and
+    the spend card opens Transactions for the same period."""
+    sign_in(client)
+    ledger = Ledger.load(sources, accounts[0].user_id)
+    page = client.get("/?month=2026-08&horizon=quarter").text
+    assert f"{QUARTER} at a glance" in page
+    assert f"Where your money went · {QUARTER}" in page
+    assert 'href="/transactions?month=2026-08&amp;horizon=quarter"' in page
+    assert page.count('aria-current="true">Quarter</a>') == 1  # one picker, at the top
+    rows = ledger.between(date(2026, 6, 1), date(2026, 8, 31))
+    assert f"{len(rows)} transactions" in page
+    # The trend ends at the selected month and highlights the quarter's three
+    assert "12 months to Aug 2026" in page
+    assert page.count('class="bar selected"') == 3
+
+    listed = client.get("/transactions?month=2026-08&horizon=quarter").text
+    assert f"{QUARTER} · " in listed
+    assert f"{len(rows)} transactions, sorted" in listed
+    # Category chips and the month picker keep the span
+    assert 'href="/transactions?month=2026-08&amp;horizon=quarter&category=Dining"' in listed
+    assert '<input type="hidden" name="horizon" value="quarter">' in listed
+    drill = client.get("/drill?month=2026-08&horizon=quarter&category=Dining").text
+    assert "/transactions?month=2026-08&horizon=quarter&category=Dining" in drill
+    # A span that isn't one is a month
+    assert "September 2026 at a glance" in client.get("/?horizon=decade").text
 
 
 def test_the_shared_password_is_checked_not_stored() -> None:

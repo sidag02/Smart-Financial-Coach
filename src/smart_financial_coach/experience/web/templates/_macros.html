@@ -16,6 +16,20 @@
 </form>
 {%- endmacro %}
 
+{# The page's period (overview feedback, Oct 5, 2026): a month, and a span ending in it. `extra`
+   holds the page's other filters, carried along #}
+{% macro period_picker(action, month, month_options, horizon, extra={}) -%}
+<div class="period-picker">
+  {% set kept = {"horizon": horizon if horizon != "month" else ""} %}{% for k, v in extra.items() %}{% set _ = kept.update({k: v}) %}{% endfor %}
+  {{ month_picker(action, month, month_options, kept) }}
+  <nav class="seg" aria-label="Period">
+    {% for key, label in horizons.items() %}
+    <a href="{{ action }}?month={{ month.start.strftime('%Y-%m') }}{% if key != 'month' %}&amp;horizon={{ key }}{% endif %}{% for k, v in extra.items() if v %}&amp;{{ k }}={{ v | urlencode }}{% endfor %}"{% if key == horizon %} aria-current="true"{% endif %}>{{ label }}</a>
+    {% endfor %}
+  </nav>
+</div>
+{%- endmacro %}
+
 {# A goal's status (FR-11): the forecast's band, "Reached", or "Forecast soon" without a model #}
 {% macro goal_status(status, forecast_status=None, method=None) -%}
 {%- set fs = forecast_status or ("reached" if status == "reached" else None) -%}

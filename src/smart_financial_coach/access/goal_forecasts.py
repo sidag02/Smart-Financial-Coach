@@ -129,6 +129,7 @@ def saved_history(
     net: pd.Series,
     first: tuple[int, date] | None,
     today: date,
+    points: int | None = HISTORY_POINTS,
 ) -> list[dict[str, Any]]:
     """A goal's estimated saved amount at the end of each past month, oldest first, under the
     share its forecast uses (overview feedback, Oct 5, 2026). Goals are notional, so this is the
@@ -139,23 +140,24 @@ def saved_history(
     - `typical`: no share of its own, so only the person's first entry, if they made one.
 
     `net` is monthly net savings (`parse_history`). Months before `today`'s only: today's
-    amount is the goal's saved amount."""
+    amount is the goal's saved amount. At most `points` months, thinned like `monthly`; every
+    month with None."""
     now = pd.Period(today, freq="M")
     saved = goal.saved_cents / 100
-    points: list[tuple[pd.Period, float]] = []
+    path: list[tuple[pd.Period, float]] = []
     if share is not None and share_source == "track_record":
         since = net[net.index >= pd.Period(goal.created_date, freq="M")]
-        points = list(zip(since.index, run_balance(0.0, share, since.to_numpy()), strict=True))
+        path = list(zip(since.index, run_balance(0.0, share, since.to_numpy()), strict=True))
     elif share is not None and share_source == "your_entries" and first is not None:
         start, at = first[0] / 100, pd.Period(first[1], freq="M")
         between = net[(net.index > at) & (net.index <= pd.Period(goal.saved_as_of, freq="M"))]
-        path = run_balance(start, share, between.to_numpy())
-        points = [(at, start), *zip(between.index, path, strict=True)]
+        balances = run_balance(start, share, between.to_numpy())
+        path = [(at, start), *zip(between.index, balances, strict=True)]
     elif share_source is None:
         created = pd.Period(goal.created_date, freq="M")
         months = max(1, (pd.Period(goal.saved_as_of, freq="M") - created).n + 1)
-        points = [(created + i, saved * (i + 1) / months) for i in range(months)]
+        path = [(created + i, saved * (i + 1) / months) for i in range(months)]
     elif first is not None:
-        points = [(pd.Period(first[1], freq="M"), first[0] / 100)]
-    past = [{"month": str(m), "saved": round(float(v), 2)} for m, v in points if m < now]
-    return thin(past, HISTORY_POINTS)
+        path = [(pd.Period(first[1], freq="M"), first[0] / 100)]
+    past = [{"month": str(m), "saved": round(float(v), 2)} for m, v in path if m < now]
+    return past if points is None else thin(past, points)

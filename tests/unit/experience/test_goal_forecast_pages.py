@@ -262,3 +262,19 @@ def test_the_scale_uses_round_steps() -> None:
         "$40k",
         "$1.2M",
     ]
+
+
+def test_the_overview_goal_card_follows_the_period(client: TestClient, tools: Tools) -> None:
+    """Overview feedback (Oct 5, 2026): an earlier period shows where the goal stood at its end,
+    from the same history the goal's chart shows."""
+    page = client.get("/?month=2026-06").text
+    g = next(g for g in running(tools) if f"{g['name']} · end of Jun 2026" in page)
+    by_month = {h["month"]: h["saved"] for h in tools.saved_histories()[str(g["goal_id"])]}
+    if str(g["created_date"]) > "2026-06-30":
+        assert "Not started yet" in page
+    else:
+        assert f"${by_month['2026-06']:,.0f}</span>" in page
+        assert "(estimated)" in page
+    assert "See how it got here" in page
+    # This month's card is today's goal, with its forecast
+    assert "end of" not in client.get("/").text

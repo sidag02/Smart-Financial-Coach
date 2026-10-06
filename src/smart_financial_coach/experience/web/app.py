@@ -124,6 +124,15 @@ def month_period(key: str | None, as_of: date) -> Period:
     return Period(start, end)
 
 
+def months_between(start: date, end: date) -> list[date]:
+    """The first day of each calendar month from `start`'s to `end`'s."""
+    first, months = start.replace(day=1), []
+    while first <= end:
+        months.append(first)
+        first = add_months(first, 1)
+    return months
+
+
 def horizon_period(month: Period, horizon: str) -> Period:
     if horizon == "week":
         return Period(month.end - timedelta(days=6), month.end)
@@ -508,28 +517,32 @@ def create_app(
 
     # Overview (mockup 1a)
 
-    def flow_context(tools: Tools, month: Period, horizon: str) -> dict[str, Any]:
-        horizon = horizon if horizon in HORIZONS else "month"
-        period = horizon_period(month, horizon)
+    def flow_context(tools: Tools, period: Period) -> dict[str, Any]:
         summary = tools.get_spending_summary(period.start.isoformat(), period.end.isoformat())
         data = summary.data
         by_category = [(c["category"], c["amount"]) for c in data["by_category"]]
         return {
-            "horizon": horizon,
-            "month_key": month_key(month.start),
             "flow_period": period,
             "flow_summary": data,
             "flow": charts.money_flow(data["income"], by_category, essentials),
         }
 
+    def span(horizon: str) -> str:
+        return horizon if horizon in HORIZONS else "month"
+
     @app.get("/")
     def overview(request: Request, month: str | None = None, horizon: str = "month") -> Response:
+        """One period for the whole page (overview feedback, Oct 5, 2026): the month picker and
+        the span at the top, and every card follows them except "Worth a look", which keeps its
+        fixed window (owner decision on #30)."""
         account = signed_in(request)
         tools = tools_for(account, request)
-        period = month_period(month, as_of)
+        selected = month_period(month, as_of)
+        horizon = span(horizon)
+        period = horizon_period(selected, horizon)
         summary = tools.get_spending_summary(period.start.isoformat(), period.end.isoformat())
         year = tools.get_spending_summary(
-            add_months(period.start, -11).isoformat(), period.end.isoformat()
+            add_months(selected.start, -11).isoformat(), selected.end.isoformat()
         )
         months = [(m["month"], m["spending"]) for m in year.data["by_month"]]
         essential_spend = sum(
@@ -541,31 +554,31 @@ def create_app(
             account,
             active="overview",
             greeting=greeting(tools.ledger.timezone),
-            month=period,
+            month=selected,
+            month_key=month_key(selected.start),
+            horizon=horizon,
+            period=period,
             month_options=month_options(),
             summary=summary.data,
             essentials=essential_spend,
-            goal=featured_goal(tools),
-            trend=charts.trend(months, month_key(period.start)),
+            goal=featured_goal(tools, period),
+            trend=charts.trend(
+                months, {month_key(m) for m in months_between(period.start, period.end)}
+            ),
             flags=recent_flags(tools) if flags_live else [],
             spikes=recent_spikes(tools) if spikes_live else [],
             spike_method=spike_method,
             overview_flags=OVERVIEW_FLAGS,
             window_days=FLAG_WINDOW_DAYS,
-            **flow_context(tools, period, horizon),
+            **flow_context(tools, period),
         )
-
-    @app.get("/flow")
-    def flow(request: Request, month: str | None = None, horizon: str = "month") -> Response:
-        tools = tools_for(signed_in(request), request)
-        context = flow_context(tools, month_period(month, as_of), horizon)
-        return page(request, "_flow.html", None, **context)
 
     @app.get("/drill")
     def drill(
         request: Request, category: str, month: str | None = None, horizon: str = "month"
     ) -> Response:
         tools = tools_for(signed_in(request), request)
+        horizon = span(horizon)
         period = horizon_period(month_period(month, as_of), horizon)
         if category not in tools.categories:
             return Response(status_code=404)
@@ -579,6 +592,7 @@ def create_app(
             category=category,
             period=period,
             month_key=month_key(month_period(month, as_of).start),
+            horizon=horizon,
             rows=rows,
             share=(-rows["total"] / spent) if spent else 0.0,
         )
@@ -589,13 +603,16 @@ def create_app(
     def transactions(
         request: Request,
         month: str | None = None,
+        horizon: str = "month",
         category: str | None = None,
         q: Annotated[str, Query(max_length=80)] = "",
         review: bool = False,
     ) -> Response:
         account = signed_in(request)
         tools = tools_for(account, request)
-        period = month_period(month, as_of)
+        selected = month_period(month, as_of)
+        horizon = span(horizon)
+        period = horizon_period(selected, horizon)  # the Overview's period, carried over
         category = category if category in tools.categories else None
         rows = tools.ledger.between(period.start, period.end)
         not_sure = int(rows["needs_review"].sum())
@@ -626,7 +643,9 @@ def create_app(
             "transactions.html",
             account,
             active="transactions",
-            month=period,
+            month=selected,
+            horizon=horizon,
+            period=period,
             month_options=month_options(),
             rows=list(rows.itertuples()),
             count=len(tools.ledger.between(period.start, period.end)),
@@ -984,11 +1003,19 @@ def create_app(
     # form in the drawer. The handlers are plain `def`s, so their SQLite and pandas work runs in
     # the thread pool, never on the event loop (review on #45)
 
-    def featured_goal(tools: Tools) -> dict[str, Any] | None:
-        """The overview's goal: the active one due soonest, else a reached one."""
+    def featured_goal(tools: Tools, period: Period) -> dict[str, Any] | None:
+        """The overview's goal: the active one due soonest, else a reached one. For a period
+        that ends before this month, `then` is where it stood at the period's end: its estimated
+        saved amount (`forecast_goal`'s history), or None if it hadn't started."""
         listed = tools.list_goals(include_ended=False).data["goals"]
         by_status = {s: [g for g in listed if g["status"] == s] for s in ("active", "reached")}
-        return next(iter(by_status["active"] or by_status["reached"]), None)
+        goal: dict[str, Any] | None = next(iter(by_status["active"] or by_status["reached"]), None)
+        if goal is None or month_key(period.end) == month_key(as_of):
+            return goal
+        started = date.fromisoformat(goal["created_date"]) <= period.end
+        history = {h["month"]: h["saved"] for h in tools.saved_histories().get(goal["goal_id"], [])}
+        saved = history.get(month_key(period.end))
+        return goal | {"then": {"day": period.end, "started": started, "saved": saved}}
 
     def goal_fields(form: dict[str, str]) -> dict[str, Any]:
         """The form's fields as the tools take them: amounts without "$" or commas, and the month
